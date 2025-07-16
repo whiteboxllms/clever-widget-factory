@@ -14,7 +14,236 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      checkins: {
+        Row: {
+          after_image_url: string | null
+          checkin_date: string
+          checkout_id: string | null
+          condition_after: Database["public"]["Enums"]["tool_condition"]
+          created_at: string
+          id: string
+          location_found: string | null
+          notes: string | null
+          problems_reported: string | null
+          returned_to_correct_location: boolean
+          tool_id: string
+          user_name: string
+        }
+        Insert: {
+          after_image_url?: string | null
+          checkin_date?: string
+          checkout_id?: string | null
+          condition_after: Database["public"]["Enums"]["tool_condition"]
+          created_at?: string
+          id?: string
+          location_found?: string | null
+          notes?: string | null
+          problems_reported?: string | null
+          returned_to_correct_location?: boolean
+          tool_id: string
+          user_name: string
+        }
+        Update: {
+          after_image_url?: string | null
+          checkin_date?: string
+          checkout_id?: string | null
+          condition_after?: Database["public"]["Enums"]["tool_condition"]
+          created_at?: string
+          id?: string
+          location_found?: string | null
+          notes?: string | null
+          problems_reported?: string | null
+          returned_to_correct_location?: boolean
+          tool_id?: string
+          user_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkins_checkout_id_fkey"
+            columns: ["checkout_id"]
+            isOneToOne: false
+            referencedRelation: "checkouts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkins_tool_id_fkey"
+            columns: ["tool_id"]
+            isOneToOne: false
+            referencedRelation: "tools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checkouts: {
+        Row: {
+          before_image_url: string | null
+          checkout_date: string
+          created_at: string
+          expected_return_date: string | null
+          id: string
+          intended_usage: string | null
+          is_returned: boolean
+          notes: string | null
+          tool_id: string
+          user_name: string
+        }
+        Insert: {
+          before_image_url?: string | null
+          checkout_date?: string
+          created_at?: string
+          expected_return_date?: string | null
+          id?: string
+          intended_usage?: string | null
+          is_returned?: boolean
+          notes?: string | null
+          tool_id: string
+          user_name: string
+        }
+        Update: {
+          before_image_url?: string | null
+          checkout_date?: string
+          created_at?: string
+          expected_return_date?: string | null
+          id?: string
+          intended_usage?: string | null
+          is_returned?: boolean
+          notes?: string | null
+          tool_id?: string
+          user_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkouts_tool_id_fkey"
+            columns: ["tool_id"]
+            isOneToOne: false
+            referencedRelation: "tools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      parts: {
+        Row: {
+          category: string | null
+          cost_per_unit: number | null
+          created_at: string
+          current_quantity: number
+          description: string | null
+          id: string
+          image_url: string | null
+          intended_storage_location: string
+          minimum_quantity: number | null
+          name: string
+          supplier: string | null
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          cost_per_unit?: number | null
+          created_at?: string
+          current_quantity?: number
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          intended_storage_location: string
+          minimum_quantity?: number | null
+          name: string
+          supplier?: string | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          cost_per_unit?: number | null
+          created_at?: string
+          current_quantity?: number
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          intended_storage_location?: string
+          minimum_quantity?: number | null
+          name?: string
+          supplier?: string | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      tools: {
+        Row: {
+          actual_location: string | null
+          category: string | null
+          condition: Database["public"]["Enums"]["tool_condition"]
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          intended_storage_location: string
+          last_maintenance: string | null
+          name: string
+          purchase_date: string | null
+          serial_number: string | null
+          status: Database["public"]["Enums"]["tool_status"]
+          updated_at: string
+        }
+        Insert: {
+          actual_location?: string | null
+          category?: string | null
+          condition?: Database["public"]["Enums"]["tool_condition"]
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          intended_storage_location: string
+          last_maintenance?: string | null
+          name: string
+          purchase_date?: string | null
+          serial_number?: string | null
+          status?: Database["public"]["Enums"]["tool_status"]
+          updated_at?: string
+        }
+        Update: {
+          actual_location?: string | null
+          category?: string | null
+          condition?: Database["public"]["Enums"]["tool_condition"]
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          intended_storage_location?: string
+          last_maintenance?: string | null
+          name?: string
+          purchase_date?: string | null
+          serial_number?: string | null
+          status?: Database["public"]["Enums"]["tool_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +252,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      tool_condition: "excellent" | "good" | "fair" | "poor" | "broken"
+      tool_status: "available" | "checked_out" | "broken" | "maintenance"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +380,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      tool_condition: ["excellent", "good", "fair", "poor", "broken"],
+      tool_status: ["available", "checked_out", "broken", "maintenance"],
+    },
   },
 } as const

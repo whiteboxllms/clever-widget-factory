@@ -89,6 +89,7 @@ export default function Tools() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [toolHistory, setToolHistory] = useState<CheckoutHistory[]>([]);
+  const [currentCheckout, setCurrentCheckout] = useState<{user_name: string} | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -153,6 +154,11 @@ export default function Tools() {
         .order('checkout_date', { ascending: false });
 
       if (checkoutsError) throw checkoutsError;
+      
+      // Find current checkout (not returned)
+      const activeCheckout = checkoutsData?.find(checkout => !checkout.is_returned);
+      setCurrentCheckout(activeCheckout ? { user_name: activeCheckout.user_name } : null);
+      
       setToolHistory(checkoutsData || []);
     } catch (error) {
       console.error('Error fetching tool history:', error);
@@ -177,6 +183,7 @@ export default function Tools() {
   const handleToolClick = (tool: Tool) => {
     setSelectedTool(tool);
     fetchToolHistory(tool.id);
+    setCurrentCheckout(null); // Reset current checkout state
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -654,9 +661,16 @@ export default function Tools() {
                       </div>
                       <div>
                         <h2 className="text-xl">{tool.name}</h2>
-                        <Badge variant={getStatusVariant(tool.status, tool.condition)}>
-                          {getStatusLabel(tool.status, tool.condition)}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={getStatusVariant(tool.status, tool.condition)}>
+                            {getStatusLabel(tool.status, tool.condition)}
+                          </Badge>
+                          {tool.status === 'checked_out' && currentCheckout && (
+                            <span className="text-sm text-muted-foreground">
+                              by {currentCheckout.user_name}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </DialogTitle>
                   </DialogHeader>

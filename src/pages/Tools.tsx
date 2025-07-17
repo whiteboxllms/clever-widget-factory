@@ -4,9 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Plus, Wrench, AlertTriangle, CheckCircle, Clock, User, Calendar } from "lucide-react";
+import { Search, Plus, Wrench, AlertTriangle, CheckCircle, Clock, User, Calendar, Upload, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 interface Tool {
@@ -22,8 +25,21 @@ interface Tool {
   serial_number?: string;
   last_maintenance?: string;
   purchase_date?: string;
+  manual_url?: string;
   created_at: string;
   updated_at: string;
+}
+
+interface NewToolForm {
+  name: string;
+  description: string;
+  category: string;
+  condition: string;
+  status: string;
+  intended_storage_location: string;
+  serial_number: string;
+  manual_url: string;
+  image_file: File | null;
 }
 
 interface CheckoutHistory {
@@ -70,6 +86,20 @@ export default function Tools() {
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [toolHistory, setToolHistory] = useState<CheckoutHistory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [newTool, setNewTool] = useState<NewToolForm>({
+    name: "",
+    description: "",
+    category: "",
+    condition: "good",
+    status: "available",
+    intended_storage_location: "",
+    serial_number: "",
+    manual_url: "",
+    image_file: null
+  });
   const { toast } = useToast();
 
   const fetchTools = async () => {
@@ -138,6 +168,109 @@ export default function Tools() {
     fetchToolHistory(tool.id);
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setNewTool(prev => ({ ...prev, image_file: file }));
+      const reader = new FileReader();
+      reader.onload = () => setImagePreview(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const uploadImage = async (file: File): Promise<string | null> => {
+    const fileName = `${Date.now()}-${file.name}`;
+    const { data, error } = await supabase.storage
+      .from('tool-images')
+      .upload(fileName, file);
+
+    if (error) {
+      console.error('Error uploading image:', error);
+      return null;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('tool-images')
+      .getPublicUrl(fileName);
+
+    return urlData.publicUrl;
+  };
+
+  const handleSubmitNewTool = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      let imageUrl = null;
+      if (newTool.image_file) {
+        imageUrl = await uploadImage(newTool.image_file);
+      }
+
+      const { error } = await supabase
+        .from('tools')
+        .insert({
+          name: newTool.name,
+          description: newTool.description || null,
+          category: newTool.category || null,
+          condition: newTool.condition,
+          status: newTool.status,
+          intended_storage_location: newTool.intended_storage_location,
+          serial_number: newTool.serial_number || null,
+          image_url: imageUrl
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Tool added successfully"
+      });
+
+      // Reset form and close dialog
+      setNewTool({
+        name: "",
+        description: "",
+        category: "",
+        condition: "good",
+        status: "available",
+        intended_storage_location: "",
+        serial_number: "",
+        manual_url: "",
+        image_file: null
+      });
+      setImagePreview(null);
+      setIsAddDialogOpen(false);
+      
+      // Refresh tools list
+      await fetchTools();
+
+    } catch (error) {
+      console.error('Error adding tool:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add tool",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const resetAddForm = () => {
+    setNewTool({
+      name: "",
+      description: "",
+      category: "",
+      condition: "good",
+      status: "available",
+      intended_storage_location: "",
+      serial_number: "",
+      manual_url: "",
+      image_file: null
+    });
+    setImagePreview(null);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -154,10 +287,191 @@ export default function Tools() {
             <h1 className="text-3xl font-bold">Manage Tools</h1>
             <p className="text-muted-foreground">View and manage all your tools and equipment</p>
           </div>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Add New Tool
-          </Button>
+          <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+            setIsAddDialogOpen(open);
+            if (!open) resetAddForm();
+          }}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Add New Tool
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Add New Tool</DialogTitle>
+              </DialogHeader>
+              
+              <form onSubmit={handleSubmitNewTool} className="space-y-6">
+                {/* Image Upload */}
+                <div className="space-y-2">
+                  <Label htmlFor="image">Tool Image</Label>
+                  <div className="flex items-center gap-4">
+                    {imagePreview ? (
+                      <div className="relative w-24 h-24">
+                        <img 
+                          src={imagePreview} 
+                          alt="Preview" 
+                          className="w-full h-full object-cover rounded-lg"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="absolute -top-2 -right-2 h-6 w-6 p-0"
+                          onClick={() => {
+                            setImagePreview(null);
+                            setNewTool(prev => ({ ...prev, image_file: null }));
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="w-24 h-24 border-2 border-dashed border-muted-foreground rounded-lg flex items-center justify-center">
+                        <Upload className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <Input
+                        id="image"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageChange}
+                      />
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Upload an image of the tool (optional)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tool Name */}
+                <div className="space-y-2">
+                  <Label htmlFor="name">Tool Name *</Label>
+                  <Input
+                    id="name"
+                    value={newTool.name}
+                    onChange={(e) => setNewTool(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Enter tool name"
+                    required
+                  />
+                </div>
+
+                {/* Description */}
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={newTool.description}
+                    onChange={(e) => setNewTool(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Enter tool description, specifications, or notes"
+                    rows={3}
+                  />
+                </div>
+
+                {/* Category and Condition */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="category">Category</Label>
+                    <Input
+                      id="category"
+                      value={newTool.category}
+                      onChange={(e) => setNewTool(prev => ({ ...prev, category: e.target.value }))}
+                      placeholder="e.g., Power Tools, Hand Tools"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Condition</Label>
+                    <Select 
+                      value={newTool.condition} 
+                      onValueChange={(value) => setNewTool(prev => ({ ...prev, condition: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="excellent">Excellent</SelectItem>
+                        <SelectItem value="good">Good</SelectItem>
+                        <SelectItem value="fair">Fair</SelectItem>
+                        <SelectItem value="poor">Poor</SelectItem>
+                        <SelectItem value="broken">Broken</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Status and Location */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select 
+                      value={newTool.status} 
+                      onValueChange={(value) => setNewTool(prev => ({ ...prev, status: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="available">Available</SelectItem>
+                        <SelectItem value="checked_out">Checked Out</SelectItem>
+                        <SelectItem value="maintenance">Maintenance</SelectItem>
+                        <SelectItem value="broken">Broken</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="location">Storage Location *</Label>
+                    <Input
+                      id="location"
+                      value={newTool.intended_storage_location}
+                      onChange={(e) => setNewTool(prev => ({ ...prev, intended_storage_location: e.target.value }))}
+                      placeholder="e.g., Shelf A-3, Toolbox #2"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Serial Number and Manual URL */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="serial">Serial Number</Label>
+                    <Input
+                      id="serial"
+                      value={newTool.serial_number}
+                      onChange={(e) => setNewTool(prev => ({ ...prev, serial_number: e.target.value }))}
+                      placeholder="Enter serial number"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="manual">Manual URL</Label>
+                    <Input
+                      id="manual"
+                      type="url"
+                      value={newTool.manual_url}
+                      onChange={(e) => setNewTool(prev => ({ ...prev, manual_url: e.target.value }))}
+                      placeholder="https://example.com/manual.pdf"
+                    />
+                  </div>
+                </div>
+
+                {/* Submit Buttons */}
+                <div className="flex justify-end gap-3 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsAddDialogOpen(false)}
+                    disabled={isSubmitting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting || !newTool.name || !newTool.intended_storage_location}>
+                    {isSubmitting ? "Adding..." : "Add Tool"}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <div className="mb-6">

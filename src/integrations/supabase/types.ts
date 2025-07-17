@@ -274,7 +274,11 @@ export type Database = {
     }
     Enums: {
       tool_condition: "good" | "functional_but_not_efficient" | "not_functional"
-      tool_status: "available" | "checked_out" | "unavailable"
+      tool_status:
+        | "available"
+        | "checked_out"
+        | "unavailable"
+        | "unable_to_find"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -407,7 +411,12 @@ export const Constants = {
         "functional_but_not_efficient",
         "not_functional",
       ],
-      tool_status: ["available", "checked_out", "unavailable"],
+      tool_status: [
+        "available",
+        "checked_out",
+        "unavailable",
+        "unable_to_find",
+      ],
     },
   },
 } as const

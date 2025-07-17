@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Search, Plus, Wrench, AlertTriangle, CheckCircle, Clock, User, Calendar, Upload, X, LogOut, Edit, ArrowLeft } from "lucide-react";
+import { Search, Plus, Wrench, AlertTriangle, CheckCircle, Clock, User, Calendar, Upload, X, LogOut, Edit, ArrowLeft, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ToolCheckoutDialog } from "@/components/ToolCheckoutDialog";
 import { useNavigate } from "react-router-dom";
@@ -71,7 +71,7 @@ interface CheckoutHistory {
 }
 
 const getStatusVariant = (status: string, condition: string) => {
-  if (condition === 'not_functional' || status === 'unavailable') return 'destructive';
+  if (condition === 'not_functional' || status === 'unavailable' || status === 'unable_to_find') return 'destructive';
   if (status === 'checked_out') return 'secondary';
   if (condition === 'good') return 'default';
   return 'outline';
@@ -80,12 +80,13 @@ const getStatusVariant = (status: string, condition: string) => {
 const getStatusLabel = (status: string, condition: string) => {
   if (condition === 'not_functional') return 'Not Functional';
   if (status === 'unavailable') return 'Unavailable';
+  if (status === 'unable_to_find') return 'Unable to Find';
   if (status === 'checked_out') return 'Checked Out';
   return 'Available';
 };
 
 const getConditionIcon = (status: string, condition: string) => {
-  if (condition === 'not_functional') return AlertTriangle;
+  if (condition === 'not_functional' || status === 'unable_to_find') return AlertTriangle;
   if (status === 'unavailable') return Clock;
   return CheckCircle;
 };
@@ -117,6 +118,9 @@ export default function Tools() {
   const { isAdmin } = useAuth();
   const [editTool, setEditTool] = useState<Tool | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
+  const [toolToRemove, setToolToRemove] = useState<Tool | null>(null);
+  const [removeReason, setRemoveReason] = useState("");
   const navigate = useNavigate();
 
   const fetchTools = async () => {
@@ -378,6 +382,44 @@ export default function Tools() {
       toast({
         title: "Error",
         description: "Failed to update tool",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRemoveTool = async () => {
+    if (!toolToRemove) return;
+
+    setIsSubmitting(true);
+
+    try {
+      const { error } = await supabase
+        .from('tools')
+        .update({
+          status: 'unable_to_find',
+          known_issues: removeReason ? `Tool removed: ${removeReason}` : 'Tool removed by admin'
+        })
+        .eq('id', toolToRemove.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Tool Removed",
+        description: `${toolToRemove.name} has been marked as unable to find`
+      });
+
+      setIsRemoveDialogOpen(false);
+      setToolToRemove(null);
+      setRemoveReason("");
+      await fetchTools();
+
+    } catch (error) {
+      console.error('Error removing tool:', error);
+      toast({
+        title: "Error",
+        description: "Failed to remove tool",
         variant: "destructive"
       });
     } finally {
@@ -671,18 +713,33 @@ export default function Tools() {
                         )}
                         
                         {isAdmin && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditTool(tool);
-                            }}
-                          >
-                            <Edit className="mr-2 h-3 w-3" />
-                            Edit Tool
-                          </Button>
+                          <div className="space-y-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="w-full"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditTool(tool);
+                              }}
+                            >
+                              <Edit className="mr-2 h-3 w-3" />
+                              Edit Tool
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="w-full"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setToolToRemove(tool);
+                                setIsRemoveDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="mr-2 h-3 w-3" />
+                              Remove Tool
+                            </Button>
+                          </div>
                         )}
                       </div>
                     </CardContent>
@@ -1017,6 +1074,7 @@ export default function Tools() {
                          <SelectItem value="available">Available</SelectItem>
                          <SelectItem value="checked_out">Checked Out</SelectItem>
                          <SelectItem value="unavailable">Unavailable</SelectItem>
+                         <SelectItem value="unable_to_find">Unable to Find</SelectItem>
                        </SelectContent>
                     </Select>
                   </div>
@@ -1113,6 +1171,55 @@ export default function Tools() {
                   </Button>
                 </div>
               </form>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Remove Tool Dialog */}
+        <Dialog open={isRemoveDialogOpen} onOpenChange={setIsRemoveDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Remove Tool</DialogTitle>
+            </DialogHeader>
+            
+            {toolToRemove && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Are you sure you want to remove <strong>{toolToRemove.name}</strong>? This will mark the tool as "Unable to Find".
+                </p>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="remove-reason">Reason for removal</Label>
+                  <Select value={removeReason} onValueChange={setRemoveReason}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a reason" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="testing">Testing</SelectItem>
+                      <SelectItem value="tool thrown away">Tool thrown away</SelectItem>
+                      <SelectItem value="unable to find">Unable to find</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsRemoveDialogOpen(false)}
+                    disabled={isSubmitting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    onClick={handleRemoveTool}
+                    disabled={isSubmitting || !removeReason}
+                  >
+                    {isSubmitting ? "Removing..." : "Remove Tool"}
+                  </Button>
+                </div>
+              </div>
             )}
           </DialogContent>
         </Dialog>

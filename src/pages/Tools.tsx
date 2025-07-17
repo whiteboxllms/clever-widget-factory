@@ -1076,7 +1076,7 @@ export default function Tools() {
                       </SelectTrigger>
                        <SelectContent>
                          <SelectItem value="good">Good</SelectItem>
-                         <SelectItem value="functional_but_not_efficient">Functional but not as efficient as it could be</SelectItem>
+                          <SelectItem value="functional_but_not_efficient">Functional but inefficient</SelectItem>
                          <SelectItem value="not_functional">Not functional</SelectItem>
                        </SelectContent>
                     </Select>

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Search, Plus, Wrench, AlertTriangle, CheckCircle, Clock, User, Calendar, Upload, X, LogOut, Edit, Home } from "lucide-react";
+import { Search, Plus, Wrench, AlertTriangle, CheckCircle, Clock, User, Calendar, Upload, X, LogOut, Edit, ArrowLeft } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ToolCheckoutDialog } from "@/components/ToolCheckoutDialog";
 import { useNavigate } from "react-router-dom";
@@ -344,18 +344,23 @@ export default function Tools() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
+    <div className="min-h-screen bg-background">
+      <header className="border-b bg-card">
+        <div className="flex items-center gap-4 p-4">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Dashboard
+          </Button>
           <div>
-            <h1 className="text-3xl font-bold">Manage Tools</h1>
+            <h1 className="text-2xl font-bold">Manage Tools</h1>
             <p className="text-muted-foreground">View and manage all your tools and equipment</p>
           </div>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => navigate('/')}>
-              <Home className="mr-2 h-4 w-4" />
-              Back to Main Menu
-            </Button>
+        </div>
+      </header>
+
+      <main className="p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex justify-end items-center mb-6">
             <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
               setIsAddDialogOpen(open);
               if (!open) resetAddForm();
@@ -542,19 +547,18 @@ export default function Tools() {
               </DialogContent>
             </Dialog>
           </div>
-        </div>
 
-        <div className="mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search tools by name, category, or description..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+          <div className="mb-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search tools by name, category, or description..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
           </div>
-        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredTools.map((tool) => {
@@ -997,7 +1001,8 @@ export default function Tools() {
             )}
           </DialogContent>
         </Dialog>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

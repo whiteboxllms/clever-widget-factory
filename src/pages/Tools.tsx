@@ -175,6 +175,9 @@ export default function Tools() {
 
       if (checkinsError) throw checkinsError;
       
+      console.log('Checkouts data:', checkoutsData);
+      console.log('Standalone checkins:', standaloneCheckins);
+      
       // Find current checkout (not returned)
       const activeCheckout = checkoutsData?.find(checkout => !checkout.is_returned);
       setCurrentCheckout(activeCheckout ? { user_name: activeCheckout.user_name } : null);
@@ -192,6 +195,7 @@ export default function Tools() {
         }))
       ].sort((a, b) => new Date(b.checkout_date).getTime() - new Date(a.checkout_date).getTime());
       
+      console.log('Combined history:', allHistory);
       setToolHistory(allHistory);
     } catch (error) {
       console.error('Error fetching tool history:', error);

@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Wrench, ExternalLink } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Wrench, ExternalLink, Upload, UserPlus } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useNavigate } from 'react-router-dom';
 
 interface Part {
@@ -68,14 +69,17 @@ export default function Inventory() {
   const [newPart, setNewPart] = useState({
     name: '',
     description: '',
-    category: '',
     current_quantity: 0,
     minimum_quantity: 0,
     cost_per_unit: '',
     unit: 'pieces',
-    supplier: '',
+    supplier: 'Lazada',
     intended_storage_location: ''
   });
+
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [showAddSupplierDialog, setShowAddSupplierDialog] = useState(false);
+  const [newSupplier, setNewSupplier] = useState('');
 
   const [quantityChange, setQuantityChange] = useState({
     amount: '',
@@ -201,14 +205,14 @@ export default function Inventory() {
       setNewPart({
         name: '',
         description: '',
-        category: '',
         current_quantity: 0,
         minimum_quantity: 0,
         cost_per_unit: '',
         unit: 'pieces',
-        supplier: '',
+        supplier: 'Lazada',
         intended_storage_location: ''
       });
+      setSelectedImage(null);
       setShowAddDialog(false);
       fetchParts();
     } catch (error) {
@@ -423,24 +427,52 @@ export default function Inventory() {
                   />
                 </div>
 
-                <div>
-                  <Label htmlFor="category">Category</Label>
-                  <Input
-                    id="category"
-                    value={newPart.category}
-                    onChange={(e) => setNewPart({...newPart, category: e.target.value})}
-                    placeholder="e.g., Fasteners, Hardware"
-                  />
+                <div className="col-span-2">
+                  <Label htmlFor="image">Picture</Label>
+                  <div className="flex items-center gap-4">
+                    <Input
+                      id="image"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setSelectedImage(e.target.files?.[0] || null)}
+                      className="flex-1"
+                    />
+                    <Upload className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  {selectedImage && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Selected: {selectedImage.name}
+                    </p>
+                  )}
                 </div>
 
-                <div>
-                  <Label htmlFor="supplier">Supplier</Label>
-                  <Input
-                    id="supplier"
+                <div className="col-span-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <Label>Supplier</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAddSupplierDialog(true)}
+                      className="flex items-center gap-1"
+                    >
+                      <UserPlus className="h-3 w-3" />
+                      Add Supplier
+                    </Button>
+                  </div>
+                  <RadioGroup
                     value={newPart.supplier}
-                    onChange={(e) => setNewPart({...newPart, supplier: e.target.value})}
-                    placeholder="Enter supplier name"
-                  />
+                    onValueChange={(value) => setNewPart({...newPart, supplier: value})}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="Lazada" id="lazada" />
+                      <Label htmlFor="lazada">Lazada</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="Stargazer" id="stargazer" />
+                      <Label htmlFor="stargazer">Stargazer</Label>
+                    </div>
+                  </RadioGroup>
                 </div>
 
                 <div>
@@ -515,6 +547,51 @@ export default function Inventory() {
                 </Button>
                 <Button onClick={addPart} disabled={!newPart.name || !newPart.intended_storage_location}>
                   Add Consumable
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Add Supplier Dialog */}
+          <Dialog open={showAddSupplierDialog} onOpenChange={setShowAddSupplierDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Supplier</DialogTitle>
+                <DialogDescription>
+                  Add a new supplier option to the system
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="newSupplier">Supplier Name</Label>
+                  <Input
+                    id="newSupplier"
+                    value={newSupplier}
+                    onChange={(e) => setNewSupplier(e.target.value)}
+                    placeholder="Enter supplier name"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => setShowAddSupplierDialog(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={() => {
+                    // For now, just close the dialog
+                    // In a real implementation, this would save to a suppliers table
+                    toast({
+                      title: "Feature Coming Soon",
+                      description: "Custom supplier addition will be implemented soon",
+                    });
+                    setShowAddSupplierDialog(false);
+                    setNewSupplier('');
+                  }}
+                  disabled={!newSupplier.trim()}
+                >
+                  Add Supplier
                 </Button>
               </div>
             </DialogContent>

@@ -84,6 +84,7 @@ export type Database = {
           intended_usage: string | null
           is_returned: boolean
           notes: string | null
+          pre_existing_issues: string | null
           tool_id: string
           user_name: string
         }
@@ -96,6 +97,7 @@ export type Database = {
           intended_usage?: string | null
           is_returned?: boolean
           notes?: string | null
+          pre_existing_issues?: string | null
           tool_id: string
           user_name: string
         }
@@ -108,6 +110,7 @@ export type Database = {
           intended_usage?: string | null
           is_returned?: boolean
           notes?: string | null
+          pre_existing_issues?: string | null
           tool_id?: string
           user_name?: string
         }

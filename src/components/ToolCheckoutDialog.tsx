@@ -125,7 +125,8 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: Tool
           user_name: userFullName,
           intended_usage: form.intendedUsage || null,
           notes: form.notes || null,
-          before_image_url: beforeImageUrl
+          before_image_url: beforeImageUrl,
+          pre_existing_issues: form.preCheckoutIssues || null
         });
 
       if (error) throw error;

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Wrench, ExternalLink, Upload, UserPlus, Check, ChevronsUpDown } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Wrench, ExternalLink, Upload, UserPlus, Check, ChevronsUpDown, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -97,6 +97,7 @@ export default function Inventory() {
   const [newSupplier, setNewSupplier] = useState('');
   const [supplierOpen, setSupplierOpen] = useState(false);
   const [editSupplierOpen, setEditSupplierOpen] = useState(false);
+  const [toolsSummaryExpanded, setToolsSummaryExpanded] = useState(false);
 
   const [quantityChange, setQuantityChange] = useState({
     amount: '',
@@ -476,7 +477,7 @@ export default function Inventory() {
             <DialogTrigger asChild>
               <Button className="flex items-center gap-2">
                 <Plus className="h-4 w-4" />
-                Add Inventory Item
+                Add Item
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
@@ -658,7 +659,7 @@ export default function Inventory() {
                   Cancel
                 </Button>
                 <Button onClick={addPart} disabled={!newPart.name || !newPart.intended_storage_location}>
-                  Add Inventory Item
+                  Add Item
                 </Button>
               </div>
             </DialogContent>
@@ -704,7 +705,15 @@ export default function Inventory() {
         {/* Tools Summary Section */}
         <div className="mb-8">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold text-foreground">Tools Summary</h2>
+            <div 
+              className="flex items-center gap-2 cursor-pointer"
+              onClick={() => setToolsSummaryExpanded(!toolsSummaryExpanded)}
+            >
+              <ChevronDown 
+                className={`h-5 w-5 transition-transform ${toolsSummaryExpanded ? 'rotate-180' : ''}`} 
+              />
+              <h2 className="text-2xl font-bold text-foreground">Tools Summary</h2>
+            </div>
             <Button 
               variant="outline" 
               onClick={() => navigate('/tools')}
@@ -716,68 +725,70 @@ export default function Inventory() {
             </Button>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {toolSummaries.map((tool) => (
-              <Card key={tool.name} className="hover:shadow-md transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg">{tool.name}</CardTitle>
-                      <CardDescription className="mt-1">
-                        {tool.category || 'Uncategorized'}
-                      </CardDescription>
-                    </div>
-                    <Badge variant="secondary" className="ml-2">
-                      {tool.total_count} total
-                    </Badge>
-                  </div>
-                </CardHeader>
-                
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Available:</span>
-                      <Badge variant="default" className="bg-green-100 text-green-800">
-                        {tool.available_count}
+          {toolsSummaryExpanded && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {toolSummaries.map((tool) => (
+                <Card key={tool.name} className="hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <CardTitle className="text-lg">{tool.name}</CardTitle>
+                        <CardDescription className="mt-1">
+                          {tool.category || 'Uncategorized'}
+                        </CardDescription>
+                      </div>
+                      <Badge variant="secondary" className="ml-2">
+                        {tool.total_count} total
                       </Badge>
                     </div>
-                    
-                    {tool.checked_out_count > 0 && (
+                  </CardHeader>
+                  
+                  <CardContent>
+                    <div className="space-y-2">
                       <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Checked out:</span>
-                        <Badge variant="destructive">
-                          {tool.checked_out_count}
+                        <span className="text-muted-foreground">Available:</span>
+                        <Badge variant="default" className="bg-green-100 text-green-800">
+                          {tool.available_count}
                         </Badge>
                       </div>
-                    )}
-                    
-                    {tool.unavailable_count > 0 && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Unavailable:</span>
-                        <Badge variant="secondary">
-                          {tool.unavailable_count}
-                        </Badge>
+                      
+                      {tool.checked_out_count > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Checked out:</span>
+                          <Badge variant="destructive">
+                            {tool.checked_out_count}
+                          </Badge>
+                        </div>
+                      )}
+                      
+                      {tool.unavailable_count > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Unavailable:</span>
+                          <Badge variant="secondary">
+                            {tool.unavailable_count}
+                          </Badge>
+                        </div>
+                      )}
+                      
+                      {tool.unable_to_find_count > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Unable to find:</span>
+                          <Badge variant="destructive">
+                            {tool.unable_to_find_count}
+                          </Badge>
+                        </div>
+                      )}
+                      
+                      <div className="flex justify-between text-sm pt-2 border-t">
+                        <span className="text-muted-foreground">Location:</span>
+                        <span className="text-right font-medium">{tool.location}</span>
                       </div>
-                    )}
-                    
-                    {tool.unable_to_find_count > 0 && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Unable to find:</span>
-                        <Badge variant="destructive">
-                          {tool.unable_to_find_count}
-                        </Badge>
-                      </div>
-                    )}
-                    
-                    <div className="flex justify-between text-sm pt-2 border-t">
-                      <span className="text-muted-foreground">Location:</span>
-                      <span className="text-right font-medium">{tool.location}</span>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Consumables Section */}

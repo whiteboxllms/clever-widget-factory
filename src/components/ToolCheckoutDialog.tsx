@@ -13,6 +13,7 @@ interface Tool {
   id: string;
   name: string;
   manual_url?: string;
+  known_issues?: string;
 }
 
 interface ToolCheckoutDialogProps {
@@ -26,6 +27,7 @@ interface CheckoutForm {
   userName: string;
   intendedUsage: string;
   notes: string;
+  preCheckoutIssues: string;
   beforeImageFiles: File[];
 }
 
@@ -34,6 +36,7 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: Tool
     userName: "",
     intendedUsage: "",
     notes: "",
+    preCheckoutIssues: "",
     beforeImageFiles: []
   });
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -127,6 +130,7 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: Tool
         userName: "",
         intendedUsage: "",
         notes: "",
+        preCheckoutIssues: "",
         beforeImageFiles: []
       });
       setImagePreviews([]);
@@ -150,6 +154,7 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: Tool
       userName: "",
       intendedUsage: "",
       notes: "",
+      preCheckoutIssues: "",
       beforeImageFiles: []
     });
     setImagePreviews([]);
@@ -225,14 +230,38 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: Tool
             />
           </div>
 
+          {/* Known Issues - Read Only */}
+          {tool?.known_issues && (
+            <div className="space-y-2">
+              <Label>Known Issues</Label>
+              <div className="bg-muted p-3 rounded-lg">
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                  {tool.known_issues}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Pre-checkout Inspection */}
           <div className="space-y-2">
             <Label>Pre-Checkout Inspection</Label>
             <div className="bg-muted p-4 rounded-lg space-y-3">
               <p className="text-sm">
-                Please perform a visual inspection of the tool and document any pre-existing issues or damage.
+                Please perform a visual inspection of the tool and document any pre-existing issues or damage not already listed in known issues.
               </p>
               
+              {/* Pre-existing Issues Text Field */}
+              <div className="space-y-2">
+                <Label htmlFor="preCheckoutIssues">Pre-existing Issues Found</Label>
+                <Textarea
+                  id="preCheckoutIssues"
+                  value={form.preCheckoutIssues}
+                  onChange={(e) => setForm(prev => ({ ...prev, preCheckoutIssues: e.target.value }))}
+                  placeholder="Document any new issues found that are not already listed in known issues"
+                  rows={3}
+                />
+              </div>
+
               {/* Image Upload */}
               <div className="space-y-2">
                 <Label htmlFor="inspectionImages">Upload Images of Any Pre-existing Issues</Label>

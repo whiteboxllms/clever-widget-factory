@@ -9,7 +9,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Tools from "./pages/Tools";
-import Parts from "./pages/Parts";
+import Inventory from "./pages/Inventory";
 import CheckIn from "./pages/CheckIn";
 import NotFound from "./pages/NotFound";
 
@@ -34,9 +34,9 @@ const App = () => (
                 <Tools />
               </ProtectedRoute>
             } />
-            <Route path="/parts" element={
+            <Route path="/inventory" element={
               <ProtectedRoute>
-                <Parts />
+                <Inventory />
               </ProtectedRoute>
             } />
             <Route path="/checkin" element={

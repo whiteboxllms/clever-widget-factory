@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Wrench, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface Part {
   id: string;
@@ -28,9 +29,30 @@ interface Part {
   updated_at: string;
 }
 
-export default function Parts() {
+interface Tool {
+  id: string;
+  name: string;
+  category: string | null;
+  status: 'available' | 'checked_out' | 'unavailable' | 'unable_to_find';
+  condition: 'good' | 'functional_but_not_efficient' | 'not_functional';
+  intended_storage_location: string;
+}
+
+interface ToolSummary {
+  name: string;
+  category: string | null;
+  total_count: number;
+  available_count: number;
+  checked_out_count: number;
+  unavailable_count: number;
+  unable_to_find_count: number;
+  location: string;
+}
+
+export default function Inventory() {
   const [parts, setParts] = useState<Part[]>([]);
   const [filteredParts, setFilteredParts] = useState<Part[]>([]);
+  const [toolSummaries, setToolSummaries] = useState<ToolSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -41,6 +63,7 @@ export default function Parts() {
   const [quantityPart, setQuantityPart] = useState<Part | null>(null);
   const [quantityOperation, setQuantityOperation] = useState<'add' | 'remove'>('add');
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const [newPart, setNewPart] = useState({
     name: '',
@@ -61,6 +84,7 @@ export default function Parts() {
 
   useEffect(() => {
     fetchParts();
+    fetchToolSummaries();
   }, []);
 
   useEffect(() => {
@@ -85,6 +109,51 @@ export default function Parts() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchToolSummaries = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('tools')
+        .select('id, name, category, status, intended_storage_location')
+        .order('name');
+
+      if (error) throw error;
+
+      // Group tools by name and aggregate counts
+      const toolGroups = (data || []).reduce((acc: { [key: string]: ToolSummary }, tool) => {
+        const key = tool.name;
+        if (!acc[key]) {
+          acc[key] = {
+            name: tool.name,
+            category: tool.category,
+            total_count: 0,
+            available_count: 0,
+            checked_out_count: 0,
+            unavailable_count: 0,
+            unable_to_find_count: 0,
+            location: tool.intended_storage_location,
+          };
+        }
+        
+        acc[key].total_count++;
+        if (tool.status === 'available') acc[key].available_count++;
+        else if (tool.status === 'checked_out') acc[key].checked_out_count++;
+        else if (tool.status === 'unavailable') acc[key].unavailable_count++;
+        else if (tool.status === 'unable_to_find') acc[key].unable_to_find_count++;
+        
+        return acc;
+      }, {});
+
+      setToolSummaries(Object.values(toolGroups));
+    } catch (error) {
+      console.error('Error fetching tool summaries:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch tool summaries",
+        variant: "destructive",
+      });
     }
   };
 
@@ -301,10 +370,10 @@ export default function Parts() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading parts...</p>
-        </div>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading inventory...</p>
+          </div>
       </div>
     );
   }
@@ -314,33 +383,33 @@ export default function Parts() {
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-4xl font-bold text-foreground">Parts & Consumables</h1>
-            <p className="text-muted-foreground mt-2">Manage inventory and track quantities</p>
+            <h1 className="text-4xl font-bold text-foreground">Inventory</h1>
+            <p className="text-muted-foreground mt-2">Manage consumables and view tool summaries</p>
           </div>
           
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogTrigger asChild>
               <Button className="flex items-center gap-2">
                 <Plus className="h-4 w-4" />
-                Add New Part
+                Add Consumable
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Add New Part</DialogTitle>
+                <DialogTitle>Add New Consumable</DialogTitle>
                 <DialogDescription>
-                  Add a new part or consumable to your inventory
+                  Add a new consumable item to your inventory
                 </DialogDescription>
               </DialogHeader>
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <Label htmlFor="name">Part Name *</Label>
+                  <Label htmlFor="name">Item Name *</Label>
                   <Input
                     id="name"
                     value={newPart.name}
                     onChange={(e) => setNewPart({...newPart, name: e.target.value})}
-                    placeholder="Enter part name"
+                    placeholder="Enter item name"
                   />
                 </div>
 
@@ -350,7 +419,7 @@ export default function Parts() {
                     id="description"
                     value={newPart.description}
                     onChange={(e) => setNewPart({...newPart, description: e.target.value})}
-                    placeholder="Enter part description"
+                    placeholder="Enter item description"
                   />
                 </div>
 
@@ -445,41 +514,124 @@ export default function Parts() {
                   Cancel
                 </Button>
                 <Button onClick={addPart} disabled={!newPart.name || !newPart.intended_storage_location}>
-                  Add Part
+                  Add Consumable
                 </Button>
               </div>
             </DialogContent>
           </Dialog>
         </div>
 
-        {/* Search and Filter */}
-        <div className="flex gap-4 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder="Search parts by name, description, category, or supplier..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+        {/* Tools Summary Section */}
+        <div className="mb-8">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold text-foreground">Tools Summary</h2>
+            <Button 
+              variant="outline" 
+              onClick={() => navigate('/tools')}
+              className="flex items-center gap-2"
+            >
+              <Wrench className="h-4 w-4" />
+              Manage Tools
+              <ExternalLink className="h-4 w-4" />
+            </Button>
           </div>
           
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Filter by category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              <SelectItem value="low-stock">Low Stock</SelectItem>
-              {categories.map(category => (
-                <SelectItem key={category} value={category}>{category}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {toolSummaries.map((tool) => (
+              <Card key={tool.name} className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-3">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <CardTitle className="text-lg">{tool.name}</CardTitle>
+                      <CardDescription className="mt-1">
+                        {tool.category || 'Uncategorized'}
+                      </CardDescription>
+                    </div>
+                    <Badge variant="secondary" className="ml-2">
+                      {tool.total_count} total
+                    </Badge>
+                  </div>
+                </CardHeader>
+                
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Available:</span>
+                      <Badge variant="default" className="bg-green-100 text-green-800">
+                        {tool.available_count}
+                      </Badge>
+                    </div>
+                    
+                    {tool.checked_out_count > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Checked out:</span>
+                        <Badge variant="destructive">
+                          {tool.checked_out_count}
+                        </Badge>
+                      </div>
+                    )}
+                    
+                    {tool.unavailable_count > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Unavailable:</span>
+                        <Badge variant="secondary">
+                          {tool.unavailable_count}
+                        </Badge>
+                      </div>
+                    )}
+                    
+                    {tool.unable_to_find_count > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Unable to find:</span>
+                        <Badge variant="destructive">
+                          {tool.unable_to_find_count}
+                        </Badge>
+                      </div>
+                    )}
+                    
+                    <div className="flex justify-between text-sm pt-2 border-t">
+                      <span className="text-muted-foreground">Location:</span>
+                      <span className="text-right font-medium">{tool.location}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
 
-        {/* Parts Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Consumables Section */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-foreground mb-4">Consumables & Materials</h2>
+          
+          {/* Search and Filter */}
+          <div className="flex gap-4 mb-6">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Input
+                placeholder="Search consumables by name, description, category, or supplier..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filter by category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                <SelectItem value="low-stock">Low Stock</SelectItem>
+                {categories.map(category => (
+                  <SelectItem key={category} value={category}>{category}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Consumables Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredParts.map((part) => (
             <Card key={part.id} className="hover:shadow-lg transition-shadow">
               <CardHeader>
@@ -509,7 +661,7 @@ export default function Parts() {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Part</AlertDialogTitle>
+                          <AlertDialogTitle>Delete Consumable</AlertDialogTitle>
                           <AlertDialogDescription>
                             Are you sure you want to delete "{part.name}"? This action cannot be undone.
                           </AlertDialogDescription>
@@ -593,33 +745,34 @@ export default function Parts() {
           ))}
         </div>
 
-        {filteredParts.length === 0 && (
-          <div className="text-center py-12">
-            <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-muted-foreground mb-2">No parts found</h3>
-            <p className="text-muted-foreground">
-              {searchTerm || selectedCategory !== 'all' 
-                ? 'Try adjusting your search or filter criteria'
-                : 'Add your first part to get started'
-              }
-            </p>
-          </div>
-        )}
+          {filteredParts.length === 0 && (
+            <div className="text-center py-12">
+              <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-muted-foreground mb-2">No consumables found</h3>
+              <p className="text-muted-foreground">
+                {searchTerm || selectedCategory !== 'all' 
+                  ? 'Try adjusting your search or filter criteria'
+                  : 'Add your first consumable to get started'
+                }
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* Edit Dialog */}
         <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Edit Part</DialogTitle>
+              <DialogTitle>Edit Consumable</DialogTitle>
               <DialogDescription>
-                Update part information
+                Update consumable information
               </DialogDescription>
             </DialogHeader>
             
             {editingPart && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <Label htmlFor="edit-name">Part Name *</Label>
+                  <Label htmlFor="edit-name">Item Name *</Label>
                   <Input
                     id="edit-name"
                     value={editingPart.name}
@@ -713,7 +866,7 @@ export default function Parts() {
                 Cancel
               </Button>
               <Button onClick={updatePart}>
-                Update Part
+                Update Consumable
               </Button>
             </div>
           </DialogContent>

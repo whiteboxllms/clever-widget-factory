@@ -48,6 +48,7 @@ interface NewToolForm {
 
 interface CheckoutHistory {
   id: string;
+  type?: string;
   checkout_date: string;
   expected_return_date?: string;
   user_name: string;
@@ -61,6 +62,10 @@ interface CheckoutHistory {
     problems_reported?: string;
     notes?: string;
     returned_to_correct_location: boolean;
+    user_name?: string;
+    hours_used?: number;
+    location_found?: string;
+    after_image_url?: string;
   };
 }
 
@@ -154,12 +159,35 @@ export default function Tools() {
         .order('checkout_date', { ascending: false });
 
       if (checkoutsError) throw checkoutsError;
+
+      // Fetch standalone check-ins (not linked to any checkout)
+      const { data: standaloneCheckins, error: checkinsError } = await supabase
+        .from('checkins')
+        .select('*')
+        .eq('tool_id', toolId)
+        .is('checkout_id', null)
+        .order('checkin_date', { ascending: false });
+
+      if (checkinsError) throw checkinsError;
       
       // Find current checkout (not returned)
       const activeCheckout = checkoutsData?.find(checkout => !checkout.is_returned);
       setCurrentCheckout(activeCheckout ? { user_name: activeCheckout.user_name } : null);
       
-      setToolHistory(checkoutsData || []);
+      // Combine checkouts and standalone check-ins into history
+      const allHistory = [
+        ...(checkoutsData || []),
+        ...(standaloneCheckins || []).map(checkin => ({
+          id: checkin.id,
+          type: 'checkin',
+          checkout_date: checkin.checkin_date,
+          user_name: checkin.user_name,
+          is_returned: true,
+          checkin: checkin
+        }))
+      ].sort((a, b) => new Date(b.checkout_date).getTime() - new Date(a.checkout_date).getTime());
+      
+      setToolHistory(allHistory);
     } catch (error) {
       console.error('Error fetching tool history:', error);
       toast({
@@ -750,70 +778,108 @@ export default function Tools() {
                           <div className="space-y-3">
                             {toolHistory.map((checkout) => (
                               <div key={checkout.id} className="space-y-2">
-                                {/* Checkout Event */}
-                                <Card className="p-3 bg-blue-50 border-blue-200">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2">
-                                      <LogOut className="h-4 w-4 text-blue-600" />
-                                      <span className="font-medium text-blue-900">Tool Checked Out</span>
-                                    </div>
-                                    <div className="text-sm text-blue-700">
-                                      {new Date(checkout.checkout_date).toLocaleDateString()} at {new Date(checkout.checkout_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </div>
-                                  </div>
-                                  <div className="text-sm space-y-1">
-                                    <div><strong>User:</strong> {checkout.user_name}</div>
-                                    {checkout.intended_usage && (
-                                      <div><strong>Purpose:</strong> {checkout.intended_usage}</div>
-                                    )}
-                                    {checkout.expected_return_date && (
-                                      <div><strong>Expected Return:</strong> {new Date(checkout.expected_return_date).toLocaleDateString()}</div>
-                                    )}
-                                    {checkout.notes && (
-                                      <div><strong>Notes:</strong> {checkout.notes}</div>
-                                    )}
-                                  </div>
-                                </Card>
-
-                                {/* Checkin Event (if returned) */}
-                                {checkout.checkin && (
-                                  <Card className="p-3 bg-green-50 border-green-200 ml-4">
+                                {checkout.type === 'checkin' ? (
+                                  /* Standalone Check-in Event */
+                                  <Card className="p-3 bg-green-50 border-green-200">
                                     <div className="flex items-center justify-between mb-2">
                                       <div className="flex items-center gap-2">
                                         <CheckCircle className="h-4 w-4 text-green-600" />
-                                        <span className="font-medium text-green-900">Tool Checked In</span>
+                                        <span className="font-medium text-green-900">Tool Check-in</span>
                                       </div>
                                       <div className="text-sm text-green-700">
-                                        {new Date(checkout.checkin.checkin_date).toLocaleDateString()} at {new Date(checkout.checkin.checkin_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        {new Date(checkout.checkout_date).toLocaleDateString()} at {new Date(checkout.checkout_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                       </div>
                                     </div>
                                     <div className="text-sm space-y-1">
-                                      <div><strong>Returned by:</strong> {checkout.user_name}</div>
+                                      <div><strong>User:</strong> {checkout.user_name}</div>
                                       <div><strong>Condition after use:</strong> 
-                                        <Badge variant={checkout.checkin.condition_after === 'not_functional' ? 'destructive' : 'default'} className="ml-2">
-                                          {checkout.checkin.condition_after}
+                                        <Badge variant={checkout.checkin?.condition_after === 'not_functional' ? 'destructive' : 'default'} className="ml-2">
+                                          {checkout.checkin?.condition_after}
                                         </Badge>
                                       </div>
-                                      <div><strong>Returned to correct location:</strong> {checkout.checkin.returned_to_correct_location ? 'Yes' : 'No'}</div>
-                                      {checkout.checkin.problems_reported && (
+                                      <div><strong>Returned to correct location:</strong> {checkout.checkin?.returned_to_correct_location ? 'Yes' : 'No'}</div>
+                                      {checkout.checkin?.hours_used && (
+                                        <div><strong>Hours used:</strong> {checkout.checkin.hours_used}</div>
+                                      )}
+                                      {checkout.checkin?.location_found && (
+                                        <div><strong>Found at:</strong> {checkout.checkin.location_found}</div>
+                                      )}
+                                      {checkout.checkin?.problems_reported && (
                                         <div className="text-destructive"><strong>Issues reported:</strong> {checkout.checkin.problems_reported}</div>
                                       )}
-                                      {checkout.checkin.notes && (
-                                        <div><strong>Return notes:</strong> {checkout.checkin.notes}</div>
+                                      {checkout.checkin?.notes && (
+                                        <div><strong>Notes:</strong> {checkout.checkin.notes}</div>
                                       )}
                                     </div>
                                   </Card>
-                                )}
+                                ) : (
+                                  <>
+                                    {/* Checkout Event */}
+                                    <Card className="p-3 bg-blue-50 border-blue-200">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-2">
+                                          <LogOut className="h-4 w-4 text-blue-600" />
+                                          <span className="font-medium text-blue-900">Tool Checked Out</span>
+                                        </div>
+                                        <div className="text-sm text-blue-700">
+                                          {new Date(checkout.checkout_date).toLocaleDateString()} at {new Date(checkout.checkout_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </div>
+                                      </div>
+                                      <div className="text-sm space-y-1">
+                                        <div><strong>User:</strong> {checkout.user_name}</div>
+                                        {checkout.intended_usage && (
+                                          <div><strong>Purpose:</strong> {checkout.intended_usage}</div>
+                                        )}
+                                        {checkout.expected_return_date && (
+                                          <div><strong>Expected Return:</strong> {new Date(checkout.expected_return_date).toLocaleDateString()}</div>
+                                        )}
+                                        {checkout.notes && (
+                                          <div><strong>Notes:</strong> {checkout.notes}</div>
+                                        )}
+                                      </div>
+                                    </Card>
 
-                                {/* Currently Checked Out Indicator */}
-                                {!checkout.is_returned && (
-                                  <Card className="p-3 bg-yellow-50 border-yellow-200 ml-4">
-                                    <div className="flex items-center gap-2">
-                                      <Clock className="h-4 w-4 text-yellow-600" />
-                                      <span className="font-medium text-yellow-900">Currently Checked Out</span>
-                                      <Badge variant="secondary">Active</Badge>
-                                    </div>
-                                  </Card>
+                                    {/* Checkin Event (if returned) */}
+                                    {checkout.checkin && (
+                                      <Card className="p-3 bg-green-50 border-green-200 ml-4">
+                                        <div className="flex items-center justify-between mb-2">
+                                          <div className="flex items-center gap-2">
+                                            <CheckCircle className="h-4 w-4 text-green-600" />
+                                            <span className="font-medium text-green-900">Tool Checked In</span>
+                                          </div>
+                                          <div className="text-sm text-green-700">
+                                            {new Date(checkout.checkin.checkin_date).toLocaleDateString()} at {new Date(checkout.checkin.checkin_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                          </div>
+                                        </div>
+                                        <div className="text-sm space-y-1">
+                                          <div><strong>Returned by:</strong> {checkout.user_name}</div>
+                                          <div><strong>Condition after use:</strong> 
+                                            <Badge variant={checkout.checkin.condition_after === 'not_functional' ? 'destructive' : 'default'} className="ml-2">
+                                              {checkout.checkin.condition_after}
+                                            </Badge>
+                                          </div>
+                                          <div><strong>Returned to correct location:</strong> {checkout.checkin.returned_to_correct_location ? 'Yes' : 'No'}</div>
+                                          {checkout.checkin.problems_reported && (
+                                            <div className="text-destructive"><strong>Issues reported:</strong> {checkout.checkin.problems_reported}</div>
+                                          )}
+                                          {checkout.checkin.notes && (
+                                            <div><strong>Return notes:</strong> {checkout.checkin.notes}</div>
+                                          )}
+                                        </div>
+                                      </Card>
+                                    )}
+
+                                    {/* Currently Checked Out Indicator */}
+                                    {!checkout.is_returned && (
+                                      <Card className="p-3 bg-yellow-50 border-yellow-200 ml-4">
+                                        <div className="flex items-center gap-2">
+                                          <Clock className="h-4 w-4 text-yellow-600" />
+                                          <span className="font-medium text-yellow-900">Currently Checked Out</span>
+                                          <Badge variant="secondary">Active</Badge>
+                                        </div>
+                                      </Card>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             ))}

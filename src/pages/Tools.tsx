@@ -132,11 +132,12 @@ export default function Tools() {
 
   const fetchToolHistory = async (toolId: string) => {
     try {
-      const { data, error } = await supabase
+      // Fetch all checkouts (both returned and not returned)
+      const { data: checkoutsData, error: checkoutsError } = await supabase
         .from('checkouts')
         .select(`
           *,
-          checkins!inner(
+          checkins(
             id,
             checkin_date,
             condition_after,
@@ -148,8 +149,8 @@ export default function Tools() {
         .eq('tool_id', toolId)
         .order('checkout_date', { ascending: false });
 
-      if (error) throw error;
-      setToolHistory(data || []);
+      if (checkoutsError) throw checkoutsError;
+      setToolHistory(checkoutsData || []);
     } catch (error) {
       console.error('Error fetching tool history:', error);
       toast({
@@ -704,65 +705,82 @@ export default function Tools() {
 
                     <TabsContent value="history" className="space-y-4">
                       <div>
-                        <h4 className="font-medium mb-4">Check Out/Check In History</h4>
+                        <h4 className="font-medium mb-4">Usage History</h4>
                         {toolHistory.length > 0 ? (
-                          <div className="space-y-4">
+                          <div className="space-y-3">
                             {toolHistory.map((checkout) => (
-                              <Card key={checkout.id} className="p-4">
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center gap-2">
-                                    <User className="h-4 w-4" />
-                                    <span className="font-medium">{checkout.user_name}</span>
-                                  </div>
-                                  <Badge variant={checkout.is_returned ? "default" : "secondary"}>
-                                    {checkout.is_returned ? "Returned" : "Checked Out"}
-                                  </Badge>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4 text-sm">
-                                  <div>
-                                    <div className="flex items-center gap-1 text-muted-foreground">
-                                      <Calendar className="h-3 w-3" />
-                                      Checked out: {new Date(checkout.checkout_date).toLocaleDateString()}
+                              <div key={checkout.id} className="space-y-2">
+                                {/* Checkout Event */}
+                                <Card className="p-3 bg-blue-50 border-blue-200">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                      <LogOut className="h-4 w-4 text-blue-600" />
+                                      <span className="font-medium text-blue-900">Tool Checked Out</span>
                                     </div>
+                                    <div className="text-sm text-blue-700">
+                                      {new Date(checkout.checkout_date).toLocaleDateString()} at {new Date(checkout.checkout_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </div>
+                                  </div>
+                                  <div className="text-sm space-y-1">
+                                    <div><strong>User:</strong> {checkout.user_name}</div>
                                     {checkout.intended_usage && (
-                                      <div className="mt-1">
-                                        <strong>Usage:</strong> {checkout.intended_usage}
-                                      </div>
+                                      <div><strong>Purpose:</strong> {checkout.intended_usage}</div>
+                                    )}
+                                    {checkout.expected_return_date && (
+                                      <div><strong>Expected Return:</strong> {new Date(checkout.expected_return_date).toLocaleDateString()}</div>
                                     )}
                                     {checkout.notes && (
-                                      <div className="mt-1">
-                                        <strong>Checkout Notes:</strong> {checkout.notes}
-                                      </div>
+                                      <div><strong>Notes:</strong> {checkout.notes}</div>
                                     )}
                                   </div>
-                                  {checkout.checkin && (
-                                    <div>
-                                      <div className="flex items-center gap-1 text-muted-foreground">
-                                        <Calendar className="h-3 w-3" />
-                                        Checked in: {new Date(checkout.checkin.checkin_date).toLocaleDateString()}
+                                </Card>
+
+                                {/* Checkin Event (if returned) */}
+                                {checkout.checkin && (
+                                  <Card className="p-3 bg-green-50 border-green-200 ml-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <div className="flex items-center gap-2">
+                                        <CheckCircle className="h-4 w-4 text-green-600" />
+                                        <span className="font-medium text-green-900">Tool Checked In</span>
                                       </div>
-                                      <div className="mt-1">
-                                        <strong>Condition:</strong> {checkout.checkin.condition_after}
+                                      <div className="text-sm text-green-700">
+                                        {new Date(checkout.checkin.checkin_date).toLocaleDateString()} at {new Date(checkout.checkin.checkin_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                       </div>
+                                    </div>
+                                    <div className="text-sm space-y-1">
+                                      <div><strong>Returned by:</strong> {checkout.user_name}</div>
+                                      <div><strong>Condition after use:</strong> 
+                                        <Badge variant={checkout.checkin.condition_after === 'broken' ? 'destructive' : 'default'} className="ml-2">
+                                          {checkout.checkin.condition_after}
+                                        </Badge>
+                                      </div>
+                                      <div><strong>Returned to correct location:</strong> {checkout.checkin.returned_to_correct_location ? 'Yes' : 'No'}</div>
                                       {checkout.checkin.problems_reported && (
-                                        <div className="mt-1 text-destructive">
-                                          <strong>Issues:</strong> {checkout.checkin.problems_reported}
-                                        </div>
+                                        <div className="text-destructive"><strong>Issues reported:</strong> {checkout.checkin.problems_reported}</div>
                                       )}
                                       {checkout.checkin.notes && (
-                                        <div className="mt-1">
-                                          <strong>Checkin Notes:</strong> {checkout.checkin.notes}
-                                        </div>
+                                        <div><strong>Return notes:</strong> {checkout.checkin.notes}</div>
                                       )}
                                     </div>
-                                  )}
-                                </div>
-                              </Card>
+                                  </Card>
+                                )}
+
+                                {/* Currently Checked Out Indicator */}
+                                {!checkout.is_returned && (
+                                  <Card className="p-3 bg-yellow-50 border-yellow-200 ml-4">
+                                    <div className="flex items-center gap-2">
+                                      <Clock className="h-4 w-4 text-yellow-600" />
+                                      <span className="font-medium text-yellow-900">Currently Checked Out</span>
+                                      <Badge variant="secondary">Active</Badge>
+                                    </div>
+                                  </Card>
+                                )}
+                              </div>
                             ))}
                           </div>
                         ) : (
                           <p className="text-sm text-muted-foreground">
-                            No checkout history recorded for this tool yet.
+                            No usage history recorded for this tool yet.
                           </p>
                         )}
                       </div>

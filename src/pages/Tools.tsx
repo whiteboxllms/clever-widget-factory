@@ -65,21 +65,21 @@ interface CheckoutHistory {
 }
 
 const getStatusVariant = (status: string, condition: string) => {
-  if (condition === 'broken' || status === 'maintenance') return 'destructive';
+  if (condition === 'not_functional' || status === 'maintenance') return 'destructive';
   if (status === 'checked_out') return 'secondary';
-  if (condition === 'excellent' || condition === 'good') return 'default';
+  if (condition === 'optimal') return 'default';
   return 'outline';
 };
 
 const getStatusLabel = (status: string, condition: string) => {
-  if (condition === 'broken') return 'Broken';
+  if (condition === 'not_functional') return 'Not Functional';
   if (status === 'maintenance') return 'Needs Maintenance';
   if (status === 'checked_out') return 'Checked Out';
   return 'Operational';
 };
 
 const getConditionIcon = (status: string, condition: string) => {
-  if (condition === 'broken') return AlertTriangle;
+  if (condition === 'not_functional') return AlertTriangle;
   if (status === 'maintenance') return Clock;
   return CheckCircle;
 };
@@ -100,7 +100,7 @@ export default function Tools() {
     name: "",
     description: "",
     category: "",
-    condition: "good",
+    condition: "optimal",
     status: "available",
     intended_storage_location: "",
     serial_number: "",
@@ -250,7 +250,7 @@ export default function Tools() {
         name: "",
         description: "",
         category: "",
-        condition: "good",
+        condition: "optimal",
         status: "available",
         intended_storage_location: "",
         serial_number: "",
@@ -280,7 +280,7 @@ export default function Tools() {
       name: "",
       description: "",
       category: "",
-      condition: "good",
+      condition: "optimal",
       status: "available",
       intended_storage_location: "",
       serial_number: "",
@@ -475,13 +475,11 @@ export default function Tools() {
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="excellent">Excellent</SelectItem>
-                          <SelectItem value="good">Good</SelectItem>
-                          <SelectItem value="fair">Fair</SelectItem>
-                          <SelectItem value="poor">Poor</SelectItem>
-                          <SelectItem value="broken">Broken</SelectItem>
-                        </SelectContent>
+                          <SelectContent>
+                            <SelectItem value="optimal">Optimal</SelectItem>
+                            <SelectItem value="functional_but_not_efficient">Functional but not as efficient as it could be</SelectItem>
+                            <SelectItem value="not_functional">Not functional</SelectItem>
+                          </SelectContent>
                       </Select>
                     </div>
                   </div>
@@ -501,7 +499,7 @@ export default function Tools() {
                           <SelectItem value="available">Available</SelectItem>
                           <SelectItem value="checked_out">Checked Out</SelectItem>
                           <SelectItem value="maintenance">Maintenance</SelectItem>
-                          <SelectItem value="broken">Broken</SelectItem>
+                          <SelectItem value="not_functional">Not functional</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -615,7 +613,7 @@ export default function Tools() {
                       
                       {/* Action Buttons */}
                       <div className="mt-3 space-y-2">
-                        {tool.status === 'available' && tool.condition !== 'broken' && (
+                        {tool.status === 'available' && tool.condition !== 'not_functional' && (
                           <Button
                             size="sm"
                             className="w-full"
@@ -792,7 +790,7 @@ export default function Tools() {
                                     <div className="text-sm space-y-1">
                                       <div><strong>Returned by:</strong> {checkout.user_name}</div>
                                       <div><strong>Condition after use:</strong> 
-                                        <Badge variant={checkout.checkin.condition_after === 'broken' ? 'destructive' : 'default'} className="ml-2">
+                                        <Badge variant={checkout.checkin.condition_after === 'not_functional' ? 'destructive' : 'default'} className="ml-2">
                                           {checkout.checkin.condition_after}
                                         </Badge>
                                       </div>
@@ -910,11 +908,9 @@ export default function Tools() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="excellent">Excellent</SelectItem>
-                        <SelectItem value="good">Good</SelectItem>
-                        <SelectItem value="fair">Fair</SelectItem>
-                        <SelectItem value="poor">Poor</SelectItem>
-                        <SelectItem value="broken">Broken</SelectItem>
+                        <SelectItem value="optimal">Optimal</SelectItem>
+                        <SelectItem value="functional_but_not_efficient">Functional but not as efficient as it could be</SelectItem>
+                        <SelectItem value="not_functional">Not functional</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -935,7 +931,7 @@ export default function Tools() {
                         <SelectItem value="available">Available</SelectItem>
                         <SelectItem value="checked_out">Checked Out</SelectItem>
                         <SelectItem value="maintenance">Maintenance</SelectItem>
-                        <SelectItem value="broken">Broken</SelectItem>
+                        <SelectItem value="not_functional">Not functional</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

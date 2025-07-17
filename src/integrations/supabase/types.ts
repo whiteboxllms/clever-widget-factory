@@ -270,8 +270,15 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      tool_condition: "excellent" | "good" | "fair" | "poor" | "broken"
-      tool_status: "available" | "checked_out" | "broken" | "maintenance"
+      tool_condition:
+        | "optimal"
+        | "functional_but_not_efficient"
+        | "not_functional"
+      tool_status:
+        | "available"
+        | "checked_out"
+        | "not_functional"
+        | "maintenance"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -399,8 +406,17 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      tool_condition: ["excellent", "good", "fair", "poor", "broken"],
-      tool_status: ["available", "checked_out", "broken", "maintenance"],
+      tool_condition: [
+        "optimal",
+        "functional_but_not_efficient",
+        "not_functional",
+      ],
+      tool_status: [
+        "available",
+        "checked_out",
+        "not_functional",
+        "maintenance",
+      ],
     },
   },
 } as const

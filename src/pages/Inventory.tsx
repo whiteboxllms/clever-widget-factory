@@ -990,7 +990,7 @@ export default function Inventory() {
                     <span className="text-lg font-bold">{part.current_quantity} {part.unit}</span>
                   </div>
                   
-                  {part.minimum_quantity && (
+                  {part.minimum_quantity != null && part.minimum_quantity > 0 && (
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Minimum:</span>
                       <span className="text-sm">{part.minimum_quantity} {part.unit}</span>

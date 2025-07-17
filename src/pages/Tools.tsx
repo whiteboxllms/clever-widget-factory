@@ -455,12 +455,16 @@ export default function Tools() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="category">Category</Label>
-                      <Input
-                        id="category"
-                        value={newTool.category}
-                        onChange={(e) => setNewTool(prev => ({ ...prev, category: e.target.value }))}
-                        placeholder="e.g., Power Tools, Hand Tools"
-                      />
+                      <Select value={newTool.category} onValueChange={(value) => setNewTool(prev => ({ ...prev, category: value }))}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Electric Tool">Electric Tool</SelectItem>
+                          <SelectItem value="Combustion Engine">Combustion Engine</SelectItem>
+                          <SelectItem value="Hand Tools">Hand Tools</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
                       <Label>Condition</Label>
@@ -885,12 +889,16 @@ export default function Tools() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="edit-category">Category</Label>
-                    <Input
-                      id="edit-category"
-                      value={editTool.category || ''}
-                      onChange={(e) => setEditTool(prev => prev ? { ...prev, category: e.target.value } : null)}
-                      placeholder="e.g., Power Tools, Hand Tools"
-                    />
+                    <Select value={editTool.category || ''} onValueChange={(value) => setEditTool(prev => prev ? { ...prev, category: value } : null)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Electric Tool">Electric Tool</SelectItem>
+                        <SelectItem value="Combustion Engine">Combustion Engine</SelectItem>
+                        <SelectItem value="Hand Tools">Hand Tools</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label>Condition</Label>

@@ -129,6 +129,7 @@ export default function Tools() {
       const { data, error } = await supabase
         .from('tools')
         .select('*')
+        .neq('status', 'unable_to_find')
         .order('name');
 
       if (error) throw error;

@@ -140,6 +140,7 @@ export type Database = {
           minimum_quantity: number | null
           name: string
           supplier: string | null
+          supplier_id: string | null
           unit: string | null
           updated_at: string
         }
@@ -155,6 +156,7 @@ export type Database = {
           minimum_quantity?: number | null
           name: string
           supplier?: string | null
+          supplier_id?: string | null
           unit?: string | null
           updated_at?: string
         }
@@ -170,10 +172,19 @@ export type Database = {
           minimum_quantity?: number | null
           name?: string
           supplier?: string | null
+          supplier_id?: string | null
           unit?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_parts_supplier"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -199,6 +210,39 @@ export type Database = {
           role?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      suppliers: {
+        Row: {
+          contact_info: Json | null
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          quality_rating: number | null
+          updated_at: string
+        }
+        Insert: {
+          contact_info?: Json | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          quality_rating?: number | null
+          updated_at?: string
+        }
+        Update: {
+          contact_info?: Json | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          quality_rating?: number | null
+          updated_at?: string
         }
         Relationships: []
       }

@@ -10,9 +10,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Wrench, ExternalLink, Upload, UserPlus } from 'lucide-react';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Wrench, ExternalLink, Upload, UserPlus, Check, ChevronsUpDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+
+interface Supplier {
+  id: string;
+  name: string;
+  contact_info: any;
+  quality_rating: number;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 interface Part {
   id: string;
@@ -24,6 +37,7 @@ interface Part {
   cost_per_unit: number | null;
   unit: string | null;
   supplier: string | null;
+  supplier_id: string | null;
   intended_storage_location: string;
   image_url: string | null;
   created_at: string;
@@ -54,6 +68,7 @@ export default function Inventory() {
   const [parts, setParts] = useState<Part[]>([]);
   const [filteredParts, setFilteredParts] = useState<Part[]>([]);
   const [toolSummaries, setToolSummaries] = useState<ToolSummary[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -73,13 +88,15 @@ export default function Inventory() {
     minimum_quantity: 0,
     cost_per_unit: '',
     unit: 'pieces',
-    supplier: 'Lazada',
+    supplier_id: '',
     intended_storage_location: ''
   });
 
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [showAddSupplierDialog, setShowAddSupplierDialog] = useState(false);
   const [newSupplier, setNewSupplier] = useState('');
+  const [supplierOpen, setSupplierOpen] = useState(false);
+  const [editSupplierOpen, setEditSupplierOpen] = useState(false);
 
   const [quantityChange, setQuantityChange] = useState({
     amount: '',
@@ -89,6 +106,7 @@ export default function Inventory() {
   useEffect(() => {
     fetchParts();
     fetchToolSummaries();
+    fetchSuppliers();
   }, []);
 
   useEffect(() => {
@@ -99,7 +117,13 @@ export default function Inventory() {
     try {
       const { data, error } = await supabase
         .from('parts')
-        .select('*')
+        .select(`
+          *,
+          suppliers (
+            id,
+            name
+          )
+        `)
         .order('name');
 
       if (error) throw error;
@@ -113,6 +137,26 @@ export default function Inventory() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSuppliers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
+      setSuppliers(data || []);
+    } catch (error) {
+      console.error('Error fetching suppliers:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch suppliers",
+        variant: "destructive",
+      });
     }
   };
 
@@ -165,12 +209,16 @@ export default function Inventory() {
     let filtered = parts;
 
     if (searchTerm) {
-      filtered = filtered.filter(part =>
-        part.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        part.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        part.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        part.supplier?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      filtered = filtered.filter(part => {
+        const supplierName = part.supplier_id 
+          ? suppliers.find(s => s.id === part.supplier_id)?.name 
+          : part.supplier; // fallback to old supplier field
+        
+        return part.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          part.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          part.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          supplierName?.toLowerCase().includes(searchTerm.toLowerCase());
+      });
     }
 
     if (selectedCategory !== 'all') {
@@ -209,7 +257,7 @@ export default function Inventory() {
         minimum_quantity: 0,
         cost_per_unit: '',
         unit: 'pieces',
-        supplier: 'Lazada',
+        supplier_id: '',
         intended_storage_location: ''
       });
       setSelectedImage(null);
@@ -238,7 +286,7 @@ export default function Inventory() {
           minimum_quantity: editingPart.minimum_quantity,
           cost_per_unit: editingPart.cost_per_unit,
           unit: editingPart.unit,
-          supplier: editingPart.supplier,
+          supplier_id: editingPart.supplier_id,
           intended_storage_location: editingPart.intended_storage_location
         })
         .eq('id', editingPart.id);
@@ -369,6 +417,39 @@ export default function Inventory() {
     );
   };
 
+  const addSupplier = async () => {
+    if (!newSupplier.trim()) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .insert([{ name: newSupplier.trim() }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Supplier added successfully",
+      });
+
+      setNewSupplier('');
+      setShowAddSupplierDialog(false);
+      await fetchSuppliers();
+      
+      // Auto-select the new supplier
+      setNewPart({...newPart, supplier_id: data.id});
+    } catch (error) {
+      console.error('Error adding supplier:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add supplier",
+        variant: "destructive",
+      });
+    }
+  };
+
   const categories = Array.from(new Set(parts.map(part => part.category).filter(Boolean))) as string[];
 
   if (loading) {
@@ -460,19 +541,50 @@ export default function Inventory() {
                       Add Supplier
                     </Button>
                   </div>
-                  <RadioGroup
-                    value={newPart.supplier}
-                    onValueChange={(value) => setNewPart({...newPart, supplier: value})}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="Lazada" id="lazada" />
-                      <Label htmlFor="lazada">Lazada</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="Stargazer" id="stargazer" />
-                      <Label htmlFor="stargazer">Stargazer</Label>
-                    </div>
-                  </RadioGroup>
+                  <Popover open={supplierOpen} onOpenChange={setSupplierOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={supplierOpen}
+                        className="w-full justify-between"
+                      >
+                        {newPart.supplier_id
+                          ? suppliers.find((supplier) => supplier.id === newPart.supplier_id)?.name
+                          : "Select supplier..."}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0">
+                      <Command>
+                        <CommandInput placeholder="Search supplier..." />
+                        <CommandList>
+                          <CommandEmpty>No supplier found.</CommandEmpty>
+                          <CommandGroup>
+                            {suppliers.map((supplier) => (
+                              <CommandItem
+                                key={supplier.id}
+                                value={supplier.name}
+                                onSelect={(currentValue) => {
+                                  const selectedSupplier = suppliers.find(s => s.name.toLowerCase() === currentValue.toLowerCase());
+                                  setNewPart({...newPart, supplier_id: selectedSupplier?.id || ''});
+                                  setSupplierOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    newPart.supplier_id === supplier.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {supplier.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 <div>
@@ -579,16 +691,7 @@ export default function Inventory() {
                   Cancel
                 </Button>
                 <Button 
-                  onClick={() => {
-                    // For now, just close the dialog
-                    // In a real implementation, this would save to a suppliers table
-                    toast({
-                      title: "Feature Coming Soon",
-                      description: "Custom supplier addition will be implemented soon",
-                    });
-                    setShowAddSupplierDialog(false);
-                    setNewSupplier('');
-                  }}
+                  onClick={addSupplier}
                   disabled={!newSupplier.trim()}
                 >
                   Add Supplier
@@ -867,12 +970,63 @@ export default function Inventory() {
                 </div>
 
                 <div className="col-span-2">
-                  <Label htmlFor="edit-supplier">Supplier</Label>
-                  <Input
-                    id="edit-supplier"
-                    value={editingPart.supplier || ''}
-                    onChange={(e) => setEditingPart({...editingPart, supplier: e.target.value})}
-                  />
+                  <div className="flex items-center justify-between mb-2">
+                    <Label>Supplier</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAddSupplierDialog(true)}
+                      className="flex items-center gap-1"
+                    >
+                      <UserPlus className="h-3 w-3" />
+                      Add Supplier
+                    </Button>
+                  </div>
+                  <Popover open={editSupplierOpen} onOpenChange={setEditSupplierOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={editSupplierOpen}
+                        className="w-full justify-between"
+                      >
+                        {editingPart.supplier_id
+                          ? suppliers.find((supplier) => supplier.id === editingPart.supplier_id)?.name
+                          : editingPart.supplier || "Select supplier..."}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0">
+                      <Command>
+                        <CommandInput placeholder="Search supplier..." />
+                        <CommandList>
+                          <CommandEmpty>No supplier found.</CommandEmpty>
+                          <CommandGroup>
+                            {suppliers.map((supplier) => (
+                              <CommandItem
+                                key={supplier.id}
+                                value={supplier.name}
+                                onSelect={(currentValue) => {
+                                  const selectedSupplier = suppliers.find(s => s.name.toLowerCase() === currentValue.toLowerCase());
+                                  setEditingPart({...editingPart, supplier_id: selectedSupplier?.id || null});
+                                  setEditSupplierOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    editingPart.supplier_id === supplier.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {supplier.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 <div>

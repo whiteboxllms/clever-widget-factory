@@ -183,8 +183,13 @@ export default function Tools() {
       setCurrentCheckout(activeCheckout ? { user_name: activeCheckout.user_name } : null);
       
       // Combine checkouts and standalone check-ins into history
+      const processedCheckouts = (checkoutsData || []).map(checkout => ({
+        ...checkout,
+        checkin: checkout.checkins && checkout.checkins.length > 0 ? checkout.checkins[0] : null
+      }));
+      
       const allHistory = [
-        ...(checkoutsData || []),
+        ...processedCheckouts,
         ...(standaloneCheckins || []).map(checkin => ({
           id: checkin.id,
           type: 'checkin',
@@ -195,7 +200,7 @@ export default function Tools() {
         }))
       ].sort((a, b) => new Date(b.checkout_date).getTime() - new Date(a.checkout_date).getTime());
       
-      console.log('Combined history:', allHistory);
+      console.log('Processed history:', allHistory);
       setToolHistory(allHistory);
     } catch (error) {
       console.error('Error fetching tool history:', error);

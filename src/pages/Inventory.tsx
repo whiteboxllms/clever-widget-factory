@@ -94,6 +94,8 @@ export default function Inventory() {
   });
 
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [editSelectedImage, setEditSelectedImage] = useState<File | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [showAddSupplierDialog, setShowAddSupplierDialog] = useState(false);
   const [newSupplier, setNewSupplier] = useState('');
   const [supplierOpen, setSupplierOpen] = useState(false);
@@ -236,13 +238,39 @@ export default function Inventory() {
     setFilteredParts(filtered);
   };
 
+  const uploadImage = async (file: File, partId?: string) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${partId || Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    const filePath = `parts/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('tool-images')
+      .upload(filePath, file);
+
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('tool-images')
+      .getPublicUrl(filePath);
+
+    return publicUrl;
+  };
+
   const addPart = async () => {
     try {
+      setUploadingImage(true);
+      
+      let imageUrl = null;
+      if (selectedImage) {
+        imageUrl = await uploadImage(selectedImage);
+      }
+
       const { data, error } = await supabase
         .from('parts')
         .insert([{
           ...newPart,
-          cost_per_unit: newPart.cost_per_unit ? parseFloat(newPart.cost_per_unit) : null
+          cost_per_unit: newPart.cost_per_unit ? parseFloat(newPart.cost_per_unit) : null,
+          image_url: imageUrl
         }])
         .select()
         .single();
@@ -292,6 +320,8 @@ export default function Inventory() {
         description: "Failed to add part",
         variant: "destructive",
       });
+    } finally {
+      setUploadingImage(false);
     }
   };
 
@@ -299,6 +329,13 @@ export default function Inventory() {
     if (!editingPart) return;
 
     try {
+      setUploadingImage(true);
+      
+      let imageUrl = editingPart.image_url;
+      if (editSelectedImage) {
+        imageUrl = await uploadImage(editSelectedImage, editingPart.id);
+      }
+
       const { error } = await supabase
         .from('parts')
         .update({
@@ -309,7 +346,8 @@ export default function Inventory() {
           cost_per_unit: editingPart.cost_per_unit,
           unit: editingPart.unit,
           supplier_id: editingPart.supplier_id,
-          intended_storage_location: editingPart.intended_storage_location
+          intended_storage_location: editingPart.intended_storage_location,
+          image_url: imageUrl
         })
         .eq('id', editingPart.id);
 
@@ -340,6 +378,7 @@ export default function Inventory() {
 
       setShowEditDialog(false);
       setEditingPart(null);
+      setEditSelectedImage(null);
       fetchParts();
     } catch (error) {
       console.error('Error updating part:', error);
@@ -348,6 +387,8 @@ export default function Inventory() {
         description: "Failed to update part",
         variant: "destructive",
       });
+    } finally {
+      setUploadingImage(false);
     }
   };
 
@@ -716,8 +757,8 @@ export default function Inventory() {
                 <Button variant="outline" onClick={() => setShowAddDialog(false)}>
                   Cancel
                 </Button>
-                <Button onClick={addPart} disabled={!newPart.name || !newPart.intended_storage_location}>
-                  Add Item
+                <Button onClick={addPart} disabled={!newPart.name || !newPart.intended_storage_location || uploadingImage}>
+                  {uploadingImage ? 'Uploading...' : 'Add Item'}
                 </Button>
               </div>
             </DialogContent>
@@ -934,6 +975,16 @@ export default function Inventory() {
               
               <CardContent>
                 <div className="space-y-3">
+                  {part.image_url && (
+                    <div className="w-full h-32 rounded-md overflow-hidden bg-muted">
+                      <img
+                        src={part.image_url}
+                        alt={part.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+                  
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">Current Quantity:</span>
                     <span className="text-lg font-bold">{part.current_quantity} {part.unit}</span>
@@ -1041,6 +1092,36 @@ export default function Inventory() {
                     value={editingPart.description || ''}
                     onChange={(e) => setEditingPart({...editingPart, description: e.target.value})}
                   />
+                </div>
+
+                <div className="col-span-2">
+                  <Label htmlFor="edit-image">Picture</Label>
+                  <div className="space-y-2">
+                    {editingPart.image_url && (
+                      <div className="w-32 h-32 rounded-md overflow-hidden bg-muted">
+                        <img
+                          src={editingPart.image_url}
+                          alt={editingPart.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+                    <div className="flex items-center gap-4">
+                      <Input
+                        id="edit-image"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setEditSelectedImage(e.target.files?.[0] || null)}
+                        className="flex-1"
+                      />
+                      <Upload className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    {editSelectedImage && (
+                      <p className="text-sm text-muted-foreground">
+                        New image selected: {editSelectedImage.name}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="col-span-2">
@@ -1161,8 +1242,8 @@ export default function Inventory() {
               <Button variant="outline" onClick={() => setShowEditDialog(false)}>
                 Cancel
               </Button>
-              <Button onClick={updatePart}>
-                Update Inventory Item
+              <Button onClick={updatePart} disabled={uploadingImage}>
+                {uploadingImage ? 'Uploading...' : 'Update Inventory Item'}
               </Button>
             </div>
           </DialogContent>

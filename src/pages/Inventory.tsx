@@ -199,7 +199,7 @@ export default function Inventory() {
 
       toast({
         title: "Success",
-        description: "Part added successfully",
+        description: "Inventory item added successfully",
       });
 
       setNewPart({
@@ -388,21 +388,21 @@ export default function Inventory() {
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-4xl font-bold text-foreground">Inventory</h1>
-            <p className="text-muted-foreground mt-2">Manage consumables and view tool summaries</p>
+            <p className="text-muted-foreground mt-2">Manage inventory items and view tool summaries</p>
           </div>
           
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogTrigger asChild>
               <Button className="flex items-center gap-2">
                 <Plus className="h-4 w-4" />
-                Add Consumable
+                Add Inventory Item
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Add New Consumable</DialogTitle>
+                <DialogTitle>Add New Inventory Item</DialogTitle>
                 <DialogDescription>
-                  Add a new consumable item to your inventory
+                  Add a new inventory item to your system
                 </DialogDescription>
               </DialogHeader>
               
@@ -546,7 +546,7 @@ export default function Inventory() {
                   Cancel
                 </Button>
                 <Button onClick={addPart} disabled={!newPart.name || !newPart.intended_storage_location}>
-                  Add Consumable
+                  Add Inventory Item
                 </Button>
               </div>
             </DialogContent>
@@ -679,7 +679,7 @@ export default function Inventory() {
 
         {/* Consumables Section */}
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-foreground mb-4">Consumables & Materials</h2>
+          <h2 className="text-2xl font-bold text-foreground mb-4">Inventory Items</h2>
           
           {/* Search and Filter */}
           <div className="flex gap-4 mb-6">

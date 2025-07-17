@@ -23,18 +23,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
         // Check admin role when user changes
         if (session?.user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('user_id', session.user.id)
-            .single();
-          setIsAdmin(profile?.role === 'admin');
+          // Use setTimeout to defer Supabase calls and prevent deadlock
+          setTimeout(async () => {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('role')
+              .eq('user_id', session.user.id)
+              .single();
+            setIsAdmin(profile?.role === 'admin');
+          }, 0);
         } else {
           setIsAdmin(false);
         }

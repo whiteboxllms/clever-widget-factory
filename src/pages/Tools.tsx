@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Search, Plus, Wrench, AlertTriangle, CheckCircle, Clock, User, Calendar, Upload, X, LogOut, Edit, ArrowLeft, Trash2 } from "lucide-react";
@@ -122,15 +123,20 @@ export default function Tools() {
   const [toolToRemove, setToolToRemove] = useState<Tool | null>(null);
   const [removeReason, setRemoveReason] = useState("");
   const [removeComment, setRemoveComment] = useState("");
+  const [showRemovedItems, setShowRemovedItems] = useState(false);
   const navigate = useNavigate();
 
   const fetchTools = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('tools')
-        .select('*')
-        .neq('status', 'unable_to_find')
-        .order('name');
+        .select('*');
+      
+      if (!showRemovedItems) {
+        query = query.neq('status', 'unable_to_find');
+      }
+      
+      const { data, error } = await query.order('name');
 
       if (error) throw error;
       setTools(data || []);
@@ -221,6 +227,10 @@ export default function Tools() {
   useEffect(() => {
     fetchTools();
   }, []);
+
+  useEffect(() => {
+    fetchTools();
+  }, [showRemovedItems]);
 
   const filteredTools = tools.filter(tool =>
     tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -455,7 +465,30 @@ export default function Tools() {
 
       <main className="p-6">
         <div className="max-w-7xl mx-auto">
-          <div className="flex justify-end items-center mb-6">
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  placeholder="Search tools..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 w-80"
+                />
+              </div>
+              {isAdmin && (
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="show-removed"
+                    checked={showRemovedItems}
+                    onCheckedChange={setShowRemovedItems}
+                  />
+                  <Label htmlFor="show-removed" className="text-sm text-muted-foreground">
+                    Show removed items
+                  </Label>
+                </div>
+              )}
+            </div>
             <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
               setIsAddDialogOpen(open);
               if (!open) resetAddForm();
@@ -642,18 +675,6 @@ export default function Tools() {
                 </form>
               </DialogContent>
             </Dialog>
-          </div>
-
-          <div className="mb-6">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search tools by name, category, or description..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
           </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

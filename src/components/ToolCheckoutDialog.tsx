@@ -130,10 +130,24 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: Tool
 
       if (error) throw error;
 
-      // Update tool status to checked_out
+      // Update tool with new known issues if any were found during inspection
+      let updatedKnownIssues = tool.known_issues || '';
+      if (form.preCheckoutIssues.trim()) {
+        const newIssues = form.preCheckoutIssues.trim();
+        if (updatedKnownIssues) {
+          updatedKnownIssues += '\n\n' + newIssues;
+        } else {
+          updatedKnownIssues = newIssues;
+        }
+      }
+
+      // Update tool status to checked_out and add any new known issues
       const { error: updateError } = await supabase
         .from('tools')
-        .update({ status: 'checked_out' })
+        .update({ 
+          status: 'checked_out',
+          known_issues: updatedKnownIssues || null
+        })
         .eq('id', tool.id);
 
       if (updateError) throw updateError;

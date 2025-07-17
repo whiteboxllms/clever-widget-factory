@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { Upload, X, ExternalLink } from "lucide-react";
 
 interface Tool {
@@ -24,7 +25,6 @@ interface ToolCheckoutDialogProps {
 }
 
 interface CheckoutForm {
-  userName: string;
   intendedUsage: string;
   notes: string;
   preCheckoutIssues: string;
@@ -32,8 +32,8 @@ interface CheckoutForm {
 }
 
 export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: ToolCheckoutDialogProps) {
+  const { user } = useAuth();
   const [form, setForm] = useState<CheckoutForm>({
-    userName: "",
     intendedUsage: "",
     notes: "",
     preCheckoutIssues: "",
@@ -41,7 +41,25 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: Tool
   });
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [userFullName, setUserFullName] = useState<string>("");
   const { toast } = useToast();
+
+  // Fetch user profile when user changes
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('user_id', user.id)
+          .single();
+        
+        setUserFullName(profile?.full_name || user.email || "");
+      }
+    };
+
+    fetchUserProfile();
+  }, [user]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -104,7 +122,7 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: Tool
         .from('checkouts')
         .insert({
           tool_id: tool.id,
-          user_name: form.userName,
+          user_name: userFullName,
           intended_usage: form.intendedUsage || null,
           notes: form.notes || null,
           before_image_url: beforeImageUrl
@@ -127,7 +145,6 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: Tool
 
       // Reset form
       setForm({
-        userName: "",
         intendedUsage: "",
         notes: "",
         preCheckoutIssues: "",
@@ -151,7 +168,6 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: Tool
 
   const resetForm = () => {
     setForm({
-      userName: "",
       intendedUsage: "",
       notes: "",
       preCheckoutIssues: "",
@@ -188,16 +204,12 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: Tool
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* User Name */}
+          {/* User Name - Display Only */}
           <div className="space-y-2">
-            <Label htmlFor="userName">Your Name *</Label>
-            <Input
-              id="userName"
-              value={form.userName}
-              onChange={(e) => setForm(prev => ({ ...prev, userName: e.target.value }))}
-              placeholder="Enter your full name"
-              required
-            />
+            <Label>Checking out as</Label>
+            <div className="bg-muted p-3 rounded-lg">
+              <p className="text-sm font-medium">{userFullName}</p>
+            </div>
           </div>
 
           {/* Intended Usage */}
@@ -321,7 +333,7 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: Tool
             </Button>
             <Button 
               type="submit" 
-              disabled={isSubmitting || !form.userName || !form.intendedUsage}
+              disabled={isSubmitting || !form.intendedUsage || !userFullName}
             >
               {isSubmitting ? "Checking Out..." : "Check Out Tool"}
             </Button>

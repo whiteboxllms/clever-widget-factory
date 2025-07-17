@@ -28,13 +28,6 @@ export default function Dashboard() {
 
   const menuItems = [
     {
-      title: "Check Out Tool",
-      description: "Check out a tool for use",
-      icon: XCircle,
-      path: "/checkout",
-      color: "bg-blue-500"
-    },
-    {
       title: "Check In Tool",
       description: "Return a tool and report condition",
       icon: CheckCircle,
@@ -56,8 +49,8 @@ export default function Dashboard() {
       color: "bg-orange-500"
     },
     {
-      title: "Manage Tools",
-      description: "Add and edit tools",
+      title: "Tools",
+      description: "View and manage tools",
       icon: Wrench,
       path: "/tools",
       color: "bg-red-500"

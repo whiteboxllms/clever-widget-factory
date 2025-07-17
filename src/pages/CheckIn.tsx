@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Package, Calendar, User, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Package, Calendar, User, AlertTriangle, CheckCircle2, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,7 +20,6 @@ type CheckoutWithTool = Tables<'checkouts'> & {
 type CheckInForm = {
   condition_after: string;
   problems_reported: string;
-  location_found: string;
   notes: string;
   returned_to_correct_location: boolean;
   sop_deviation: string;
@@ -37,7 +36,6 @@ export default function CheckIn() {
   const [form, setForm] = useState<CheckInForm>({
     condition_after: '',
     problems_reported: '',
-    location_found: '',
     notes: '',
     returned_to_correct_location: true,
     sop_deviation: '',
@@ -87,7 +85,7 @@ export default function CheckIn() {
           user_name: selectedCheckout.user_name,
           condition_after: form.condition_after as any,
           problems_reported: form.problems_reported || null,
-          location_found: form.location_found || null,
+          location_found: selectedCheckout.tools.intended_storage_location,
           notes: `${form.notes}\n\nSOP Deviation: ${form.sop_deviation}\nSub-optimal Operation Comments: ${form.suboptimal_comments}`,
           returned_to_correct_location: form.returned_to_correct_location,
         });
@@ -108,7 +106,7 @@ export default function CheckIn() {
         .update({ 
           condition: form.condition_after as any,
           status: form.condition_after === 'broken' ? 'broken' : 'available',
-          actual_location: form.location_found || selectedCheckout.tools.intended_storage_location
+          actual_location: selectedCheckout.tools.intended_storage_location
         })
         .eq('id', selectedCheckout.tool_id);
 
@@ -123,7 +121,6 @@ export default function CheckIn() {
       setForm({
         condition_after: '',
         problems_reported: '',
-        location_found: '',
         notes: '',
         returned_to_correct_location: true,
         sop_deviation: '',
@@ -233,10 +230,6 @@ export default function CheckIn() {
                           className="w-full" 
                           onClick={() => {
                             setSelectedCheckout(checkout);
-                            setForm(prev => ({
-                              ...prev,
-                              location_found: checkout.tools.actual_location || checkout.tools.intended_storage_location
-                            }));
                           }}
                         >
                           Check In Tool
@@ -269,16 +262,6 @@ export default function CheckIn() {
                           </div>
 
                           <div>
-                            <Label htmlFor="location_found">Where was the tool found?</Label>
-                            <Input
-                              id="location_found"
-                              value={form.location_found}
-                              onChange={(e) => setForm(prev => ({ ...prev, location_found: e.target.value }))}
-                              placeholder="Tool location when returned"
-                            />
-                          </div>
-
-                          <div>
                             <Label htmlFor="problems_reported">Problems or Issues Encountered</Label>
                             <Textarea
                               id="problems_reported"
@@ -291,18 +274,32 @@ export default function CheckIn() {
 
                           <div>
                             <Label htmlFor="sop_deviation">To what degree did you deviate from our SOP and best practices? *</Label>
-                            <Select value={form.sop_deviation} onValueChange={(value) => setForm(prev => ({ ...prev, sop_deviation: value }))}>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select deviation level" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">No deviation - followed all SOPs</SelectItem>
-                                <SelectItem value="minor">Minor deviation - small adjustments made</SelectItem>
-                                <SelectItem value="moderate">Moderate deviation - some procedures modified</SelectItem>
-                                <SelectItem value="major">Major deviation - significant changes to procedures</SelectItem>
-                                <SelectItem value="complete">Complete deviation - SOPs not followed</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <div className="flex gap-2">
+                              <Select value={form.sop_deviation} onValueChange={(value) => setForm(prev => ({ ...prev, sop_deviation: value }))}>
+                                <SelectTrigger className="flex-1">
+                                  <SelectValue placeholder="Select deviation level" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">No deviation - followed all SOPs</SelectItem>
+                                  <SelectItem value="minor">Minor deviation - small adjustments made</SelectItem>
+                                  <SelectItem value="moderate">Moderate deviation - some procedures modified</SelectItem>
+                                  <SelectItem value="major">Major deviation - significant changes to procedures</SelectItem>
+                                  <SelectItem value="complete">Complete deviation - SOPs not followed</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              {checkout.tools.manual_url && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => window.open(checkout.tools.manual_url, '_blank')}
+                                  className="flex items-center gap-1"
+                                >
+                                  SOP
+                                  <ExternalLink className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
                           </div>
 
                           <div>
@@ -336,7 +333,7 @@ export default function CheckIn() {
                               className="rounded border-gray-300"
                             />
                             <Label htmlFor="returned_to_correct_location">
-                              Tool was returned to its correct storage location
+                              Tool was returned to its correct storage location: {checkout.tools.intended_storage_location}
                             </Label>
                           </div>
 

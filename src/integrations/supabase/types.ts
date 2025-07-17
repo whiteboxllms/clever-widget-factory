@@ -204,6 +204,7 @@ export type Database = {
           image_url: string | null
           intended_storage_location: string
           last_maintenance: string | null
+          manual_url: string | null
           name: string
           purchase_date: string | null
           serial_number: string | null
@@ -220,6 +221,7 @@ export type Database = {
           image_url?: string | null
           intended_storage_location: string
           last_maintenance?: string | null
+          manual_url?: string | null
           name: string
           purchase_date?: string | null
           serial_number?: string | null
@@ -236,6 +238,7 @@ export type Database = {
           image_url?: string | null
           intended_storage_location?: string
           last_maintenance?: string | null
+          manual_url?: string | null
           name?: string
           purchase_date?: string | null
           serial_number?: string | null

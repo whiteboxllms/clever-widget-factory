@@ -212,11 +212,12 @@ export default function Tools() {
           name: newTool.name,
           description: newTool.description || null,
           category: newTool.category || null,
-          condition: newTool.condition,
-          status: newTool.status,
+          condition: newTool.condition as any,
+          status: newTool.status as any,
           intended_storage_location: newTool.intended_storage_location,
           serial_number: newTool.serial_number || null,
-          image_url: imageUrl
+          image_url: imageUrl,
+          manual_url: newTool.manual_url || null
         });
 
       if (error) throw error;

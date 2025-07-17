@@ -582,9 +582,9 @@ export default function Tools() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Electric Tool">Electric Tool</SelectItem>
+                          <SelectItem value="Vehicle">Vehicle</SelectItem>
                           <SelectItem value="Combustion Engine">Combustion Engine</SelectItem>
                           <SelectItem value="Hand Tools">Hand Tools</SelectItem>
-                          <SelectItem value="Vehicle">Vehicle</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

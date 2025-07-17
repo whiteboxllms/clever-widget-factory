@@ -28,6 +28,7 @@ interface Tool {
   last_maintenance?: string;
   purchase_date?: string;
   manual_url?: string;
+  known_issues?: string;
   created_at: string;
   updated_at: string;
 }
@@ -697,9 +698,20 @@ export default function Tools() {
                     <TabsContent value="issues" className="space-y-4">
                       <div>
                         <h4 className="font-medium mb-2">Known Issues</h4>
-                        <p className="text-sm text-muted-foreground">
-                          No known issues reported for this tool yet.
-                        </p>
+                        {tool.known_issues ? (
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                            <div className="flex items-start gap-2">
+                              <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                              <div className="text-sm text-amber-800">
+                                <p className="whitespace-pre-wrap">{tool.known_issues}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            No known issues reported for this tool yet.
+                          </p>
+                        )}
                       </div>
                     </TabsContent>
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,19 +10,26 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Auth() {
-  const { user, signIn, signUp, resetPassword } = useAuth();
+  const { user, signIn, signUp, resetPassword, updatePassword } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showResetForm, setShowResetForm] = useState(false);
+  const [isPasswordReset, setIsPasswordReset] = useState(false);
 
-  // Redirect if already authenticated
+  // Check if user is coming from password reset link
   useEffect(() => {
-    if (user) {
+    const urlParams = new URLSearchParams(location.search);
+    const type = urlParams.get('type');
+    
+    if (type === 'recovery' && user) {
+      setIsPasswordReset(true);
+    } else if (user && !isPasswordReset) {
       navigate('/');
     }
-  }, [user, navigate]);
+  }, [user, location, navigate, isPasswordReset]);
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -109,6 +116,48 @@ export default function Auth() {
     setLoading(false);
   };
 
+  const handleUpdatePassword = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const formData = new FormData(e.currentTarget);
+    const password = formData.get('password') as string;
+    const confirmPassword = formData.get('confirmPassword') as string;
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      setLoading(false);
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters long");
+      setLoading(false);
+      return;
+    }
+
+    const { error } = await updatePassword(password);
+    
+    if (error) {
+      setError(error.message);
+      toast({
+        title: "Password update failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Password updated successfully",
+        description: "Your password has been updated. You can now use your new password to sign in.",
+      });
+      setIsPasswordReset(false);
+      navigate('/');
+    }
+    
+    setLoading(false);
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
@@ -117,7 +166,48 @@ export default function Auth() {
           <CardDescription>Sign in to manage your tools and equipment</CardDescription>
         </CardHeader>
         <CardContent>
-          {showResetForm ? (
+          {isPasswordReset ? (
+            <div className="space-y-4">
+              <div className="text-center">
+                <h3 className="text-lg font-semibold">Set New Password</h3>
+                <p className="text-sm text-muted-foreground">Enter your new password below</p>
+              </div>
+              
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              <form onSubmit={handleUpdatePassword} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new-password">New Password</Label>
+                  <Input
+                    id="new-password"
+                    name="password"
+                    type="password"
+                    placeholder="Enter new password"
+                    required
+                    minLength={6}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-password">Confirm Password</Label>
+                  <Input
+                    id="confirm-password"
+                    name="confirmPassword"
+                    type="password"
+                    placeholder="Confirm new password"
+                    required
+                    minLength={6}
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Updating..." : "Update Password"}
+                </Button>
+              </form>
+            </div>
+          ) : showResetForm ? (
             <div className="space-y-4">
               <div className="text-center">
                 <h3 className="text-lg font-semibold">Reset Password</h3>

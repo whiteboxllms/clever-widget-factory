@@ -153,7 +153,11 @@ export default function Tools() {
             condition_after,
             problems_reported,
             notes,
-            returned_to_correct_location
+            returned_to_correct_location,
+            user_name,
+            hours_used,
+            location_found,
+            after_image_url
           )
         `)
         .eq('tool_id', toolId)
@@ -852,21 +856,27 @@ export default function Tools() {
                                             {new Date(checkout.checkin.checkin_date).toLocaleDateString()} at {new Date(checkout.checkin.checkin_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                           </div>
                                         </div>
-                                        <div className="text-sm space-y-1">
-                                          <div><strong>Returned by:</strong> {checkout.user_name}</div>
-                                          <div><strong>Condition after use:</strong> 
-                                            <Badge variant={checkout.checkin.condition_after === 'not_functional' ? 'destructive' : 'default'} className="ml-2">
-                                              {checkout.checkin.condition_after}
-                                            </Badge>
-                                          </div>
-                                          <div><strong>Returned to correct location:</strong> {checkout.checkin.returned_to_correct_location ? 'Yes' : 'No'}</div>
-                                          {checkout.checkin.problems_reported && (
-                                            <div className="text-destructive"><strong>Issues reported:</strong> {checkout.checkin.problems_reported}</div>
-                                          )}
-                                          {checkout.checkin.notes && (
-                                            <div><strong>Return notes:</strong> {checkout.checkin.notes}</div>
-                                          )}
-                                        </div>
+                                         <div className="text-sm space-y-1">
+                                           <div><strong>Returned by:</strong> {checkout.checkin.user_name || checkout.user_name}</div>
+                                           <div><strong>Condition after use:</strong> 
+                                             <Badge variant={checkout.checkin.condition_after === 'not_functional' ? 'destructive' : 'default'} className="ml-2">
+                                               {checkout.checkin.condition_after}
+                                             </Badge>
+                                           </div>
+                                           <div><strong>Returned to correct location:</strong> {checkout.checkin.returned_to_correct_location ? 'Yes' : 'No'}</div>
+                                           {checkout.checkin.hours_used && (
+                                             <div><strong>Hours used:</strong> {checkout.checkin.hours_used}</div>
+                                           )}
+                                           {checkout.checkin.location_found && (
+                                             <div><strong>Found at:</strong> {checkout.checkin.location_found}</div>
+                                           )}
+                                           {checkout.checkin.problems_reported && (
+                                             <div className="text-destructive"><strong>Issues reported:</strong> {checkout.checkin.problems_reported}</div>
+                                           )}
+                                           {checkout.checkin.notes && (
+                                             <div><strong>Return notes:</strong> {checkout.checkin.notes}</div>
+                                           )}
+                                         </div>
                                       </Card>
                                     )}
 

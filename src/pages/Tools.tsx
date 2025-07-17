@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Plus, Wrench, AlertTriangle, CheckCircle, Clock, User, Calendar, Upload, X, LogOut } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { Search, Plus, Wrench, AlertTriangle, CheckCircle, Clock, User, Calendar, Upload, X, LogOut, Edit } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ToolCheckoutDialog } from "@/components/ToolCheckoutDialog";
 
@@ -104,6 +105,9 @@ export default function Tools() {
     image_file: null
   });
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
+  const [editTool, setEditTool] = useState<Tool | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const fetchTools = async () => {
     try {
@@ -273,6 +277,58 @@ export default function Tools() {
       image_file: null
     });
     setImagePreview(null);
+  };
+
+  const handleEditTool = (tool: Tool) => {
+    setEditTool(tool);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateTool = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTool) return;
+
+    setIsSubmitting(true);
+
+    try {
+      const { error } = await supabase
+        .from('tools')
+        .update({
+          name: editTool.name,
+          description: editTool.description || null,
+          category: editTool.category || null,
+          condition: editTool.condition as any,
+          status: editTool.status as any,
+          intended_storage_location: editTool.intended_storage_location,
+          actual_location: editTool.actual_location || null,
+          serial_number: editTool.serial_number || null,
+          manual_url: editTool.manual_url || null,
+          last_maintenance: editTool.last_maintenance || null,
+          purchase_date: editTool.purchase_date || null
+        })
+        .eq('id', editTool.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Tool updated successfully"
+      });
+
+      setIsEditDialogOpen(false);
+      setEditTool(null);
+      await fetchTools();
+
+    } catch (error) {
+      console.error('Error updating tool:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update tool",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -532,21 +588,38 @@ export default function Tools() {
                         Location: {tool.actual_location || tool.intended_storage_location}
                       </p>
                       
-                      {/* Checkout Button */}
-                      {tool.status === 'available' && tool.condition !== 'broken' && (
-                        <Button
-                          size="sm"
-                          className="w-full mt-3"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setCheckoutTool(tool);
-                            setIsCheckoutDialogOpen(true);
-                          }}
-                        >
-                          <LogOut className="mr-2 h-3 w-3" />
-                          Checkout
-                        </Button>
-                      )}
+                      {/* Action Buttons */}
+                      <div className="mt-3 space-y-2">
+                        {tool.status === 'available' && tool.condition !== 'broken' && (
+                          <Button
+                            size="sm"
+                            className="w-full"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCheckoutTool(tool);
+                              setIsCheckoutDialogOpen(true);
+                            }}
+                          >
+                            <LogOut className="mr-2 h-3 w-3" />
+                            Checkout
+                          </Button>
+                        )}
+                        
+                        {isAdmin && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditTool(tool);
+                            }}
+                          >
+                            <Edit className="mr-2 h-3 w-3" />
+                            Edit Tool
+                          </Button>
+                        )}
+                      </div>
                     </CardContent>
                   </Card>
                 </DialogTrigger>
@@ -718,6 +791,174 @@ export default function Tools() {
           onOpenChange={setIsCheckoutDialogOpen}
           onSuccess={fetchTools}
         />
+
+        {/* Edit Tool Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Tool</DialogTitle>
+            </DialogHeader>
+            
+            {editTool && (
+              <form onSubmit={handleUpdateTool} className="space-y-6">
+                {/* Tool Name */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-name">Tool Name *</Label>
+                  <Input
+                    id="edit-name"
+                    value={editTool.name}
+                    onChange={(e) => setEditTool(prev => prev ? { ...prev, name: e.target.value } : null)}
+                    placeholder="Enter tool name"
+                    required
+                  />
+                </div>
+
+                {/* Description */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-description">Description</Label>
+                  <Textarea
+                    id="edit-description"
+                    value={editTool.description || ''}
+                    onChange={(e) => setEditTool(prev => prev ? { ...prev, description: e.target.value } : null)}
+                    placeholder="Enter tool description, specifications, or notes"
+                    rows={3}
+                  />
+                </div>
+
+                {/* Category and Condition */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-category">Category</Label>
+                    <Input
+                      id="edit-category"
+                      value={editTool.category || ''}
+                      onChange={(e) => setEditTool(prev => prev ? { ...prev, category: e.target.value } : null)}
+                      placeholder="e.g., Power Tools, Hand Tools"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Condition</Label>
+                    <Select 
+                      value={editTool.condition} 
+                      onValueChange={(value) => setEditTool(prev => prev ? { ...prev, condition: value } : null)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="excellent">Excellent</SelectItem>
+                        <SelectItem value="good">Good</SelectItem>
+                        <SelectItem value="fair">Fair</SelectItem>
+                        <SelectItem value="poor">Poor</SelectItem>
+                        <SelectItem value="broken">Broken</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Status and Intended Location */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select 
+                      value={editTool.status} 
+                      onValueChange={(value) => setEditTool(prev => prev ? { ...prev, status: value } : null)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="available">Available</SelectItem>
+                        <SelectItem value="checked_out">Checked Out</SelectItem>
+                        <SelectItem value="maintenance">Maintenance</SelectItem>
+                        <SelectItem value="broken">Broken</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-intended-location">Intended Storage Location *</Label>
+                    <Input
+                      id="edit-intended-location"
+                      value={editTool.intended_storage_location}
+                      onChange={(e) => setEditTool(prev => prev ? { ...prev, intended_storage_location: e.target.value } : null)}
+                      placeholder="e.g., Shelf A-3, Toolbox #2"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Actual Location and Serial Number */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-actual-location">Current/Actual Location</Label>
+                    <Input
+                      id="edit-actual-location"
+                      value={editTool.actual_location || ''}
+                      onChange={(e) => setEditTool(prev => prev ? { ...prev, actual_location: e.target.value } : null)}
+                      placeholder="Current location if different"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-serial">Serial Number</Label>
+                    <Input
+                      id="edit-serial"
+                      value={editTool.serial_number || ''}
+                      onChange={(e) => setEditTool(prev => prev ? { ...prev, serial_number: e.target.value } : null)}
+                      placeholder="Enter serial number"
+                    />
+                  </div>
+                </div>
+
+                {/* Manual URL and Maintenance/Purchase Dates */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-manual">Manual URL</Label>
+                    <Input
+                      id="edit-manual"
+                      type="url"
+                      value={editTool.manual_url || ''}
+                      onChange={(e) => setEditTool(prev => prev ? { ...prev, manual_url: e.target.value } : null)}
+                      placeholder="https://example.com/manual.pdf"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-maintenance">Last Maintenance</Label>
+                    <Input
+                      id="edit-maintenance"
+                      type="date"
+                      value={editTool.last_maintenance || ''}
+                      onChange={(e) => setEditTool(prev => prev ? { ...prev, last_maintenance: e.target.value } : null)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-purchase">Purchase Date</Label>
+                    <Input
+                      id="edit-purchase"
+                      type="date"
+                      value={editTool.purchase_date || ''}
+                      onChange={(e) => setEditTool(prev => prev ? { ...prev, purchase_date: e.target.value } : null)}
+                    />
+                  </div>
+                </div>
+
+                {/* Submit Buttons */}
+                <div className="flex justify-end gap-3 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsEditDialogOpen(false)}
+                    disabled={isSubmitting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting || !editTool.name || !editTool.intended_storage_location}>
+                    {isSubmitting ? "Updating..." : "Update Tool"}
+                  </Button>
+                </div>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

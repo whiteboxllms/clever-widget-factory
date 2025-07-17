@@ -728,16 +728,16 @@ export default function Tools() {
                             </Button>
                             <Button
                               size="sm"
-                              variant="destructive"
-                              className="w-full"
+                              variant="ghost"
+                              className="w-full text-muted-foreground hover:text-destructive text-xs"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setToolToRemove(tool);
                                 setIsRemoveDialogOpen(true);
                               }}
                             >
-                              <Trash2 className="mr-2 h-3 w-3" />
-                              Remove Tool
+                              <Trash2 className="mr-1 h-3 w-3" />
+                              Remove
                             </Button>
                           </div>
                         )}

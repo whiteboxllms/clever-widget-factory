@@ -186,6 +186,45 @@ export type Database = {
           },
         ]
       }
+      parts_history: {
+        Row: {
+          change_reason: string | null
+          change_type: string
+          changed_at: string
+          changed_by: string
+          created_at: string
+          id: string
+          new_quantity: number | null
+          old_quantity: number | null
+          part_id: string
+          quantity_change: number | null
+        }
+        Insert: {
+          change_reason?: string | null
+          change_type: string
+          changed_at?: string
+          changed_by: string
+          created_at?: string
+          id?: string
+          new_quantity?: number | null
+          old_quantity?: number | null
+          part_id: string
+          quantity_change?: number | null
+        }
+        Update: {
+          change_reason?: string | null
+          change_type?: string
+          changed_at?: string
+          changed_by?: string
+          created_at?: string
+          id?: string
+          new_quantity?: number | null
+          old_quantity?: number | null
+          part_id?: string
+          quantity_change?: number | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string

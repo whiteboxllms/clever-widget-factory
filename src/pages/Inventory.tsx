@@ -10,8 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Wrench, ExternalLink, Upload, UserPlus, Check, ChevronsUpDown, ChevronDown } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Wrench, ExternalLink, Upload, UserPlus, Check, ChevronsUpDown, ChevronDown, History } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { InventoryHistoryDialog } from '@/components/InventoryHistoryDialog';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
@@ -237,14 +238,34 @@ export default function Inventory() {
 
   const addPart = async () => {
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('parts')
         .insert([{
           ...newPart,
           cost_per_unit: newPart.cost_per_unit ? parseFloat(newPart.cost_per_unit) : null
-        }]);
+        }])
+        .select()
+        .single();
 
       if (error) throw error;
+
+      // Log the creation to history
+      const { error: historyError } = await supabase
+        .from('parts_history')
+        .insert([{
+          part_id: data.id,
+          change_type: 'create',
+          old_quantity: null,
+          new_quantity: newPart.current_quantity,
+          quantity_change: null,
+          changed_by: 'System User', // TODO: Replace with actual user when authentication is implemented
+          change_reason: 'Item created'
+        }]);
+
+      if (historyError) {
+        console.error('Error logging history:', historyError);
+        // Don't fail the operation if history logging fails
+      }
 
       toast({
         title: "Success",
@@ -293,6 +314,24 @@ export default function Inventory() {
         .eq('id', editingPart.id);
 
       if (error) throw error;
+
+      // Log the update to history
+      const { error: historyError } = await supabase
+        .from('parts_history')
+        .insert([{
+          part_id: editingPart.id,
+          change_type: 'update',
+          old_quantity: null,
+          new_quantity: null,
+          quantity_change: null,
+          changed_by: 'System User', // TODO: Replace with actual user when authentication is implemented
+          change_reason: 'Item details updated'
+        }]);
+
+      if (historyError) {
+        console.error('Error logging history:', historyError);
+        // Don't fail the operation if history logging fails
+      }
 
       toast({
         title: "Success",
@@ -364,12 +403,31 @@ export default function Inventory() {
     }
 
     try {
+      // Update the part quantity
       const { error } = await supabase
         .from('parts')
         .update({ current_quantity: newQuantity })
         .eq('id', quantityPart.id);
 
       if (error) throw error;
+
+      // Log the change to history
+      const { error: historyError } = await supabase
+        .from('parts_history')
+        .insert([{
+          part_id: quantityPart.id,
+          change_type: quantityOperation === 'add' ? 'quantity_add' : 'quantity_remove',
+          old_quantity: quantityPart.current_quantity,
+          new_quantity: newQuantity,
+          quantity_change: quantityOperation === 'add' ? amount : -amount,
+          changed_by: 'System User', // TODO: Replace with actual user when authentication is implemented
+          change_reason: quantityChange.reason || null
+        }]);
+
+      if (historyError) {
+        console.error('Error logging history:', historyError);
+        // Don't fail the operation if history logging fails
+      }
 
       toast({
         title: "Success",
@@ -834,6 +892,11 @@ export default function Inventory() {
                     </CardDescription>
                   </div>
                   <div className="flex gap-1 ml-2">
+                    <InventoryHistoryDialog partId={part.id} partName={part.name}>
+                      <Button variant="ghost" size="sm">
+                        <History className="h-4 w-4" />
+                      </Button>
+                    </InventoryHistoryDialog>
                     <Button
                       variant="ghost"
                       size="sm"

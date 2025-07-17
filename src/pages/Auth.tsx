@@ -10,11 +10,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Auth() {
-  const { user, signIn, signUp } = useAuth();
+  const { user, signIn, signUp, resetPassword } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showResetForm, setShowResetForm] = useState(false);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -80,6 +81,34 @@ export default function Auth() {
     setLoading(false);
   };
 
+  const handleResetPassword = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get('email') as string;
+
+    const { error } = await resetPassword(email);
+    
+    if (error) {
+      setError(error.message);
+      toast({
+        title: "Password reset failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Password reset email sent",
+        description: "Check your email for password reset instructions.",
+      });
+      setShowResetForm(false);
+    }
+    
+    setLoading(false);
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
@@ -88,84 +117,131 @@ export default function Auth() {
           <CardDescription>Sign in to manage your tools and equipment</CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="signin" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
-            </TabsList>
+          {showResetForm ? (
+            <div className="space-y-4">
+              <div className="text-center">
+                <h3 className="text-lg font-semibold">Reset Password</h3>
+                <p className="text-sm text-muted-foreground">Enter your email to receive password reset instructions</p>
+              </div>
+              
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
 
-            {error && (
-              <Alert variant="destructive" className="mt-4">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            <TabsContent value="signin">
-              <form onSubmit={handleSignIn} className="space-y-4">
+              <form onSubmit={handleResetPassword} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="signin-email">Email</Label>
+                  <Label htmlFor="reset-email">Email</Label>
                   <Input
-                    id="signin-email"
+                    id="reset-email"
                     name="email"
                     type="email"
                     placeholder="your@email.com"
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signin-password">Password</Label>
-                  <Input
-                    id="signin-password"
-                    name="password"
-                    type="password"
-                    placeholder="Your password"
-                    required
-                  />
-                </div>
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Signing in..." : "Sign In"}
+                  {loading ? "Sending..." : "Send Reset Email"}
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  className="w-full" 
+                  onClick={() => setShowResetForm(false)}
+                >
+                  Back to Sign In
                 </Button>
               </form>
-            </TabsContent>
+            </div>
+          ) : (
+            <Tabs defaultValue="signin" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="signin">Sign In</TabsTrigger>
+                <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="signup">
-              <form onSubmit={handleSignUp} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name">Full Name</Label>
-                  <Input
-                    id="signup-name"
-                    name="fullName"
-                    type="text"
-                    placeholder="Your full name"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <Input
-                    id="signup-email"
-                    name="email"
-                    type="email"
-                    placeholder="your@email.com"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
-                  <Input
-                    id="signup-password"
-                    name="password"
-                    type="password"
-                    placeholder="Choose a password"
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Creating account..." : "Sign Up"}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
+              {error && (
+                <Alert variant="destructive" className="mt-4">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              <TabsContent value="signin">
+                <form onSubmit={handleSignIn} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signin-email">Email</Label>
+                    <Input
+                      id="signin-email"
+                      name="email"
+                      type="email"
+                      placeholder="your@email.com"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signin-password">Password</Label>
+                    <Input
+                      id="signin-password"
+                      name="password"
+                      type="password"
+                      placeholder="Your password"
+                      required
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? "Signing in..." : "Sign In"}
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    className="w-full text-sm" 
+                    onClick={() => setShowResetForm(true)}
+                  >
+                    Forgot Password?
+                  </Button>
+                </form>
+              </TabsContent>
+
+              <TabsContent value="signup">
+                <form onSubmit={handleSignUp} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-name">Full Name</Label>
+                    <Input
+                      id="signup-name"
+                      name="fullName"
+                      type="text"
+                      placeholder="Your full name"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-email">Email</Label>
+                    <Input
+                      id="signup-email"
+                      name="email"
+                      type="email"
+                      placeholder="your@email.com"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-password">Password</Label>
+                    <Input
+                      id="signup-password"
+                      name="password"
+                      type="password"
+                      placeholder="Choose a password"
+                      required
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? "Creating account..." : "Sign Up"}
+                  </Button>
+                </form>
+              </TabsContent>
+            </Tabs>
+          )}
         </CardContent>
       </Card>
     </div>

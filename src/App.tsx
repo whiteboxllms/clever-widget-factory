@@ -9,7 +9,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Tools from "./pages/Tools";
-
+import CheckIn from "./pages/CheckIn";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -31,6 +31,11 @@ const App = () => (
             <Route path="/tools" element={
               <ProtectedRoute>
                 <Tools />
+              </ProtectedRoute>
+            } />
+            <Route path="/checkin" element={
+              <ProtectedRoute>
+                <CheckIn />
               </ProtectedRoute>
             } />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

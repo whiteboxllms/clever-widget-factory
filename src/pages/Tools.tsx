@@ -9,8 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Plus, Wrench, AlertTriangle, CheckCircle, Clock, User, Calendar, Upload, X } from "lucide-react";
+import { Search, Plus, Wrench, AlertTriangle, CheckCircle, Clock, User, Calendar, Upload, X, LogOut } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ToolCheckoutDialog } from "@/components/ToolCheckoutDialog";
 
 interface Tool {
   id: string;
@@ -89,6 +90,8 @@ export default function Tools() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [checkoutTool, setCheckoutTool] = useState<Tool | null>(null);
+  const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false);
   const [newTool, setNewTool] = useState<NewToolForm>({
     name: "",
     description: "",
@@ -528,6 +531,22 @@ export default function Tools() {
                       <p className="text-xs text-muted-foreground mt-2">
                         Location: {tool.actual_location || tool.intended_storage_location}
                       </p>
+                      
+                      {/* Checkout Button */}
+                      {tool.status === 'available' && tool.condition !== 'broken' && (
+                        <Button
+                          size="sm"
+                          className="w-full mt-3"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCheckoutTool(tool);
+                            setIsCheckoutDialogOpen(true);
+                          }}
+                        >
+                          <LogOut className="mr-2 h-3 w-3" />
+                          Checkout
+                        </Button>
+                      )}
                     </CardContent>
                   </Card>
                 </DialogTrigger>
@@ -691,6 +710,14 @@ export default function Tools() {
             </p>
           </div>
         )}
+
+        {/* Checkout Dialog */}
+        <ToolCheckoutDialog
+          tool={checkoutTool}
+          open={isCheckoutDialogOpen}
+          onOpenChange={setIsCheckoutDialogOpen}
+          onSuccess={fetchTools}
+        />
       </div>
     </div>
   );

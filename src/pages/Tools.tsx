@@ -121,6 +121,7 @@ export default function Tools() {
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
   const [toolToRemove, setToolToRemove] = useState<Tool | null>(null);
   const [removeReason, setRemoveReason] = useState("");
+  const [removeComment, setRemoveComment] = useState("");
   const navigate = useNavigate();
 
   const fetchTools = async () => {
@@ -399,7 +400,7 @@ export default function Tools() {
         .from('tools')
         .update({
           status: 'unable_to_find',
-          known_issues: removeReason ? `Tool removed: ${removeReason}` : 'Tool removed by admin'
+          known_issues: `Tool removed: ${removeReason}${removeComment ? ` - ${removeComment}` : ''}`
         })
         .eq('id', toolToRemove.id);
 
@@ -413,6 +414,7 @@ export default function Tools() {
       setIsRemoveDialogOpen(false);
       setToolToRemove(null);
       setRemoveReason("");
+      setRemoveComment("");
       await fetchTools();
 
     } catch (error) {
@@ -1188,18 +1190,31 @@ export default function Tools() {
                   Are you sure you want to remove <strong>{toolToRemove.name}</strong>? This will mark the tool as "Unable to Find".
                 </p>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="remove-reason">Reason for removal</Label>
-                  <Select value={removeReason} onValueChange={setRemoveReason}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a reason" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="testing">Testing</SelectItem>
-                      <SelectItem value="tool thrown away">Tool thrown away</SelectItem>
-                      <SelectItem value="unable to find">Unable to find</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="remove-reason">Reason for removal</Label>
+                    <Select value={removeReason} onValueChange={setRemoveReason}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a reason" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="testing">Testing</SelectItem>
+                        <SelectItem value="tool thrown away">Tool thrown away</SelectItem>
+                        <SelectItem value="unable to find">Unable to find</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="remove-comment">Additional comment (optional)</Label>
+                    <Textarea
+                      id="remove-comment"
+                      value={removeComment}
+                      onChange={(e) => setRemoveComment(e.target.value)}
+                      placeholder="Enter any additional details about the removal..."
+                      rows={3}
+                    />
+                  </div>
                 </div>
 
                 <div className="flex justify-end gap-3 pt-4">

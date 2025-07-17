@@ -840,9 +840,9 @@ export default function Inventory() {
         <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Edit Consumable</DialogTitle>
+              <DialogTitle>Edit Inventory Item</DialogTitle>
               <DialogDescription>
-                Update consumable information
+                Update inventory item information
               </DialogDescription>
             </DialogHeader>
             
@@ -866,16 +866,7 @@ export default function Inventory() {
                   />
                 </div>
 
-                <div>
-                  <Label htmlFor="edit-category">Category</Label>
-                  <Input
-                    id="edit-category"
-                    value={editingPart.category || ''}
-                    onChange={(e) => setEditingPart({...editingPart, category: e.target.value})}
-                  />
-                </div>
-
-                <div>
+                <div className="col-span-2">
                   <Label htmlFor="edit-supplier">Supplier</Label>
                   <Input
                     id="edit-supplier"
@@ -943,7 +934,7 @@ export default function Inventory() {
                 Cancel
               </Button>
               <Button onClick={updatePart}>
-                Update Consumable
+                Update Inventory Item
               </Button>
             </div>
           </DialogContent>

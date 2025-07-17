@@ -1103,7 +1103,7 @@ export default function Tools() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit-intended-location">Intended Storage Location *</Label>
+                    <Label htmlFor="edit-intended-location">SOP location *</Label>
                     <Input
                       id="edit-intended-location"
                       value={editTool.intended_storage_location}
@@ -1117,7 +1117,7 @@ export default function Tools() {
                 {/* Actual Location and Serial Number */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="edit-actual-location">Current/Actual Location</Label>
+                    <Label htmlFor="edit-actual-location">Actual Location</Label>
                     <Input
                       id="edit-actual-location"
                       value={editTool.actual_location || ''}

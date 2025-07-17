@@ -206,6 +206,7 @@ export type Database = {
           id: string
           image_url: string | null
           intended_storage_location: string
+          known_issues: string | null
           last_maintenance: string | null
           manual_url: string | null
           name: string
@@ -223,6 +224,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           intended_storage_location: string
+          known_issues?: string | null
           last_maintenance?: string | null
           manual_url?: string | null
           name: string
@@ -240,6 +242,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           intended_storage_location?: string
+          known_issues?: string | null
           last_maintenance?: string | null
           manual_url?: string | null
           name?: string

@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Tools from "./pages/Tools";
+import Parts from "./pages/Parts";
 import CheckIn from "./pages/CheckIn";
 import NotFound from "./pages/NotFound";
 
@@ -31,6 +32,11 @@ const App = () => (
             <Route path="/tools" element={
               <ProtectedRoute>
                 <Tools />
+              </ProtectedRoute>
+            } />
+            <Route path="/parts" element={
+              <ProtectedRoute>
+                <Parts />
               </ProtectedRoute>
             } />
             <Route path="/checkin" element={

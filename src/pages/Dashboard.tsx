@@ -35,13 +35,6 @@ export default function Dashboard() {
       color: "bg-green-500"
     },
     {
-      title: "Where Is It?",
-      description: "Find the location of a tool",
-      icon: Search,
-      path: "/locate",
-      color: "bg-purple-500"
-    },
-    {
       title: "Inventory",
       description: "View all tools and parts",
       icon: Package,

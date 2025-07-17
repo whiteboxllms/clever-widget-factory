@@ -21,6 +21,7 @@ export type Database = {
           checkout_id: string | null
           condition_after: Database["public"]["Enums"]["tool_condition"]
           created_at: string
+          hours_used: number | null
           id: string
           location_found: string | null
           notes: string | null
@@ -35,6 +36,7 @@ export type Database = {
           checkout_id?: string | null
           condition_after: Database["public"]["Enums"]["tool_condition"]
           created_at?: string
+          hours_used?: number | null
           id?: string
           location_found?: string | null
           notes?: string | null
@@ -49,6 +51,7 @@ export type Database = {
           checkout_id?: string | null
           condition_after?: Database["public"]["Enums"]["tool_condition"]
           created_at?: string
+          hours_used?: number | null
           id?: string
           location_found?: string | null
           notes?: string | null
@@ -206,6 +209,7 @@ export type Database = {
           condition: Database["public"]["Enums"]["tool_condition"]
           created_at: string
           description: string | null
+          has_motor: boolean
           id: string
           image_url: string | null
           intended_storage_location: string
@@ -224,6 +228,7 @@ export type Database = {
           condition?: Database["public"]["Enums"]["tool_condition"]
           created_at?: string
           description?: string | null
+          has_motor?: boolean
           id?: string
           image_url?: string | null
           intended_storage_location: string
@@ -242,6 +247,7 @@ export type Database = {
           condition?: Database["public"]["Enums"]["tool_condition"]
           created_at?: string
           description?: string | null
+          has_motor?: boolean
           id?: string
           image_url?: string | null
           intended_storage_location?: string

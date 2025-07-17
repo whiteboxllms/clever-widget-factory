@@ -19,11 +19,11 @@ type CheckoutWithTool = Tables<'checkouts'> & {
 
 type CheckInForm = {
   condition_after: string;
-  problems_reported: string;
+  tool_issues: string;
   notes: string;
   returned_to_correct_location: boolean;
   sop_deviation: string;
-  suboptimal_comments: string;
+  hours_used: string;
 };
 
 export default function CheckIn() {
@@ -35,11 +35,11 @@ export default function CheckIn() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState<CheckInForm>({
     condition_after: '',
-    problems_reported: '',
+    tool_issues: '',
     notes: '',
     returned_to_correct_location: true,
     sop_deviation: '',
-    suboptimal_comments: ''
+    hours_used: ''
   });
 
   useEffect(() => {
@@ -77,18 +77,25 @@ export default function CheckIn() {
     setIsSubmitting(true);
     try {
       // Create checkin record
+      const checkinData: any = {
+        checkout_id: selectedCheckout.id,
+        tool_id: selectedCheckout.tool_id,
+        user_name: selectedCheckout.user_name,
+        condition_after: form.condition_after as any,
+        problems_reported: form.tool_issues || null,
+        location_found: selectedCheckout.tools.intended_storage_location,
+        notes: form.notes || null,
+        returned_to_correct_location: form.returned_to_correct_location,
+      };
+
+      // Add hours used if tool has motor and hours were provided
+      if (selectedCheckout.tools.has_motor && form.hours_used) {
+        checkinData.hours_used = parseFloat(form.hours_used);
+      }
+
       const { error: checkinError } = await supabase
         .from('checkins')
-        .insert({
-          checkout_id: selectedCheckout.id,
-          tool_id: selectedCheckout.tool_id,
-          user_name: selectedCheckout.user_name,
-          condition_after: form.condition_after as any,
-          problems_reported: form.problems_reported || null,
-          location_found: selectedCheckout.tools.intended_storage_location,
-          notes: `${form.notes}\n\nSOP Deviation: ${form.sop_deviation}\nSub-optimal Operation Comments: ${form.suboptimal_comments}`,
-          returned_to_correct_location: form.returned_to_correct_location,
-        });
+        .insert(checkinData);
 
       if (checkinError) throw checkinError;
 
@@ -120,11 +127,11 @@ export default function CheckIn() {
       // Reset form and close dialog
       setForm({
         condition_after: '',
-        problems_reported: '',
+        tool_issues: '',
         notes: '',
         returned_to_correct_location: true,
         sop_deviation: '',
-        suboptimal_comments: ''
+        hours_used: ''
       });
       setSelectedCheckout(null);
       
@@ -262,15 +269,30 @@ export default function CheckIn() {
                           </div>
 
                           <div>
-                            <Label htmlFor="problems_reported">Problems or Issues Encountered</Label>
+                            <Label htmlFor="tool_issues">Tool Issues encountered not seen previously (add to known issues)</Label>
                             <Textarea
-                              id="problems_reported"
-                              value={form.problems_reported}
-                              onChange={(e) => setForm(prev => ({ ...prev, problems_reported: e.target.value }))}
-                              placeholder="Report any problems, damage, or malfunctions"
+                              id="tool_issues"
+                              value={form.tool_issues}
+                              onChange={(e) => setForm(prev => ({ ...prev, tool_issues: e.target.value }))}
+                              placeholder="Report any new problems, damage, or malfunctions that will be added to the tool's known issues"
                               rows={3}
                             />
                           </div>
+
+                          {checkout.tools.has_motor && (
+                            <div>
+                              <Label htmlFor="hours_used">Hours Used</Label>
+                              <Input
+                                id="hours_used"
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                value={form.hours_used}
+                                onChange={(e) => setForm(prev => ({ ...prev, hours_used: e.target.value }))}
+                                placeholder="Enter hours used (e.g., 2.5)"
+                              />
+                            </div>
+                          )}
 
                           <div>
                             <Label htmlFor="sop_deviation">To what degree did you deviate from our SOP and best practices? *</Label>
@@ -303,23 +325,12 @@ export default function CheckIn() {
                           </div>
 
                           <div>
-                            <Label htmlFor="suboptimal_comments">Comments about sub-optimal operation</Label>
-                            <Textarea
-                              id="suboptimal_comments"
-                              value={form.suboptimal_comments}
-                              onChange={(e) => setForm(prev => ({ ...prev, suboptimal_comments: e.target.value }))}
-                              placeholder="Describe any situations where the tool didn't perform as expected or could have been used more effectively"
-                              rows={3}
-                            />
-                          </div>
-
-                          <div>
-                            <Label htmlFor="notes">Additional Notes</Label>
+                            <Label htmlFor="notes">Notes</Label>
                             <Textarea
                               id="notes"
                               value={form.notes}
                               onChange={(e) => setForm(prev => ({ ...prev, notes: e.target.value }))}
-                              placeholder="Any additional comments or observations"
+                              placeholder="Any additional comments, observations, or notes about sub-optimal operation"
                               rows={3}
                             />
                           </div>

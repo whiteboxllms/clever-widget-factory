@@ -112,7 +112,7 @@ export default function CheckIn() {
         .from('tools')
         .update({ 
           condition: form.condition_after as any,
-          status: form.condition_after === 'not_functional' ? 'not_functional' : 'available',
+          status: form.condition_after === 'not_functional' ? 'unavailable' : 'available',
           actual_location: selectedCheckout.tools.intended_storage_location
         })
         .eq('id', selectedCheckout.tool_id);
@@ -152,15 +152,9 @@ export default function CheckIn() {
 
   const getStatusColor = (condition: string) => {
     switch (condition) {
-      case 'optimal': return 'bg-green-100 text-green-800';
+      case 'good': return 'bg-green-100 text-green-800';
       case 'functional_but_not_efficient': return 'bg-yellow-100 text-yellow-800';
       case 'not_functional': return 'bg-red-100 text-red-800';
-      // Legacy support for old values
-      case 'excellent': return 'bg-green-100 text-green-800';
-      case 'good': return 'bg-blue-100 text-blue-800';
-      case 'fair': return 'bg-yellow-100 text-yellow-800';
-      case 'poor': return 'bg-orange-100 text-orange-800';
-      case 'broken': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -263,7 +257,7 @@ export default function CheckIn() {
                                 <SelectValue placeholder="Select condition" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="optimal">Optimal</SelectItem>
+                                <SelectItem value="good">Good</SelectItem>
                                 <SelectItem value="functional_but_not_efficient">Functional but not as efficient as it could be</SelectItem>
                                 <SelectItem value="not_functional">Not functional</SelectItem>
                               </SelectContent>

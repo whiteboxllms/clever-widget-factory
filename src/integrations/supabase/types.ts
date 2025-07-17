@@ -219,6 +219,7 @@ export type Database = {
           name: string
           purchase_date: string | null
           serial_number: string | null
+          stargazer_sop: string | null
           status: Database["public"]["Enums"]["tool_status"]
           updated_at: string
         }
@@ -238,6 +239,7 @@ export type Database = {
           name: string
           purchase_date?: string | null
           serial_number?: string | null
+          stargazer_sop?: string | null
           status?: Database["public"]["Enums"]["tool_status"]
           updated_at?: string
         }
@@ -257,6 +259,7 @@ export type Database = {
           name?: string
           purchase_date?: string | null
           serial_number?: string | null
+          stargazer_sop?: string | null
           status?: Database["public"]["Enums"]["tool_status"]
           updated_at?: string
         }
@@ -270,15 +273,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      tool_condition:
-        | "optimal"
-        | "functional_but_not_efficient"
-        | "not_functional"
-      tool_status:
-        | "available"
-        | "checked_out"
-        | "not_functional"
-        | "maintenance"
+      tool_condition: "good" | "functional_but_not_efficient" | "not_functional"
+      tool_status: "available" | "checked_out" | "unavailable"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -407,16 +403,11 @@ export const Constants = {
   public: {
     Enums: {
       tool_condition: [
-        "optimal",
+        "good",
         "functional_but_not_efficient",
         "not_functional",
       ],
-      tool_status: [
-        "available",
-        "checked_out",
-        "not_functional",
-        "maintenance",
-      ],
+      tool_status: ["available", "checked_out", "unavailable"],
     },
   },
 } as const

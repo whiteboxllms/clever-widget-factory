@@ -30,6 +30,7 @@ interface Tool {
   purchase_date?: string;
   manual_url?: string;
   known_issues?: string;
+  stargazer_sop?: string;
   created_at: string;
   updated_at: string;
 }
@@ -70,22 +71,22 @@ interface CheckoutHistory {
 }
 
 const getStatusVariant = (status: string, condition: string) => {
-  if (condition === 'not_functional' || status === 'maintenance') return 'destructive';
+  if (condition === 'not_functional' || status === 'unavailable') return 'destructive';
   if (status === 'checked_out') return 'secondary';
-  if (condition === 'optimal') return 'default';
+  if (condition === 'good') return 'default';
   return 'outline';
 };
 
 const getStatusLabel = (status: string, condition: string) => {
   if (condition === 'not_functional') return 'Not Functional';
-  if (status === 'maintenance') return 'Needs Maintenance';
+  if (status === 'unavailable') return 'Unavailable';
   if (status === 'checked_out') return 'Checked Out';
-  return 'Operational';
+  return 'Available';
 };
 
 const getConditionIcon = (status: string, condition: string) => {
   if (condition === 'not_functional') return AlertTriangle;
-  if (status === 'maintenance') return Clock;
+  if (status === 'unavailable') return Clock;
   return CheckCircle;
 };
 
@@ -105,7 +106,7 @@ export default function Tools() {
     name: "",
     description: "",
     category: "",
-    condition: "optimal",
+        condition: "good",
     status: "available",
     intended_storage_location: "",
     serial_number: "",
@@ -278,7 +279,7 @@ export default function Tools() {
         name: "",
         description: "",
         category: "",
-        condition: "optimal",
+        condition: "good",
         status: "available",
         intended_storage_location: "",
         serial_number: "",
@@ -308,7 +309,7 @@ export default function Tools() {
       name: "",
       description: "",
       category: "",
-      condition: "optimal",
+      condition: "good",
       status: "available",
       intended_storage_location: "",
       serial_number: "",
@@ -343,7 +344,8 @@ export default function Tools() {
           serial_number: editTool.serial_number || null,
           manual_url: editTool.manual_url || null,
           last_maintenance: editTool.last_maintenance || null,
-          purchase_date: editTool.purchase_date || null
+          purchase_date: editTool.purchase_date || null,
+          stargazer_sop: editTool.stargazer_sop || null
         })
         .eq('id', editTool.id);
 
@@ -504,7 +506,7 @@ export default function Tools() {
                           <SelectValue />
                         </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="optimal">Optimal</SelectItem>
+                           <SelectItem value="good">Good</SelectItem>
                             <SelectItem value="functional_but_not_efficient">Functional but not as efficient as it could be</SelectItem>
                             <SelectItem value="not_functional">Not functional</SelectItem>
                           </SelectContent>
@@ -523,12 +525,11 @@ export default function Tools() {
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="available">Available</SelectItem>
-                          <SelectItem value="checked_out">Checked Out</SelectItem>
-                          <SelectItem value="maintenance">Maintenance</SelectItem>
-                          <SelectItem value="not_functional">Not functional</SelectItem>
-                        </SelectContent>
+                         <SelectContent>
+                           <SelectItem value="available">Available</SelectItem>
+                           <SelectItem value="checked_out">Checked Out</SelectItem>
+                           <SelectItem value="unavailable">Unavailable</SelectItem>
+                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
@@ -973,11 +974,11 @@ export default function Tools() {
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="optimal">Optimal</SelectItem>
-                        <SelectItem value="functional_but_not_efficient">Functional but not as efficient as it could be</SelectItem>
-                        <SelectItem value="not_functional">Not functional</SelectItem>
-                      </SelectContent>
+                       <SelectContent>
+                         <SelectItem value="good">Good</SelectItem>
+                         <SelectItem value="functional_but_not_efficient">Functional but not as efficient as it could be</SelectItem>
+                         <SelectItem value="not_functional">Not functional</SelectItem>
+                       </SelectContent>
                     </Select>
                   </div>
                 </div>
@@ -993,12 +994,11 @@ export default function Tools() {
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="available">Available</SelectItem>
-                        <SelectItem value="checked_out">Checked Out</SelectItem>
-                        <SelectItem value="maintenance">Maintenance</SelectItem>
-                        <SelectItem value="not_functional">Not functional</SelectItem>
-                      </SelectContent>
+                       <SelectContent>
+                         <SelectItem value="available">Available</SelectItem>
+                         <SelectItem value="checked_out">Checked Out</SelectItem>
+                         <SelectItem value="unavailable">Unavailable</SelectItem>
+                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
@@ -1033,6 +1033,18 @@ export default function Tools() {
                       placeholder="Enter serial number"
                     />
                   </div>
+                </div>
+
+                {/* Stargazer SOP */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-stargazer-sop">Stargazer SOP</Label>
+                  <Textarea
+                    id="edit-stargazer-sop"
+                    value={editTool.stargazer_sop || ''}
+                    onChange={(e) => setEditTool(prev => prev ? { ...prev, stargazer_sop: e.target.value } : null)}
+                    placeholder="Standard Operating Procedures specific to Stargazer"
+                    rows={3}
+                  />
                 </div>
 
                 {/* Manual URL and Maintenance/Purchase Dates */}

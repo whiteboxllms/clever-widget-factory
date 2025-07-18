@@ -13,6 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Search, Plus, Wrench, AlertTriangle, CheckCircle, Clock, User, Calendar, Upload, X, LogOut, Edit, ArrowLeft, Trash2 } from "lucide-react";
 import { compressImage, formatFileSize } from "@/lib/imageUtils";
+import { compressImageDetailed } from "@/lib/enhancedImageUtils";
+import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ToolCheckoutDialog } from "@/components/ToolCheckoutDialog";
 import { useNavigate } from "react-router-dom";
@@ -117,6 +119,7 @@ export default function Tools() {
     image_file: null
   });
   const { toast } = useToast();
+  const enhancedToast = useEnhancedToast();
   const { isAdmin } = useAuth();
   const [editTool, setEditTool] = useState<Tool | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -256,44 +259,49 @@ export default function Tools() {
   };
 
   const uploadImage = async (file: File): Promise<string | null> => {
-    // Show compression toast
-    toast({
-      title: "Compressing image...",
-      description: `Original size: ${formatFileSize(file.size)}`,
-    });
+    try {
+      // Enhanced compression with detailed tracking
+      const compressionToast = enhancedToast.showCompressionStart(file.name, file.size);
 
-    // Compress the image before upload
-    const compressionResult = await compressImage(file);
-    const compressedFile = compressionResult.file;
-    
-    // Show compression results
-    toast({
-      title: "Compression complete!",
-      description: `${formatFileSize(compressionResult.originalSize)} → ${formatFileSize(compressionResult.compressedSize)} (${compressionResult.compressionRatio.toFixed(1)}% reduction)`,
-    });
-    
-    const fileName = `${Date.now()}-${compressedFile.name}`;
-    
-    // Show upload toast
-    toast({
-      title: "Uploading image...",
-      description: "Please wait while we upload your compressed image",
-    });
+      const compressionResult = await compressImageDetailed(
+        file,
+        {},
+        enhancedToast.showCompressionProgress
+      );
+      
+      enhancedToast.dismiss(compressionToast.id);
+      const compressionCompleteToast = enhancedToast.showCompressionComplete(compressionResult);
+      
+      const compressedFile = compressionResult.file;
+      const fileName = `${Date.now()}-${compressedFile.name}`;
+      
+      // Enhanced upload tracking
+      enhancedToast.dismiss(compressionCompleteToast.id);
+      const uploadToast = enhancedToast.showUploadStart(fileName, compressedFile.size);
 
-    const { data, error } = await supabase.storage
-      .from('tool-images')
-      .upload(fileName, compressedFile);
+      const { data, error } = await supabase.storage
+        .from('tool-images')
+        .upload(fileName, compressedFile);
 
-    if (error) {
-      console.error('Error uploading image:', error);
+      if (error) {
+        enhancedToast.dismiss(uploadToast.id);
+        enhancedToast.showUploadError(error.message, file.name);
+        return null;
+      }
+
+      enhancedToast.dismiss(uploadToast.id);
+      
+      const { data: urlData } = supabase.storage
+        .from('tool-images')
+        .getPublicUrl(fileName);
+
+      enhancedToast.showUploadSuccess(fileName, urlData.publicUrl);
+      return urlData.publicUrl;
+      
+    } catch (error) {
+      enhancedToast.showCompressionError(error.message, file.name);
       return null;
     }
-
-    const { data: urlData } = supabase.storage
-      .from('tool-images')
-      .getPublicUrl(fileName);
-
-    return urlData.publicUrl;
   };
 
   const handleSubmitNewTool = async (e: React.FormEvent) => {

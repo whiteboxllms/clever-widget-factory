@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Package, Search, CheckCircle, XCircle, Wrench, Box } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { DebugModeToggle } from '@/components/DebugModeToggle';
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
@@ -66,10 +67,13 @@ export default function Dashboard() {
             <h1 className="text-2xl font-bold">Farm Tool Tracker</h1>
             <p className="text-muted-foreground">Welcome back, {user?.user_metadata?.full_name || user?.email}</p>
           </div>
-          <Button onClick={handleSignOut} variant="outline" size="sm">
-            <LogOut className="h-4 w-4 mr-2" />
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-4">
+            <DebugModeToggle />
+            <Button onClick={handleSignOut} variant="outline" size="sm">
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
+          </div>
         </div>
       </header>
 

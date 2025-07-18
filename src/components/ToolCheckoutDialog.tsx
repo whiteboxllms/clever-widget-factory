@@ -10,6 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Upload, X, ExternalLink } from "lucide-react";
 import { compressImage, formatFileSize } from "@/lib/imageUtils";
+import { compressImageDetailed } from "@/lib/enhancedImageUtils";
+import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 
 interface Tool {
   id: string;
@@ -44,6 +46,7 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: Tool
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userFullName, setUserFullName] = useState<string>("");
   const { toast } = useToast();
+  const enhancedToast = useEnhancedToast();
 
   // Fetch user profile when user changes
   useEffect(() => {
@@ -84,32 +87,32 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: Tool
   };
 
   const uploadImages = async (files: File[]): Promise<string[]> => {
-    // Show compression toast for multiple files
-    toast({
-      title: `Compressing ${files.length} image${files.length > 1 ? 's' : ''}...`,
-      description: `Total size: ${formatFileSize(files.reduce((sum, f) => sum + f.size, 0))}`,
-    });
-
     const uploadPromises = files.map(async (file) => {
-      // Compress the image before upload
-      const compressionResult = await compressImage(file);
-      const compressedFile = compressionResult.file;
+      try {
+        const compressionResult = await compressImageDetailed(file);
+        enhancedToast.showCompressionComplete(compressionResult);
+        const compressedFile = compressionResult.file;
       
-      const fileName = `checkout-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${compressedFile.name}`;
-      const { data, error } = await supabase.storage
-        .from('tool-images')
-        .upload(fileName, compressedFile);
+        const fileName = `checkout-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${compressedFile.name}`;
+        const { data, error } = await supabase.storage
+          .from('tool-images')
+          .upload(fileName, compressedFile);
 
-      if (error) {
-        console.error('Error uploading image:', error);
+        if (error) {
+          enhancedToast.showUploadError(error.message, file.name);
+          return null;
+        }
+
+        const { data: urlData } = supabase.storage
+          .from('tool-images')
+          .getPublicUrl(fileName);
+
+        enhancedToast.showUploadSuccess(fileName, urlData.publicUrl);
+        return urlData.publicUrl;
+      } catch (error) {
+        enhancedToast.showCompressionError(error.message, file.name);
         return null;
       }
-
-      const { data: urlData } = supabase.storage
-        .from('tool-images')
-        .getPublicUrl(fileName);
-
-      return urlData.publicUrl;
     });
 
     const results = await Promise.all(uploadPromises);

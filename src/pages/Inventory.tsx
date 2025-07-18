@@ -17,6 +17,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { compressImage, formatFileSize } from '@/lib/imageUtils';
+import { compressImageDetailed } from '@/lib/enhancedImageUtils';
+import { useEnhancedToast } from '@/hooks/useEnhancedToast';
 
 interface Supplier {
   id: string;
@@ -81,6 +83,7 @@ export default function Inventory() {
   const [quantityPart, setQuantityPart] = useState<Part | null>(null);
   const [quantityOperation, setQuantityOperation] = useState<'add' | 'remove'>('add');
   const { toast } = useToast();
+  const enhancedToast = useEnhancedToast();
   const navigate = useNavigate();
 
   const [newPart, setNewPart] = useState({
@@ -240,43 +243,48 @@ export default function Inventory() {
   };
 
   const uploadImage = async (file: File, partId?: string) => {
-    // Show compression toast
-    toast({
-      title: "Compressing image...",
-      description: `Original size: ${formatFileSize(file.size)}`,
-    });
+    // Enhanced compression with detailed tracking
+    const compressionToast = enhancedToast.showCompressionStart(file.name, file.size);
 
-    // Compress the image before upload
-    const compressionResult = await compressImage(file);
-    const compressedFile = compressionResult.file;
-    
-    // Show compression results
-    toast({
-      title: "Compression complete!",
-      description: `${formatFileSize(compressionResult.originalSize)} → ${formatFileSize(compressionResult.compressedSize)} (${compressionResult.compressionRatio.toFixed(1)}% reduction)`,
-    });
+    try {
+      const compressionResult = await compressImageDetailed(
+        file,
+        {},
+        enhancedToast.showCompressionProgress
+      );
+      
+      enhancedToast.dismiss(compressionToast.id);
+      const compressionCompleteToast = enhancedToast.showCompressionComplete(compressionResult);
+      
+      const compressedFile = compressionResult.file;
 
-    const fileExt = compressedFile.name.split('.').pop();
-    const fileName = `${partId || Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-    const filePath = `parts/${fileName}`;
+      const fileExt = compressedFile.name.split('.').pop();
+      const fileName = `${partId || Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `parts/${fileName}`;
 
-    // Show upload toast
-    toast({
-      title: "Uploading image...",
-      description: "Please wait while we upload your compressed image",
-    });
+      // Enhanced upload tracking
+      enhancedToast.dismiss(compressionCompleteToast.id);
+      const uploadToast = enhancedToast.showUploadStart(fileName, compressedFile.size);
 
-    const { error: uploadError } = await supabase.storage
-      .from('tool-images')
-      .upload(filePath, compressedFile);
+      const { error: uploadError } = await supabase.storage
+        .from('tool-images')
+        .upload(filePath, compressedFile);
 
-    if (uploadError) throw uploadError;
+      if (uploadError) throw uploadError;
 
-    const { data: { publicUrl } } = supabase.storage
-      .from('tool-images')
-      .getPublicUrl(filePath);
+      enhancedToast.dismiss(uploadToast.id);
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from('tool-images')
+        .getPublicUrl(filePath);
 
-    return publicUrl;
+      enhancedToast.showUploadSuccess(fileName, publicUrl);
+      return publicUrl;
+      
+    } catch (error) {
+      enhancedToast.showUploadError(error.message, file.name);
+      throw error;
+    }
   };
 
   const addPart = async () => {

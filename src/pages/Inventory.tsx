@@ -16,6 +16,7 @@ import { InventoryHistoryDialog } from '@/components/InventoryHistoryDialog';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { compressImage, formatFileSize } from '@/lib/imageUtils';
 
 interface Supplier {
   id: string;
@@ -239,13 +240,17 @@ export default function Inventory() {
   };
 
   const uploadImage = async (file: File, partId?: string) => {
-    const fileExt = file.name.split('.').pop();
+    // Compress the image before upload
+    const compressionResult = await compressImage(file);
+    const compressedFile = compressionResult.file;
+    
+    const fileExt = compressedFile.name.split('.').pop();
     const fileName = `${partId || Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
     const filePath = `parts/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
       .from('tool-images')
-      .upload(filePath, file);
+      .upload(filePath, compressedFile);
 
     if (uploadError) throw uploadError;
 

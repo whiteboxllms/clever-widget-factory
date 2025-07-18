@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Upload, X, ExternalLink } from "lucide-react";
+import { compressImage, formatFileSize } from "@/lib/imageUtils";
 
 interface Tool {
   id: string;
@@ -84,10 +85,14 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: Tool
 
   const uploadImages = async (files: File[]): Promise<string[]> => {
     const uploadPromises = files.map(async (file) => {
-      const fileName = `checkout-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${file.name}`;
+      // Compress the image before upload
+      const compressionResult = await compressImage(file);
+      const compressedFile = compressionResult.file;
+      
+      const fileName = `checkout-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${compressedFile.name}`;
       const { data, error } = await supabase.storage
         .from('tool-images')
-        .upload(fileName, file);
+        .upload(fileName, compressedFile);
 
       if (error) {
         console.error('Error uploading image:', error);

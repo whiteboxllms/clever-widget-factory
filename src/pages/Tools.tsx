@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Search, Plus, Wrench, AlertTriangle, CheckCircle, Clock, User, Calendar, Upload, X, LogOut, Edit, ArrowLeft, Trash2 } from "lucide-react";
+import { compressImage, formatFileSize } from "@/lib/imageUtils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ToolCheckoutDialog } from "@/components/ToolCheckoutDialog";
 import { useNavigate } from "react-router-dom";
@@ -255,10 +256,14 @@ export default function Tools() {
   };
 
   const uploadImage = async (file: File): Promise<string | null> => {
-    const fileName = `${Date.now()}-${file.name}`;
+    // Compress the image before upload
+    const compressionResult = await compressImage(file);
+    const compressedFile = compressionResult.file;
+    
+    const fileName = `${Date.now()}-${compressedFile.name}`;
     const { data, error } = await supabase.storage
       .from('tool-images')
-      .upload(fileName, file);
+      .upload(fileName, compressedFile);
 
     if (error) {
       console.error('Error uploading image:', error);

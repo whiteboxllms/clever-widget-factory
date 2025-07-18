@@ -84,6 +84,12 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: Tool
   };
 
   const uploadImages = async (files: File[]): Promise<string[]> => {
+    // Show compression toast for multiple files
+    toast({
+      title: `Compressing ${files.length} image${files.length > 1 ? 's' : ''}...`,
+      description: `Total size: ${formatFileSize(files.reduce((sum, f) => sum + f.size, 0))}`,
+    });
+
     const uploadPromises = files.map(async (file) => {
       // Compress the image before upload
       const compressionResult = await compressImage(file);
@@ -107,6 +113,14 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: Tool
     });
 
     const results = await Promise.all(uploadPromises);
+    const successCount = results.filter(url => url !== null).length;
+    
+    // Show upload completion toast
+    toast({
+      title: "Upload complete!",
+      description: `${successCount} image${successCount > 1 ? 's' : ''} uploaded successfully`,
+    });
+
     return results.filter((url): url is string => url !== null);
   };
 

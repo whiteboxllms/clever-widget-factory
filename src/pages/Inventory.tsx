@@ -240,13 +240,31 @@ export default function Inventory() {
   };
 
   const uploadImage = async (file: File, partId?: string) => {
+    // Show compression toast
+    toast({
+      title: "Compressing image...",
+      description: `Original size: ${formatFileSize(file.size)}`,
+    });
+
     // Compress the image before upload
     const compressionResult = await compressImage(file);
     const compressedFile = compressionResult.file;
     
+    // Show compression results
+    toast({
+      title: "Compression complete!",
+      description: `${formatFileSize(compressionResult.originalSize)} → ${formatFileSize(compressionResult.compressedSize)} (${compressionResult.compressionRatio.toFixed(1)}% reduction)`,
+    });
+
     const fileExt = compressedFile.name.split('.').pop();
     const fileName = `${partId || Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
     const filePath = `parts/${fileName}`;
+
+    // Show upload toast
+    toast({
+      title: "Uploading image...",
+      description: "Please wait while we upload your compressed image",
+    });
 
     const { error: uploadError } = await supabase.storage
       .from('tool-images')

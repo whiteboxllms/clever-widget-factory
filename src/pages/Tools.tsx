@@ -256,11 +256,30 @@ export default function Tools() {
   };
 
   const uploadImage = async (file: File): Promise<string | null> => {
+    // Show compression toast
+    toast({
+      title: "Compressing image...",
+      description: `Original size: ${formatFileSize(file.size)}`,
+    });
+
     // Compress the image before upload
     const compressionResult = await compressImage(file);
     const compressedFile = compressionResult.file;
     
+    // Show compression results
+    toast({
+      title: "Compression complete!",
+      description: `${formatFileSize(compressionResult.originalSize)} → ${formatFileSize(compressionResult.compressedSize)} (${compressionResult.compressionRatio.toFixed(1)}% reduction)`,
+    });
+    
     const fileName = `${Date.now()}-${compressedFile.name}`;
+    
+    // Show upload toast
+    toast({
+      title: "Uploading image...",
+      description: "Please wait while we upload your compressed image",
+    });
+
     const { data, error } = await supabase.storage
       .from('tool-images')
       .upload(fileName, compressedFile);

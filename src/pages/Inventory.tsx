@@ -597,7 +597,7 @@ export default function Inventory() {
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-4xl font-bold text-foreground">Inventory</h1>
+            <h1 className="text-4xl font-bold text-foreground">Manage Inventory</h1>
             <p className="text-muted-foreground mt-2">Manage inventory items and view tool summaries</p>
           </div>
           

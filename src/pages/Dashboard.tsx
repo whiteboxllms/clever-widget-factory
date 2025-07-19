@@ -36,7 +36,7 @@ export default function Dashboard() {
       color: "bg-green-500"
     },
     {
-      title: "Inventory",
+      title: "Manage Inventory",
       description: "View and manage inventory",
       icon: Package,
       path: "/inventory",

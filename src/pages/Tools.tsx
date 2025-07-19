@@ -392,22 +392,30 @@ export default function Tools() {
     setIsSubmitting(true);
 
     try {
+      // Different update payload based on user role
+      const updateData = isAdmin 
+        ? {
+            name: editTool.name,
+            description: editTool.description || null,
+            category: editTool.category || null,
+            condition: editTool.condition as any,
+            status: editTool.status as any,
+            intended_storage_location: editTool.intended_storage_location,
+            actual_location: editTool.actual_location || null,
+            serial_number: editTool.serial_number || null,
+            manual_url: editTool.manual_url || null,
+            last_maintenance: editTool.last_maintenance || null,
+            purchase_date: editTool.purchase_date || null,
+            stargazer_sop: editTool.stargazer_sop || null
+          }
+        : {
+            name: editTool.name,
+            description: editTool.description || null
+          };
+
       const { error } = await supabase
         .from('tools')
-        .update({
-          name: editTool.name,
-          description: editTool.description || null,
-          category: editTool.category || null,
-          condition: editTool.condition as any,
-          status: editTool.status as any,
-          intended_storage_location: editTool.intended_storage_location,
-          actual_location: editTool.actual_location || null,
-          serial_number: editTool.serial_number || null,
-          manual_url: editTool.manual_url || null,
-          last_maintenance: editTool.last_maintenance || null,
-          purchase_date: editTool.purchase_date || null,
-          stargazer_sop: editTool.stargazer_sop || null
-        })
+        .update(updateData)
         .eq('id', editTool.id);
 
       if (error) throw error;
@@ -769,20 +777,20 @@ export default function Tools() {
                           </Button>
                         )}
                         
-                        {isAdmin && (
-                          <div className="space-y-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="w-full"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditTool(tool);
-                              }}
-                            >
-                              <Edit className="mr-2 h-3 w-3" />
-                              Edit Tool
-                            </Button>
+                        <div className="space-y-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditTool(tool);
+                            }}
+                          >
+                            <Edit className="mr-2 h-3 w-3" />
+                            Edit Tool
+                          </Button>
+                          {isAdmin && (
                             <Button
                               size="sm"
                               variant="ghost"
@@ -796,8 +804,8 @@ export default function Tools() {
                               <Trash2 className="mr-1 h-3 w-3" />
                               Remove
                             </Button>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -1083,135 +1091,140 @@ export default function Tools() {
                   />
                 </div>
 
-                {/* Category and Condition */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-category">Category</Label>
-                    <Select value={editTool.category || ''} onValueChange={(value) => setEditTool(prev => prev ? { ...prev, category: value } : null)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Electric Tool">Electric Tool</SelectItem>
-                        <SelectItem value="Combustion Engine">Combustion Engine</SelectItem>
-                        <SelectItem value="Hand Tools">Hand Tools</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Condition</Label>
-                    <Select 
-                      value={editTool.condition} 
-                      onValueChange={(value) => setEditTool(prev => prev ? { ...prev, condition: value } : null)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                       <SelectContent>
-                         <SelectItem value="good">Good</SelectItem>
-                          <SelectItem value="functional_but_not_efficient">Functional but inefficient</SelectItem>
-                         <SelectItem value="not_functional">Not functional</SelectItem>
-                       </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+                {/* Admin-only fields */}
+                {isAdmin && (
+                  <>
+                    {/* Category and Condition */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-category">Category</Label>
+                        <Select value={editTool.category || ''} onValueChange={(value) => setEditTool(prev => prev ? { ...prev, category: value } : null)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Electric Tool">Electric Tool</SelectItem>
+                            <SelectItem value="Combustion Engine">Combustion Engine</SelectItem>
+                            <SelectItem value="Hand Tools">Hand Tools</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Condition</Label>
+                        <Select 
+                          value={editTool.condition} 
+                          onValueChange={(value) => setEditTool(prev => prev ? { ...prev, condition: value } : null)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                           <SelectContent>
+                             <SelectItem value="good">Good</SelectItem>
+                              <SelectItem value="functional_but_not_efficient">Functional but inefficient</SelectItem>
+                             <SelectItem value="not_functional">Not functional</SelectItem>
+                           </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
 
-                {/* Status and Intended Location */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Status</Label>
-                    <Select 
-                      value={editTool.status} 
-                      onValueChange={(value) => setEditTool(prev => prev ? { ...prev, status: value } : null)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                       <SelectContent>
-                         <SelectItem value="available">Available</SelectItem>
-                         <SelectItem value="checked_out">Checked Out</SelectItem>
-                         <SelectItem value="unavailable">Unavailable</SelectItem>
-                         <SelectItem value="unable_to_find">Unable to Find</SelectItem>
-                       </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-intended-location">SOP location *</Label>
-                    <Input
-                      id="edit-intended-location"
-                      value={editTool.intended_storage_location}
-                      onChange={(e) => setEditTool(prev => prev ? { ...prev, intended_storage_location: e.target.value } : null)}
-                      placeholder="e.g., Shelf A-3, Toolbox #2"
-                      required
-                    />
-                  </div>
-                </div>
+                    {/* Status and Intended Location */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Status</Label>
+                        <Select 
+                          value={editTool.status} 
+                          onValueChange={(value) => setEditTool(prev => prev ? { ...prev, status: value } : null)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                           <SelectContent>
+                             <SelectItem value="available">Available</SelectItem>
+                             <SelectItem value="checked_out">Checked Out</SelectItem>
+                             <SelectItem value="unavailable">Unavailable</SelectItem>
+                             <SelectItem value="unable_to_find">Unable to Find</SelectItem>
+                           </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-intended-location">SOP location *</Label>
+                        <Input
+                          id="edit-intended-location"
+                          value={editTool.intended_storage_location}
+                          onChange={(e) => setEditTool(prev => prev ? { ...prev, intended_storage_location: e.target.value } : null)}
+                          placeholder="e.g., Shelf A-3, Toolbox #2"
+                          required
+                        />
+                      </div>
+                    </div>
 
-                {/* Actual Location and Serial Number */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-actual-location">Actual Location</Label>
-                    <Input
-                      id="edit-actual-location"
-                      value={editTool.actual_location || ''}
-                      onChange={(e) => setEditTool(prev => prev ? { ...prev, actual_location: e.target.value } : null)}
-                      placeholder="Current location if different"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-serial">Serial Number</Label>
-                    <Input
-                      id="edit-serial"
-                      value={editTool.serial_number || ''}
-                      onChange={(e) => setEditTool(prev => prev ? { ...prev, serial_number: e.target.value } : null)}
-                      placeholder="Enter serial number"
-                    />
-                  </div>
-                </div>
+                    {/* Actual Location and Serial Number */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-actual-location">Actual Location</Label>
+                        <Input
+                          id="edit-actual-location"
+                          value={editTool.actual_location || ''}
+                          onChange={(e) => setEditTool(prev => prev ? { ...prev, actual_location: e.target.value } : null)}
+                          placeholder="Current location if different"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-serial">Serial Number</Label>
+                        <Input
+                          id="edit-serial"
+                          value={editTool.serial_number || ''}
+                          onChange={(e) => setEditTool(prev => prev ? { ...prev, serial_number: e.target.value } : null)}
+                          placeholder="Enter serial number"
+                        />
+                      </div>
+                    </div>
 
-                {/* Stargazer SOP */}
-                <div className="space-y-2">
-                  <Label htmlFor="edit-stargazer-sop">Stargazer SOP</Label>
-                  <Textarea
-                    id="edit-stargazer-sop"
-                    value={editTool.stargazer_sop || ''}
-                    onChange={(e) => setEditTool(prev => prev ? { ...prev, stargazer_sop: e.target.value } : null)}
-                    placeholder="Standard Operating Procedures specific to Stargazer"
-                    rows={3}
-                  />
-                </div>
+                    {/* Stargazer SOP */}
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-stargazer-sop">Stargazer SOP</Label>
+                      <Textarea
+                        id="edit-stargazer-sop"
+                        value={editTool.stargazer_sop || ''}
+                        onChange={(e) => setEditTool(prev => prev ? { ...prev, stargazer_sop: e.target.value } : null)}
+                        placeholder="Standard Operating Procedures specific to Stargazer"
+                        rows={3}
+                      />
+                    </div>
 
-                {/* Manual URL and Maintenance/Purchase Dates */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-manual">Manual URL</Label>
-                    <Input
-                      id="edit-manual"
-                      type="url"
-                      value={editTool.manual_url || ''}
-                      onChange={(e) => setEditTool(prev => prev ? { ...prev, manual_url: e.target.value } : null)}
-                      placeholder="https://example.com/manual.pdf"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-maintenance">Last Maintenance</Label>
-                    <Input
-                      id="edit-maintenance"
-                      type="date"
-                      value={editTool.last_maintenance || ''}
-                      onChange={(e) => setEditTool(prev => prev ? { ...prev, last_maintenance: e.target.value } : null)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-purchase">Purchase Date</Label>
-                    <Input
-                      id="edit-purchase"
-                      type="date"
-                      value={editTool.purchase_date || ''}
-                      onChange={(e) => setEditTool(prev => prev ? { ...prev, purchase_date: e.target.value } : null)}
-                    />
-                  </div>
-                </div>
+                    {/* Manual URL and Maintenance/Purchase Dates */}
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-manual">Manual URL</Label>
+                        <Input
+                          id="edit-manual"
+                          type="url"
+                          value={editTool.manual_url || ''}
+                          onChange={(e) => setEditTool(prev => prev ? { ...prev, manual_url: e.target.value } : null)}
+                          placeholder="https://example.com/manual.pdf"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-maintenance">Last Maintenance</Label>
+                        <Input
+                          id="edit-maintenance"
+                          type="date"
+                          value={editTool.last_maintenance || ''}
+                          onChange={(e) => setEditTool(prev => prev ? { ...prev, last_maintenance: e.target.value } : null)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-purchase">Purchase Date</Label>
+                        <Input
+                          id="edit-purchase"
+                          type="date"
+                          value={editTool.purchase_date || ''}
+                          onChange={(e) => setEditTool(prev => prev ? { ...prev, purchase_date: e.target.value } : null)}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {/* Submit Buttons */}
                 <div className="flex justify-end gap-3 pt-4">
@@ -1223,7 +1236,7 @@ export default function Tools() {
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={isSubmitting || !editTool.name || !editTool.intended_storage_location}>
+                  <Button type="submit" disabled={isSubmitting || !editTool.name || (isAdmin && !editTool.intended_storage_location)}>
                     {isSubmitting ? "Updating..." : "Update Tool"}
                   </Button>
                 </div>

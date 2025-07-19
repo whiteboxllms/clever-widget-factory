@@ -278,7 +278,7 @@ export default function Auth() {
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Google Sign In Button */}
+              {/* Google Sign In Button - Commented out until provider is configured in Supabase
               <Button 
                 onClick={handleGoogleSignIn} 
                 variant="outline" 
@@ -304,6 +304,7 @@ export default function Auth() {
                   </span>
                 </div>
               </div>
+              */}
 
               <Tabs defaultValue="signin" className="w-full">
                 <TabsList className="grid w-full grid-cols-2">

@@ -933,9 +933,6 @@ export default function Inventory() {
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <CardTitle className="text-lg">{part.name}</CardTitle>
-                    <CardDescription className="mt-1">
-                      {part.description || 'No description available'}
-                    </CardDescription>
                   </div>
                   <div className="flex gap-1 ml-2">
                     <InventoryHistoryDialog partId={part.id} partName={part.name}>
@@ -976,6 +973,9 @@ export default function Inventory() {
                     </AlertDialog>
                   </div>
                 </div>
+                <CardDescription className="mt-3 text-sm text-muted-foreground truncate w-full">
+                  {part.description || 'No description available'}
+                </CardDescription>
               </CardHeader>
               
               <CardContent>

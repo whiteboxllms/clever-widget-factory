@@ -1088,7 +1088,7 @@ export default function Inventory() {
 
         {/* Edit Dialog */}
         <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-scroll">
             <DialogHeader>
               <DialogTitle>Edit Inventory Item</DialogTitle>
               <DialogDescription>

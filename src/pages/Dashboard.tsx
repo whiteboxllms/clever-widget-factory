@@ -50,7 +50,7 @@ export default function Dashboard() {
       color: "bg-red-500"
     },
     {
-      title: "Manage Parts",
+      title: "Manage Inventory",
       description: "Add and edit consumable parts",
       icon: Box,
       path: "/parts",

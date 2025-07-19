@@ -239,7 +239,8 @@ export default function Tools() {
   const filteredTools = tools.filter(tool =>
     tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     tool.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tool.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    tool.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    tool.serial_number?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleToolClick = (tool: Tool) => {

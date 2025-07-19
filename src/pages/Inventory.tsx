@@ -35,7 +35,6 @@ interface Part {
   id: string;
   name: string;
   description: string | null;
-  category: string | null;
   current_quantity: number;
   minimum_quantity: number | null;
   cost_per_unit: number | null;
@@ -75,7 +74,7 @@ export default function Inventory() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingPart, setEditingPart] = useState<Part | null>(null);
@@ -119,7 +118,7 @@ export default function Inventory() {
 
   useEffect(() => {
     filterParts();
-  }, [parts, searchTerm, selectedCategory]);
+  }, [parts, searchTerm]);
 
   const fetchParts = async () => {
     try {
@@ -224,19 +223,8 @@ export default function Inventory() {
         
         return part.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           part.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          part.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           supplierName?.toLowerCase().includes(searchTerm.toLowerCase());
       });
-    }
-
-    if (selectedCategory !== 'all') {
-      if (selectedCategory === 'low-stock') {
-        filtered = filtered.filter(part => 
-          part.minimum_quantity && part.current_quantity <= part.minimum_quantity
-        );
-      } else {
-        filtered = filtered.filter(part => part.category === selectedCategory);
-      }
     }
 
     setFilteredParts(filtered);
@@ -367,12 +355,11 @@ export default function Inventory() {
         imageUrl = await uploadImage(editSelectedImage, editingPart.id);
       }
 
-      const { error } = await supabase
+        const { error } = await supabase
         .from('parts')
         .update({
           name: editingPart.name,
           description: editingPart.description,
-          category: editingPart.category,
           minimum_quantity: editingPart.minimum_quantity,
           cost_per_unit: editingPart.cost_per_unit,
           unit: editingPart.unit,
@@ -581,7 +568,7 @@ export default function Inventory() {
     }
   };
 
-  const categories = Array.from(new Set(parts.map(part => part.category).filter(Boolean))) as string[];
+  
 
   if (loading) {
     return (
@@ -925,30 +912,17 @@ export default function Inventory() {
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-foreground mb-4">Inventory Items</h2>
           
-          {/* Search and Filter */}
-          <div className="flex gap-4 mb-6">
-            <div className="relative flex-1">
+          {/* Search */}
+          <div className="mb-6">
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
               <Input
-                placeholder="Search consumables by name, description, category, or supplier..."
+                placeholder="Search inventory by name, description, or supplier..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
             </div>
-            
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Filter by category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="low-stock">Low Stock</SelectItem>
-                {categories.map(category => (
-                  <SelectItem key={category} value={category}>{category}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           {/* Consumables Grid */}
@@ -1030,10 +1004,6 @@ export default function Inventory() {
 
                   {getStockBadge(part)}
 
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground">Category:</span>
-                    <Badge variant="outline">{part.category || 'Uncategorized'}</Badge>
-                  </div>
 
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">Location:</span>
@@ -1086,9 +1056,9 @@ export default function Inventory() {
               <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium text-muted-foreground mb-2">No consumables found</h3>
               <p className="text-muted-foreground">
-                {searchTerm || selectedCategory !== 'all' 
-                  ? 'Try adjusting your search or filter criteria'
-                  : 'Add your first consumable to get started'
+                {searchTerm 
+                  ? 'Try adjusting your search criteria'
+                  : 'Add your first inventory item to get started'
                 }
               </p>
             </div>

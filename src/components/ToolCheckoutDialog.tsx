@@ -144,6 +144,7 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: Tool
         .from('checkouts')
         .insert({
           tool_id: tool.id,
+          user_id: user?.id,
           user_name: userFullName,
           intended_usage: form.intendedUsage || null,
           notes: form.notes || null,

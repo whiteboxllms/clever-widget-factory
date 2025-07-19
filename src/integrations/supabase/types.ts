@@ -89,6 +89,7 @@ export type Database = {
           notes: string | null
           pre_existing_issues: string | null
           tool_id: string
+          user_id: string
           user_name: string
         }
         Insert: {
@@ -102,6 +103,7 @@ export type Database = {
           notes?: string | null
           pre_existing_issues?: string | null
           tool_id: string
+          user_id: string
           user_name: string
         }
         Update: {
@@ -115,6 +117,7 @@ export type Database = {
           notes?: string | null
           pre_existing_issues?: string | null
           tool_id?: string
+          user_id?: string
           user_name?: string
         }
         Relationships: [

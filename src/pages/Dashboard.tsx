@@ -37,7 +37,7 @@ export default function Dashboard() {
     },
     {
       title: "Inventory",
-      description: "View all tools and parts",
+      description: "View and manage inventory",
       icon: Package,
       path: "/inventory",
       color: "bg-orange-500"
@@ -48,13 +48,6 @@ export default function Dashboard() {
       icon: Wrench,
       path: "/tools",
       color: "bg-red-500"
-    },
-    {
-      title: "Manage Inventory",
-      description: "Add and edit consumable parts",
-      icon: Box,
-      path: "/parts",
-      color: "bg-teal-500"
     }
   ];
 

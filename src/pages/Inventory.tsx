@@ -361,6 +361,7 @@ export default function Inventory() {
         .update({
           name: editingPart.name,
           description: editingPart.description,
+          current_quantity: editingPart.current_quantity,
           minimum_quantity: editingPart.minimum_quantity,
           cost_per_unit: editingPart.cost_per_unit,
           unit: editingPart.unit,
@@ -1216,6 +1217,16 @@ export default function Inventory() {
                   />
                 </div>
 
+                <div>
+                  <Label htmlFor="edit-current">Current Quantity *</Label>
+                  <Input
+                    id="edit-current"
+                    type="number"
+                    min="0"
+                    value={editingPart.current_quantity || ''}
+                    onChange={(e) => setEditingPart({...editingPart, current_quantity: parseInt(e.target.value) || 0})}
+                  />
+                </div>
                 <div>
                   <Label htmlFor="edit-unit">Unit</Label>
                   <Select value={editingPart.unit || 'pieces'} onValueChange={(value) => setEditingPart({...editingPart, unit: value})}>

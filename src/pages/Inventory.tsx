@@ -608,7 +608,7 @@ export default function Inventory() {
                 Add Item
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-scroll">
               <DialogHeader>
                 <DialogTitle>Add New Inventory Item</DialogTitle>
                 <DialogDescription>

@@ -773,37 +773,35 @@ export default function Tools() {
                           </Button>
                         )}
                         
-                        {canEditTools && (
-                          <div className="space-y-2">
+                        <div className="space-y-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditTool(tool);
+                            }}
+                          >
+                            <Edit className="mr-2 h-3 w-3" />
+                            Edit Tool
+                          </Button>
+                          {isAdmin && (
                             <Button
                               size="sm"
-                              variant="outline"
-                              className="w-full"
+                              variant="ghost"
+                              className="w-full text-muted-foreground hover:text-destructive text-xs"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleEditTool(tool);
+                                setToolToRemove(tool);
+                                setIsRemoveDialogOpen(true);
                               }}
                             >
-                              <Edit className="mr-2 h-3 w-3" />
-                              Edit Tool
+                              <Trash2 className="mr-2 h-3 w-3" />
+                              Remove Tool
                             </Button>
-                            {isAdmin && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="w-full text-muted-foreground hover:text-destructive text-xs"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setToolToRemove(tool);
-                                  setIsRemoveDialogOpen(true);
-                                }}
-                              >
-                                <Trash2 className="mr-1 h-3 w-3" />
-                                Remove
-                              </Button>
-                            )}
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                     </CardContent>
                   </Card>

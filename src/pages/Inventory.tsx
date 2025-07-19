@@ -104,6 +104,7 @@ export default function Inventory() {
   const [supplierOpen, setSupplierOpen] = useState(false);
   const [editSupplierOpen, setEditSupplierOpen] = useState(false);
   const [toolsSummaryExpanded, setToolsSummaryExpanded] = useState(false);
+  const [expandedDescriptions, setExpandedDescriptions] = useState<Set<string>>(new Set());
 
   const [quantityChange, setQuantityChange] = useState({
     amount: '',
@@ -568,6 +569,16 @@ export default function Inventory() {
     }
   };
 
+  const toggleDescription = (partId: string) => {
+    const newExpanded = new Set(expandedDescriptions);
+    if (newExpanded.has(partId)) {
+      newExpanded.delete(partId);
+    } else {
+      newExpanded.add(partId);
+    }
+    setExpandedDescriptions(newExpanded);
+  };
+
   
 
   if (loading) {
@@ -973,8 +984,17 @@ export default function Inventory() {
                     </AlertDialog>
                   </div>
                 </div>
-                <CardDescription className="mt-3 text-sm text-muted-foreground truncate w-full">
-                  {part.description || 'No description available'}
+                <CardDescription 
+                  className="mt-3 text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => toggleDescription(part.id)}
+                >
+                  {expandedDescriptions.has(part.id) 
+                    ? (part.description || 'No description available')
+                    : (part.description && part.description.length > 100 
+                        ? `${part.description.substring(0, 100)}...` 
+                        : (part.description || 'No description available')
+                      )
+                  }
                 </CardDescription>
               </CardHeader>
               

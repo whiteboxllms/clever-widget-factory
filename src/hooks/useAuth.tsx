@@ -7,6 +7,8 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   isAdmin: boolean;
+  isContributor: boolean;
+  canEditTools: boolean;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<{ error: any }>;
@@ -22,6 +24,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isContributor, setIsContributor] = useState(false);
+  const [canEditTools, setCanEditTools] = useState(false);
 
   useEffect(() => {
     // Set up auth state listener
@@ -30,7 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         
-        // Check admin role when user changes
+        // Check role when user changes
         if (session?.user) {
           // Use setTimeout to defer Supabase calls and prevent deadlock
           setTimeout(async () => {
@@ -39,10 +43,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               .select('role')
               .eq('user_id', session.user.id)
               .single();
-            setIsAdmin(profile?.role === 'admin');
+            const userRole = profile?.role;
+            setIsAdmin(userRole === 'admin');
+            setIsContributor(userRole === 'contributor');
+            setCanEditTools(userRole === 'admin' || userRole === 'contributor');
           }, 0);
         } else {
           setIsAdmin(false);
+          setIsContributor(false);
+          setCanEditTools(false);
         }
         
         setLoading(false);
@@ -54,16 +63,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       
-      // Check admin role for existing session
+      // Check role for existing session
       if (session?.user) {
         const { data: profile } = await supabase
           .from('profiles')
           .select('role')
           .eq('user_id', session.user.id)
           .single();
-        setIsAdmin(profile?.role === 'admin');
+        const userRole = profile?.role;
+        setIsAdmin(userRole === 'admin');
+        setIsContributor(userRole === 'contributor');
+        setCanEditTools(userRole === 'admin' || userRole === 'contributor');
       } else {
         setIsAdmin(false);
+        setIsContributor(false);
+        setCanEditTools(false);
       }
       
       setLoading(false);
@@ -135,6 +149,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       loading,
       isAdmin,
+      isContributor,
+      canEditTools,
       signUp,
       signIn,
       signInWithGoogle,

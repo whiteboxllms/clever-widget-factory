@@ -1033,7 +1033,7 @@ export default function Inventory() {
                   {part.cost_per_unit && (
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-muted-foreground">Cost per unit:</span>
-                      <span>${part.cost_per_unit.toFixed(2)}</span>
+                      <span>₱{part.cost_per_unit.toFixed(2)}</span>
                     </div>
                   )}
 

@@ -6,14 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card } from "@/components/ui/card";
 import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ResourceSelector } from '@/components/ResourceSelector';
+import { TaskCard } from '@/components/TaskCard';
 
 interface Task {
   title: string;
-  description: string;
   done_definition: string;
   assigned_to: string;
 }
@@ -53,6 +52,7 @@ export function SimpleMissionForm({
 }: SimpleMissionFormProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showTasks, setShowTasks] = useState(defaultTasks.length > 0);
+  const [editingTaskIndex, setEditingTaskIndex] = useState<number | null>(null);
 
   // Initialize with default tasks if provided
   useState(() => {
@@ -67,17 +67,19 @@ export function SimpleMissionForm({
   const addTask = () => {
     setFormData(prev => ({
       ...prev,
-      tasks: [...prev.tasks, { title: '', description: '', done_definition: '', assigned_to: '' }]
+      tasks: [...prev.tasks, { title: '', done_definition: '', assigned_to: '' }]
     }));
+    setEditingTaskIndex(formData.tasks.length);
   };
 
-  const updateTask = (index: number, field: string, value: string) => {
+  const updateTask = (index: number, taskData: Task) => {
     setFormData(prev => ({
       ...prev,
       tasks: prev.tasks.map((task, i) => 
-        i === index ? { ...task, [field]: value } : task
+        i === index ? taskData : task
       )
     }));
+    setEditingTaskIndex(null);
   };
 
   const removeTask = (index: number) => {
@@ -85,6 +87,7 @@ export function SimpleMissionForm({
       ...prev,
       tasks: prev.tasks.filter((_, i) => i !== index)
     }));
+    setEditingTaskIndex(null);
   };
 
   return (
@@ -209,58 +212,59 @@ export function SimpleMissionForm({
           </div>
           
           {formData.tasks.map((task, index) => (
-            <Card key={index} className="p-4">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>Task {index + 1}</Label>
-                  {formData.tasks.length > 1 && (
+            <div key={index}>
+              {editingTaskIndex === index ? (
+                <TaskCard
+                  task={{
+                    id: `temp-${index}`,
+                    title: task.title,
+                    done_definition: task.done_definition,
+                    assigned_to: task.assigned_to,
+                    status: 'not_started',
+                    mission_id: ''
+                  }}
+                  profiles={profiles}
+                  onUpdate={() => {}}
+                  isEditing={true}
+                  onSave={(taskData) => updateTask(index, taskData)}
+                  onCancel={() => setEditingTaskIndex(null)}
+                />
+              ) : (
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex-1">
+                    <h4 className="font-medium">{task.title || `Task ${index + 1}`}</h4>
+                    {task.done_definition && (
+                      <p className="text-sm text-muted-foreground mt-1">{task.done_definition}</p>
+                    )}
+                    {task.assigned_to && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Assigned to: {profiles.find(p => p.user_id === task.assigned_to)?.full_name || 'Unknown'}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
                     <Button 
                       type="button" 
                       variant="ghost" 
                       size="sm" 
-                      onClick={() => removeTask(index)}
+                      onClick={() => setEditingTaskIndex(index)}
                     >
-                      Remove
+                      Edit
                     </Button>
-                  )}
+                    {formData.tasks.length > 1 && (
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => removeTask(index)}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                
-                <Input
-                  placeholder="Task title"
-                  value={task.title}
-                  onChange={(e) => updateTask(index, 'title', e.target.value)}
-                />
-                
-                <Textarea
-                  placeholder="Task description (optional)"
-                  value={task.description}
-                  onChange={(e) => updateTask(index, 'description', e.target.value)}
-                  rows={2}
-                />
-                
-                <Textarea
-                  placeholder="Done definition (what does complete look like?)"
-                  value={task.done_definition}
-                  onChange={(e) => updateTask(index, 'done_definition', e.target.value)}
-                  rows={2}
-                />
-                
-                <Select value={task.assigned_to} onValueChange={(value) => 
-                  updateTask(index, 'assigned_to', value)
-                }>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Assign to (optional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {profiles.map((profile) => (
-                      <SelectItem key={profile.user_id} value={profile.user_id}>
-                        {profile.full_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </Card>
+              )}
+            </div>
           ))}
         </CollapsibleContent>
       </Collapsible>

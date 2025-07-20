@@ -10,6 +10,7 @@ import { ArrowLeft, Plus, Flag, Calendar, User, CheckCircle, Clock, AlertCircle,
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { MissionTemplates } from '@/components/MissionTemplates';
 import { SimpleMissionForm } from '@/components/SimpleMissionForm';
+import { MissionTaskList } from '@/components/MissionTaskList';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface Mission {
@@ -40,7 +41,6 @@ interface Profile {
 
 interface Task {
   title: string;
-  description: string;
   done_definition: string;
   assigned_to: string;
 }
@@ -67,7 +67,7 @@ const Missions = () => {
     selected_resources: [] as { id: string; name: string; quantity?: number; unit?: string; type: 'part' | 'tool' }[],
     all_materials_available: false,
     qa_assigned_to: '',
-    tasks: [{ title: '', description: '', done_definition: '', assigned_to: '' }] as Task[]
+    tasks: [{ title: '', done_definition: '', assigned_to: '' }] as Task[]
   });
 
   useEffect(() => {
@@ -156,8 +156,12 @@ const Missions = () => {
       all_materials_available: false,
       qa_assigned_to: '',
       tasks: template.defaultTasks.length > 0 
-        ? template.defaultTasks.map((task: any) => ({ ...task, assigned_to: '' }))
-        : [{ title: '', description: '', done_definition: '', assigned_to: '' }]
+        ? template.defaultTasks.map((task: any) => ({ 
+            title: task.title, 
+            done_definition: task.done_definition, 
+            assigned_to: '' 
+          }))
+        : [{ title: '', done_definition: '', assigned_to: '' }]
     });
   };
 
@@ -200,7 +204,6 @@ const Missions = () => {
           .insert(tasksToCreate.map(task => ({
             mission_id: missionData.id,
             title: task.title,
-            description: task.description,
             done_definition: task.done_definition,
             assigned_to: task.assigned_to || null
           })));
@@ -224,7 +227,7 @@ const Missions = () => {
         selected_resources: [],
         all_materials_available: false,
         qa_assigned_to: '',
-        tasks: [{ title: '', description: '', done_definition: '', assigned_to: '' }]
+        tasks: [{ title: '', done_definition: '', assigned_to: '' }]
       });
       fetchMissions();
     } catch (error) {
@@ -248,7 +251,7 @@ const Missions = () => {
       selected_resources: [],
       all_materials_available: false,
       qa_assigned_to: '',
-      tasks: [{ title: '', description: '', done_definition: '', assigned_to: '' }]
+      tasks: [{ title: '', done_definition: '', assigned_to: '' }]
     });
   };
 
@@ -440,9 +443,11 @@ const Missions = () => {
                             </Button>
                           </CollapsibleTrigger>
                           <CollapsibleContent className="mt-2">
-                            <div className="text-xs text-muted-foreground">
-                              Task details would be loaded here...
-                            </div>
+                            <MissionTaskList
+                              missionId={mission.id}
+                              profiles={profiles}
+                              canEdit={isLeadership || mission.created_by === user?.id}
+                            />
                           </CollapsibleContent>
                         </Collapsible>
                       )}

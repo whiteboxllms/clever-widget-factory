@@ -221,6 +221,25 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     }
   };
 
+  // Plan change handler - updates plan in database
+  const handlePlanChange = async (value: string) => {
+    setEditData(prev => ({ ...prev, plan: value }));
+    
+    if (task.status !== 'completed') {
+      try {
+        const { error } = await supabase
+          .from('mission_tasks')
+          .update({ plan: value })
+          .eq('id', task.id);
+
+        if (error) throw error;
+        onUpdate();
+      } catch (error) {
+        console.error('Error updating task plan:', error);
+      }
+    }
+  };
+
   // Fixed implementation change handler - updates status from any state except completed
   const handleImplementationChange = async (value: string) => {
     setEditData(prev => ({ ...prev, observations: value }));
@@ -462,12 +481,22 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
         <CollapsibleContent>
           <CardContent className="pt-0">
             <div className="space-y-4">
-            {task.plan && (
               <div>
                 <Label className="text-sm font-medium">Plan</Label>
-                <p className="text-sm text-muted-foreground mt-1">{task.plan}</p>
+                {task.status !== 'completed' ? (
+                  <Textarea
+                    value={editData.plan}
+                    onChange={(e) => handlePlanChange(e.target.value)}
+                    placeholder="What is the plan for this task?"
+                    rows={2}
+                    className="mt-1"
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {task.plan || 'No plan provided'}
+                  </p>
+                )}
               </div>
-            )}
             
               <div>
                 <Label className="text-sm font-medium">Implementation</Label>

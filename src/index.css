@@ -54,12 +54,12 @@ All colors MUST be HSL.
 
     --sidebar-ring: 217.2 91.2% 59.8%;
 
-    /* Mission Template Colors */
-    --mission-maintenance: 25 95% 53%;
-    --mission-research: 217 91% 60%;
-    --mission-education: 142 76% 36%;
-    --mission-construction: 43 96% 56%;
-    --mission-custom: 262 83% 58%;
+    /* Mission Template Colors - Softer versions */
+    --mission-maintenance: 25 70% 85%;
+    --mission-research: 217 60% 85%;
+    --mission-education: 142 50% 80%;
+    --mission-construction: 43 70% 85%;
+    --mission-custom: 262 50% 85%;
   }
 
   .dark {

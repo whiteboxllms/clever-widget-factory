@@ -202,21 +202,21 @@ export function MissionTemplates({ onSelectTemplate, onClose }: MissionTemplates
               className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
               onClick={() => onSelectTemplate(template)}
             >
-              <CardHeader className={`pb-3 ${template.color} text-white`}>
+              <CardHeader className={`pb-3 ${template.color}`}>
                 <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-lg bg-white/20">
-                    <Icon className="h-6 w-6 text-white" />
+                  <div className="p-3 rounded-lg bg-white/30">
+                    <Icon className="h-6 w-6 text-foreground" />
                   </div>
                   <div className="flex-1">
-                    <CardTitle className="text-base text-white">{template.name}</CardTitle>
+                    <CardTitle className="text-base text-foreground">{template.name}</CardTitle>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge 
                         variant="secondary" 
-                        className="text-xs bg-white/20 text-white border-white/20"
+                        className="text-xs bg-white/40 text-foreground border-white/40"
                       >
                         {template.category}
                       </Badge>
-                      <span className="text-xs text-white/80">
+                      <span className="text-xs text-muted-foreground">
                         {template.estimatedDuration}
                       </span>
                     </div>

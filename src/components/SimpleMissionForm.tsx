@@ -143,7 +143,26 @@ export function SimpleMissionForm({
 
     } catch (error) {
       console.error('Photo upload failed:', error);
-      enhancedToast.showUploadError(error instanceof Error ? error.message : 'Upload failed', file.name);
+      
+      // Extract status code and detailed error information
+      let statusCode: number | undefined;
+      let errorMessage = 'Upload failed';
+      
+      if (error && typeof error === 'object') {
+        // Supabase storage errors have specific structure
+        if ('status' in error) {
+          statusCode = error.status as number;
+        }
+        if ('message' in error) {
+          errorMessage = error.message as string;
+        } else if ('error' in error && typeof error.error === 'string') {
+          errorMessage = error.error;
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      enhancedToast.showUploadError(errorMessage, file.name, statusCode);
     } finally {
       setIsUploading(false);
     }

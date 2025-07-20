@@ -99,7 +99,9 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: Tool
           .upload(fileName, compressedFile);
 
         if (error) {
-          enhancedToast.showUploadError(error.message, file.name);
+          // Extract status code from Supabase error
+          const statusCode = error && typeof error === 'object' && 'status' in error ? error.status as number : undefined;
+          enhancedToast.showUploadError(error.message, file.name, statusCode);
           return null;
         }
 

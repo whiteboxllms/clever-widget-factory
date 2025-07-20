@@ -281,7 +281,22 @@ export default function Inventory() {
       return publicUrl;
       
     } catch (error) {
-      enhancedToast.showUploadError(error.message, file.name);
+      // Extract status code and detailed error information
+      let statusCode: number | undefined;
+      let errorMessage = 'Upload failed';
+      
+      if (error && typeof error === 'object') {
+        if ('status' in error) {
+          statusCode = error.status as number;
+        }
+        if ('message' in error) {
+          errorMessage = error.message as string;
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      enhancedToast.showUploadError(errorMessage, file.name, statusCode);
       throw error;
     }
   };

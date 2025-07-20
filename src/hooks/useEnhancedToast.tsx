@@ -100,20 +100,53 @@ export function useEnhancedToast() {
     }
   };
 
-  const showUploadError = (error: string, fileName?: string) => {
+  const showUploadError = (error: string, fileName?: string, statusCode?: number) => {
+    const getErrorDetails = (error: string, statusCode?: number) => {
+      // Parse common Supabase storage errors
+      if (error.includes('413') || statusCode === 413) {
+        return "File size too large. Try compressing the image further.";
+      }
+      if (error.includes('401') || statusCode === 401) {
+        return "Authentication failed. Please log out and log back in.";
+      }
+      if (error.includes('403') || statusCode === 403) {
+        return "Permission denied. Contact an administrator.";
+      }
+      if (error.includes('429') || statusCode === 429) {
+        return "Too many upload attempts. Please wait a moment and try again.";
+      }
+      if (error.includes('500') || statusCode === 500) {
+        return "Server error. Please try again in a few moments.";
+      }
+      if (error.includes('502') || error.includes('503') || statusCode === 502 || statusCode === 503) {
+        return "Service temporarily unavailable. Please try again.";
+      }
+      if (error.includes('timeout') || error.includes('network')) {
+        return "Network timeout. Check your internet connection and try again.";
+      }
+      if (error.includes('CORS')) {
+        return "Browser security error. Please refresh the page and try again.";
+      }
+      
+      // Default to the actual error message
+      return error;
+    };
+
+    const errorDetails = getErrorDetails(error, statusCode);
+    
     if (settings.debugMode) {
       return toast({
         title: "❌ Upload Failed",
-        description: `${fileName ? `File: ${fileName}\n` : ''}Error: ${error}\n\nTroubleshooting:\n• Check network connection\n• Verify file format\n• Try compressing further`,
+        description: `${fileName ? `File: ${fileName}\n` : ''}${statusCode ? `Status Code: ${statusCode}\n` : ''}Error: ${errorDetails}\n\nOriginal Error: ${error}`,
         variant: "destructive",
-        duration: 8000,
+        duration: 10000,
       });
     } else {
       return toast({
         title: "Upload failed",
-        description: "Please try again or check your connection",
+        description: errorDetails,
         variant: "destructive",
-        duration: 4000,
+        duration: 6000,
       });
     }
   };

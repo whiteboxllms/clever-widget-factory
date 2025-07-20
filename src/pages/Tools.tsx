@@ -286,7 +286,9 @@ export default function Tools() {
 
       if (error) {
         enhancedToast.dismiss(uploadToast.id);
-        enhancedToast.showUploadError(error.message, file.name);
+        // Extract status code from Supabase error
+        const statusCode = error && typeof error === 'object' && 'status' in error ? error.status as number : undefined;
+        enhancedToast.showUploadError(error.message, file.name, statusCode);
         return null;
       }
 

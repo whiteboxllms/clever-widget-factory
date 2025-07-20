@@ -92,7 +92,7 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
       const { data, error } = await supabase
         .from('tools')
         .select('*')
-        .eq('status', 'available')
+        .in('status', ['available', 'checked_out'])
         .order('name');
 
       if (error) throw error;
@@ -169,10 +169,47 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
   const handleCheckoutSuccess = () => {
     setShowCheckoutDialog(false);
     setSelectedTool(null);
+    // Refresh tools to get updated status
+    fetchTools();
     toast({
       title: "Tool checked out successfully",
       description: `${selectedTool?.name} has been checked out`,
     });
+  };
+
+  const handleCheckIn = async (tool: Tool) => {
+    try {
+      // Update tool status back to available
+      const { error: updateError } = await supabase
+        .from('tools')
+        .update({ status: 'available' })
+        .eq('id', tool.id);
+
+      if (updateError) throw updateError;
+
+      // Update the most recent checkout to mark it as returned
+      const { error: checkoutError } = await supabase
+        .from('checkouts')
+        .update({ is_returned: true })
+        .eq('tool_id', tool.id)
+        .eq('is_returned', false);
+
+      if (checkoutError) throw checkoutError;
+
+      // Refresh tools to get updated status
+      fetchTools();
+      
+      toast({
+        title: "Tool checked in successfully",
+        description: `${tool.name} has been checked in`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to check in tool",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -220,8 +257,10 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
                       {resource.quantity} {resource.unit}
                     </Badge>
                   )}
-                  <Badge variant="outline" className="text-green-600 border-green-600">
-                    {resource.type === 'part' ? 'Available' : 'Available for Checkout'}
+                  <Badge variant="outline" className={resource.type === 'part' ? 'text-green-600 border-green-600' : 
+                    tools.find(t => t.id === resource.id)?.status === 'checked_out' ? 'text-orange-600 border-orange-600' : 'text-green-600 border-green-600'}>
+                    {resource.type === 'part' ? 'Available' : 
+                     tools.find(t => t.id === resource.id)?.status === 'checked_out' ? 'Checked Out' : 'Available for Checkout'}
                   </Badge>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -242,12 +281,17 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
                       if (resource.type === 'tool') {
                         const tool = tools.find(t => t.id === resource.id);
                         if (tool) {
-                          handleToolCheckout(tool);
+                          if (tool.status === 'checked_out') {
+                            handleCheckIn(tool);
+                          } else {
+                            handleToolCheckout(tool);
+                          }
                         }
                       }
                     }}
                   >
-                    {resource.type === 'part' ? 'Use' : 'Checkout'}
+                    {resource.type === 'part' ? 'Use' : 
+                     tools.find(t => t.id === resource.id)?.status === 'checked_out' ? 'Check In' : 'Checkout'}
                   </Button>
                   <Button
                     type="button"
@@ -364,8 +408,9 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
                           type="button"
                           size="sm"
                           onClick={() => addResource(tool)}
+                          disabled={tool.status === 'checked_out'}
                         >
-                          Add
+                          {tool.status === 'checked_out' ? 'Checked Out' : 'Add'}
                         </Button>
                       </div>
                     ))

@@ -8,6 +8,8 @@ import { X, Plus, Search, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { ToolCheckoutDialog } from '@/components/ToolCheckoutDialog';
+import { ToolCheckInDialog } from '@/components/ToolCheckInDialog';
+import { Tables } from '@/integrations/supabase/types';
 
 interface Part {
   id: string;
@@ -19,16 +21,7 @@ interface Part {
   image_url: string;
 }
 
-interface Tool {
-  id: string;
-  name: string;
-  description: string;
-  status: string;
-  condition: string;
-  category: string;
-  image_url: string;
-  intended_storage_location: string;
-}
+type Tool = Tables<'tools'>;
 
 interface SelectedResource {
   id: string;
@@ -57,6 +50,8 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
   const [loading, setLoading] = useState(false);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
+  const [selectedCheckInTool, setSelectedCheckInTool] = useState<Tool | null>(null);
+  const [showCheckInDialog, setShowCheckInDialog] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -253,40 +248,17 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
     });
   };
 
-  const handleCheckIn = async (tool: Tool) => {
-    try {
-      // Update tool status back to available
-      const { error: updateError } = await supabase
-        .from('tools')
-        .update({ status: 'available' })
-        .eq('id', tool.id);
+  const handleCheckIn = (tool: Tool) => {
+    setSelectedCheckInTool(tool);
+    setShowCheckInDialog(true);
+  };
 
-      if (updateError) throw updateError;
-
-      // Update the most recent checkout to mark it as returned
-      const { error: checkoutError } = await supabase
-        .from('checkouts')
-        .update({ is_returned: true })
-        .eq('tool_id', tool.id)
-        .eq('is_returned', false);
-
-      if (checkoutError) throw checkoutError;
-
-      // Refresh tools and checkout info to get updated status
-      fetchTools();
-      fetchToolCheckouts();
-      
-      toast({
-        title: "Tool checked in successfully",
-        description: `${tool.name} has been checked in`,
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to check in tool",
-        variant: "destructive",
-      });
-    }
+  const handleCheckInSuccess = () => {
+    setShowCheckInDialog(false);
+    setSelectedCheckInTool(null);
+    // Refresh tools and checkout info to get updated status
+    fetchTools();
+    fetchToolCheckouts();
   };
 
   return (
@@ -541,6 +513,13 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
         onOpenChange={setShowCheckoutDialog}
         onSuccess={handleCheckoutSuccess}
         assignedTasks={assignedTasks}
+      />
+
+      <ToolCheckInDialog
+        tool={selectedCheckInTool}
+        open={showCheckInDialog}
+        onOpenChange={setShowCheckInDialog}
+        onSuccess={handleCheckInSuccess}
       />
     </div>
   );

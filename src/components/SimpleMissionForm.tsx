@@ -215,6 +215,16 @@ export function SimpleMissionForm({
             placeholder="Describe the problem this mission addresses"
             rows={3}
           />
+          <div className="mt-2">
+            <a 
+              href="https://www.perplexity.ai/spaces/stargazer-assistant-F45qc1H7SmeN5wF1nxJobg" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-sm text-primary hover:underline"
+            >
+              https://www.perplexity.ai/spaces/stargazer-assistant-F45qc1H7SmeN5wF1nxJobg
+            </a>
+          </div>
         </div>
 
         {/* Problem Photos */}

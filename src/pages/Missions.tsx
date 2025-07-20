@@ -179,6 +179,34 @@ const Missions = () => {
     }
 
     try {
+      // Ensure we have a valid session before proceeding
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        toast({
+          title: "Authentication Error",
+          description: "Please log out and log back in to continue",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Double-check the user has leadership role
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (profileError || profile?.role !== 'leadership') {
+        toast({
+          title: "Permission Error", 
+          description: "You need leadership role to create missions",
+          variant: "destructive",
+        });
+        return;
+      }
+
       // Create the mission
       const { data: missionData, error: missionError } = await supabase
         .from('missions')
@@ -190,7 +218,7 @@ const Missions = () => {
             ? formData.selected_resources.map(r => `${r.name}: ${r.quantity} ${r.unit}`).join(', ')
             : formData.resources_required,
           all_materials_available: formData.all_materials_available,
-          created_by: user.id,
+          created_by: session.user.id, // Use session.user.id instead of user.id
           qa_assigned_to: formData.qa_assigned_to || null
         })
         .select()

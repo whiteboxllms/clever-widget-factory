@@ -29,7 +29,7 @@ const templates: MissionTemplate[] = [
     icon: Wrench,
     category: 'Maintenance',
     estimatedDuration: '2-4 hours',
-    color: 'bg-orange-500',
+    color: 'bg-mission-maintenance',
     defaultTasks: [
       {
         title: 'Collaborate with AI on SOP best practices and ideas',
@@ -65,7 +65,7 @@ const templates: MissionTemplate[] = [
     icon: Microscope,
     category: 'Research',
     estimatedDuration: '1-4 weeks',
-    color: 'bg-blue-500',
+    color: 'bg-mission-research',
     defaultTasks: [
       {
         title: 'Collaborate with AI on SOP best practices and ideas',
@@ -101,7 +101,7 @@ const templates: MissionTemplate[] = [
     icon: GraduationCap,
     category: 'Education',
     estimatedDuration: '1-2 days',
-    color: 'bg-green-500',
+    color: 'bg-mission-education',
     defaultTasks: [
       {
         title: 'Collaborate with AI on SOP best practices and ideas',
@@ -137,7 +137,7 @@ const templates: MissionTemplate[] = [
     icon: Hammer,
     category: 'Construction',
     estimatedDuration: '1-2 weeks',
-    color: 'bg-amber-500',
+    color: 'bg-mission-construction',
     defaultTasks: [
       {
         title: 'Collaborate with AI on SOP best practices and ideas',
@@ -173,7 +173,7 @@ const templates: MissionTemplate[] = [
     icon: Lightbulb,
     category: 'Custom',
     estimatedDuration: 'Variable',
-    color: 'bg-purple-500',
+    color: 'bg-mission-custom',
     defaultTasks: []
   }
 ];

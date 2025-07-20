@@ -61,6 +61,13 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				mission: {
+					maintenance: 'hsl(var(--mission-maintenance))',
+					research: 'hsl(var(--mission-research))',
+					education: 'hsl(var(--mission-education))',
+					construction: 'hsl(var(--mission-construction))',
+					custom: 'hsl(var(--mission-custom))'
 				}
 			},
 			borderRadius: {

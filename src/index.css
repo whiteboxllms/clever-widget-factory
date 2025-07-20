@@ -53,6 +53,13 @@ All colors MUST be HSL.
     --sidebar-border: 220 13% 91%;
 
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Mission Template Colors */
+    --mission-maintenance: 25 95% 53%;
+    --mission-research: 217 91% 60%;
+    --mission-education: 142 76% 36%;
+    --mission-construction: 43 96% 56%;
+    --mission-custom: 262 83% 58%;
   }
 
   .dark {
@@ -91,6 +98,13 @@ All colors MUST be HSL.
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Mission Template Colors */
+    --mission-maintenance: 25 95% 53%;
+    --mission-research: 217 91% 60%;
+    --mission-education: 142 76% 36%;
+    --mission-construction: 43 96% 56%;
+    --mission-custom: 262 83% 58%;
   }
 }
 

@@ -408,6 +408,7 @@ const Missions = () => {
                     onSubmit={handleCreateMission}
                     onCancel={resetDialog}
                     defaultTasks={selectedTemplate?.defaultTasks}
+                    selectedTemplate={selectedTemplate}
                   />
                 )}
               </DialogContent>

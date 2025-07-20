@@ -46,6 +46,12 @@ interface SimpleMissionFormProps {
   onSubmit: () => void;
   onCancel: () => void;
   defaultTasks?: Task[];
+  selectedTemplate?: {
+    id: string;
+    name: string;
+    color: string;
+    icon: React.ComponentType<{ className?: string }>;
+  };
 }
 
 export function SimpleMissionForm({ 
@@ -54,7 +60,8 @@ export function SimpleMissionForm({
   profiles, 
   onSubmit, 
   onCancel,
-  defaultTasks = []
+  defaultTasks = [],
+  selectedTemplate
 }: SimpleMissionFormProps) {
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
@@ -170,6 +177,21 @@ export function SimpleMissionForm({
 
   return (
     <div className="space-y-6">
+      {/* Template Header */}
+      {selectedTemplate && (
+        <div className={`${selectedTemplate.color} text-foreground rounded-lg p-4 mb-6`}>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-white/30">
+              <selectedTemplate.icon className="h-5 w-5 text-foreground" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-foreground">{selectedTemplate.name}</h3>
+              <p className="text-sm text-foreground/80">Define your mission details below</p>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Basic Information */}
       <div className="space-y-4">
         <div>
@@ -393,7 +415,10 @@ export function SimpleMissionForm({
         <Button variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button onClick={onSubmit}>
+        <Button 
+          onClick={onSubmit}
+          className={selectedTemplate ? `${selectedTemplate.color} hover:opacity-90` : ''}
+        >
           Create Mission
         </Button>
       </div>

@@ -175,6 +175,27 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
   };
 
   const handleCompleteTask = async () => {
+    // Check if plan has content
+    if (!task.plan || !task.plan.trim()) {
+      toast({
+        title: "Plan Required",
+        description: "Please add a plan before completing the task",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if implementation has content
+    if (!task.observations || !task.observations.trim()) {
+      toast({
+        title: "Implementation Required",
+        description: "Please add implementation notes before completing the task",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if photos are uploaded
     if (photos.length === 0) {
       toast({
         title: "Evidence Required",
@@ -560,15 +581,19 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                 </div>
               )}
 
-              {/* Complete Task Button */}
+              {/* Complete Task Button - Less prominent */}
               {task.status !== 'completed' && (
-                <Button
-                  onClick={handleCompleteTask}
-                  disabled={isCompleting}
-                  className="w-full bg-task-complete hover:bg-task-complete/90 text-task-complete-foreground"
-                >
-                  {isCompleting ? 'Completing...' : 'Complete Task'}
-                </Button>
+                <div className="flex justify-end mt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCompleteTask}
+                    disabled={isCompleting || !task.plan?.trim() || !task.observations?.trim() || photos.length === 0}
+                    className="text-xs text-muted-foreground border-muted-foreground/20 hover:border-muted-foreground/40"
+                  >
+                    {isCompleting ? 'Completing...' : 'Mark Complete'}
+                  </Button>
+                </div>
               )}
             </div>
           </CardContent>

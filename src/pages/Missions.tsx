@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ResourceSelector } from '@/components/ResourceSelector';
 
 interface Mission {
   id: string;
@@ -54,6 +55,7 @@ const Missions = () => {
     problem_statement: '',
     plan: '',
     resources_required: '',
+    selected_resources: [] as { id: string; name: string; quantity: number; unit: string }[],
     all_materials_available: false,
     qa_assigned_to: '',
     tasks: [{ title: '', description: '', done_definition: '', assigned_to: '' }]
@@ -141,7 +143,9 @@ const Missions = () => {
           title: formData.title,
           problem_statement: formData.problem_statement,
           plan: formData.plan,
-          resources_required: formData.resources_required,
+          resources_required: formData.selected_resources.length > 0 
+            ? formData.selected_resources.map(r => `${r.name}: ${r.quantity} ${r.unit}`).join(', ')
+            : formData.resources_required,
           all_materials_available: formData.all_materials_available,
           created_by: user.id,
           qa_assigned_to: formData.qa_assigned_to || null
@@ -179,6 +183,7 @@ const Missions = () => {
         problem_statement: '',
         plan: '',
         resources_required: '',
+        selected_resources: [],
         all_materials_available: false,
         qa_assigned_to: '',
         tasks: [{ title: '', description: '', done_definition: '', assigned_to: '' }]
@@ -310,13 +315,21 @@ const Missions = () => {
                     />
                   </div>
                   
+                  <ResourceSelector
+                    selectedResources={formData.selected_resources}
+                    onResourcesChange={(resources) => 
+                      setFormData(prev => ({ ...prev, selected_resources: resources }))
+                    }
+                  />
+                  
+                  {/* Additional text input for other resources */}
                   <div>
-                    <Label htmlFor="resources_required">Resources Required</Label>
+                    <Label htmlFor="additional_resources">Additional Resources (not in inventory)</Label>
                     <Textarea
-                      id="resources_required"
+                      id="additional_resources"
                       value={formData.resources_required}
                       onChange={(e) => setFormData(prev => ({ ...prev, resources_required: e.target.value }))}
-                      placeholder="List materials, tools, and resources needed"
+                      placeholder="List other materials, tools, and resources needed that aren't in inventory"
                       rows={2}
                     />
                   </div>

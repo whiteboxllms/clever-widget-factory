@@ -241,21 +241,21 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
             </div>
             
             <div>
-              <Label>Plan</Label>
+              <Label>Observations</Label>
               <Textarea
                 value={editData.plan}
                 onChange={(e) => setEditData(prev => ({ ...prev, plan: e.target.value }))}
-                placeholder="How will this task be completed?"
+                placeholder="What observations or findings are expected?"
                 rows={2}
               />
             </div>
             
             <div>
-              <Label>Observations</Label>
+              <Label>Notes</Label>
               <Textarea
                 value={editData.observations}
                 onChange={(e) => setEditData(prev => ({ ...prev, observations: e.target.value }))}
-                placeholder="Notes and observations (optional)"
+                placeholder="Additional notes or details..."
                 rows={2}
               />
             </div>
@@ -362,14 +362,14 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
             <div className="space-y-4">
             {task.plan && (
               <div>
-                <Label className="text-sm font-medium">Plan</Label>
+                <Label className="text-sm font-medium">Observations</Label>
                 <p className="text-sm text-muted-foreground mt-1">{task.plan}</p>
               </div>
             )}
             
             {task.observations && (
               <div>
-                <Label className="text-sm font-medium">Observations</Label>
+                <Label className="text-sm font-medium">Notes</Label>
                 <p className="text-sm text-muted-foreground mt-1">{task.observations}</p>
               </div>
             )}

@@ -30,6 +30,11 @@ const templates: MissionTemplate[] = [
     estimatedDuration: '2-4 hours',
     defaultTasks: [
       {
+        title: 'Collaborate with AI on SOP best practices and ideas',
+        description: 'Work with AI to optimize standard operating procedures',
+        plan: 'Consult AI for industry best practices and process improvements'
+      },
+      {
         title: 'Gather Parts & Tools',
         description: 'Collect necessary repair materials',
         plan: 'List required parts and tools, then gather them from inventory'
@@ -59,6 +64,11 @@ const templates: MissionTemplate[] = [
     category: 'Research',
     estimatedDuration: '1-4 weeks',
     defaultTasks: [
+      {
+        title: 'Collaborate with AI on SOP best practices and ideas',
+        description: 'Work with AI to optimize research methodology',
+        plan: 'Consult AI for research best practices and methodology improvements'
+      },
       {
         title: 'Literature Review',
         description: 'Research existing knowledge on the topic',
@@ -90,6 +100,11 @@ const templates: MissionTemplate[] = [
     estimatedDuration: '1-2 days',
     defaultTasks: [
       {
+        title: 'Collaborate with AI on SOP best practices and ideas',
+        description: 'Work with AI to optimize training methodology',
+        plan: 'Consult AI for training best practices and curriculum improvements'
+      },
+      {
         title: 'Prepare Materials',
         description: 'Create training content and handouts',
         plan: 'Develop slides, handouts, and practical exercises'
@@ -119,6 +134,11 @@ const templates: MissionTemplate[] = [
     category: 'Construction',
     estimatedDuration: '1-2 weeks',
     defaultTasks: [
+      {
+        title: 'Collaborate with AI on SOP best practices and ideas',
+        description: 'Work with AI to optimize construction methodology',
+        plan: 'Consult AI for construction best practices and safety improvements'
+      },
       {
         title: 'Plan & Design',
         description: 'Create detailed construction plans',

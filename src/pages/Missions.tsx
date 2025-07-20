@@ -418,20 +418,55 @@ const Missions = () => {
       .select('*')
       .eq('mission_id', mission.id);
 
-    // Parse existing selected resources from resources_required string
+    // Parse existing selected resources from resources_required string and lookup actual IDs
     let parsedResources: Array<{ id: string; name: string; quantity?: number; unit?: string; type: 'part' | 'tool' }> = [];
     if (mission.resources_required) {
-      // Try to parse resources from the stored string format
-      // This is a simplified parser - in production you'd want more robust parsing
+      // Fetch current tools and parts to match names to IDs
+      const { data: currentTools } = await supabase
+        .from('tools')
+        .select('id, name');
+      
+      const { data: currentParts } = await supabase
+        .from('parts')
+        .select('id, name, unit');
+      
       const resourceLines = mission.resources_required.split(', ').filter(line => line.trim());
-      parsedResources = resourceLines.map((line, index) => {
+      parsedResources = resourceLines.map((line) => {
         const parts = line.split(': ');
-        const name = parts[0] || `Resource ${index + 1}`;
-        const details = parts[1] || '';
+        const name = parts[0]?.trim() || '';
+        
+        // Try to find matching tool first
+        const matchingTool = currentTools?.find(tool => tool.name.toLowerCase() === name.toLowerCase());
+        if (matchingTool) {
+          return {
+            id: matchingTool.id,
+            name: matchingTool.name,
+            type: 'tool' as const,
+            quantity: 1
+          };
+        }
+        
+        // Try to find matching part
+        const matchingPart = currentParts?.find(part => part.name.toLowerCase() === name.toLowerCase());
+        if (matchingPart) {
+          const details = parts[1] || '';
+          const quantityMatch = details.match(/(\d+)/);
+          const quantity = quantityMatch ? parseInt(quantityMatch[1]) : 1;
+          
+          return {
+            id: matchingPart.id,
+            name: matchingPart.name,
+            type: 'part' as const,
+            quantity: quantity,
+            unit: matchingPart.unit
+          };
+        }
+        
+        // If no match found, still include as unknown resource
         return {
-          id: `existing-${index}`,
+          id: `unknown-${name}`,
           name: name,
-          type: 'tool' as const, // Default to tool, could be enhanced
+          type: 'tool' as const,
           quantity: 1
         };
       }).filter(resource => resource.name && resource.name !== 'undefined');

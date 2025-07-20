@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { validateAndRefreshSession } from '@/lib/authUtils';
-import { RefreshCw, User, Shield, Smartphone } from 'lucide-react';
+import { RefreshCw, User, Shield, Settings } from 'lucide-react';
 
 export function AuthDiagnostics() {
   const { toast } = useToast();
@@ -113,11 +113,11 @@ export function AuthDiagnostics() {
     <Card className="mt-4">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Smartphone className="h-5 w-5" />
-          Mobile Auth Diagnostics
+          <Settings className="h-5 w-5" />
+          Diagnostics
         </CardTitle>
         <CardDescription>
-          Debug authentication issues on mobile devices
+          Debug authentication issues and system status
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

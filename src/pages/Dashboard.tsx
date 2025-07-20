@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { LogOut, Package, Search, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DebugModeToggle } from '@/components/DebugModeToggle';
+import { AuthDiagnostics } from '@/components/AuthDiagnostics';
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
@@ -104,6 +105,11 @@ export default function Dashboard() {
             );
           })}
         </div>
+
+        {/* Diagnostics - only show for debugging */}
+        {window.location.hostname !== 'localhost' && (
+          <AuthDiagnostics />
+        )}
       </main>
     </div>
   );

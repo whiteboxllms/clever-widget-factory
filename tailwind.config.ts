@@ -68,6 +68,20 @@ export default {
 					education: 'hsl(var(--mission-education))',
 					construction: 'hsl(var(--mission-construction))',
 					custom: 'hsl(var(--mission-custom))'
+				},
+				task: {
+					blank: 'hsl(var(--task-blank))',
+					'blank-foreground': 'hsl(var(--task-blank-foreground))',
+					'blank-border': 'hsl(var(--task-blank-border))',
+					plan: 'hsl(var(--task-plan))',
+					'plan-foreground': 'hsl(var(--task-plan-foreground))',
+					'plan-border': 'hsl(var(--task-plan-border))',
+					implementation: 'hsl(var(--task-implementation))',
+					'implementation-foreground': 'hsl(var(--task-implementation-foreground))',
+					'implementation-border': 'hsl(var(--task-implementation-border))',
+					complete: 'hsl(var(--task-complete))',
+					'complete-foreground': 'hsl(var(--task-complete-foreground))',
+					'complete-border': 'hsl(var(--task-complete-border))'
 				}
 			},
 			borderRadius: {

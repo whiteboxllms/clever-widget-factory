@@ -60,6 +60,23 @@ All colors MUST be HSL.
     --mission-education: 142 50% 80%;
     --mission-construction: 43 70% 85%;
     --mission-custom: 262 50% 85%;
+
+    /* Task Status Colors */
+    --task-blank: 215.4 16.3% 91.4%;
+    --task-blank-foreground: 215.4 16.3% 46.9%;
+    --task-blank-border: 214.3 31.8% 91.4%;
+    
+    --task-plan: 217 91% 60%;
+    --task-plan-foreground: 210 40% 98%;
+    --task-plan-border: 217 91% 60%;
+    
+    --task-implementation: 43 96% 56%;
+    --task-implementation-foreground: 222.2 47.4% 11.2%;
+    --task-implementation-border: 43 96% 56%;
+    
+    --task-complete: 142 76% 36%;
+    --task-complete-foreground: 210 40% 98%;
+    --task-complete-border: 142 76% 36%;
   }
 
   .dark {
@@ -105,6 +122,23 @@ All colors MUST be HSL.
     --mission-education: 142 76% 36%;
     --mission-construction: 43 96% 56%;
     --mission-custom: 262 83% 58%;
+
+    /* Task Status Colors - Dark mode */
+    --task-blank: 217.2 32.6% 17.5%;
+    --task-blank-foreground: 215 20.2% 65.1%;
+    --task-blank-border: 217.2 32.6% 17.5%;
+    
+    --task-plan: 217 91% 60%;
+    --task-plan-foreground: 222.2 47.4% 11.2%;
+    --task-plan-border: 217 91% 60%;
+    
+    --task-implementation: 43 96% 56%;
+    --task-implementation-foreground: 222.2 47.4% 11.2%;
+    --task-implementation-border: 43 96% 56%;
+    
+    --task-complete: 142 76% 36%;
+    --task-complete-foreground: 210 40% 98%;
+    --task-complete-border: 142 76% 36%;
   }
 }
 

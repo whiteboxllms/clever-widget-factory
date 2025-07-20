@@ -243,26 +243,59 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     }
   };
 
-  const getStatusIcon = () => {
-    switch (task.status) {
-      case 'completed':
-        return <CheckCircle className="h-4 w-4 text-green-600" />;
-      case 'in_progress':
-        return <Clock className="h-4 w-4 text-blue-600" />;
-      default:
-        return <Clock className="h-4 w-4 text-gray-400" />;
+  const getTaskTheme = () => {
+    // Determine task state based on content
+    if (task.status === 'completed') {
+      return {
+        bg: 'bg-task-complete',
+        text: 'text-task-complete-foreground',
+        border: 'border-task-complete-border border-2'
+      };
     }
+    
+    // Check if implementation text exists
+    if (task.observations && task.observations.trim()) {
+      return {
+        bg: 'bg-task-implementation',
+        text: 'text-task-implementation-foreground',
+        border: 'border-task-implementation-border border-2'
+      };
+    }
+    
+    // Check if plan exists
+    if (task.plan && task.plan.trim()) {
+      return {
+        bg: 'bg-task-plan',
+        text: 'text-task-plan-foreground',
+        border: 'border-task-plan-border border-2'
+      };
+    }
+    
+    // Default blank state
+    return {
+      bg: 'bg-task-blank',
+      text: 'text-task-blank-foreground',
+      border: 'border-task-blank-border'
+    };
   };
 
-  const getStatusColor = () => {
-    switch (task.status) {
-      case 'completed':
-        return 'border-green-200 bg-green-50';
-      case 'in_progress':
-        return 'border-yellow-200 bg-yellow-50 border-2'; // Yellow border for in progress
-      default:
-        return 'border-gray-200 bg-white';
+  const getStatusIcon = () => {
+    if (task.status === 'completed') {
+      return <CheckCircle className="h-4 w-4 text-task-complete-foreground" />;
     }
+    
+    // Check if implementation text exists
+    if (task.observations && task.observations.trim()) {
+      return <Clock className="h-4 w-4 text-task-implementation-foreground" />;
+    }
+    
+    // Check if plan exists
+    if (task.plan && task.plan.trim()) {
+      return <Clock className="h-4 w-4 text-task-plan-foreground" />;
+    }
+    
+    // Default blank state
+    return <Clock className="h-4 w-4 text-task-blank-foreground" />;
   };
 
   const assignedProfile = profiles.find(p => p.user_id === task.assigned_to);
@@ -370,25 +403,34 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     );
   }
 
+  const theme = getTaskTheme();
+  
   return (
-    <Card className={`mb-4 transition-all duration-300 ${getStatusColor()} ${task.status === 'completed' ? 'opacity-75' : ''}`}>
+    <Card className={`mb-4 transition-all duration-300 ${theme.bg} ${theme.border} ${task.status === 'completed' ? 'opacity-75' : ''}`}>
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
         <CollapsibleTrigger asChild>
           <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
             <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-lg">
+              <CardTitle className={`flex items-center gap-2 text-lg ${theme.text}`}>
                 {getStatusIcon()}
                 {task.title}
                 {task.status === 'completed' && (
-                  <Badge variant="default" className="bg-green-100 text-green-800">
+                  <Badge variant="default" className="bg-task-complete text-task-complete-foreground">
                     Completed
                   </Badge>
                 )}
-                {task.status === 'in_progress' && (
-                  <Badge variant="default" className="bg-yellow-100 text-yellow-800">
+                {task.status === 'in_progress' && task.observations && task.observations.trim() && (
+                  <Badge variant="default" className="bg-task-implementation text-task-implementation-foreground">
                     In Progress
                   </Badge>
                 )}
+                {!task.status || task.status === 'not_started' ? (
+                  task.plan && task.plan.trim() ? (
+                    <Badge variant="default" className="bg-task-plan text-task-plan-foreground">
+                      Planned
+                    </Badge>
+                  ) : null
+                ) : null}
               </CardTitle>
               <div className="flex items-center gap-2">
                 {assignedProfile && (
@@ -480,7 +522,7 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                 <Button
                   onClick={handleCompleteTask}
                   disabled={isCompleting}
-                  className="w-full bg-green-600 hover:bg-green-700"
+                  className="w-full bg-task-complete hover:bg-task-complete/90 text-task-complete-foreground"
                 >
                   {isCompleting ? 'Completing...' : 'Complete Task'}
                 </Button>

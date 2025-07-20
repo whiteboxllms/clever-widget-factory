@@ -17,7 +17,7 @@ interface Mission {
   id: string;
   title: string;
   problem_statement: string;
-  done_definition: string;
+  plan: string;
   resources_required: string;
   all_materials_available: boolean;
   status: string;
@@ -182,7 +182,7 @@ const Missions = () => {
         .insert({
           title: formData.title,
           problem_statement: formData.problem_statement,
-          done_definition: formData.done_definition,
+          plan: formData.done_definition,
           resources_required: formData.selected_resources.length > 0 
             ? formData.selected_resources.map(r => `${r.name}: ${r.quantity} ${r.unit}`).join(', ')
             : formData.resources_required,

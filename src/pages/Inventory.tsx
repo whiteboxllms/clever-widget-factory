@@ -528,12 +528,11 @@ export default function Inventory() {
 
   const getStockBadge = (part: Part) => {
     const status = getStockStatus(part);
-    if (!status) return null;
+    if (!status || status === 'good') return null;
 
     const variants = {
       low: { variant: 'destructive', icon: AlertTriangle, text: 'Low Stock' },
-      medium: { variant: 'default', icon: TrendingDown, text: 'Running Low' },
-      good: { variant: 'default', icon: TrendingUp, text: 'Good Stock' }
+      medium: { variant: 'default', icon: TrendingDown, text: 'Running Low' }
     } as const;
 
     const config = variants[status];

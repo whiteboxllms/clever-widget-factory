@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Wrench, ExternalLink, Upload, UserPlus, Check, ChevronsUpDown, ChevronDown, History } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Wrench, ExternalLink, Upload, UserPlus, Check, ChevronsUpDown, ChevronDown, History, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { InventoryHistoryDialog } from '@/components/InventoryHistoryDialog';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -601,13 +601,23 @@ export default function Inventory() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
+    <div className="min-h-screen bg-background">
+      <header className="border-b bg-card">
+        <div className="flex items-center gap-4 p-4">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Dashboard
+          </Button>
           <div>
-            <h1 className="text-4xl font-bold text-foreground">Manage Inventory</h1>
-            <p className="text-muted-foreground mt-2">Manage inventory items and view tool summaries</p>
+            <h1 className="text-2xl font-bold">Manage Inventory</h1>
+            <p className="text-muted-foreground">Manage inventory items and view tool summaries</p>
           </div>
+        </div>
+      </header>
+
+      <main className="p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex justify-between items-center mb-8">
           
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogTrigger asChild>
@@ -1358,7 +1368,8 @@ export default function Inventory() {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

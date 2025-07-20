@@ -28,14 +28,14 @@ const templates: MissionTemplate[] = [
     estimatedDuration: '2-4 hours',
     defaultTasks: [
       {
-        title: 'Diagnose Issue',
-        description: 'Identify the root cause of the problem',
-        done_definition: 'Problem clearly identified and documented'
-      },
-      {
         title: 'Gather Parts & Tools',
         description: 'Collect necessary repair materials',
         done_definition: 'All required parts and tools are available'
+      },
+      {
+        title: 'Diagnose Issue',
+        description: 'Identify the root cause of the problem',
+        done_definition: 'Problem clearly identified and documented'
       },
       {
         title: 'Perform Repair',

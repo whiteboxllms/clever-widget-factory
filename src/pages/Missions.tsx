@@ -302,6 +302,16 @@ const Missions = () => {
     return Math.round((mission.completed_task_count || 0) / mission.task_count * 100);
   };
 
+  const getDialogTitle = () => {
+    if (showTemplates) {
+      return "Create New Mission";
+    }
+    if (selectedTemplate) {
+      return `Create ${selectedTemplate.name} Mission`;
+    }
+    return "Create New Mission";
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
@@ -327,7 +337,7 @@ const Missions = () => {
               </DialogTrigger>
               <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Create New Mission</DialogTitle>
+                  <DialogTitle>{getDialogTitle()}</DialogTitle>
                   <DialogDescription>
                     {showTemplates 
                       ? "Choose a template to get started quickly"

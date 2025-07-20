@@ -42,7 +42,8 @@ interface Profile {
 
 interface Task {
   title: string;
-  done_definition: string;
+  plan?: string;
+  observations?: string;
   assigned_to: string;
 }
 
@@ -68,7 +69,7 @@ const Missions = () => {
     selected_resources: [] as { id: string; name: string; quantity?: number; unit?: string; type: 'part' | 'tool' }[],
     all_materials_available: false,
     qa_assigned_to: '',
-    tasks: [{ title: '', done_definition: DEFAULT_DONE_DEFINITION, assigned_to: '' }] as Task[]
+    tasks: [{ title: '', plan: '', observations: '', assigned_to: '' }] as Task[]
   });
 
   useEffect(() => {
@@ -159,10 +160,11 @@ const Missions = () => {
       tasks: template.defaultTasks.length > 0 
         ? template.defaultTasks.map((task: any) => ({ 
             title: task.title, 
-            done_definition: task.done_definition, 
+            plan: task.plan || '', 
+            observations: task.observations || '',
             assigned_to: '' 
           }))
-        : [{ title: '', done_definition: DEFAULT_DONE_DEFINITION, assigned_to: '' }]
+        : [{ title: '', plan: '', observations: '', assigned_to: '' }]
     });
   };
 
@@ -197,7 +199,7 @@ const Missions = () => {
       if (missionError) throw missionError;
 
       // Create tasks for the mission
-      const tasksToCreate = formData.tasks.filter(task => task.title.trim() && task.done_definition.trim());
+      const tasksToCreate = formData.tasks.filter(task => task.title.trim());
       
       if (tasksToCreate.length > 0) {
         const { error: tasksError } = await supabase
@@ -205,7 +207,8 @@ const Missions = () => {
           .insert(tasksToCreate.map(task => ({
             mission_id: missionData.id,
             title: task.title,
-            done_definition: task.done_definition,
+            plan: task.plan || null,
+            observations: task.observations || null,
             assigned_to: task.assigned_to || null
           })));
 
@@ -228,7 +231,7 @@ const Missions = () => {
         selected_resources: [],
         all_materials_available: false,
         qa_assigned_to: '',
-        tasks: [{ title: '', done_definition: DEFAULT_DONE_DEFINITION, assigned_to: '' }]
+        tasks: [{ title: '', plan: '', observations: '', assigned_to: '' }]
       });
       fetchMissions();
     } catch (error) {
@@ -252,7 +255,7 @@ const Missions = () => {
       selected_resources: [],
       all_materials_available: false,
       qa_assigned_to: '',
-      tasks: [{ title: '', done_definition: DEFAULT_DONE_DEFINITION, assigned_to: '' }]
+      tasks: [{ title: '', plan: '', observations: '', assigned_to: '' }]
     });
   };
 

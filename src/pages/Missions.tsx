@@ -14,6 +14,7 @@ import { MissionTaskList } from '@/components/MissionTaskList';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DEFAULT_DONE_DEFINITION } from '@/lib/constants';
 import { withAuth, checkUserRole as checkUserRoleAuth } from '@/lib/authUtils';
+import { AuthDiagnostics } from '@/components/AuthDiagnostics';
 
 interface Mission {
   id: string;
@@ -524,6 +525,11 @@ const Missions = () => {
             </div>
           )}
         </div>
+
+        {/* Mobile Auth Diagnostics - only show for debugging */}
+        {window.location.hostname !== 'localhost' && (
+          <AuthDiagnostics />
+        )}
       </main>
     </div>
   );

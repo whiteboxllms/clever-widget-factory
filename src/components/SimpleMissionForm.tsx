@@ -18,7 +18,8 @@ import { DEFAULT_DONE_DEFINITION } from "@/lib/constants";
 
 interface Task {
   title: string;
-  done_definition: string;
+  plan?: string;
+  observations?: string;
   assigned_to: string;
 }
 
@@ -76,7 +77,7 @@ export function SimpleMissionForm({
   const addTask = () => {
     setFormData(prev => ({
       ...prev,
-      tasks: [...prev.tasks, { title: '', done_definition: DEFAULT_DONE_DEFINITION, assigned_to: '' }]
+      tasks: [...prev.tasks, { title: '', plan: '', observations: '', assigned_to: '' }]
     }));
     setEditingTaskIndex(formData.tasks.length);
   };
@@ -316,7 +317,8 @@ export function SimpleMissionForm({
                   task={{
                     id: `temp-${index}`,
                     title: task.title,
-                    done_definition: task.done_definition,
+                    plan: task.plan,
+                    observations: task.observations,
                     assigned_to: task.assigned_to,
                     status: 'not_started',
                     mission_id: ''
@@ -331,8 +333,8 @@ export function SimpleMissionForm({
                 <div className="flex items-center justify-between p-4 border rounded-lg">
                   <div className="flex-1">
                     <h4 className="font-medium">{task.title || `Task ${index + 1}`}</h4>
-                    {task.done_definition && (
-                      <p className="text-sm text-muted-foreground mt-1">{task.done_definition}</p>
+                    {task.plan && (
+                      <p className="text-sm text-muted-foreground mt-1">{task.plan}</p>
                     )}
                     {task.assigned_to && (
                       <p className="text-xs text-muted-foreground mt-1">

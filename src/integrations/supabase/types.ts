@@ -256,10 +256,11 @@ export type Database = {
           completed_at: string | null
           created_at: string
           description: string | null
-          done_definition: string
           evidence_description: string | null
           id: string
           mission_id: string
+          observations: string | null
+          plan: string | null
           qa_approved_at: string | null
           status: string
           title: string
@@ -270,10 +271,11 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           description?: string | null
-          done_definition: string
           evidence_description?: string | null
           id?: string
           mission_id: string
+          observations?: string | null
+          plan?: string | null
           qa_approved_at?: string | null
           status?: string
           title: string
@@ -284,10 +286,11 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           description?: string | null
-          done_definition?: string
           evidence_description?: string | null
           id?: string
           mission_id?: string
+          observations?: string | null
+          plan?: string | null
           qa_approved_at?: string | null
           status?: string
           title?: string

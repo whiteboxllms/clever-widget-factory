@@ -32,7 +32,8 @@ interface TaskCardProps {
   task: {
     id: string;
     title: string;
-    done_definition: string;
+    plan?: string;
+    observations?: string;
     assigned_to: string;
     status: string;
     mission_id: string;
@@ -53,7 +54,8 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
   const [isCompleting, setIsCompleting] = useState(false);
   const [editData, setEditData] = useState({
     title: task.title,
-    done_definition: task.done_definition || DEFAULT_DONE_DEFINITION,
+    plan: task.plan || '',
+    observations: task.observations || '',
     assigned_to: task.assigned_to
   });
 
@@ -239,11 +241,21 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
             </div>
             
             <div>
-              <Label>Done Definition</Label>
+              <Label>Plan</Label>
               <Textarea
-                value={editData.done_definition || DEFAULT_DONE_DEFINITION}
-                onChange={(e) => setEditData(prev => ({ ...prev, done_definition: e.target.value }))}
-                placeholder="What does complete look like?"
+                value={editData.plan}
+                onChange={(e) => setEditData(prev => ({ ...prev, plan: e.target.value }))}
+                placeholder="How will this task be completed?"
+                rows={2}
+              />
+            </div>
+            
+            <div>
+              <Label>Observations</Label>
+              <Textarea
+                value={editData.observations}
+                onChange={(e) => setEditData(prev => ({ ...prev, observations: e.target.value }))}
+                placeholder="Notes and observations (optional)"
                 rows={2}
               />
             </div>
@@ -348,10 +360,19 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
         <CollapsibleContent>
           <CardContent className="pt-0">
             <div className="space-y-4">
+            {task.plan && (
               <div>
-                <Label className="text-sm font-medium">Done Definition</Label>
-                <p className="text-sm text-muted-foreground mt-1">{task.done_definition}</p>
+                <Label className="text-sm font-medium">Plan</Label>
+                <p className="text-sm text-muted-foreground mt-1">{task.plan}</p>
               </div>
+            )}
+            
+            {task.observations && (
+              <div>
+                <Label className="text-sm font-medium">Observations</Label>
+                <p className="text-sm text-muted-foreground mt-1">{task.observations}</p>
+              </div>
+            )}
 
               {/* Photo Gallery */}
               {photos.length > 0 && (

@@ -9,7 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 interface Task {
   id: string;
   title: string;
-  done_definition: string;
+  plan?: string;
+  observations?: string;
   assigned_to: string;
   status: string;
   mission_id: string;
@@ -71,7 +72,8 @@ export function MissionTaskList({ missionId, profiles, canEdit = false }: Missio
         .insert({
           mission_id: missionId,
           title: taskData.title,
-          done_definition: taskData.done_definition,
+          plan: taskData.plan,
+          observations: taskData.observations,
           assigned_to: taskData.assigned_to || null
         })
         .select()
@@ -121,7 +123,8 @@ export function MissionTaskList({ missionId, profiles, canEdit = false }: Missio
           task={{
             id: 'new',
             title: '',
-            done_definition: '',
+            plan: '',
+            observations: '',
             assigned_to: '',
             status: 'not_started',
             mission_id: missionId

@@ -14,7 +14,8 @@ interface MissionTemplate {
   defaultTasks: {
     title: string;
     description: string;
-    done_definition: string;
+    plan?: string;
+    observations?: string;
   }[];
   estimatedDuration: string;
 }
@@ -31,22 +32,22 @@ const templates: MissionTemplate[] = [
       {
         title: 'Gather Parts & Tools',
         description: 'Collect necessary repair materials',
-        done_definition: DEFAULT_DONE_DEFINITION
+        plan: 'List required parts and tools, then gather them from inventory'
       },
       {
         title: 'Diagnose Issue',
         description: 'Identify the root cause of the problem',
-        done_definition: DEFAULT_DONE_DEFINITION
+        plan: 'Inspect equipment and test components to find the fault'
       },
       {
         title: 'Perform Repair',
         description: 'Execute the repair work',
-        done_definition: DEFAULT_DONE_DEFINITION
+        plan: 'Replace or fix faulty components according to diagnosis'
       },
       {
         title: 'Test & Verify',
         description: 'Confirm repair is successful',
-        done_definition: DEFAULT_DONE_DEFINITION
+        plan: 'Run equipment tests to ensure proper operation'
       }
     ]
   },
@@ -61,22 +62,22 @@ const templates: MissionTemplate[] = [
       {
         title: 'Literature Review',
         description: 'Research existing knowledge on the topic',
-        done_definition: DEFAULT_DONE_DEFINITION
+        plan: 'Search databases and review relevant publications'
       },
       {
         title: 'Design Experiment',
         description: 'Plan methodology and procedures',
-        done_definition: DEFAULT_DONE_DEFINITION
+        plan: 'Create detailed experimental protocol and safety procedures'
       },
       {
         title: 'Collect Data',
         description: 'Execute experiments and gather results',
-        done_definition: DEFAULT_DONE_DEFINITION
+        plan: 'Run experiments according to protocol and record data'
       },
       {
         title: 'Analyze Results',
         description: 'Process and interpret findings',
-        done_definition: DEFAULT_DONE_DEFINITION
+        plan: 'Analyze data using appropriate statistical methods'
       }
     ]
   },
@@ -91,22 +92,22 @@ const templates: MissionTemplate[] = [
       {
         title: 'Prepare Materials',
         description: 'Create training content and handouts',
-        done_definition: DEFAULT_DONE_DEFINITION
+        plan: 'Develop slides, handouts, and practical exercises'
       },
       {
         title: 'Schedule Session',
         description: 'Coordinate with participants',
-        done_definition: DEFAULT_DONE_DEFINITION
+        plan: 'Book venue and send invitations to participants'
       },
       {
         title: 'Conduct Training',
         description: 'Deliver the training session',
-        done_definition: DEFAULT_DONE_DEFINITION
+        plan: 'Present material and facilitate hands-on activities'
       },
       {
         title: 'Collect Feedback',
         description: 'Gather participant feedback',
-        done_definition: DEFAULT_DONE_DEFINITION
+        plan: 'Distribute and collect feedback forms and surveys'
       }
     ]
   },
@@ -121,22 +122,22 @@ const templates: MissionTemplate[] = [
       {
         title: 'Plan & Design',
         description: 'Create detailed construction plans',
-        done_definition: DEFAULT_DONE_DEFINITION
+        plan: 'Draft blueprints and create materials list'
       },
       {
         title: 'Prepare Site',
         description: 'Set up work area and safety measures',
-        done_definition: DEFAULT_DONE_DEFINITION
+        plan: 'Clear area, set up barriers, and organize tools'
       },
       {
         title: 'Construction Phase',
         description: 'Execute the building work',
-        done_definition: DEFAULT_DONE_DEFINITION
+        plan: 'Follow blueprints and build according to specifications'
       },
       {
         title: 'Final Inspection',
         description: 'Verify quality and safety',
-        done_definition: DEFAULT_DONE_DEFINITION
+        plan: 'Check all construction meets safety and quality standards'
       }
     ]
   },

@@ -20,6 +20,7 @@ import { compressImage, formatFileSize } from '@/lib/imageUtils';
 import { compressImageDetailed } from '@/lib/enhancedImageUtils';
 import { useEnhancedToast } from '@/hooks/useEnhancedToast';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Switch } from '@/components/ui/switch';
 
 interface Supplier {
   id: string;
@@ -75,6 +76,7 @@ export default function Inventory() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showLowInventoryOnly, setShowLowInventoryOnly] = useState(false);
   
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -120,7 +122,7 @@ export default function Inventory() {
 
   useEffect(() => {
     filterParts();
-  }, [parts, searchTerm]);
+  }, [parts, searchTerm, showLowInventoryOnly]);
 
   const fetchParts = async () => {
     try {
@@ -226,6 +228,13 @@ export default function Inventory() {
         return part.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           part.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           supplierName?.toLowerCase().includes(searchTerm.toLowerCase());
+      });
+    }
+
+    if (showLowInventoryOnly) {
+      filtered = filtered.filter(part => {
+        const minQty = part.minimum_quantity || 0;
+        return part.current_quantity <= minQty;
       });
     }
 
@@ -925,8 +934,8 @@ export default function Inventory() {
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-foreground mb-4">Inventory Items</h2>
           
-          {/* Search */}
-          <div className="mb-6">
+          {/* Search and Filters */}
+          <div className="mb-6 space-y-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
               <Input
@@ -935,6 +944,17 @@ export default function Inventory() {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="low-inventory-filter"
+                checked={showLowInventoryOnly}
+                onCheckedChange={setShowLowInventoryOnly}
+              />
+              <Label htmlFor="low-inventory-filter" className="text-sm font-medium">
+                Show Low Inventory Only
+              </Label>
             </div>
           </div>
 

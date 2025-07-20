@@ -4,11 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Tables } from '@/integrations/supabase/types';
+import { ExternalLink } from 'lucide-react';
 
 type Tool = Tables<'tools'>;
 
@@ -127,10 +127,14 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
 
       if (updateError) throw updateError;
 
-      // Update tool status
+      // Update tool status and condition
       const { error: toolError } = await supabase
         .from('tools')
-        .update({ status: 'available' })
+        .update({ 
+          condition: form.condition_after as any,
+          status: form.condition_after === 'not_functional' ? 'unavailable' : 'available',
+          actual_location: tool.intended_storage_location
+        })
         .eq('id', tool.id);
 
       if (toolError) throw toolError;
@@ -170,108 +174,111 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Tool Condition After Use */}
-          <div className="space-y-2">
-            <Label>Tool condition after use *</Label>
-            <RadioGroup
-              value={form.condition_after}
-              onValueChange={(value) => setForm({ ...form, condition_after: value })}
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="excellent" id="excellent" />
-                <Label htmlFor="excellent">Excellent</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="good" id="good" />
-                <Label htmlFor="good">Good</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="fair" id="fair" />
-                <Label htmlFor="fair">Fair</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="poor" id="poor" />
-                <Label htmlFor="poor">Poor</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="broken" id="broken" />
-                <Label htmlFor="broken">Broken</Label>
-              </div>
-            </RadioGroup>
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="condition_after">Tool Condition After Use *</Label>
+            <Select value={form.condition_after} onValueChange={(value) => setForm(prev => ({ ...prev, condition_after: value }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select condition" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="good">Good</SelectItem>
+                <SelectItem value="functional_but_not_efficient">Functional but not as efficient as it could be</SelectItem>
+                <SelectItem value="not_functional">Not functional</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          {/* Hours Used (only if tool has motor) */}
+          <div>
+            <Label htmlFor="tool_issues">Tool Issues encountered not seen previously (add to known issues)</Label>
+            <Textarea
+              id="tool_issues"
+              value={form.tool_issues}
+              onChange={(e) => setForm(prev => ({ ...prev, tool_issues: e.target.value }))}
+              placeholder="Report any new problems, damage, or malfunctions that will be added to the tool's known issues"
+              rows={3}
+            />
+          </div>
+
           {tool.has_motor && (
-            <div className="space-y-2">
-              <Label htmlFor="hours_used">Hours used (optional)</Label>
+            <div>
+              <Label htmlFor="hours_used">Hours Used</Label>
               <Input
                 id="hours_used"
                 type="number"
                 step="0.1"
                 min="0"
                 value={form.hours_used}
-                onChange={(e) => setForm({ ...form, hours_used: e.target.value })}
-                placeholder="0.0"
+                onChange={(e) => setForm(prev => ({ ...prev, hours_used: e.target.value }))}
+                placeholder="Enter hours used (e.g., 2.5)"
               />
             </div>
           )}
 
-          {/* Tool Issues */}
-          <div className="space-y-2">
-            <Label htmlFor="tool_issues">Any issues or problems with the tool? (optional)</Label>
+          <div>
+            <Label htmlFor="sop_deviation">To what degree did you deviate from our SOP and best practices? *</Label>
+            <div className="flex gap-2">
+              <Select value={form.sop_deviation} onValueChange={(value) => setForm(prev => ({ ...prev, sop_deviation: value }))}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Select deviation level" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No deviation - followed all SOPs</SelectItem>
+                  <SelectItem value="minor">Minor deviation - small adjustments made</SelectItem>
+                  <SelectItem value="moderate">Moderate deviation - some procedures modified</SelectItem>
+                  <SelectItem value="major">Major deviation - significant changes to procedures</SelectItem>
+                  <SelectItem value="complete">Complete deviation - SOPs not followed</SelectItem>
+                </SelectContent>
+              </Select>
+              {tool.manual_url && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(tool.manual_url, '_blank')}
+                  className="flex items-center gap-1"
+                >
+                  SOP
+                  <ExternalLink className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="notes">Notes</Label>
             <Textarea
-              id="tool_issues"
-              value={form.tool_issues}
-              onChange={(e) => setForm({ ...form, tool_issues: e.target.value })}
-              placeholder="Describe any issues, damage, or problems encountered..."
+              id="notes"
+              value={form.notes}
+              onChange={(e) => setForm(prev => ({ ...prev, notes: e.target.value }))}
+              placeholder="Any additional comments, observations, or notes about sub-optimal operation"
               rows={3}
             />
           </div>
 
-          {/* Returned to Correct Location */}
           <div className="flex items-center space-x-2">
-            <Checkbox
+            <input
+              type="checkbox"
               id="returned_to_correct_location"
               checked={form.returned_to_correct_location}
-              onCheckedChange={(checked) => 
-                setForm({ ...form, returned_to_correct_location: checked as boolean })
-              }
+              onChange={(e) => setForm(prev => ({ ...prev, returned_to_correct_location: e.target.checked }))}
+              className="rounded border-gray-300"
             />
             <Label htmlFor="returned_to_correct_location">
-              Tool returned to correct storage location
+              Tool was returned to its correct storage location: {tool.intended_storage_location}
             </Label>
           </div>
 
-          {/* General Notes */}
-          <div className="space-y-2">
-            <Label htmlFor="notes">Additional notes (optional)</Label>
-            <Textarea
-              id="notes"
-              value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              placeholder="Any additional comments or observations..."
-              rows={2}
-            />
-          </div>
-
-          <div className="flex justify-end space-x-3">
+          <div className="flex gap-2 pt-4">
             <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={isSubmitting}
+              onClick={handleSubmit}
+              disabled={isSubmitting || !form.condition_after || !form.sop_deviation}
+              className="flex-1"
             >
-              Cancel
-            </Button>
-            <Button 
-              type="submit" 
-              disabled={isSubmitting || !form.condition_after}
-            >
-              {isSubmitting ? "Checking In..." : "Check In Tool"}
+              {isSubmitting ? "Checking In..." : "Complete Check In"}
             </Button>
           </div>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

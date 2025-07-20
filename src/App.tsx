@@ -12,6 +12,7 @@ import Dashboard from "./pages/Dashboard";
 import Tools from "./pages/Tools";
 import Inventory from "./pages/Inventory";
 import CheckIn from "./pages/CheckIn";
+import Missions from "./pages/Missions";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -49,6 +50,11 @@ const App = () => (
             <Route path="/checkin" element={
               <ProtectedRoute>
                 <CheckIn />
+              </ProtectedRoute>
+            } />
+            <Route path="/missions" element={
+              <ProtectedRoute>
+                <Missions />
               </ProtectedRoute>
             } />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

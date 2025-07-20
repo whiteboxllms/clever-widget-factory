@@ -2,7 +2,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Package, Search, CheckCircle, XCircle, Wrench, Box } from 'lucide-react';
+import { LogOut, Package, Search, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DebugModeToggle } from '@/components/DebugModeToggle';
 
@@ -48,6 +48,13 @@ export default function Dashboard() {
       icon: Wrench,
       path: "/tools",
       color: "bg-red-500"
+    },
+    {
+      title: "Stargazer Missions",
+      description: "Manage objectives and track progress",
+      icon: Flag,
+      path: "/missions",
+      color: "bg-blue-500"
     }
   ];
 

@@ -130,6 +130,292 @@ export type Database = {
           },
         ]
       }
+      mission_attachments: {
+        Row: {
+          attachment_type: string
+          created_at: string
+          file_name: string
+          file_type: string
+          file_url: string
+          id: string
+          mission_id: string | null
+          task_id: string | null
+          uploaded_by: string
+        }
+        Insert: {
+          attachment_type: string
+          created_at?: string
+          file_name: string
+          file_type: string
+          file_url: string
+          id?: string
+          mission_id?: string | null
+          task_id?: string | null
+          uploaded_by: string
+        }
+        Update: {
+          attachment_type?: string
+          created_at?: string
+          file_name?: string
+          file_type?: string
+          file_url?: string
+          id?: string
+          mission_id?: string | null
+          task_id?: string | null
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mission_attachments_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mission_attachments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "mission_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mission_attachments_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      mission_inventory_usage: {
+        Row: {
+          created_at: string
+          id: string
+          mission_id: string
+          part_id: string
+          quantity_used: number
+          task_id: string | null
+          usage_description: string | null
+          used_by: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mission_id: string
+          part_id: string
+          quantity_used: number
+          task_id?: string | null
+          usage_description?: string | null
+          used_by: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mission_id?: string
+          part_id?: string
+          quantity_used?: number
+          task_id?: string | null
+          usage_description?: string | null
+          used_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mission_inventory_usage_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mission_inventory_usage_part_id_fkey"
+            columns: ["part_id"]
+            isOneToOne: false
+            referencedRelation: "parts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mission_inventory_usage_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "mission_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mission_inventory_usage_used_by_fkey"
+            columns: ["used_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      mission_tasks: {
+        Row: {
+          assigned_to: string | null
+          completed_at: string | null
+          created_at: string
+          description: string | null
+          done_definition: string
+          evidence_description: string | null
+          id: string
+          mission_id: string
+          qa_approved_at: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          done_definition: string
+          evidence_description?: string | null
+          id?: string
+          mission_id: string
+          qa_approved_at?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          done_definition?: string
+          evidence_description?: string | null
+          id?: string
+          mission_id?: string
+          qa_approved_at?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mission_tasks_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "mission_tasks_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "missions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mission_tool_usage: {
+        Row: {
+          checkout_id: string
+          created_at: string
+          id: string
+          mission_id: string
+          task_id: string | null
+        }
+        Insert: {
+          checkout_id: string
+          created_at?: string
+          id?: string
+          mission_id: string
+          task_id?: string | null
+        }
+        Update: {
+          checkout_id?: string
+          created_at?: string
+          id?: string
+          mission_id?: string
+          task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mission_tool_usage_checkout_id_fkey"
+            columns: ["checkout_id"]
+            isOneToOne: false
+            referencedRelation: "checkouts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mission_tool_usage_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mission_tool_usage_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "mission_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      missions: {
+        Row: {
+          all_materials_available: boolean
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          id: string
+          plan: string
+          problem_statement: string
+          qa_assigned_to: string | null
+          resources_required: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          all_materials_available?: boolean
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          plan: string
+          problem_statement: string
+          qa_assigned_to?: string | null
+          resources_required?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          all_materials_available?: boolean
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          plan?: string
+          problem_statement?: string
+          qa_assigned_to?: string | null
+          resources_required?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "missions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "missions_qa_assigned_to_fkey"
+            columns: ["qa_assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       parts: {
         Row: {
           category: string | null

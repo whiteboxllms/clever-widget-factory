@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { compressImage, formatFileSize } from '@/lib/imageUtils';
 import { compressImageDetailed } from '@/lib/enhancedImageUtils';
 import { useEnhancedToast } from '@/hooks/useEnhancedToast';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface Supplier {
   id: string;
@@ -580,8 +581,6 @@ export default function Inventory() {
     setExpandedDescriptions(newExpanded);
   };
 
-  
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -609,7 +608,7 @@ export default function Inventory() {
                 Add Item
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-scroll">
+            <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>Add New Inventory Item</DialogTitle>
                 <DialogDescription>
@@ -617,173 +616,175 @@ export default function Inventory() {
                 </DialogDescription>
               </DialogHeader>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <Label htmlFor="name">Item Name *</Label>
-                  <Input
-                    id="name"
-                    value={newPart.name}
-                    onChange={(e) => setNewPart({...newPart, name: e.target.value})}
-                    placeholder="Enter item name"
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={newPart.description}
-                    onChange={(e) => setNewPart({...newPart, description: e.target.value})}
-                    placeholder="Enter item description"
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <Label htmlFor="image">Picture</Label>
-                  <div className="flex items-center gap-4">
+              <ScrollArea className="max-h-[70vh]">
+                <div className="grid grid-cols-2 gap-4 pr-4">
+                  <div className="col-span-2">
+                    <Label htmlFor="name">Item Name *</Label>
                     <Input
-                      id="image"
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => setSelectedImage(e.target.files?.[0] || null)}
-                      className="flex-1"
+                      id="name"
+                      value={newPart.name}
+                      onChange={(e) => setNewPart({...newPart, name: e.target.value})}
+                      placeholder="Enter item name"
                     />
-                    <Upload className="h-4 w-4 text-muted-foreground" />
                   </div>
-                  {selectedImage && (
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Selected: {selectedImage.name}
-                    </p>
-                  )}
-                </div>
 
-                <div className="col-span-2">
-                  <div className="flex items-center justify-between mb-2">
-                    <Label>Supplier</Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowAddSupplierDialog(true)}
-                      className="flex items-center gap-1"
-                    >
-                      <UserPlus className="h-3 w-3" />
-                      Add Supplier
-                    </Button>
+                  <div className="col-span-2">
+                    <Label htmlFor="description">Description</Label>
+                    <Textarea
+                      id="description"
+                      value={newPart.description}
+                      onChange={(e) => setNewPart({...newPart, description: e.target.value})}
+                      placeholder="Enter item description"
+                    />
                   </div>
-                  <Popover open={supplierOpen} onOpenChange={setSupplierOpen}>
-                    <PopoverTrigger asChild>
+
+                  <div className="col-span-2">
+                    <Label htmlFor="image">Picture</Label>
+                    <div className="flex items-center gap-4">
+                      <Input
+                        id="image"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setSelectedImage(e.target.files?.[0] || null)}
+                        className="flex-1"
+                      />
+                      <Upload className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    {selectedImage && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Selected: {selectedImage.name}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="col-span-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <Label>Supplier</Label>
                       <Button
+                        type="button"
                         variant="outline"
-                        role="combobox"
-                        aria-expanded={supplierOpen}
-                        className="w-full justify-between"
+                        size="sm"
+                        onClick={() => setShowAddSupplierDialog(true)}
+                        className="flex items-center gap-1"
                       >
-                        {newPart.supplier_id
-                          ? suppliers.find((supplier) => supplier.id === newPart.supplier_id)?.name
-                          : "Select supplier..."}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        <UserPlus className="h-3 w-3" />
+                        Add Supplier
                       </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-full p-0">
-                      <Command>
-                        <CommandInput placeholder="Search supplier..." />
-                        <CommandList>
-                          <CommandEmpty>No supplier found.</CommandEmpty>
-                          <CommandGroup>
-                            {suppliers.map((supplier) => (
-                              <CommandItem
-                                key={supplier.id}
-                                value={supplier.name}
-                                onSelect={(currentValue) => {
-                                  const selectedSupplier = suppliers.find(s => s.name.toLowerCase() === currentValue.toLowerCase());
-                                  setNewPart({...newPart, supplier_id: selectedSupplier?.id || ''});
-                                  setSupplierOpen(false);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    newPart.supplier_id === supplier.id ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
-                                {supplier.name}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
+                    </div>
+                    <Popover open={supplierOpen} onOpenChange={setSupplierOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={supplierOpen}
+                          className="w-full justify-between"
+                        >
+                          {newPart.supplier_id
+                            ? suppliers.find((supplier) => supplier.id === newPart.supplier_id)?.name
+                            : "Select supplier..."}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0">
+                        <Command>
+                          <CommandInput placeholder="Search supplier..." />
+                          <CommandList>
+                            <CommandEmpty>No supplier found.</CommandEmpty>
+                            <CommandGroup>
+                              {suppliers.map((supplier) => (
+                                <CommandItem
+                                  key={supplier.id}
+                                  value={supplier.name}
+                                  onSelect={(currentValue) => {
+                                    const selectedSupplier = suppliers.find(s => s.name.toLowerCase() === currentValue.toLowerCase());
+                                    setNewPart({...newPart, supplier_id: selectedSupplier?.id || ''});
+                                    setSupplierOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      newPart.supplier_id === supplier.id ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {supplier.name}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
 
-                <div>
-                  <Label htmlFor="current_quantity">Current Quantity *</Label>
-                  <Input
-                    id="current_quantity"
-                    type="number"
-                    min="0"
-                    value={newPart.current_quantity}
-                    onChange={(e) => setNewPart({...newPart, current_quantity: parseInt(e.target.value) || 0})}
-                  />
-                </div>
+                  <div>
+                    <Label htmlFor="current_quantity">Current Quantity *</Label>
+                    <Input
+                      id="current_quantity"
+                      type="number"
+                      min="0"
+                      value={newPart.current_quantity}
+                      onChange={(e) => setNewPart({...newPart, current_quantity: parseInt(e.target.value) || 0})}
+                    />
+                  </div>
 
-                <div>
-                  <Label htmlFor="minimum_quantity">Minimum Quantity</Label>
-                  <Input
-                    id="minimum_quantity"
-                    type="number"
-                    min="0"
-                    value={newPart.minimum_quantity}
-                    onChange={(e) => setNewPart({...newPart, minimum_quantity: parseInt(e.target.value) || 0})}
-                  />
-                </div>
+                  <div>
+                    <Label htmlFor="minimum_quantity">Minimum Quantity</Label>
+                    <Input
+                      id="minimum_quantity"
+                      type="number"
+                      min="0"
+                      value={newPart.minimum_quantity}
+                      onChange={(e) => setNewPart({...newPart, minimum_quantity: e.target.value === '' ? 0 : parseInt(e.target.value)})}
+                    />
+                  </div>
 
-                <div>
-                  <Label htmlFor="unit">Unit</Label>
-                  <Select value={newPart.unit} onValueChange={(value) => setNewPart({...newPart, unit: value})}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pieces">Pieces</SelectItem>
-                      <SelectItem value="kg">Kilograms</SelectItem>
-                      <SelectItem value="lbs">Pounds</SelectItem>
-                      <SelectItem value="meters">Meters</SelectItem>
-                      <SelectItem value="feet">Feet</SelectItem>
-                      <SelectItem value="liters">Liters</SelectItem>
-                      <SelectItem value="gallons">Gallons</SelectItem>
-                      <SelectItem value="boxes">Boxes</SelectItem>
-                      <SelectItem value="rolls">Rolls</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                  <div>
+                    <Label htmlFor="unit">Unit</Label>
+                    <Select value={newPart.unit} onValueChange={(value) => setNewPart({...newPart, unit: value})}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pieces">Pieces</SelectItem>
+                        <SelectItem value="kg">Kilograms</SelectItem>
+                        <SelectItem value="lbs">Pounds</SelectItem>
+                        <SelectItem value="meters">Meters</SelectItem>
+                        <SelectItem value="feet">Feet</SelectItem>
+                        <SelectItem value="liters">Liters</SelectItem>
+                        <SelectItem value="gallons">Gallons</SelectItem>
+                        <SelectItem value="boxes">Boxes</SelectItem>
+                        <SelectItem value="rolls">Rolls</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div>
-                  <Label htmlFor="cost_per_unit">Cost per Unit</Label>
-                  <Input
-                    id="cost_per_unit"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={newPart.cost_per_unit}
-                    onChange={(e) => setNewPart({...newPart, cost_per_unit: e.target.value})}
-                    placeholder="0.00"
-                  />
-                </div>
+                  <div>
+                    <Label htmlFor="cost_per_unit">Cost per Unit</Label>
+                    <Input
+                      id="cost_per_unit"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={newPart.cost_per_unit}
+                      onChange={(e) => setNewPart({...newPart, cost_per_unit: e.target.value})}
+                      placeholder="0.00"
+                    />
+                  </div>
 
-                <div className="col-span-2">
-                  <Label htmlFor="intended_storage_location">Storage Location *</Label>
-                  <Input
-                    id="intended_storage_location"
-                    value={newPart.intended_storage_location}
-                    onChange={(e) => setNewPart({...newPart, intended_storage_location: e.target.value})}
-                    placeholder="Enter storage location"
-                  />
+                  <div className="col-span-2">
+                    <Label htmlFor="intended_storage_location">Storage Location *</Label>
+                    <Input
+                      id="intended_storage_location"
+                      value={newPart.intended_storage_location}
+                      onChange={(e) => setNewPart({...newPart, intended_storage_location: e.target.value})}
+                      placeholder="Enter storage location"
+                    />
+                  </div>
                 </div>
-              </div>
+              </ScrollArea>
 
-              <div className="flex justify-end gap-2 pt-4 pb-8">
+              <div className="flex justify-end gap-2 pt-4">
                 <Button variant="outline" onClick={() => setShowAddDialog(false)}>
                   Cancel
                 </Button>
@@ -1088,7 +1089,7 @@ export default function Inventory() {
 
         {/* Edit Dialog */}
         <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-scroll">
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Edit Inventory Item</DialogTitle>
               <DialogDescription>
@@ -1096,179 +1097,181 @@ export default function Inventory() {
               </DialogDescription>
             </DialogHeader>
             
-            {editingPart && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <Label htmlFor="edit-name">Item Name *</Label>
-                  <Input
-                    id="edit-name"
-                    value={editingPart.name}
-                    onChange={(e) => setEditingPart({...editingPart, name: e.target.value})}
-                  />
-                </div>
+            <ScrollArea className="max-h-[70vh]">
+              {editingPart && (
+                <div className="grid grid-cols-2 gap-4 pr-4">
+                  <div className="col-span-2">
+                    <Label htmlFor="edit-name">Item Name *</Label>
+                    <Input
+                      id="edit-name"
+                      value={editingPart.name}
+                      onChange={(e) => setEditingPart({...editingPart, name: e.target.value})}
+                    />
+                  </div>
 
-                <div className="col-span-2">
-                  <Label htmlFor="edit-description">Description</Label>
-                  <Textarea
-                    id="edit-description"
-                    value={editingPart.description || ''}
-                    onChange={(e) => setEditingPart({...editingPart, description: e.target.value})}
-                  />
-                </div>
+                  <div className="col-span-2">
+                    <Label htmlFor="edit-description">Description</Label>
+                    <Textarea
+                      id="edit-description"
+                      value={editingPart.description || ''}
+                      onChange={(e) => setEditingPart({...editingPart, description: e.target.value})}
+                    />
+                  </div>
 
-                <div className="col-span-2">
-                  <Label htmlFor="edit-image">Picture</Label>
-                  <div className="space-y-2">
-                    {editingPart.image_url && (
-                      <div className="w-32 h-32 rounded-md overflow-hidden bg-muted">
-                        <img
-                          src={editingPart.image_url}
-                          alt={editingPart.name}
-                          className="w-full h-full object-cover"
+                  <div className="col-span-2">
+                    <Label htmlFor="edit-image">Picture</Label>
+                    <div className="space-y-2">
+                      {editingPart.image_url && (
+                        <div className="w-32 h-32 rounded-md overflow-hidden bg-muted">
+                          <img
+                            src={editingPart.image_url}
+                            alt={editingPart.name}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <div className="flex items-center gap-4">
+                        <Input
+                          id="edit-image"
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => setEditSelectedImage(e.target.files?.[0] || null)}
+                          className="flex-1"
                         />
+                        <Upload className="h-4 w-4 text-muted-foreground" />
                       </div>
-                    )}
-                    <div className="flex items-center gap-4">
-                      <Input
-                        id="edit-image"
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => setEditSelectedImage(e.target.files?.[0] || null)}
-                        className="flex-1"
-                      />
-                      <Upload className="h-4 w-4 text-muted-foreground" />
+                      {editSelectedImage && (
+                        <p className="text-sm text-muted-foreground">
+                          New image selected: {editSelectedImage.name}
+                        </p>
+                      )}
                     </div>
-                    {editSelectedImage && (
-                      <p className="text-sm text-muted-foreground">
-                        New image selected: {editSelectedImage.name}
-                      </p>
-                    )}
                   </div>
-                </div>
 
-                <div className="col-span-2">
-                  <div className="flex items-center justify-between mb-2">
-                    <Label>Supplier</Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowAddSupplierDialog(true)}
-                      className="flex items-center gap-1"
-                    >
-                      <UserPlus className="h-3 w-3" />
-                      Add Supplier
-                    </Button>
-                  </div>
-                  <Popover open={editSupplierOpen} onOpenChange={setEditSupplierOpen}>
-                    <PopoverTrigger asChild>
+                  <div className="col-span-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <Label>Supplier</Label>
                       <Button
+                        type="button"
                         variant="outline"
-                        role="combobox"
-                        aria-expanded={editSupplierOpen}
-                        className="w-full justify-between"
+                        size="sm"
+                        onClick={() => setShowAddSupplierDialog(true)}
+                        className="flex items-center gap-1"
                       >
-                        {editingPart.supplier_id
-                          ? suppliers.find((supplier) => supplier.id === editingPart.supplier_id)?.name
-                          : editingPart.supplier || "Select supplier..."}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        <UserPlus className="h-3 w-3" />
+                        Add Supplier
                       </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-full p-0">
-                      <Command>
-                        <CommandInput placeholder="Search supplier..." />
-                        <CommandList>
-                          <CommandEmpty>No supplier found.</CommandEmpty>
-                          <CommandGroup>
-                            {suppliers.map((supplier) => (
-                              <CommandItem
-                                key={supplier.id}
-                                value={supplier.name}
-                                onSelect={(currentValue) => {
-                                  const selectedSupplier = suppliers.find(s => s.name.toLowerCase() === currentValue.toLowerCase());
-                                  setEditingPart({...editingPart, supplier_id: selectedSupplier?.id || null});
-                                  setEditSupplierOpen(false);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    editingPart.supplier_id === supplier.id ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
-                                {supplier.name}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
+                    </div>
+                    <Popover open={editSupplierOpen} onOpenChange={setEditSupplierOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={editSupplierOpen}
+                          className="w-full justify-between"
+                        >
+                          {editingPart.supplier_id
+                            ? suppliers.find((supplier) => supplier.id === editingPart.supplier_id)?.name
+                            : editingPart.supplier || "Select supplier..."}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0">
+                        <Command>
+                          <CommandInput placeholder="Search supplier..." />
+                          <CommandList>
+                            <CommandEmpty>No supplier found.</CommandEmpty>
+                            <CommandGroup>
+                              {suppliers.map((supplier) => (
+                                <CommandItem
+                                  key={supplier.id}
+                                  value={supplier.name}
+                                  onSelect={(currentValue) => {
+                                    const selectedSupplier = suppliers.find(s => s.name.toLowerCase() === currentValue.toLowerCase());
+                                    setEditingPart({...editingPart, supplier_id: selectedSupplier?.id || null});
+                                    setEditSupplierOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      editingPart.supplier_id === supplier.id ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {supplier.name}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
 
-                <div>
-                  <Label htmlFor="edit-minimum">Minimum Quantity</Label>
-                  <Input
-                    id="edit-minimum"
-                    type="number"
-                    min="0"
-                    value={editingPart.minimum_quantity || ''}
-                    onChange={(e) => setEditingPart({...editingPart, minimum_quantity: parseInt(e.target.value) || null})}
-                  />
-                </div>
+                  <div>
+                    <Label htmlFor="edit-minimum">Minimum Quantity</Label>
+                    <Input
+                      id="edit-minimum"
+                      type="number"
+                      min="0"
+                      value={editingPart.minimum_quantity || ''}
+                      onChange={(e) => setEditingPart({...editingPart, minimum_quantity: e.target.value === '' ? null : parseInt(e.target.value)})}
+                    />
+                  </div>
 
-                <div>
-                  <Label htmlFor="edit-current">Current Quantity *</Label>
-                  <Input
-                    id="edit-current"
-                    type="number"
-                    min="0"
-                    value={editingPart.current_quantity || ''}
-                    onChange={(e) => setEditingPart({...editingPart, current_quantity: parseInt(e.target.value) || 0})}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="edit-unit">Unit</Label>
-                  <Select value={editingPart.unit || 'pieces'} onValueChange={(value) => setEditingPart({...editingPart, unit: value})}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pieces">Pieces</SelectItem>
-                      <SelectItem value="kg">Kilograms</SelectItem>
-                      <SelectItem value="lbs">Pounds</SelectItem>
-                      <SelectItem value="meters">Meters</SelectItem>
-                      <SelectItem value="feet">Feet</SelectItem>
-                      <SelectItem value="liters">Liters</SelectItem>
-                      <SelectItem value="gallons">Gallons</SelectItem>
-                      <SelectItem value="boxes">Boxes</SelectItem>
-                      <SelectItem value="rolls">Rolls</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                  <div>
+                    <Label htmlFor="edit-current">Current Quantity *</Label>
+                    <Input
+                      id="edit-current"
+                      type="number"
+                      min="0"
+                      value={editingPart.current_quantity || ''}
+                      onChange={(e) => setEditingPart({...editingPart, current_quantity: parseInt(e.target.value) || 0})}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-unit">Unit</Label>
+                    <Select value={editingPart.unit || 'pieces'} onValueChange={(value) => setEditingPart({...editingPart, unit: value})}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pieces">Pieces</SelectItem>
+                        <SelectItem value="kg">Kilograms</SelectItem>
+                        <SelectItem value="lbs">Pounds</SelectItem>
+                        <SelectItem value="meters">Meters</SelectItem>
+                        <SelectItem value="feet">Feet</SelectItem>
+                        <SelectItem value="liters">Liters</SelectItem>
+                        <SelectItem value="gallons">Gallons</SelectItem>
+                        <SelectItem value="boxes">Boxes</SelectItem>
+                        <SelectItem value="rolls">Rolls</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div>
-                  <Label htmlFor="edit-cost">Cost per Unit</Label>
-                  <Input
-                    id="edit-cost"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={editingPart.cost_per_unit || ''}
-                    onChange={(e) => setEditingPart({...editingPart, cost_per_unit: parseFloat(e.target.value) || null})}
-                  />
-                </div>
+                  <div>
+                    <Label htmlFor="edit-cost">Cost per Unit</Label>
+                    <Input
+                      id="edit-cost"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editingPart.cost_per_unit || ''}
+                      onChange={(e) => setEditingPart({...editingPart, cost_per_unit: parseFloat(e.target.value) || null})}
+                    />
+                  </div>
 
-                <div className="col-span-2">
-                  <Label htmlFor="edit-location">Storage Location *</Label>
-                  <Input
-                    id="edit-location"
-                    value={editingPart.intended_storage_location}
-                    onChange={(e) => setEditingPart({...editingPart, intended_storage_location: e.target.value})}
-                  />
+                  <div className="col-span-2">
+                    <Label htmlFor="edit-location">Storage Location *</Label>
+                    <Input
+                      id="edit-location"
+                      value={editingPart.intended_storage_location}
+                      onChange={(e) => setEditingPart({...editingPart, intended_storage_location: e.target.value})}
+                    />
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </ScrollArea>
 
             <div className="flex justify-end gap-2 pt-4">
               <Button variant="outline" onClick={() => setShowEditDialog(false)}>

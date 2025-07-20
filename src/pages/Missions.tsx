@@ -222,7 +222,11 @@ const Missions = () => {
             problem_statement: formData.problem_statement,
             plan: formData.done_definition,
             resources_required: formData.selected_resources.length > 0 
-              ? formData.selected_resources.map(r => `${r.name}: ${r.quantity} ${r.unit}`).join(', ')
+              ? formData.selected_resources.map(r => {
+                  const quantity = r.quantity || 1;
+                  const unit = r.unit || (r.type === 'part' ? 'pieces' : '');
+                  return `${r.name}${quantity > 1 ? `: ${quantity}${unit ? ' ' + unit : ''}` : ''}`;
+                }).join(', ')
               : formData.resources_required,
             all_materials_available: formData.all_materials_available,
             created_by: session.user.id,
@@ -327,7 +331,11 @@ const Missions = () => {
           problem_statement: formData.problem_statement,
           plan: formData.done_definition,
           resources_required: formData.selected_resources.length > 0 
-            ? formData.selected_resources.map(r => `${r.name}: ${r.quantity} ${r.unit}`).join(', ')
+            ? formData.selected_resources.map(r => {
+                const quantity = r.quantity || 1;
+                const unit = r.unit || (r.type === 'part' ? 'pieces' : '');
+                return `${r.name}${quantity > 1 ? `: ${quantity}${unit ? ' ' + unit : ''}` : ''}`;
+              }).join(', ')
             : formData.resources_required,
           all_materials_available: formData.all_materials_available,
           qa_assigned_to: formData.qa_assigned_to || null
@@ -409,6 +417,25 @@ const Missions = () => {
       .from('mission_tasks')
       .select('*')
       .eq('mission_id', mission.id);
+
+    // Parse existing selected resources from resources_required string
+    let parsedResources: Array<{ id: string; name: string; quantity?: number; unit?: string; type: 'part' | 'tool' }> = [];
+    if (mission.resources_required) {
+      // Try to parse resources from the stored string format
+      // This is a simplified parser - in production you'd want more robust parsing
+      const resourceLines = mission.resources_required.split(', ').filter(line => line.trim());
+      parsedResources = resourceLines.map((line, index) => {
+        const parts = line.split(': ');
+        const name = parts[0] || `Resource ${index + 1}`;
+        const details = parts[1] || '';
+        return {
+          id: `existing-${index}`,
+          name: name,
+          type: 'tool' as const, // Default to tool, could be enhanced
+          quantity: 1
+        };
+      }).filter(resource => resource.name && resource.name !== 'undefined');
+    }
     
     // Load mission data into form
     setFormData({
@@ -416,7 +443,7 @@ const Missions = () => {
       problem_statement: mission.problem_statement,
       done_definition: mission.plan,
       resources_required: mission.resources_required || '',
-      selected_resources: [],
+      selected_resources: parsedResources,
       all_materials_available: mission.all_materials_available,
       qa_assigned_to: mission.qa_assigned_to || '',
       tasks: existingTasks && existingTasks.length > 0 

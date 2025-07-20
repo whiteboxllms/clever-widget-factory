@@ -41,9 +41,10 @@ interface SelectedResource {
 interface ResourceSelectorProps {
   selectedResources: SelectedResource[];
   onResourcesChange: (resources: SelectedResource[]) => void;
+  assignedTasks?: string[];
 }
 
-export function ResourceSelector({ selectedResources, onResourcesChange }: ResourceSelectorProps) {
+export function ResourceSelector({ selectedResources, onResourcesChange, assignedTasks = [] }: ResourceSelectorProps) {
   const [parts, setParts] = useState<Part[]>([]);
   const [tools, setTools] = useState<Tool[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -381,6 +382,7 @@ export function ResourceSelector({ selectedResources, onResourcesChange }: Resou
         open={showCheckoutDialog}
         onOpenChange={setShowCheckoutDialog}
         onSuccess={handleCheckoutSuccess}
+        assignedTasks={assignedTasks}
       />
     </div>
   );

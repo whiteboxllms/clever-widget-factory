@@ -25,6 +25,7 @@ interface ToolCheckoutDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  assignedTasks?: string[];
 }
 
 interface CheckoutForm {
@@ -34,11 +35,11 @@ interface CheckoutForm {
   beforeImageFiles: File[];
 }
 
-export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess }: ToolCheckoutDialogProps) {
+export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assignedTasks = [] }: ToolCheckoutDialogProps) {
   const { user } = useAuth();
   const [form, setForm] = useState<CheckoutForm>({
     intendedUsage: "",
-    notes: "",
+    notes: assignedTasks.length > 0 ? `Tasks: ${assignedTasks.join(', ')}` : "",
     preCheckoutIssues: "",
     beforeImageFiles: []
   });

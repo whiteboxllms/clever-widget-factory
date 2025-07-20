@@ -275,6 +275,10 @@ export function SimpleMissionForm({
         onResourcesChange={(resources) => 
           setFormData(prev => ({ ...prev, selected_resources: resources }))
         }
+        assignedTasks={formData.tasks
+          .filter(task => task.title.trim() && task.assigned_to)
+          .map(task => task.title)
+        }
       />
       
       {/* Additional Resources */}

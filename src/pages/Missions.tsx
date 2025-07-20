@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Rocket, Flag, Calendar, User, CheckCircle, Clock, AlertCircle, ChevronRight, Pencil, Wrench, Microscope, GraduationCap, Hammer, Lightbulb } from 'lucide-react';
+import { ArrowLeft, Rocket, Flag, Calendar, User, CheckCircle, Clock, AlertCircle, ChevronRight, Pencil, Wrench, Microscope, GraduationCap, Hammer, Lightbulb, ChevronDown, ChevronUp } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { MissionTemplates } from '@/components/MissionTemplates';
 import { SimpleMissionForm } from '@/components/SimpleMissionForm';
@@ -14,7 +14,6 @@ import { MissionTaskList } from '@/components/MissionTaskList';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DEFAULT_DONE_DEFINITION } from '@/lib/constants';
 import { withAuth, checkUserRole as checkUserRoleAuth } from '@/lib/authUtils';
-
 
 interface Mission {
   id: string;
@@ -68,6 +67,7 @@ const Missions = () => {
   const [isLeadership, setIsLeadership] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [expandedMissions, setExpandedMissions] = useState<Set<string>>(new Set());
+  const [expandedProblemStatements, setExpandedProblemStatements] = useState<Set<string>>(new Set());
 
   // Icon mapping function
   const getIconComponent = (iconName: string) => {
@@ -533,6 +533,18 @@ const Missions = () => {
     });
   };
 
+  const toggleProblemStatement = (missionId: string) => {
+    setExpandedProblemStatements(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(missionId)) {
+        newSet.delete(missionId);
+      } else {
+        newSet.add(missionId);
+      }
+      return newSet;
+    });
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'planning':
@@ -701,10 +713,31 @@ const Missions = () => {
                         )}
                       </div>
                     </div>
-                    <CardDescription>
-                      {mission.problem_statement.substring(0, 100)}
-                      {mission.problem_statement.length > 100 && '...'}
-                    </CardDescription>
+                    <Collapsible 
+                      open={expandedProblemStatements.has(mission.id)} 
+                      onOpenChange={() => toggleProblemStatement(mission.id)}
+                    >
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" className="h-auto p-0 text-left justify-start hover:bg-transparent">
+                          <CardDescription className="flex items-center gap-2">
+                            {mission.problem_statement.length > 100 ? (
+                              <>
+                                {expandedProblemStatements.has(mission.id) 
+                                  ? mission.problem_statement 
+                                  : `${mission.problem_statement.substring(0, 100)}...`
+                                }
+                                {expandedProblemStatements.has(mission.id) 
+                                  ? <ChevronUp className="h-3 w-3 flex-shrink-0" />
+                                  : <ChevronDown className="h-3 w-3 flex-shrink-0" />
+                                }
+                              </>
+                            ) : (
+                              mission.problem_statement
+                            )}
+                          </CardDescription>
+                        </Button>
+                      </CollapsibleTrigger>
+                    </Collapsible>
                     <a 
                       href={`https://www.perplexity.ai/spaces/stargazer-assistant-F45qc1H7SmeN5wF1nxJobg?q=${encodeURIComponent(mission.problem_statement)}`}
                       target="_blank"
@@ -785,7 +818,6 @@ const Missions = () => {
             </div>
           )}
         </div>
-
       </main>
     </div>
   );

@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,7 +47,7 @@ interface TaskCardProps {
 export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, onCancel }: TaskCardProps) {
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true); // Default expanded
   const [photos, setPhotos] = useState<TaskPhoto[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -221,6 +220,29 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     }
   };
 
+  // Handle implementation changes and auto-update status
+  const handleImplementationChange = async (value: string) => {
+    setEditData(prev => ({ ...prev, observations: value }));
+    
+    // If adding implementation text and task is not started, update to in_progress
+    if (value.trim() && task.status === 'not_started') {
+      try {
+        const { error } = await supabase
+          .from('mission_tasks')
+          .update({ 
+            status: 'in_progress',
+            observations: value
+          })
+          .eq('id', task.id);
+
+        if (error) throw error;
+        onUpdate();
+      } catch (error) {
+        console.error('Error updating task status:', error);
+      }
+    }
+  };
+
   const getStatusIcon = () => {
     switch (task.status) {
       case 'completed':
@@ -237,7 +259,7 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
       case 'completed':
         return 'border-green-200 bg-green-50';
       case 'in_progress':
-        return 'border-blue-200 bg-blue-50';
+        return 'border-yellow-200 bg-yellow-50 border-2'; // Yellow border for in progress
       default:
         return 'border-gray-200 bg-white';
     }
@@ -350,7 +372,7 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
 
   return (
     <Card className={`mb-4 transition-all duration-300 ${getStatusColor()} ${task.status === 'completed' ? 'opacity-75' : ''}`}>
-      <Collapsible open={isExpanded} onOpenChange={handleExpand}>
+      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
         <CollapsibleTrigger asChild>
           <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
             <div className="flex items-center justify-between">
@@ -360,6 +382,11 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                 {task.status === 'completed' && (
                   <Badge variant="default" className="bg-green-100 text-green-800">
                     Completed
+                  </Badge>
+                )}
+                {task.status === 'in_progress' && (
+                  <Badge variant="default" className="bg-yellow-100 text-yellow-800">
+                    In Progress
                   </Badge>
                 )}
               </CardTitle>
@@ -386,12 +413,22 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
               </div>
             )}
             
-            {task.observations && (
               <div>
                 <Label className="text-sm font-medium">Implementation</Label>
-                <p className="text-sm text-muted-foreground mt-1">{task.observations}</p>
+                {task.status !== 'completed' ? (
+                  <Textarea
+                    value={editData.observations}
+                    onChange={(e) => handleImplementationChange(e.target.value)}
+                    placeholder="Add implementation notes, findings, or details..."
+                    rows={3}
+                    className="mt-1"
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {task.observations || 'No implementation notes provided'}
+                  </p>
+                )}
               </div>
-            )}
 
               {/* Photo Gallery */}
               {photos.length > 0 && (

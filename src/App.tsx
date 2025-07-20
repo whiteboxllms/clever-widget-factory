@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { AppSettingsProvider } from "@/hooks/useAppSettings";
+import { useSessionMonitor } from "@/hooks/useSessionMonitor";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -17,6 +18,48 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+function AppContent() {
+  useSessionMonitor(); // Add session monitoring
+  
+  return (
+    <Routes>
+      <Route path="/auth" element={<Auth />} />
+      <Route path="/" element={
+        <ProtectedRoute>
+          <Index />
+        </ProtectedRoute>
+      } />
+      <Route path="/dashboard" element={
+        <ProtectedRoute>
+          <Dashboard />
+        </ProtectedRoute>
+      } />
+      <Route path="/tools" element={
+        <ProtectedRoute>
+          <Tools />
+        </ProtectedRoute>
+      } />
+      <Route path="/inventory" element={
+        <ProtectedRoute>
+          <Inventory />
+        </ProtectedRoute>
+      } />
+      <Route path="/checkin" element={
+        <ProtectedRoute>
+          <CheckIn />
+        </ProtectedRoute>
+      } />
+      <Route path="/missions" element={
+        <ProtectedRoute>
+          <Missions />
+        </ProtectedRoute>
+      } />
+      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -25,42 +68,8 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
-          <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/" element={
-              <ProtectedRoute>
-                <Index />
-              </ProtectedRoute>
-            } />
-            <Route path="/dashboard" element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            } />
-            <Route path="/tools" element={
-              <ProtectedRoute>
-                <Tools />
-              </ProtectedRoute>
-            } />
-            <Route path="/inventory" element={
-              <ProtectedRoute>
-                <Inventory />
-              </ProtectedRoute>
-            } />
-            <Route path="/checkin" element={
-              <ProtectedRoute>
-                <CheckIn />
-              </ProtectedRoute>
-            } />
-            <Route path="/missions" element={
-              <ProtectedRoute>
-                <Missions />
-              </ProtectedRoute>
-            } />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
+            <AppContent />
+          </BrowserRouter>
         </TooltipProvider>
       </AppSettingsProvider>
     </AuthProvider>

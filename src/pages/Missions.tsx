@@ -13,6 +13,7 @@ import { SimpleMissionForm } from '@/components/SimpleMissionForm';
 import { MissionTaskList } from '@/components/MissionTaskList';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DEFAULT_DONE_DEFINITION } from '@/lib/constants';
+import { withAuth, checkUserRole as checkUserRoleAuth } from '@/lib/authUtils';
 
 interface Mission {
   id: string;
@@ -179,68 +180,61 @@ const Missions = () => {
     }
 
     try {
-      // Ensure we have a valid session before proceeding
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      // Check if user has leadership role using the enhanced auth utils
+      const roleCheck = await checkUserRoleAuth('leadership');
       
-      if (sessionError || !session) {
-        toast({
-          title: "Authentication Error",
-          description: "Please log out and log back in to continue",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Double-check the user has leadership role
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('user_id', session.user.id)
-        .single();
-
-      if (profileError || profile?.role !== 'leadership') {
+      if (!roleCheck.hasRole) {
         toast({
           title: "Permission Error", 
-          description: "You need leadership role to create missions",
+          description: roleCheck.error || "You need leadership role to create missions",
           variant: "destructive",
         });
         return;
       }
 
-      // Create the mission
-      const { data: missionData, error: missionError } = await supabase
-        .from('missions')
-        .insert({
-          title: formData.title,
-          problem_statement: formData.problem_statement,
-          plan: formData.done_definition,
-          resources_required: formData.selected_resources.length > 0 
-            ? formData.selected_resources.map(r => `${r.name}: ${r.quantity} ${r.unit}`).join(', ')
-            : formData.resources_required,
-          all_materials_available: formData.all_materials_available,
-          created_by: session.user.id, // Use session.user.id instead of user.id
-          qa_assigned_to: formData.qa_assigned_to || null
-        })
-        .select()
-        .single();
+      // Use withAuth wrapper for the mission creation
+      const result = await withAuth(async (session) => {
+        // Create the mission
+        const { data: missionData, error: missionError } = await supabase
+          .from('missions')
+          .insert({
+            title: formData.title,
+            problem_statement: formData.problem_statement,
+            plan: formData.done_definition,
+            resources_required: formData.selected_resources.length > 0 
+              ? formData.selected_resources.map(r => `${r.name}: ${r.quantity} ${r.unit}`).join(', ')
+              : formData.resources_required,
+            all_materials_available: formData.all_materials_available,
+            created_by: session.user.id,
+            qa_assigned_to: formData.qa_assigned_to || null
+          })
+          .select()
+          .single();
 
-      if (missionError) throw missionError;
+        if (missionError) throw missionError;
 
-      // Create tasks for the mission
-      const tasksToCreate = formData.tasks.filter(task => task.title.trim());
-      
-      if (tasksToCreate.length > 0) {
-        const { error: tasksError } = await supabase
-          .from('mission_tasks')
-          .insert(tasksToCreate.map(task => ({
-            mission_id: missionData.id,
-            title: task.title,
-            plan: task.plan || null,
-            observations: task.observations || null,
-            assigned_to: task.assigned_to || null
-          })));
+        // Create tasks for the mission if any
+        const tasksToCreate = formData.tasks.filter(task => task.title.trim());
+        
+        if (tasksToCreate.length > 0) {
+          const { error: tasksError } = await supabase
+            .from('mission_tasks')
+            .insert(tasksToCreate.map(task => ({
+              mission_id: missionData.id,
+              title: task.title,
+              plan: task.plan || null,
+              observations: task.observations || null,
+              assigned_to: task.assigned_to || null
+            })));
 
-        if (tasksError) throw tasksError;
+          if (tasksError) throw tasksError;
+        }
+
+        return missionData;
+      }, 'mission creation');
+
+      if (result.error) {
+        throw new Error(result.error);
       }
 
       // Generate Perplexity collaboration URL

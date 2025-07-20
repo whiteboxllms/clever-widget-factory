@@ -55,7 +55,7 @@ const Missions = () => {
     problem_statement: '',
     plan: '',
     resources_required: '',
-    selected_resources: [] as { id: string; name: string; quantity: number; unit: string }[],
+    selected_resources: [] as { id: string; name: string; quantity?: number; unit?: string; type: 'part' | 'tool' }[],
     all_materials_available: false,
     qa_assigned_to: '',
     tasks: [{ title: '', description: '', done_definition: '', assigned_to: '' }]

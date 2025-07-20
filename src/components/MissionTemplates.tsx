@@ -29,7 +29,7 @@ const templates: MissionTemplate[] = [
     icon: Wrench,
     category: 'Maintenance',
     estimatedDuration: '2-4 hours',
-    color: 'text-orange-500',
+    color: 'bg-orange-500',
     defaultTasks: [
       {
         title: 'Collaborate with AI on SOP best practices and ideas',
@@ -65,7 +65,7 @@ const templates: MissionTemplate[] = [
     icon: Microscope,
     category: 'Research',
     estimatedDuration: '1-4 weeks',
-    color: 'text-blue-500',
+    color: 'bg-blue-500',
     defaultTasks: [
       {
         title: 'Collaborate with AI on SOP best practices and ideas',
@@ -101,7 +101,7 @@ const templates: MissionTemplate[] = [
     icon: GraduationCap,
     category: 'Education',
     estimatedDuration: '1-2 days',
-    color: 'text-green-500',
+    color: 'bg-green-500',
     defaultTasks: [
       {
         title: 'Collaborate with AI on SOP best practices and ideas',
@@ -137,7 +137,7 @@ const templates: MissionTemplate[] = [
     icon: Hammer,
     category: 'Construction',
     estimatedDuration: '1-2 weeks',
-    color: 'text-amber-500',
+    color: 'bg-amber-500',
     defaultTasks: [
       {
         title: 'Collaborate with AI on SOP best practices and ideas',
@@ -173,7 +173,7 @@ const templates: MissionTemplate[] = [
     icon: Lightbulb,
     category: 'Custom',
     estimatedDuration: 'Variable',
-    color: 'text-purple-500',
+    color: 'bg-purple-500',
     defaultTasks: []
   }
 ];
@@ -202,28 +202,28 @@ export function MissionTemplates({ onSelectTemplate, onClose }: MissionTemplates
               className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
               onClick={() => onSelectTemplate(template)}
             >
-              <CardHeader className="pb-3">
+              <CardHeader className={`pb-3 ${template.color} text-white`}>
                 <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-lg bg-muted/50">
-                    <Icon className={`h-6 w-6 ${template.color}`} />
+                  <div className="p-3 rounded-lg bg-white/20">
+                    <Icon className="h-6 w-6 text-white" />
                   </div>
                   <div className="flex-1">
-                    <CardTitle className="text-base">{template.name}</CardTitle>
+                    <CardTitle className="text-base text-white">{template.name}</CardTitle>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge 
                         variant="secondary" 
-                        className={`text-xs ${template.color}`}
+                        className="text-xs bg-white/20 text-white border-white/20"
                       >
                         {template.category}
                       </Badge>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs text-white/80">
                         {template.estimatedDuration}
                       </span>
                     </div>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="pt-0">
+              <CardContent className="pt-0 bg-background">
                 <CardDescription className="text-sm">
                   {template.description}
                 </CardDescription>

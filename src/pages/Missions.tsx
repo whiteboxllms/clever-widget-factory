@@ -6,14 +6,11 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Plus, Flag, Calendar, User, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Plus, Flag, Calendar, User, CheckCircle, Clock, AlertCircle, ChevronRight, Settings } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ResourceSelector } from '@/components/ResourceSelector';
+import { MissionTemplates } from '@/components/MissionTemplates';
+import { SimpleMissionForm } from '@/components/SimpleMissionForm';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface Mission {
   id: string;
@@ -30,6 +27,8 @@ interface Mission {
   completed_at: string;
   creator_name?: string;
   qa_name?: string;
+  task_count?: number;
+  completed_task_count?: number;
 }
 
 interface Profile {
@@ -37,6 +36,13 @@ interface Profile {
   user_id: string;
   full_name: string;
   role: string;
+}
+
+interface Task {
+  title: string;
+  description: string;
+  done_definition: string;
+  assigned_to: string;
 }
 
 const Missions = () => {
@@ -47,7 +53,10 @@ const Missions = () => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(true);
   const [isLeadership, setIsLeadership] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+  const [expandedMissions, setExpandedMissions] = useState<Set<string>>(new Set());
 
   // Form state for creating missions
   const [formData, setFormData] = useState({
@@ -58,7 +67,7 @@ const Missions = () => {
     selected_resources: [] as { id: string; name: string; quantity?: number; unit?: string; type: 'part' | 'tool' }[],
     all_materials_available: false,
     qa_assigned_to: '',
-    tasks: [{ title: '', description: '', done_definition: '', assigned_to: '' }]
+    tasks: [{ title: '', description: '', done_definition: '', assigned_to: '' }] as Task[]
   });
 
   useEffect(() => {
@@ -103,7 +112,8 @@ const Missions = () => {
       .select(`
         *,
         creator:profiles!missions_created_by_fkey(full_name),
-        qa_person:profiles!missions_qa_assigned_to_fkey(full_name)
+        qa_person:profiles!missions_qa_assigned_to_fkey(full_name),
+        mission_tasks(id, status)
       `)
       .order('created_at', { ascending: false });
 
@@ -114,15 +124,41 @@ const Missions = () => {
         variant: "destructive",
       });
     } else {
-      const missionsWithNames = data?.map(mission => ({
-        ...mission,
-        creator_name: mission.creator?.full_name || 'Unknown',
-        qa_name: mission.qa_person?.full_name || 'Unassigned'
-      })) || [];
+      const missionsWithNames = data?.map(mission => {
+        const tasks = mission.mission_tasks || [];
+        const completedTasks = tasks.filter((task: any) => task.status === 'completed');
+        
+        return {
+          ...mission,
+          creator_name: mission.creator?.full_name || 'Unknown',
+          qa_name: mission.qa_person?.full_name || 'Unassigned',
+          task_count: tasks.length,
+          completed_task_count: completedTasks.length
+        };
+      }) || [];
       setMissions(missionsWithNames);
     }
     
     setLoading(false);
+  };
+
+  const handleTemplateSelect = (template: any) => {
+    setSelectedTemplate(template);
+    setShowTemplates(false);
+    
+    // Reset form with template data
+    setFormData({
+      title: '',
+      problem_statement: '',
+      plan: '',
+      resources_required: '',
+      selected_resources: [],
+      all_materials_available: false,
+      qa_assigned_to: '',
+      tasks: template.defaultTasks.length > 0 
+        ? template.defaultTasks.map((task: any) => ({ ...task, assigned_to: '' }))
+        : [{ title: '', description: '', done_definition: '', assigned_to: '' }]
+    });
   };
 
   const handleCreateMission = async () => {
@@ -178,6 +214,8 @@ const Missions = () => {
       });
 
       setShowCreateDialog(false);
+      setShowTemplates(true);
+      setSelectedTemplate(null);
       setFormData({
         title: '',
         problem_statement: '',
@@ -198,27 +236,32 @@ const Missions = () => {
     }
   };
 
-  const addTask = () => {
-    setFormData(prev => ({
-      ...prev,
-      tasks: [...prev.tasks, { title: '', description: '', done_definition: '', assigned_to: '' }]
-    }));
+  const resetDialog = () => {
+    setShowCreateDialog(false);
+    setShowTemplates(true);
+    setSelectedTemplate(null);
+    setFormData({
+      title: '',
+      problem_statement: '',
+      plan: '',
+      resources_required: '',
+      selected_resources: [],
+      all_materials_available: false,
+      qa_assigned_to: '',
+      tasks: [{ title: '', description: '', done_definition: '', assigned_to: '' }]
+    });
   };
 
-  const updateTask = (index: number, field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      tasks: prev.tasks.map((task, i) => 
-        i === index ? { ...task, [field]: value } : task
-      )
-    }));
-  };
-
-  const removeTask = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      tasks: prev.tasks.filter((_, i) => i !== index)
-    }));
+  const toggleMissionExpanded = (missionId: string) => {
+    setExpandedMissions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(missionId)) {
+        newSet.delete(missionId);
+      } else {
+        newSet.add(missionId);
+      }
+      return newSet;
+    });
   };
 
   const getStatusIcon = (status: string) => {
@@ -251,6 +294,11 @@ const Missions = () => {
     }
   };
 
+  const getProgressPercentage = (mission: Mission) => {
+    if (!mission.task_count || mission.task_count === 0) return 0;
+    return Math.round((mission.completed_task_count || 0) / mission.task_count * 100);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
@@ -278,167 +326,28 @@ const Missions = () => {
                 <DialogHeader>
                   <DialogTitle>Create New Mission</DialogTitle>
                   <DialogDescription>
-                    Define a new mission with objectives and tasks
+                    {showTemplates 
+                      ? "Choose a template to get started quickly"
+                      : "Define your mission details"
+                    }
                   </DialogDescription>
                 </DialogHeader>
                 
-                <div className="space-y-6">
-                  <div>
-                    <Label htmlFor="title">Mission Title</Label>
-                    <Input
-                      id="title"
-                      value={formData.title}
-                      onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                      placeholder="Enter mission title"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="problem_statement">Problem Statement</Label>
-                    <Textarea
-                      id="problem_statement"
-                      value={formData.problem_statement}
-                      onChange={(e) => setFormData(prev => ({ ...prev, problem_statement: e.target.value }))}
-                      placeholder="Describe the problem this mission addresses"
-                      rows={3}
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="plan">Plan</Label>
-                    <Textarea
-                      id="plan"
-                      value={formData.plan}
-                      onChange={(e) => setFormData(prev => ({ ...prev, plan: e.target.value }))}
-                      placeholder="Describe the plan to solve the problem"
-                      rows={3}
-                    />
-                  </div>
-                  
-                  <ResourceSelector
-                    selectedResources={formData.selected_resources}
-                    onResourcesChange={(resources) => 
-                      setFormData(prev => ({ ...prev, selected_resources: resources }))
-                    }
+                {showTemplates ? (
+                  <MissionTemplates 
+                    onSelectTemplate={handleTemplateSelect}
+                    onClose={resetDialog}
                   />
-                  
-                  {/* Additional text input for other resources */}
-                  <div>
-                    <Label htmlFor="additional_resources">Additional Resources (not in inventory)</Label>
-                    <Textarea
-                      id="additional_resources"
-                      value={formData.resources_required}
-                      onChange={(e) => setFormData(prev => ({ ...prev, resources_required: e.target.value }))}
-                      placeholder="List other materials, tools, and resources needed that aren't in inventory"
-                      rows={2}
-                    />
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="all_materials_available"
-                      checked={formData.all_materials_available}
-                      onCheckedChange={(checked) => 
-                        setFormData(prev => ({ ...prev, all_materials_available: !!checked }))
-                      }
-                    />
-                    <Label htmlFor="all_materials_available">
-                      All planned materials are available for this project
-                    </Label>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="qa_assigned_to">QA Assigned To</Label>
-                    <Select value={formData.qa_assigned_to} onValueChange={(value) => 
-                      setFormData(prev => ({ ...prev, qa_assigned_to: value }))
-                    }>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select QA person" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {profiles.filter(p => p.role === 'leadership').map((profile) => (
-                          <SelectItem key={profile.user_id} value={profile.user_id}>
-                            {profile.full_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <Label>Tasks</Label>
-                      <Button type="button" variant="outline" size="sm" onClick={addTask}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Task
-                      </Button>
-                    </div>
-                    
-                    {formData.tasks.map((task, index) => (
-                      <Card key={index} className="p-4">
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <Label>Task {index + 1}</Label>
-                            {formData.tasks.length > 1 && (
-                              <Button 
-                                type="button" 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={() => removeTask(index)}
-                              >
-                                Remove
-                              </Button>
-                            )}
-                          </div>
-                          
-                          <Input
-                            placeholder="Task title"
-                            value={task.title}
-                            onChange={(e) => updateTask(index, 'title', e.target.value)}
-                          />
-                          
-                          <Textarea
-                            placeholder="Task description (optional)"
-                            value={task.description}
-                            onChange={(e) => updateTask(index, 'description', e.target.value)}
-                            rows={2}
-                          />
-                          
-                          <Textarea
-                            placeholder="Done definition (required)"
-                            value={task.done_definition}
-                            onChange={(e) => updateTask(index, 'done_definition', e.target.value)}
-                            rows={2}
-                          />
-                          
-                          <Select value={task.assigned_to} onValueChange={(value) => 
-                            updateTask(index, 'assigned_to', value)
-                          }>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Assign to (optional)" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {profiles.map((profile) => (
-                                <SelectItem key={profile.user_id} value={profile.user_id}>
-                                  {profile.full_name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                  
-                  <div className="flex justify-end space-x-2">
-                    <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-                      Cancel
-                    </Button>
-                    <Button onClick={handleCreateMission}>
-                      Create Mission
-                    </Button>
-                  </div>
-                </div>
+                ) : (
+                  <SimpleMissionForm
+                    formData={formData}
+                    setFormData={setFormData}
+                    profiles={profiles}
+                    onSubmit={handleCreateMission}
+                    onCancel={resetDialog}
+                    defaultTasks={selectedTemplate?.defaultTasks}
+                  />
+                )}
               </DialogContent>
             </Dialog>
           )}
@@ -491,6 +400,51 @@ const Missions = () => {
                           <CheckCircle className="h-4 w-4" />
                           QA: {mission.qa_name}
                         </div>
+                      )}
+                      
+                      {/* Progress indicator */}
+                      {mission.task_count && mission.task_count > 0 && (
+                        <div className="pt-2">
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span>Progress</span>
+                            <span>{getProgressPercentage(mission)}%</span>
+                          </div>
+                          <div className="w-full bg-muted rounded-full h-2">
+                            <div 
+                              className="bg-primary h-2 rounded-full transition-all duration-300" 
+                              style={{ width: `${getProgressPercentage(mission)}%` }}
+                            />
+                          </div>
+                          <div className="text-xs mt-1">
+                            {mission.completed_task_count || 0} of {mission.task_count} tasks completed
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Task expansion for missions with tasks */}
+                      {mission.task_count && mission.task_count > 0 && (
+                        <Collapsible 
+                          open={expandedMissions.has(mission.id)} 
+                          onOpenChange={() => toggleMissionExpanded(mission.id)}
+                        >
+                          <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-auto p-1 mt-2">
+                              <ChevronRight 
+                                className={`h-4 w-4 transition-transform ${
+                                  expandedMissions.has(mission.id) ? 'rotate-90' : ''
+                                }`} 
+                              />
+                              <span className="text-xs">
+                                {expandedMissions.has(mission.id) ? 'Hide' : 'Show'} Tasks
+                              </span>
+                            </Button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="mt-2">
+                            <div className="text-xs text-muted-foreground">
+                              Task details would be loaded here...
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
                       )}
                     </div>
                   </CardContent>

@@ -89,7 +89,7 @@ const Missions = () => {
     resources_required: '',
     selected_resources: [] as { id: string; name: string; quantity?: number; unit?: string; type: 'part' | 'tool' }[],
     all_materials_available: false,
-    qa_assigned_to: '',
+    qa_assigned_to: user?.id || '', // Default to current user
     tasks: [{ title: '', plan: '', observations: '', assigned_to: '' }] as Task[]
   });
 
@@ -169,7 +169,7 @@ const Missions = () => {
     setSelectedTemplate(template);
     setShowTemplates(false);
     
-    // Reset form with template data
+    // Reset form with template data and default QA to current user
     setFormData({
       title: '',
       problem_statement: '',
@@ -177,7 +177,7 @@ const Missions = () => {
       resources_required: '',
       selected_resources: [],
       all_materials_available: false,
-      qa_assigned_to: '',
+      qa_assigned_to: user?.id || '', // Default to current user
       tasks: template.defaultTasks.length > 0 
         ? template.defaultTasks.map((task: any) => ({ 
             title: task.title, 
@@ -190,10 +190,10 @@ const Missions = () => {
   };
 
   const handleCreateMission = async () => {
-    if (!user || !formData.title.trim() || !formData.problem_statement.trim() || !formData.done_definition.trim()) {
+    if (!user || !formData.title.trim() || !formData.problem_statement.trim() || !formData.done_definition.trim() || !formData.qa_assigned_to) {
       toast({
         title: "Error",
-        description: "Please fill in all required fields",
+        description: "Please fill in all required fields including QA assignment",
         variant: "destructive",
       });
       return;
@@ -301,10 +301,10 @@ const Missions = () => {
   };
 
   const handleEditMission = async () => {
-    if (!user || !editingMission || !formData.title.trim() || !formData.problem_statement.trim() || !formData.done_definition.trim()) {
+    if (!user || !editingMission || !formData.title.trim() || !formData.problem_statement.trim() || !formData.done_definition.trim() || !formData.qa_assigned_to) {
       toast({
         title: "Error",
-        description: "Please fill in all required fields",
+        description: "Please fill in all required fields including QA assignment",
         variant: "destructive",
       });
       return;
@@ -502,7 +502,7 @@ const Missions = () => {
       resources_required: '',
       selected_resources: [],
       all_materials_available: false,
-      qa_assigned_to: '',
+      qa_assigned_to: user?.id || '', // Default to current user
       tasks: [{ title: '', plan: '', observations: '', assigned_to: '' }]
     });
   };

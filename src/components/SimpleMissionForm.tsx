@@ -65,8 +65,7 @@ export function SimpleMissionForm({
 }: SimpleMissionFormProps) {
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showTasks, setShowTasks] = useState(defaultTasks.length > 0);
+  const [showTasks, setShowTasks] = useState(true); // Always expanded by default
   const [editingTaskIndex, setEditingTaskIndex] = useState<number | null>(null);
   const [problemPhotos, setProblemPhotos] = useState<Array<{id: string; file_url: string; file_name: string}>>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -275,6 +274,39 @@ export function SimpleMissionForm({
             rows={3}
           />
         </div>
+
+        {/* QA Assignment - Required Field */}
+        <div>
+          <Label htmlFor="qa_assigned_to">QA Assigned To *</Label>
+          <Select value={formData.qa_assigned_to} onValueChange={(value) => 
+            setFormData(prev => ({ ...prev, qa_assigned_to: value }))
+          }>
+            <SelectTrigger>
+              <SelectValue placeholder="Select QA person" />
+            </SelectTrigger>
+            <SelectContent>
+              {profiles.filter(p => p.role === 'leadership').map((profile) => (
+                <SelectItem key={profile.user_id} value={profile.user_id}>
+                  {profile.full_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Materials Available Checkbox */}
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="all_materials_available"
+            checked={formData.all_materials_available}
+            onCheckedChange={(checked) => 
+              setFormData(prev => ({ ...prev, all_materials_available: !!checked }))
+            }
+          />
+          <Label htmlFor="all_materials_available">
+            All planned materials are available for this project
+          </Label>
+        </div>
       </div>
 
       {/* Resources */}
@@ -298,48 +330,6 @@ export function SimpleMissionForm({
           ) // Remove duplicates
         }
       />
-
-      {/* Advanced Options */}
-      <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" className="w-full justify-between p-0">
-            <span className="font-medium">Advanced Options</span>
-            {showAdvanced ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-4 mt-4">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="all_materials_available"
-              checked={formData.all_materials_available}
-              onCheckedChange={(checked) => 
-                setFormData(prev => ({ ...prev, all_materials_available: !!checked }))
-              }
-            />
-            <Label htmlFor="all_materials_available">
-              All planned materials are available for this project
-            </Label>
-          </div>
-          
-          <div>
-            <Label htmlFor="qa_assigned_to">QA Assigned To</Label>
-            <Select value={formData.qa_assigned_to} onValueChange={(value) => 
-              setFormData(prev => ({ ...prev, qa_assigned_to: value }))
-            }>
-              <SelectTrigger>
-                <SelectValue placeholder="Select QA person (optional)" />
-              </SelectTrigger>
-              <SelectContent>
-                {profiles.filter(p => p.role === 'leadership').map((profile) => (
-                  <SelectItem key={profile.user_id} value={profile.user_id}>
-                    {profile.full_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
 
       {/* Tasks Section */}
       <Collapsible open={showTasks} onOpenChange={setShowTasks}>

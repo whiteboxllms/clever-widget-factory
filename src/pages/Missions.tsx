@@ -147,9 +147,9 @@ const Missions = () => {
     setSelectedTemplate(template);
     setShowTemplates(false);
     
-    // Reset form with template data, including template name in title
+    // Reset form with template data
     setFormData({
-      title: template.name !== 'Custom Mission' ? `${template.name} - ` : '',
+      title: '',
       problem_statement: '',
       done_definition: DEFAULT_DONE_DEFINITION,
       resources_required: '',

@@ -317,7 +317,22 @@ const Missions = () => {
       // Handle task creation for new tasks added during editing
       const tasksToCreate = formData.tasks.filter(task => task.title.trim());
       
+      console.log('Tasks to create:', tasksToCreate); // Debug log
+      
       if (tasksToCreate.length > 0) {
+        // First, delete existing tasks for this mission (if we want to replace them)
+        // Or we could implement a more sophisticated update/insert/delete logic
+        const { error: deleteError } = await supabase
+          .from('mission_tasks')
+          .delete()
+          .eq('mission_id', editingMission.id);
+
+        if (deleteError) {
+          console.error('Error deleting existing tasks:', deleteError);
+          throw deleteError;
+        }
+
+        // Insert all tasks (both existing and new)
         const { error: tasksError } = await supabase
           .from('mission_tasks')
           .insert(tasksToCreate.map(task => ({
@@ -328,7 +343,10 @@ const Missions = () => {
             assigned_to: task.assigned_to || null
           })));
 
-        if (tasksError) throw tasksError;
+        if (tasksError) {
+          console.error('Error creating tasks:', tasksError);
+          throw tasksError;
+        }
       }
 
       toast({
@@ -352,6 +370,12 @@ const Missions = () => {
   const handleEditClick = async (mission: Mission) => {
     setEditingMission(mission);
     
+    // Load existing tasks for this mission
+    const { data: existingTasks } = await supabase
+      .from('mission_tasks')
+      .select('*')
+      .eq('mission_id', mission.id);
+    
     // Load mission data into form
     setFormData({
       title: mission.title,
@@ -361,7 +385,14 @@ const Missions = () => {
       selected_resources: [],
       all_materials_available: mission.all_materials_available,
       qa_assigned_to: mission.qa_assigned_to || '',
-      tasks: [{ title: '', plan: '', observations: '', assigned_to: '' }]
+      tasks: existingTasks && existingTasks.length > 0 
+        ? existingTasks.map(task => ({
+            title: task.title,
+            plan: task.plan || '',
+            observations: task.observations || '',
+            assigned_to: task.assigned_to || ''
+          }))
+        : [{ title: '', plan: '', observations: '', assigned_to: '' }]
     });
     
     setShowEditDialog(true);

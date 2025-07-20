@@ -26,6 +26,11 @@ function AppContent() {
       <Route path="/auth" element={<Auth />} />
       <Route path="/" element={
         <ProtectedRoute>
+          <Dashboard />
+        </ProtectedRoute>
+      } />
+      <Route path="/welcome" element={
+        <ProtectedRoute>
           <Index />
         </ProtectedRoute>
       } />

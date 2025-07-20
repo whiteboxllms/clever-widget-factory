@@ -215,9 +215,24 @@ const Missions = () => {
         if (tasksError) throw tasksError;
       }
 
+      // Generate Perplexity collaboration URL
+      const collaborationUrl = `https://www.perplexity.ai/spaces/stargazer-assistant-F45qc1H7SmeN5wF1nxJobg?q=${encodeURIComponent(formData.problem_statement)}`;
+
       toast({
         title: "Success",
-        description: "Mission created successfully",
+        description: (
+          <div className="space-y-2">
+            <p>Mission created successfully!</p>
+            <a 
+              href={collaborationUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-primary hover:underline text-sm"
+            >
+              🤖 Collaborate with AI on this mission →
+            </a>
+          </div>
+        ),
       });
 
       setShowCreateDialog(false);

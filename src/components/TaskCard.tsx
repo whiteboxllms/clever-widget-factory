@@ -247,8 +247,8 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     // Determine task state based on content
     if (task.status === 'completed') {
       return {
-        bg: 'bg-task-complete',
-        text: 'text-task-complete-foreground',
+        bg: 'bg-card',
+        text: 'text-card-foreground',
         border: 'border-task-complete-border border-2'
       };
     }
@@ -256,8 +256,8 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     // Check if implementation text exists
     if (task.observations && task.observations.trim()) {
       return {
-        bg: 'bg-task-implementation',
-        text: 'text-task-implementation-foreground',
+        bg: 'bg-card',
+        text: 'text-card-foreground',
         border: 'border-task-implementation-border border-2'
       };
     }
@@ -265,37 +265,37 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     // Check if plan exists
     if (task.plan && task.plan.trim()) {
       return {
-        bg: 'bg-task-plan',
-        text: 'text-task-plan-foreground',
+        bg: 'bg-card',
+        text: 'text-card-foreground',
         border: 'border-task-plan-border border-2'
       };
     }
     
     // Default blank state
     return {
-      bg: 'bg-task-blank',
-      text: 'text-task-blank-foreground',
+      bg: 'bg-card',
+      text: 'text-card-foreground',
       border: 'border-task-blank-border'
     };
   };
 
   const getStatusIcon = () => {
     if (task.status === 'completed') {
-      return <CheckCircle className="h-4 w-4 text-task-complete-foreground" />;
+      return <CheckCircle className="h-4 w-4 text-task-complete-border" />;
     }
     
     // Check if implementation text exists
     if (task.observations && task.observations.trim()) {
-      return <Clock className="h-4 w-4 text-task-implementation-foreground" />;
+      return <Clock className="h-4 w-4 text-task-implementation-border" />;
     }
     
     // Check if plan exists
     if (task.plan && task.plan.trim()) {
-      return <Clock className="h-4 w-4 text-task-plan-foreground" />;
+      return <Clock className="h-4 w-4 text-task-plan-border" />;
     }
     
     // Default blank state
-    return <Clock className="h-4 w-4 text-task-blank-foreground" />;
+    return <Clock className="h-4 w-4 text-muted-foreground" />;
   };
 
   const assignedProfile = profiles.find(p => p.user_id === task.assigned_to);
@@ -415,18 +415,18 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                 {getStatusIcon()}
                 {task.title}
                 {task.status === 'completed' && (
-                  <Badge variant="default" className="bg-task-complete text-task-complete-foreground">
+                  <Badge variant="outline" className="border-task-complete-border text-task-complete-border">
                     Completed
                   </Badge>
                 )}
                 {task.status === 'in_progress' && task.observations && task.observations.trim() && (
-                  <Badge variant="default" className="bg-task-implementation text-task-implementation-foreground">
+                  <Badge variant="outline" className="border-task-implementation-border text-task-implementation-border">
                     In Progress
                   </Badge>
                 )}
                 {!task.status || task.status === 'not_started' ? (
                   task.plan && task.plan.trim() ? (
-                    <Badge variant="default" className="bg-task-plan text-task-plan-foreground">
+                    <Badge variant="outline" className="border-task-plan-border text-task-plan-border">
                       Planned
                     </Badge>
                   ) : null

@@ -371,6 +371,10 @@ export type Database = {
           qa_assigned_to: string | null
           resources_required: string | null
           status: string
+          template_color: string | null
+          template_icon: string | null
+          template_id: string | null
+          template_name: string | null
           title: string
           updated_at: string
         }
@@ -385,6 +389,10 @@ export type Database = {
           qa_assigned_to?: string | null
           resources_required?: string | null
           status?: string
+          template_color?: string | null
+          template_icon?: string | null
+          template_id?: string | null
+          template_name?: string | null
           title: string
           updated_at?: string
         }
@@ -399,6 +407,10 @@ export type Database = {
           qa_assigned_to?: string | null
           resources_required?: string | null
           status?: string
+          template_color?: string | null
+          template_icon?: string | null
+          template_id?: string | null
+          template_name?: string | null
           title?: string
           updated_at?: string
         }

@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Rocket, Flag, Calendar, User, CheckCircle, Clock, AlertCircle, ChevronRight, Pencil } from 'lucide-react';
+import { ArrowLeft, Rocket, Flag, Calendar, User, CheckCircle, Clock, AlertCircle, ChevronRight, Pencil, Wrench, Microscope, GraduationCap, Hammer, Lightbulb } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { MissionTemplates } from '@/components/MissionTemplates';
 import { SimpleMissionForm } from '@/components/SimpleMissionForm';
@@ -29,6 +29,10 @@ interface Mission {
   created_at: string;
   updated_at: string;
   completed_at: string;
+  template_id?: string;
+  template_name?: string;
+  template_color?: string;
+  template_icon?: string;
   creator_name?: string;
   qa_name?: string;
   task_count?: number;
@@ -63,6 +67,18 @@ const Missions = () => {
   const [isLeadership, setIsLeadership] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [expandedMissions, setExpandedMissions] = useState<Set<string>>(new Set());
+
+  // Icon mapping function
+  const getIconComponent = (iconName: string) => {
+    const iconMap: { [key: string]: React.ComponentType<{ className?: string }> } = {
+      'Wrench': Wrench,
+      'Microscope': Microscope,
+      'GraduationCap': GraduationCap,
+      'Hammer': Hammer,
+      'Lightbulb': Lightbulb
+    };
+    return iconMap[iconName] || Wrench; // Default to Wrench if not found
+  };
 
   // Form state for creating missions
   const [formData, setFormData] = useState({
@@ -209,7 +225,11 @@ const Missions = () => {
               : formData.resources_required,
             all_materials_available: formData.all_materials_available,
             created_by: session.user.id,
-            qa_assigned_to: formData.qa_assigned_to || null
+            qa_assigned_to: formData.qa_assigned_to || null,
+            template_id: selectedTemplate?.id || null,
+            template_name: selectedTemplate?.name || null,
+            template_color: selectedTemplate?.color || null,
+            template_icon: selectedTemplate?.icon?.name || null
           })
           .select()
           .single();
@@ -370,6 +390,18 @@ const Missions = () => {
   const handleEditClick = async (mission: Mission) => {
     setEditingMission(mission);
     
+    // Create template object from stored mission data
+    let missionTemplate = null;
+    if (mission.template_id && mission.template_name && mission.template_color) {
+      missionTemplate = {
+        id: mission.template_id,
+        name: mission.template_name,
+        color: mission.template_color,
+        icon: getIconComponent(mission.template_icon || 'Wrench')
+      };
+    }
+    setSelectedTemplate(missionTemplate);
+    
     // Load existing tasks for this mission
     const { data: existingTasks } = await supabase
       .from('mission_tasks')
@@ -421,6 +453,7 @@ const Missions = () => {
   const resetEditDialog = () => {
     setShowEditDialog(false);
     setEditingMission(null);
+    setSelectedTemplate(null);
     resetFormData();
   };
 
@@ -559,6 +592,7 @@ const Missions = () => {
                 onSubmit={handleEditMission}
                 onCancel={resetEditDialog}
                 isEditing={true}
+                selectedTemplate={selectedTemplate}
               />
             </DialogContent>
           </Dialog>

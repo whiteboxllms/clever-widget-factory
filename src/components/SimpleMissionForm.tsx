@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +34,6 @@ interface SimpleMissionFormProps {
     title: string;
     problem_statement: string;
     done_definition: string;
-    resources_required: string;
     selected_resources: Array<{ id: string; name: string; quantity?: number; unit?: string; type: 'part' | 'tool' }>;
     all_materials_available: boolean;
     qa_assigned_to: string;
@@ -290,18 +288,6 @@ export function SimpleMissionForm({
           .map(task => task.title)
         }
       />
-      
-      {/* Additional Resources */}
-      <div>
-        <Label htmlFor="additional_resources">Additional Resources (not in inventory)</Label>
-        <Textarea
-          id="additional_resources"
-          value={formData.resources_required}
-          onChange={(e) => setFormData(prev => ({ ...prev, resources_required: e.target.value }))}
-          placeholder="List other materials, tools, and resources needed that aren't in inventory"
-          rows={2}
-        />
-      </div>
 
       {/* Advanced Options */}
       <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>

@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { X, Plus, Search } from 'lucide-react';
+import { X, Plus, Search, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { ToolCheckoutDialog } from '@/components/ToolCheckoutDialog';
@@ -42,11 +42,14 @@ interface ResourceSelectorProps {
   selectedResources: SelectedResource[];
   onResourcesChange: (resources: SelectedResource[]) => void;
   assignedTasks?: string[];
+  missionId?: string;
+  assignedUsers?: Array<{ user_id: string; full_name: string }>;
 }
 
-export function ResourceSelector({ selectedResources, onResourcesChange, assignedTasks = [] }: ResourceSelectorProps) {
+export function ResourceSelector({ selectedResources, onResourcesChange, assignedTasks = [], missionId, assignedUsers = [] }: ResourceSelectorProps) {
   const [parts, setParts] = useState<Part[]>([]);
   const [tools, setTools] = useState<Tool[]>([]);
+  const [teamTools, setTeamTools] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [searchType, setSearchType] = useState<'parts' | 'tools'>('parts');
@@ -69,6 +72,12 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
   useEffect(() => {
     fetchTools();
   }, []);
+
+  useEffect(() => {
+    if (missionId && assignedUsers.length > 0) {
+      fetchTeamTools();
+    }
+  }, [missionId, assignedUsers]);
 
   const fetchParts = async () => {
     setLoading(true);
@@ -111,6 +120,40 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchTeamTools = async () => {
+    if (!assignedUsers.length) return;
+
+    const userIds = assignedUsers.map(user => user.user_id);
+    
+    const { data, error } = await supabase
+      .from('checkouts')
+      .select(`
+        *,
+        tools (
+          id,
+          name,
+          status,
+          condition
+        )
+      `)
+      .eq('is_returned', false)
+      .in('user_id', userIds);
+
+    if (error) {
+      console.error('Error fetching team tools:', error);
+      return;
+    }
+
+    const toolsWithUsers = data?.map(checkout => ({
+      ...checkout.tools,
+      checkout_id: checkout.id,
+      checked_out_to: checkout.user_name,
+      checkout_date: checkout.checkout_date
+    })) || [];
+
+    setTeamTools(toolsWithUsers);
   };
 
   const filteredParts = parts.filter(part =>
@@ -310,6 +353,34 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
               </div>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Tools Available to Mission Team */}
+      {teamTools.length > 0 && (
+        <div className="space-y-4">
+          <h4 className="font-medium text-muted-foreground flex items-center gap-2">
+            <User className="h-4 w-4" />
+            Tools Available to Mission Team
+          </h4>
+          <div className="space-y-2">
+            {teamTools.map((tool) => (
+              <div key={tool.id} className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                <div className="flex-1">
+                  <p className="font-medium">{tool.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Checked out to {tool.checked_out_to}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant={tool.condition === 'good' ? 'default' : 'destructive'}>
+                    {tool.condition}
+                  </Badge>
+                  <Badge variant="secondary">Available for mission</Badge>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

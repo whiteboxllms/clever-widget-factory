@@ -287,6 +287,7 @@ export function SimpleMissionForm({
           .filter(task => task.title.trim() && task.assigned_to)
           .map(task => task.title)
         }
+        assignedUsers={[]} // New missions don't have assigned users yet
       />
 
       {/* Advanced Options */}

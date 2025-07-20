@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
+import { DEFAULT_DONE_DEFINITION } from "@/lib/constants";
 
 interface Profile {
   id: string;
@@ -52,7 +53,7 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
   const [isCompleting, setIsCompleting] = useState(false);
   const [editData, setEditData] = useState({
     title: task.title,
-    done_definition: task.done_definition,
+    done_definition: task.done_definition || DEFAULT_DONE_DEFINITION,
     assigned_to: task.assigned_to
   });
 
@@ -240,7 +241,7 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
             <div>
               <Label>Done Definition</Label>
               <Textarea
-                value={editData.done_definition}
+                value={editData.done_definition || DEFAULT_DONE_DEFINITION}
                 onChange={(e) => setEditData(prev => ({ ...prev, done_definition: e.target.value }))}
                 placeholder="What does complete look like?"
                 rows={2}

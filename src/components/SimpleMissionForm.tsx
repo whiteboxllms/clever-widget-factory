@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
+import { DEFAULT_DONE_DEFINITION } from "@/lib/constants";
 
 interface Task {
   title: string;
@@ -75,7 +76,7 @@ export function SimpleMissionForm({
   const addTask = () => {
     setFormData(prev => ({
       ...prev,
-      tasks: [...prev.tasks, { title: '', done_definition: '', assigned_to: '' }]
+      tasks: [...prev.tasks, { title: '', done_definition: DEFAULT_DONE_DEFINITION, assigned_to: '' }]
     }));
     setEditingTaskIndex(formData.tasks.length);
   };
@@ -216,7 +217,7 @@ export function SimpleMissionForm({
           <Label htmlFor="done_definition">Done Definition *</Label>
           <Textarea
             id="done_definition"
-            value={formData.done_definition}
+            value={formData.done_definition || DEFAULT_DONE_DEFINITION}
             onChange={(e) => setFormData(prev => ({ ...prev, done_definition: e.target.value }))}
             placeholder="Describe what success looks like for this mission"
             rows={3}

@@ -12,6 +12,7 @@ import { MissionTemplates } from '@/components/MissionTemplates';
 import { SimpleMissionForm } from '@/components/SimpleMissionForm';
 import { MissionTaskList } from '@/components/MissionTaskList';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { DEFAULT_DONE_DEFINITION } from '@/lib/constants';
 
 interface Mission {
   id: string;
@@ -62,12 +63,12 @@ const Missions = () => {
   const [formData, setFormData] = useState({
     title: '',
     problem_statement: '',
-    done_definition: '',
+    done_definition: DEFAULT_DONE_DEFINITION,
     resources_required: '',
     selected_resources: [] as { id: string; name: string; quantity?: number; unit?: string; type: 'part' | 'tool' }[],
     all_materials_available: false,
     qa_assigned_to: '',
-    tasks: [{ title: '', done_definition: '', assigned_to: '' }] as Task[]
+    tasks: [{ title: '', done_definition: DEFAULT_DONE_DEFINITION, assigned_to: '' }] as Task[]
   });
 
   useEffect(() => {
@@ -150,7 +151,7 @@ const Missions = () => {
     setFormData({
       title: template.name !== 'Custom Mission' ? `${template.name} - ` : '',
       problem_statement: '',
-      done_definition: '',
+      done_definition: DEFAULT_DONE_DEFINITION,
       resources_required: '',
       selected_resources: [],
       all_materials_available: false,
@@ -161,7 +162,7 @@ const Missions = () => {
             done_definition: task.done_definition, 
             assigned_to: '' 
           }))
-        : [{ title: '', done_definition: '', assigned_to: '' }]
+        : [{ title: '', done_definition: DEFAULT_DONE_DEFINITION, assigned_to: '' }]
     });
   };
 
@@ -222,12 +223,12 @@ const Missions = () => {
       setFormData({
         title: '',
         problem_statement: '',
-        done_definition: '',
+        done_definition: DEFAULT_DONE_DEFINITION,
         resources_required: '',
         selected_resources: [],
         all_materials_available: false,
         qa_assigned_to: '',
-        tasks: [{ title: '', done_definition: '', assigned_to: '' }]
+        tasks: [{ title: '', done_definition: DEFAULT_DONE_DEFINITION, assigned_to: '' }]
       });
       fetchMissions();
     } catch (error) {
@@ -246,12 +247,12 @@ const Missions = () => {
     setFormData({
       title: '',
       problem_statement: '',
-      done_definition: '',
+      done_definition: DEFAULT_DONE_DEFINITION,
       resources_required: '',
       selected_resources: [],
       all_materials_available: false,
       qa_assigned_to: '',
-      tasks: [{ title: '', done_definition: '', assigned_to: '' }]
+      tasks: [{ title: '', done_definition: DEFAULT_DONE_DEFINITION, assigned_to: '' }]
     });
   };
 

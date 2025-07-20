@@ -50,6 +50,7 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
   const [parts, setParts] = useState<Part[]>([]);
   const [tools, setTools] = useState<Tool[]>([]);
   const [teamTools, setTeamTools] = useState<any[]>([]);
+  const [toolCheckouts, setToolCheckouts] = useState<Record<string, { user_name: string; checkout_date: string }>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [searchType, setSearchType] = useState<'parts' | 'tools'>('parts');
@@ -71,6 +72,7 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
   // Fetch tools on component mount to get status information for selected resources
   useEffect(() => {
     fetchTools();
+    fetchToolCheckouts();
   }, []);
 
   useEffect(() => {
@@ -156,6 +158,31 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
     setTeamTools(toolsWithUsers);
   };
 
+  const fetchToolCheckouts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('checkouts')
+        .select('tool_id, user_name, checkout_date')
+        .eq('is_returned', false);
+
+      if (error) throw error;
+
+      const checkoutMap: Record<string, { user_name: string; checkout_date: string }> = {};
+      data?.forEach(checkout => {
+        if (checkout.tool_id) {
+          checkoutMap[checkout.tool_id] = {
+            user_name: checkout.user_name,
+            checkout_date: checkout.checkout_date
+          };
+        }
+      });
+      
+      setToolCheckouts(checkoutMap);
+    } catch (error) {
+      console.error('Error fetching tool checkouts:', error);
+    }
+  };
+
   const filteredParts = parts.filter(part =>
     part.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (part.description && part.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -217,8 +244,9 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
   const handleCheckoutSuccess = () => {
     setShowCheckoutDialog(false);
     setSelectedTool(null);
-    // Refresh tools to get updated status
+    // Refresh tools and checkout info to get updated status
     fetchTools();
+    fetchToolCheckouts();
     toast({
       title: "Tool checked out successfully",
       description: `${selectedTool?.name} has been checked out`,
@@ -244,8 +272,9 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
 
       if (checkoutError) throw checkoutError;
 
-      // Refresh tools to get updated status
+      // Refresh tools and checkout info to get updated status
       fetchTools();
+      fetchToolCheckouts();
       
       toast({
         title: "Tool checked in successfully",
@@ -298,18 +327,25 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
           {selectedResources.map((resource) => (
             <Card key={resource.id} className="p-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <span className="font-medium">{resource.name}</span>
-                  {resource.type === 'part' && resource.quantity && resource.unit && (
-                    <Badge variant="secondary">
-                      {resource.quantity} {resource.unit}
+                <div className="flex flex-col space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="font-medium">{resource.name}</span>
+                    {resource.type === 'part' && resource.quantity && resource.unit && (
+                      <Badge variant="secondary">
+                        {resource.quantity} {resource.unit}
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className={resource.type === 'part' ? 'text-green-600 border-green-600' : 
+                      tools.find(t => t.id === resource.id)?.status === 'checked_out' ? 'text-orange-600 border-orange-600' : 'text-green-600 border-green-600'}>
+                      {resource.type === 'part' ? 'Available' : 
+                       tools.find(t => t.id === resource.id)?.status === 'checked_out' ? 'Checked Out' : 'Available for Checkout'}
                     </Badge>
+                  </div>
+                  {resource.type === 'tool' && tools.find(t => t.id === resource.id)?.status === 'checked_out' && toolCheckouts[resource.id] && (
+                    <div className="text-sm text-muted-foreground">
+                      Checked out to: {toolCheckouts[resource.id].user_name}
+                    </div>
                   )}
-                  <Badge variant="outline" className={resource.type === 'part' ? 'text-green-600 border-green-600' : 
-                    tools.find(t => t.id === resource.id)?.status === 'checked_out' ? 'text-orange-600 border-orange-600' : 'text-green-600 border-green-600'}>
-                    {resource.type === 'part' ? 'Available' : 
-                     tools.find(t => t.id === resource.id)?.status === 'checked_out' ? 'Checked Out' : 'Available for Checkout'}
-                  </Badge>
                 </div>
                 <div className="flex items-center space-x-2">
                   {resource.type === 'part' && (

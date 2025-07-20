@@ -65,6 +65,11 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
     }
   }, [showSearch, searchType]);
 
+  // Fetch tools on component mount to get status information for selected resources
+  useEffect(() => {
+    fetchTools();
+  }, []);
+
   const fetchParts = async () => {
     setLoading(true);
     try {
@@ -89,10 +94,10 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
   const fetchTools = async () => {
     setLoading(true);
     try {
+      // Fetch all tools to ensure we have data for selected resources
       const { data, error } = await supabase
         .from('tools')
         .select('*')
-        .in('status', ['available', 'checked_out'])
         .order('name');
 
       if (error) throw error;
@@ -382,12 +387,14 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
                     ))
                   )
                 ) : (
-                  filteredTools.length === 0 ? (
+                  filteredTools.filter(tool => tool.status === 'available').length === 0 ? (
                     <div className="text-center py-4 text-muted-foreground">
                       No available tools found
                     </div>
                   ) : (
-                    filteredTools.map((tool) => (
+                    filteredTools
+                      .filter(tool => tool.status === 'available')
+                      .map((tool) => (
                       <div
                         key={tool.id}
                         className="flex items-center justify-between p-2 border rounded hover:bg-muted/50"
@@ -408,9 +415,8 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
                           type="button"
                           size="sm"
                           onClick={() => addResource(tool)}
-                          disabled={tool.status === 'checked_out'}
                         >
-                          {tool.status === 'checked_out' ? 'Checked Out' : 'Add'}
+                          Add
                         </Button>
                       </div>
                     ))

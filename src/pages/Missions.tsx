@@ -416,6 +416,14 @@ const Missions = () => {
                       {mission.problem_statement.substring(0, 100)}
                       {mission.problem_statement.length > 100 && '...'}
                     </CardDescription>
+                    <a 
+                      href={`https://www.perplexity.ai/spaces/stargazer-assistant-F45qc1H7SmeN5wF1nxJobg?q=${encodeURIComponent(mission.problem_statement)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-2"
+                    >
+                      🤖 Collaborate with AI on this mission →
+                    </a>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2 text-sm text-muted-foreground">

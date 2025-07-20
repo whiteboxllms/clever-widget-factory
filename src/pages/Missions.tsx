@@ -17,7 +17,7 @@ interface Mission {
   id: string;
   title: string;
   problem_statement: string;
-  plan: string;
+  done_definition: string;
   resources_required: string;
   all_materials_available: boolean;
   status: string;
@@ -62,7 +62,7 @@ const Missions = () => {
   const [formData, setFormData] = useState({
     title: '',
     problem_statement: '',
-    plan: '',
+    done_definition: '',
     resources_required: '',
     selected_resources: [] as { id: string; name: string; quantity?: number; unit?: string; type: 'part' | 'tool' }[],
     all_materials_available: false,
@@ -150,7 +150,7 @@ const Missions = () => {
     setFormData({
       title: template.name !== 'Custom Mission' ? `${template.name} - ` : '',
       problem_statement: '',
-      plan: '',
+      done_definition: '',
       resources_required: '',
       selected_resources: [],
       all_materials_available: false,
@@ -166,7 +166,7 @@ const Missions = () => {
   };
 
   const handleCreateMission = async () => {
-    if (!user || !formData.title.trim() || !formData.problem_statement.trim() || !formData.plan.trim()) {
+    if (!user || !formData.title.trim() || !formData.problem_statement.trim() || !formData.done_definition.trim()) {
       toast({
         title: "Error",
         description: "Please fill in all required fields",
@@ -182,7 +182,7 @@ const Missions = () => {
         .insert({
           title: formData.title,
           problem_statement: formData.problem_statement,
-          plan: formData.plan,
+          done_definition: formData.done_definition,
           resources_required: formData.selected_resources.length > 0 
             ? formData.selected_resources.map(r => `${r.name}: ${r.quantity} ${r.unit}`).join(', ')
             : formData.resources_required,
@@ -222,7 +222,7 @@ const Missions = () => {
       setFormData({
         title: '',
         problem_statement: '',
-        plan: '',
+        done_definition: '',
         resources_required: '',
         selected_resources: [],
         all_materials_available: false,
@@ -246,7 +246,7 @@ const Missions = () => {
     setFormData({
       title: '',
       problem_statement: '',
-      plan: '',
+      done_definition: '',
       resources_required: '',
       selected_resources: [],
       all_materials_available: false,

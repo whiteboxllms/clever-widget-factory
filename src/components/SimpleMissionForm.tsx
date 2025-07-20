@@ -6,10 +6,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Upload, Image } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ResourceSelector } from '@/components/ResourceSelector';
 import { TaskCard } from '@/components/TaskCard';
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { compressImageDetailed } from "@/lib/enhancedImageUtils";
+import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 
 interface Task {
   title: string;
@@ -28,7 +32,7 @@ interface SimpleMissionFormProps {
   formData: {
     title: string;
     problem_statement: string;
-    plan: string;
+    done_definition: string;
     resources_required: string;
     selected_resources: Array<{ id: string; name: string; quantity?: number; unit?: string; type: 'part' | 'tool' }>;
     all_materials_available: boolean;
@@ -50,9 +54,13 @@ export function SimpleMissionForm({
   onCancel,
   defaultTasks = []
 }: SimpleMissionFormProps) {
+  const { toast } = useToast();
+  const enhancedToast = useEnhancedToast();
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showTasks, setShowTasks] = useState(defaultTasks.length > 0);
   const [editingTaskIndex, setEditingTaskIndex] = useState<number | null>(null);
+  const [problemPhotos, setProblemPhotos] = useState<Array<{id: string; file_url: string; file_name: string}>>([]);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Initialize with default tasks if provided
   useState(() => {
@@ -90,6 +98,55 @@ export function SimpleMissionForm({
     setEditingTaskIndex(null);
   };
 
+  const handleProblemPhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    
+    try {
+      // Show compression start
+      const compressionToast = enhancedToast.showCompressionStart(file.name, file.size);
+      
+      // Compress the image
+      const compressionResult = await compressImageDetailed(
+        file,
+        { maxSizeMB: 0.5, maxWidthOrHeight: 1920 },
+        enhancedToast.showCompressionProgress
+      );
+      
+      // Show compression complete
+      enhancedToast.showCompressionComplete(compressionResult);
+      enhancedToast.dismiss(compressionToast.id);
+
+      // Upload to Supabase
+      const uploadToast = enhancedToast.showUploadStart(file.name, compressionResult.compressedSize);
+      
+      const fileName = `problem-${Date.now()}-${file.name}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('mission-attachments')
+        .upload(fileName, compressionResult.file);
+
+      if (uploadError) throw uploadError;
+
+      enhancedToast.showUploadSuccess(file.name);
+      enhancedToast.dismiss(uploadToast.id);
+      
+      // Add to photos list
+      setProblemPhotos(prev => [...prev, {
+        id: Date.now().toString(),
+        file_url: uploadData.path,
+        file_name: file.name
+      }]);
+
+    } catch (error) {
+      console.error('Photo upload failed:', error);
+      enhancedToast.showUploadError(error instanceof Error ? error.message : 'Upload failed', file.name);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Basic Information */}
@@ -114,14 +171,54 @@ export function SimpleMissionForm({
             rows={3}
           />
         </div>
+
+        {/* Problem Photos */}
+        <div>
+          <Label className="text-sm font-medium">Problem Evidence Photos</Label>
+          <div className="mt-2">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleProblemPhotoUpload}
+              disabled={isUploading}
+              className="hidden"
+              id="problem-photo-upload"
+            />
+            <label
+              htmlFor="problem-photo-upload"
+              className="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition-colors"
+            >
+              <Upload className="h-4 w-4" />
+              {isUploading ? 'Uploading...' : 'Upload Problem Photo'}
+            </label>
+          </div>
+          
+          {/* Display problem photos */}
+          {problemPhotos.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
+              {problemPhotos.map((photo) => (
+                <div key={photo.id} className="relative group">
+                  <img
+                    src={`${supabase.storage.from('mission-attachments').getPublicUrl(photo.file_url).data.publicUrl}`}
+                    alt={photo.file_name}
+                    className="w-full h-24 object-cover rounded-md border"
+                  />
+                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-md flex items-center justify-center">
+                    <Image className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         
         <div>
-          <Label htmlFor="plan">Plan *</Label>
+          <Label htmlFor="done_definition">Done Definition *</Label>
           <Textarea
-            id="plan"
-            value={formData.plan}
-            onChange={(e) => setFormData(prev => ({ ...prev, plan: e.target.value }))}
-            placeholder="Describe the plan to solve the problem"
+            id="done_definition"
+            value={formData.done_definition}
+            onChange={(e) => setFormData(prev => ({ ...prev, done_definition: e.target.value }))}
+            placeholder="Describe what success looks like for this mission"
             rows={3}
           />
         </div>

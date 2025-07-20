@@ -57,6 +57,8 @@ const Missions = () => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingMission, setEditingMission] = useState<Mission | null>(null);
   const [showTemplates, setShowTemplates] = useState(true);
   const [isLeadership, setIsLeadership] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
@@ -261,16 +263,7 @@ const Missions = () => {
       setShowCreateDialog(false);
       setShowTemplates(true);
       setSelectedTemplate(null);
-      setFormData({
-        title: '',
-        problem_statement: '',
-        done_definition: DEFAULT_DONE_DEFINITION,
-        resources_required: '',
-        selected_resources: [],
-        all_materials_available: false,
-        qa_assigned_to: '',
-        tasks: [{ title: '', plan: '', observations: '', assigned_to: '' }]
-      });
+      resetFormData();
       fetchMissions();
     } catch (error) {
       toast({
@@ -281,10 +274,83 @@ const Missions = () => {
     }
   };
 
-  const resetDialog = () => {
-    setShowCreateDialog(false);
-    setShowTemplates(true);
-    setSelectedTemplate(null);
+  const handleEditMission = async () => {
+    if (!user || !editingMission || !formData.title.trim() || !formData.problem_statement.trim() || !formData.done_definition.trim()) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Check if user has permission to edit this mission
+      const canEdit = editingMission.created_by === user.id || isLeadership;
+      
+      if (!canEdit) {
+        toast({
+          title: "Permission Error",
+          description: "You can only edit missions you created or if you have leadership role",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Update the mission
+      const { error: missionError } = await supabase
+        .from('missions')
+        .update({
+          title: formData.title,
+          problem_statement: formData.problem_statement,
+          plan: formData.done_definition,
+          resources_required: formData.selected_resources.length > 0 
+            ? formData.selected_resources.map(r => `${r.name}: ${r.quantity} ${r.unit}`).join(', ')
+            : formData.resources_required,
+          all_materials_available: formData.all_materials_available,
+          qa_assigned_to: formData.qa_assigned_to || null
+        })
+        .eq('id', editingMission.id);
+
+      if (missionError) throw missionError;
+
+      toast({
+        title: "Success",
+        description: "Mission updated successfully!",
+      });
+
+      setShowEditDialog(false);
+      setEditingMission(null);
+      resetFormData();
+      fetchMissions();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update mission",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEditClick = async (mission: Mission) => {
+    setEditingMission(mission);
+    
+    // Load mission data into form
+    setFormData({
+      title: mission.title,
+      problem_statement: mission.problem_statement,
+      done_definition: mission.plan,
+      resources_required: mission.resources_required || '',
+      selected_resources: [],
+      all_materials_available: mission.all_materials_available,
+      qa_assigned_to: mission.qa_assigned_to || '',
+      tasks: [{ title: '', plan: '', observations: '', assigned_to: '' }]
+    });
+    
+    setShowEditDialog(true);
+  };
+
+  const resetFormData = () => {
     setFormData({
       title: '',
       problem_statement: '',
@@ -295,6 +361,19 @@ const Missions = () => {
       qa_assigned_to: '',
       tasks: [{ title: '', plan: '', observations: '', assigned_to: '' }]
     });
+  };
+
+  const resetDialog = () => {
+    setShowCreateDialog(false);
+    setShowTemplates(true);
+    setSelectedTemplate(null);
+    resetFormData();
+  };
+
+  const resetEditDialog = () => {
+    setShowEditDialog(false);
+    setEditingMission(null);
+    resetFormData();
   };
 
   const toggleMissionExpanded = (missionId: string) => {
@@ -414,6 +493,27 @@ const Missions = () => {
               </DialogContent>
             </Dialog>
           )}
+
+          {/* Edit Mission Dialog */}
+          <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Edit Mission</DialogTitle>
+                <DialogDescription>
+                  Update the mission details
+                </DialogDescription>
+              </DialogHeader>
+              
+              <SimpleMissionForm
+                formData={formData}
+                setFormData={setFormData}
+                profiles={profiles}
+                onSubmit={handleEditMission}
+                onCancel={resetEditDialog}
+                isEditing={true}
+              />
+            </DialogContent>
+          </Dialog>
         </div>
       </header>
 
@@ -439,9 +539,21 @@ const Missions = () => {
                         {getStatusIcon(mission.status)}
                         {mission.title}
                       </CardTitle>
-                      <Badge variant={getStatusColor(mission.status)}>
-                        {mission.status.replace('_', ' ')}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={getStatusColor(mission.status)}>
+                          {mission.status.replace('_', ' ')}
+                        </Badge>
+                        {(mission.created_by === user?.id || isLeadership) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditClick(mission)}
+                            className="h-6 w-6 p-0"
+                          >
+                            <Settings className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                     <CardDescription>
                       {mission.problem_statement.substring(0, 100)}

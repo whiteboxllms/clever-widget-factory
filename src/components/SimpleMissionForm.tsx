@@ -52,6 +52,7 @@ interface SimpleMissionFormProps {
     color: string;
     icon: React.ComponentType<{ className?: string }>;
   };
+  isEditing?: boolean;
 }
 
 export function SimpleMissionForm({ 
@@ -61,7 +62,8 @@ export function SimpleMissionForm({
   onSubmit, 
   onCancel,
   defaultTasks = [],
-  selectedTemplate
+  selectedTemplate,
+  isEditing = false
 }: SimpleMissionFormProps) {
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
@@ -178,7 +180,7 @@ export function SimpleMissionForm({
   return (
     <div className="space-y-6">
       {/* Template Header */}
-      {selectedTemplate && (
+      {selectedTemplate && !isEditing && (
         <div className={`${selectedTemplate.color} text-foreground rounded-lg p-4 mb-6`}>
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-white/30">
@@ -417,9 +419,9 @@ export function SimpleMissionForm({
         </Button>
         <Button 
           onClick={onSubmit}
-          className={selectedTemplate ? `${selectedTemplate.color} hover:opacity-90` : ''}
+          className={selectedTemplate && !isEditing ? `${selectedTemplate.color} hover:opacity-90` : ''}
         >
-          Create Mission
+          {isEditing ? 'Update Mission' : 'Create Mission'}
         </Button>
       </div>
     </div>

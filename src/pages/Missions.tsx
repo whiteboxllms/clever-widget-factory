@@ -37,6 +37,8 @@ interface Mission {
   qa_name?: string;
   task_count?: number;
   completed_task_count?: number;
+  tasks_with_plans_count?: number;
+  tasks_with_implementation_count?: number;
 }
 
 interface Profile {
@@ -93,7 +95,7 @@ const Missions = () => {
     tasks: [{ title: '', plan: '', observations: '', assigned_to: '' }] as Task[]
   });
 
-  // New function to determine mission color based on task aggregation
+  // Updated function to determine mission color based on task content analysis
   const getMissionTheme = (mission: Mission) => {
     // If no tasks, show blank state
     if (!mission.task_count || mission.task_count === 0) {
@@ -104,7 +106,7 @@ const Missions = () => {
       };
     }
 
-    // If all tasks are completed, show green
+    // Priority 1: If all tasks are completed, show green
     if (mission.completed_task_count === mission.task_count) {
       return {
         bg: 'bg-card',
@@ -113,17 +115,8 @@ const Missions = () => {
       };
     }
 
-    // We need to check the actual task states - this would require loading task details
-    // For now, we'll use the mission status and task progress as indicators
-    if (mission.status === 'completed') {
-      return {
-        bg: 'bg-card',
-        text: 'text-card-foreground',
-        border: 'border-task-complete-border border-2'
-      };
-    }
-
-    if (mission.status === 'in_progress' || (mission.completed_task_count && mission.completed_task_count > 0)) {
+    // Priority 2: If any tasks have implementation (in progress), show yellow
+    if (mission.tasks_with_implementation_count && mission.tasks_with_implementation_count > 0) {
       return {
         bg: 'bg-card',
         text: 'text-card-foreground',
@@ -131,7 +124,8 @@ const Missions = () => {
       };
     }
 
-    if (mission.status === 'planning') {
+    // Priority 3: If any tasks have plans but no implementation, show blue
+    if (mission.tasks_with_plans_count && mission.tasks_with_plans_count > 0) {
       return {
         bg: 'bg-card',
         text: 'text-card-foreground',
@@ -190,7 +184,12 @@ const Missions = () => {
         *,
         creator:profiles!missions_created_by_fkey(full_name),
         qa_person:profiles!missions_qa_assigned_to_fkey(full_name),
-        mission_tasks(id, status)
+        mission_tasks(
+          id, 
+          status, 
+          plan, 
+          observations
+        )
       `)
       .order('created_at', { ascending: false });
 
@@ -204,16 +203,31 @@ const Missions = () => {
       const missionsWithNames = data?.map(mission => {
         const tasks = mission.mission_tasks || [];
         const completedTasks = tasks.filter((task: any) => task.status === 'completed');
+        const tasksWithPlans = tasks.filter((task: any) => task.plan && task.plan.trim());
+        const tasksWithImplementation = tasks.filter((task: any) => task.observations && task.observations.trim());
         
         return {
           ...mission,
           creator_name: mission.creator?.full_name || 'Unknown',
           qa_name: mission.qa_person?.full_name || 'Unassigned',
           task_count: tasks.length,
-          completed_task_count: completedTasks.length
+          completed_task_count: completedTasks.length,
+          tasks_with_plans_count: tasksWithPlans.length,
+          tasks_with_implementation_count: tasksWithImplementation.length
         };
       }) || [];
       setMissions(missionsWithNames);
+
+      // Update mission status based on task progress
+      for (const mission of missionsWithNames) {
+        if (mission.tasks_with_implementation_count > 0 && mission.status === 'planning') {
+          // Auto-update mission to in_progress if any task has implementation
+          await supabase
+            .from('missions')
+            .update({ status: 'in_progress' })
+            .eq('id', mission.id);
+        }
+      }
     }
     
     setLoading(false);

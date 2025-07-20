@@ -93,6 +93,60 @@ const Missions = () => {
     tasks: [{ title: '', plan: '', observations: '', assigned_to: '' }] as Task[]
   });
 
+  // New function to determine mission color based on task aggregation
+  const getMissionTheme = (mission: Mission) => {
+    // If no tasks, show blank state
+    if (!mission.task_count || mission.task_count === 0) {
+      return {
+        bg: 'bg-card',
+        text: 'text-card-foreground',
+        border: 'border-task-blank-border'
+      };
+    }
+
+    // If all tasks are completed, show green
+    if (mission.completed_task_count === mission.task_count) {
+      return {
+        bg: 'bg-card',
+        text: 'text-card-foreground',
+        border: 'border-task-complete-border border-2'
+      };
+    }
+
+    // We need to check the actual task states - this would require loading task details
+    // For now, we'll use the mission status and task progress as indicators
+    if (mission.status === 'completed') {
+      return {
+        bg: 'bg-card',
+        text: 'text-card-foreground',
+        border: 'border-task-complete-border border-2'
+      };
+    }
+
+    if (mission.status === 'in_progress' || (mission.completed_task_count && mission.completed_task_count > 0)) {
+      return {
+        bg: 'bg-card',
+        text: 'text-card-foreground',
+        border: 'border-task-implementation-border border-2'
+      };
+    }
+
+    if (mission.status === 'planning') {
+      return {
+        bg: 'bg-card',
+        text: 'text-card-foreground',
+        border: 'border-task-plan-border border-2'
+      };
+    }
+
+    // Default blank state
+    return {
+      bg: 'bg-card',
+      text: 'text-card-foreground',
+      border: 'border-task-blank-border'
+    };
+  };
+
   useEffect(() => {
     fetchMissions();
     fetchProfiles();
@@ -689,135 +743,138 @@ const Missions = () => {
             </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {missions.map((mission) => (
-                <Card key={mission.id} className="hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                       <CardTitle className="flex items-center gap-2">
-                         {getStatusIcon(mission.status)}
-                         MISSION-{String(mission.mission_number).padStart(3, '0')}: {mission.title}
-                       </CardTitle>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={getStatusColor(mission.status)}>
-                          {mission.status.replace('_', ' ')}
-                        </Badge>
-                        {(mission.created_by === user?.id || isLeadership) && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditClick(mission)}
-                            className="h-6 w-6 p-0"
-                          >
-                            <Pencil className="h-3 w-3" />
+              {missions.map((mission) => {
+                const missionTheme = getMissionTheme(mission);
+                return (
+                  <Card key={mission.id} className={`hover:shadow-lg transition-shadow ${missionTheme.border}`}>
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                         <CardTitle className="flex items-center gap-2">
+                           {getStatusIcon(mission.status)}
+                           MISSION-{String(mission.mission_number).padStart(3, '0')}: {mission.title}
+                         </CardTitle>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={getStatusColor(mission.status)}>
+                            {mission.status.replace('_', ' ')}
+                          </Badge>
+                          {(mission.created_by === user?.id || isLeadership) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditClick(mission)}
+                              className="h-6 w-6 p-0"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      <Collapsible 
+                        open={expandedProblemStatements.has(mission.id)} 
+                        onOpenChange={() => toggleProblemStatement(mission.id)}
+                      >
+                        <CollapsibleTrigger asChild>
+                          <Button variant="ghost" className="h-auto p-0 text-left justify-start hover:bg-transparent">
+                            <CardDescription className="flex items-center gap-2 break-words">
+                              {mission.problem_statement.length > 100 ? (
+                                <span className="break-words whitespace-pre-wrap">
+                                  {expandedProblemStatements.has(mission.id) 
+                                    ? mission.problem_statement 
+                                    : `${mission.problem_statement.substring(0, 100)}...`
+                                  }
+                                </span>
+                              ) : (
+                                <span className="break-words whitespace-pre-wrap">
+                                  {mission.problem_statement}
+                                </span>
+                              )}
+                              {mission.problem_statement.length > 100 && (
+                                expandedProblemStatements.has(mission.id) 
+                                  ? <ChevronUp className="h-3 w-3 flex-shrink-0" />
+                                  : <ChevronDown className="h-3 w-3 flex-shrink-0" />
+                              )}
+                            </CardDescription>
                           </Button>
+                        </CollapsibleTrigger>
+                      </Collapsible>
+                      <a 
+                        href={`https://www.perplexity.ai/spaces/stargazer-assistant-F45qc1H7SmeN5wF1nxJobg?q=${encodeURIComponent(mission.problem_statement)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-2"
+                      >
+                        🤖 Collaborate with AI on this mission →
+                      </a>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4" />
+                          Created by: {mission.creator_name}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4" />
+                          {new Date(mission.created_at).toLocaleDateString()}
+                        </div>
+                        {mission.qa_name !== 'Unassigned' && (
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4" />
+                            QA: {mission.qa_name}
+                          </div>
+                        )}
+                        
+                        {/* Progress indicator */}
+                        {mission.task_count && mission.task_count > 0 && (
+                          <div className="pt-2">
+                            <div className="flex items-center justify-between text-xs mb-1">
+                              <span>Progress</span>
+                              <span>{getProgressPercentage(mission)}%</span>
+                            </div>
+                            <div className="w-full bg-muted rounded-full h-2">
+                              <div 
+                                className="bg-primary h-2 rounded-full transition-all duration-300" 
+                                style={{ width: `${getProgressPercentage(mission)}%` }}
+                              />
+                            </div>
+                            <div className="text-xs mt-1">
+                              {mission.completed_task_count || 0} of {mission.task_count} tasks completed
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Task expansion for missions with tasks */}
+                        {mission.task_count && mission.task_count > 0 && (
+                          <Collapsible 
+                            open={expandedMissions.has(mission.id)} 
+                            onOpenChange={() => toggleMissionExpanded(mission.id)}
+                          >
+                            <CollapsibleTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-auto p-1 mt-2">
+                                <ChevronRight 
+                                  className={`h-4 w-4 transition-transform ${
+                                    expandedMissions.has(mission.id) ? 'rotate-90' : ''
+                                  }`} 
+                                />
+                                <span className="text-xs">
+                                  {expandedMissions.has(mission.id) ? 'Hide' : 'Show'} Tasks
+                                </span>
+                              </Button>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="mt-2">
+                               <MissionTaskList
+                                 missionId={mission.id}
+                                 profiles={profiles}
+                                 canEdit={isLeadership || mission.created_by === user?.id}
+                                 missionNumber={mission.mission_number}
+                               />
+                            </CollapsibleContent>
+                          </Collapsible>
                         )}
                       </div>
-                    </div>
-                    <Collapsible 
-                      open={expandedProblemStatements.has(mission.id)} 
-                      onOpenChange={() => toggleProblemStatement(mission.id)}
-                    >
-                      <CollapsibleTrigger asChild>
-                        <Button variant="ghost" className="h-auto p-0 text-left justify-start hover:bg-transparent">
-                          <CardDescription className="flex items-center gap-2 break-words">
-                            {mission.problem_statement.length > 100 ? (
-                              <span className="break-words whitespace-pre-wrap">
-                                {expandedProblemStatements.has(mission.id) 
-                                  ? mission.problem_statement 
-                                  : `${mission.problem_statement.substring(0, 100)}...`
-                                }
-                              </span>
-                            ) : (
-                              <span className="break-words whitespace-pre-wrap">
-                                {mission.problem_statement}
-                              </span>
-                            )}
-                            {mission.problem_statement.length > 100 && (
-                              expandedProblemStatements.has(mission.id) 
-                                ? <ChevronUp className="h-3 w-3 flex-shrink-0" />
-                                : <ChevronDown className="h-3 w-3 flex-shrink-0" />
-                            )}
-                          </CardDescription>
-                        </Button>
-                      </CollapsibleTrigger>
-                    </Collapsible>
-                    <a 
-                      href={`https://www.perplexity.ai/spaces/stargazer-assistant-F45qc1H7SmeN5wF1nxJobg?q=${encodeURIComponent(mission.problem_statement)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-2"
-                    >
-                      🤖 Collaborate with AI on this mission →
-                    </a>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4" />
-                        Created by: {mission.creator_name}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4" />
-                        {new Date(mission.created_at).toLocaleDateString()}
-                      </div>
-                      {mission.qa_name !== 'Unassigned' && (
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4" />
-                          QA: {mission.qa_name}
-                        </div>
-                      )}
-                      
-                      {/* Progress indicator */}
-                      {mission.task_count && mission.task_count > 0 && (
-                        <div className="pt-2">
-                          <div className="flex items-center justify-between text-xs mb-1">
-                            <span>Progress</span>
-                            <span>{getProgressPercentage(mission)}%</span>
-                          </div>
-                          <div className="w-full bg-muted rounded-full h-2">
-                            <div 
-                              className="bg-primary h-2 rounded-full transition-all duration-300" 
-                              style={{ width: `${getProgressPercentage(mission)}%` }}
-                            />
-                          </div>
-                          <div className="text-xs mt-1">
-                            {mission.completed_task_count || 0} of {mission.task_count} tasks completed
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Task expansion for missions with tasks */}
-                      {mission.task_count && mission.task_count > 0 && (
-                        <Collapsible 
-                          open={expandedMissions.has(mission.id)} 
-                          onOpenChange={() => toggleMissionExpanded(mission.id)}
-                        >
-                          <CollapsibleTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-auto p-1 mt-2">
-                              <ChevronRight 
-                                className={`h-4 w-4 transition-transform ${
-                                  expandedMissions.has(mission.id) ? 'rotate-90' : ''
-                                }`} 
-                              />
-                              <span className="text-xs">
-                                {expandedMissions.has(mission.id) ? 'Hide' : 'Show'} Tasks
-                              </span>
-                            </Button>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent className="mt-2">
-                             <MissionTaskList
-                               missionId={mission.id}
-                               profiles={profiles}
-                               canEdit={isLeadership || mission.created_by === user?.id}
-                               missionNumber={mission.mission_number}
-                             />
-                          </CollapsibleContent>
-                        </Collapsible>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </div>

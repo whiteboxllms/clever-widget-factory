@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -220,12 +221,12 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     }
   };
 
-  // Handle implementation changes and auto-update status
+  // Fixed implementation change handler - updates status from any state except completed
   const handleImplementationChange = async (value: string) => {
     setEditData(prev => ({ ...prev, observations: value }));
     
-    // If adding implementation text and task is not started, update to in_progress
-    if (value.trim() && task.status === 'not_started') {
+    // If adding implementation text and task is not completed, update to in_progress
+    if (value.trim() && task.status !== 'completed') {
       try {
         const { error } = await supabase
           .from('mission_tasks')
@@ -244,7 +245,7 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
   };
 
   const getTaskTheme = () => {
-    // Determine task state based on content
+    // Determine task state based on content and status
     if (task.status === 'completed') {
       return {
         bg: 'bg-card',
@@ -296,6 +297,35 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     
     // Default blank state
     return <Clock className="h-4 w-4 text-muted-foreground" />;
+  };
+
+  const getStatusBadge = () => {
+    if (task.status === 'completed') {
+      return (
+        <Badge variant="outline" className="border-task-complete-border text-task-complete-border">
+          Completed
+        </Badge>
+      );
+    }
+    
+    // Show badge based on actual content state, not just database status
+    if (task.observations && task.observations.trim()) {
+      return (
+        <Badge variant="outline" className="border-task-implementation-border text-task-implementation-border">
+          In Progress
+        </Badge>
+      );
+    }
+    
+    if (task.plan && task.plan.trim()) {
+      return (
+        <Badge variant="outline" className="border-task-plan-border text-task-plan-border">
+          Planned
+        </Badge>
+      );
+    }
+    
+    return null;
   };
 
   const assignedProfile = profiles.find(p => p.user_id === task.assigned_to);
@@ -414,23 +444,7 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
               <CardTitle className={`flex items-center gap-2 text-lg ${theme.text}`}>
                 {getStatusIcon()}
                 {task.title}
-                {task.status === 'completed' && (
-                  <Badge variant="outline" className="border-task-complete-border text-task-complete-border">
-                    Completed
-                  </Badge>
-                )}
-                {task.status === 'in_progress' && task.observations && task.observations.trim() && (
-                  <Badge variant="outline" className="border-task-implementation-border text-task-implementation-border">
-                    In Progress
-                  </Badge>
-                )}
-                {!task.status || task.status === 'not_started' ? (
-                  task.plan && task.plan.trim() ? (
-                    <Badge variant="outline" className="border-task-plan-border text-task-plan-border">
-                      Planned
-                    </Badge>
-                  ) : null
-                ) : null}
+                {getStatusBadge()}
               </CardTitle>
               <div className="flex items-center gap-2">
                 {assignedProfile && (

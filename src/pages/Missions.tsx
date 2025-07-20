@@ -314,6 +314,23 @@ const Missions = () => {
 
       if (missionError) throw missionError;
 
+      // Handle task creation for new tasks added during editing
+      const tasksToCreate = formData.tasks.filter(task => task.title.trim());
+      
+      if (tasksToCreate.length > 0) {
+        const { error: tasksError } = await supabase
+          .from('mission_tasks')
+          .insert(tasksToCreate.map(task => ({
+            mission_id: editingMission.id,
+            title: task.title,
+            plan: task.plan || null,
+            observations: task.observations || null,
+            assigned_to: task.assigned_to || null
+          })));
+
+        if (tasksError) throw tasksError;
+      }
+
       toast({
         title: "Success",
         description: "Mission updated successfully!",

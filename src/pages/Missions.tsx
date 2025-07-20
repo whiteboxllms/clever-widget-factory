@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Rocket, Flag, Calendar, User, CheckCircle, Clock, AlertCircle, ChevronRight, Settings } from 'lucide-react';
+import { ArrowLeft, Rocket, Flag, Calendar, User, CheckCircle, Clock, AlertCircle, ChevronRight, Pencil } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { MissionTemplates } from '@/components/MissionTemplates';
 import { SimpleMissionForm } from '@/components/SimpleMissionForm';
@@ -550,7 +550,7 @@ const Missions = () => {
                             onClick={() => handleEditClick(mission)}
                             className="h-6 w-6 p-0"
                           >
-                            <Settings className="h-3 w-3" />
+                            <Pencil className="h-3 w-3" />
                           </Button>
                         )}
                       </div>

@@ -135,6 +135,9 @@ export function ResourceSelector({ selectedResources, onResourcesChange }: Resou
                   <Badge variant="secondary">
                     {resource.quantity} {resource.unit}
                   </Badge>
+                  <Badge variant="outline" className="text-green-600 border-green-600">
+                    Available
+                  </Badge>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Input
@@ -144,6 +147,13 @@ export function ResourceSelector({ selectedResources, onResourcesChange }: Resou
                     onChange={(e) => updateResourceQuantity(resource.id, parseInt(e.target.value) || 0)}
                     className="w-20"
                   />
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                  >
+                    Checkout
+                  </Button>
                   <Button
                     type="button"
                     variant="ghost"

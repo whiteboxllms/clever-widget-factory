@@ -719,20 +719,23 @@ const Missions = () => {
                     >
                       <CollapsibleTrigger asChild>
                         <Button variant="ghost" className="h-auto p-0 text-left justify-start hover:bg-transparent">
-                          <CardDescription className="flex items-center gap-2">
+                          <CardDescription className="flex items-center gap-2 break-words">
                             {mission.problem_statement.length > 100 ? (
-                              <>
+                              <span className="break-words whitespace-pre-wrap">
                                 {expandedProblemStatements.has(mission.id) 
                                   ? mission.problem_statement 
                                   : `${mission.problem_statement.substring(0, 100)}...`
                                 }
-                                {expandedProblemStatements.has(mission.id) 
-                                  ? <ChevronUp className="h-3 w-3 flex-shrink-0" />
-                                  : <ChevronDown className="h-3 w-3 flex-shrink-0" />
-                                }
-                              </>
+                              </span>
                             ) : (
-                              mission.problem_statement
+                              <span className="break-words whitespace-pre-wrap">
+                                {mission.problem_statement}
+                              </span>
+                            )}
+                            {mission.problem_statement.length > 100 && (
+                              expandedProblemStatements.has(mission.id) 
+                                ? <ChevronUp className="h-3 w-3 flex-shrink-0" />
+                                : <ChevronDown className="h-3 w-3 flex-shrink-0" />
                             )}
                           </CardDescription>
                         </Button>

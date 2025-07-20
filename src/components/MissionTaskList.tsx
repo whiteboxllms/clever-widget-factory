@@ -30,9 +30,10 @@ interface MissionTaskListProps {
   missionId: string;
   profiles: Profile[];
   canEdit?: boolean;
+  missionNumber?: number;
 }
 
-export function MissionTaskList({ missionId, profiles, canEdit = false }: MissionTaskListProps) {
+export function MissionTaskList({ missionId, profiles, canEdit = false, missionNumber }: MissionTaskListProps) {
   const { toast } = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);

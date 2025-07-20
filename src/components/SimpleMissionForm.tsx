@@ -287,7 +287,16 @@ export function SimpleMissionForm({
           .filter(task => task.title.trim() && task.assigned_to)
           .map(task => task.title)
         }
-        assignedUsers={[]} // New missions don't have assigned users yet
+        assignedUsers={formData.tasks
+          .filter(task => task.assigned_to)
+          .map(task => ({
+            user_id: task.assigned_to,
+            full_name: profiles.find(p => p.user_id === task.assigned_to)?.full_name || 'Unknown'
+          }))
+          .filter((user, index, self) => 
+            index === self.findIndex(u => u.user_id === user.user_id)
+          ) // Remove duplicates
+        }
       />
 
       {/* Advanced Options */}

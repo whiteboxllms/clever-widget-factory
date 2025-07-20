@@ -56,9 +56,9 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     assigned_to: task.assigned_to
   });
 
-  // Load existing photos when expanded
+  // Load existing photos when expanded or editing
   const loadPhotos = async () => {
-    if (!isExpanded) return;
+    if (!isExpanded && !isEditing) return;
     
     const { data, error } = await supabase
       .from('mission_attachments')
@@ -78,6 +78,13 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
       loadPhotos();
     }
   };
+
+  // Load photos when editing mode starts
+  useState(() => {
+    if (isEditing) {
+      loadPhotos();
+    }
+  });
 
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -256,6 +263,43 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Add Photo Upload to Edit Mode */}
+            <div>
+              <Label className="text-sm font-medium">Add Evidence Photo</Label>
+              <div className="mt-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoUpload}
+                  disabled={isUploading}
+                  className="hidden"
+                  id={`photo-upload-edit-${task.id}`}
+                />
+                <label
+                  htmlFor={`photo-upload-edit-${task.id}`}
+                  className="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition-colors"
+                >
+                  <Upload className="h-4 w-4" />
+                  {isUploading ? 'Uploading...' : 'Upload Photo'}
+                </label>
+              </div>
+              
+              {/* Show existing photos in edit mode */}
+              {photos.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
+                  {photos.map((photo) => (
+                    <div key={photo.id} className="relative group">
+                      <img
+                        src={`${supabase.storage.from('mission-evidence').getPublicUrl(photo.file_url).data.publicUrl}`}
+                        alt={photo.file_name}
+                        className="w-full h-16 object-cover rounded-md border"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             
             <div className="flex justify-end space-x-2">

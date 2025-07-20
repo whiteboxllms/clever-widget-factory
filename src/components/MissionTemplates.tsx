@@ -18,12 +18,7 @@ interface MissionTemplate {
     observations?: string;
   }[];
   estimatedDuration: string;
-  colorScheme: {
-    primary: string;
-    background: string;
-    border: string;
-    text: string;
-  };
+  color: string;
 }
 
 const templates: MissionTemplate[] = [
@@ -34,12 +29,7 @@ const templates: MissionTemplate[] = [
     icon: Wrench,
     category: 'Maintenance',
     estimatedDuration: '2-4 hours',
-    colorScheme: {
-      primary: 'text-orange-600 dark:text-orange-400',
-      background: 'bg-orange-50 dark:bg-orange-950/30',
-      border: 'border-orange-200 dark:border-orange-800',
-      text: 'text-orange-700 dark:text-orange-300'
-    },
+    color: 'text-orange-500',
     defaultTasks: [
       {
         title: 'Collaborate with AI on SOP best practices and ideas',
@@ -75,12 +65,7 @@ const templates: MissionTemplate[] = [
     icon: Microscope,
     category: 'Research',
     estimatedDuration: '1-4 weeks',
-    colorScheme: {
-      primary: 'text-blue-600 dark:text-blue-400',
-      background: 'bg-blue-50 dark:bg-blue-950/30',
-      border: 'border-blue-200 dark:border-blue-800',
-      text: 'text-blue-700 dark:text-blue-300'
-    },
+    color: 'text-blue-500',
     defaultTasks: [
       {
         title: 'Collaborate with AI on SOP best practices and ideas',
@@ -116,12 +101,7 @@ const templates: MissionTemplate[] = [
     icon: GraduationCap,
     category: 'Education',
     estimatedDuration: '1-2 days',
-    colorScheme: {
-      primary: 'text-green-600 dark:text-green-400',
-      background: 'bg-green-50 dark:bg-green-950/30',
-      border: 'border-green-200 dark:border-green-800',
-      text: 'text-green-700 dark:text-green-300'
-    },
+    color: 'text-green-500',
     defaultTasks: [
       {
         title: 'Collaborate with AI on SOP best practices and ideas',
@@ -157,12 +137,7 @@ const templates: MissionTemplate[] = [
     icon: Hammer,
     category: 'Construction',
     estimatedDuration: '1-2 weeks',
-    colorScheme: {
-      primary: 'text-amber-600 dark:text-amber-400',
-      background: 'bg-amber-50 dark:bg-amber-950/30',
-      border: 'border-amber-200 dark:border-amber-800',
-      text: 'text-amber-700 dark:text-amber-300'
-    },
+    color: 'text-amber-500',
     defaultTasks: [
       {
         title: 'Collaborate with AI on SOP best practices and ideas',
@@ -198,12 +173,7 @@ const templates: MissionTemplate[] = [
     icon: Lightbulb,
     category: 'Custom',
     estimatedDuration: 'Variable',
-    colorScheme: {
-      primary: 'text-purple-600 dark:text-purple-400',
-      background: 'bg-purple-50 dark:bg-purple-950/30',
-      border: 'border-purple-200 dark:border-purple-800',
-      text: 'text-purple-700 dark:text-purple-300'
-    },
+    color: 'text-purple-500',
     defaultTasks: []
   }
 ];
@@ -229,20 +199,20 @@ export function MissionTemplates({ onSelectTemplate, onClose }: MissionTemplates
           return (
             <Card 
               key={template.id}
-              className={`cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02] ${template.colorScheme.border} ${template.colorScheme.background}`}
+              className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
               onClick={() => onSelectTemplate(template)}
             >
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-3">
-                  <div className={`p-3 rounded-lg ${template.colorScheme.background} ring-1 ring-inset ${template.colorScheme.border}`}>
-                    <Icon className={`h-6 w-6 ${template.colorScheme.primary}`} />
+                  <div className="p-3 rounded-lg bg-muted/50">
+                    <Icon className={`h-6 w-6 ${template.color}`} />
                   </div>
                   <div className="flex-1">
                     <CardTitle className="text-base">{template.name}</CardTitle>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge 
                         variant="secondary" 
-                        className={`text-xs ${template.colorScheme.text} ${template.colorScheme.background}`}
+                        className={`text-xs ${template.color}`}
                       >
                         {template.category}
                       </Badge>

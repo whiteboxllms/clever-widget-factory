@@ -767,21 +767,18 @@ const Missions = () => {
                            {getStatusIcon(mission.status)}
                            MISSION-{String(mission.mission_number).padStart(3, '0')}: {mission.title}
                          </CardTitle>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={getStatusColor(mission.status)}>
-                            {mission.status.replace('_', ' ')}
-                          </Badge>
-                          {(mission.created_by === user?.id || isLeadership) && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEditClick(mission)}
-                              className="h-6 w-6 p-0"
-                            >
-                              <Pencil className="h-3 w-3" />
-                            </Button>
-                          )}
-                        </div>
+                         <div className="flex items-center gap-2">
+                           {(mission.created_by === user?.id || isLeadership) && (
+                             <Button
+                               variant="ghost"
+                               size="sm"
+                               onClick={() => handleEditClick(mission)}
+                               className="h-6 w-6 p-0"
+                             >
+                               <Pencil className="h-3 w-3" />
+                             </Button>
+                           )}
+                         </div>
                       </div>
                       <Collapsible 
                         open={expandedProblemStatements.has(mission.id)} 

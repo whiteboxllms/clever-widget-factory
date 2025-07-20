@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { X, Plus, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { ToolCheckoutDialog } from '@/components/ToolCheckoutDialog';
 
 interface Part {
   id: string;
@@ -49,6 +50,8 @@ export function ResourceSelector({ selectedResources, onResourcesChange }: Resou
   const [showSearch, setShowSearch] = useState(false);
   const [searchType, setSearchType] = useState<'parts' | 'tools'>('parts');
   const [loading, setLoading] = useState(false);
+  const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
+  const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -157,6 +160,20 @@ export function ResourceSelector({ selectedResources, onResourcesChange }: Resou
     onResourcesChange(updated);
   };
 
+  const handleToolCheckout = (tool: Tool) => {
+    setSelectedTool(tool);
+    setShowCheckoutDialog(true);
+  };
+
+  const handleCheckoutSuccess = () => {
+    setShowCheckoutDialog(false);
+    setSelectedTool(null);
+    toast({
+      title: "Tool checked out successfully",
+      description: `${selectedTool?.name} has been checked out`,
+    });
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -220,6 +237,14 @@ export function ResourceSelector({ selectedResources, onResourcesChange }: Resou
                     type="button"
                     variant="default"
                     size="sm"
+                    onClick={() => {
+                      if (resource.type === 'tool') {
+                        const tool = tools.find(t => t.id === resource.id);
+                        if (tool) {
+                          handleToolCheckout(tool);
+                        }
+                      }
+                    }}
                   >
                     {resource.type === 'part' ? 'Use' : 'Checkout'}
                   </Button>
@@ -350,6 +375,13 @@ export function ResourceSelector({ selectedResources, onResourcesChange }: Resou
           </div>
         </Card>
       )}
+
+      <ToolCheckoutDialog
+        tool={selectedTool}
+        open={showCheckoutDialog}
+        onOpenChange={setShowCheckoutDialog}
+        onSuccess={handleCheckoutSuccess}
+      />
     </div>
   );
 }

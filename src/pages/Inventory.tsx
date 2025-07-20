@@ -1233,7 +1233,7 @@ export default function Inventory() {
                       id="edit-minimum"
                       type="number"
                       min="0"
-                      value={editingPart.minimum_quantity || ''}
+                      value={editingPart.minimum_quantity !== null ? editingPart.minimum_quantity : ''}
                       onChange={(e) => setEditingPart({...editingPart, minimum_quantity: e.target.value === '' ? null : parseInt(e.target.value)})}
                     />
                   </div>

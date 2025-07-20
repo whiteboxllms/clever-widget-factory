@@ -347,7 +347,14 @@ const Missions = () => {
           </div>
           
           {isLeadership && (
-            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+            <Dialog open={showCreateDialog} onOpenChange={(open) => {
+              setShowCreateDialog(open);
+              if (open) {
+                // Always start with template selection when opening
+                setShowTemplates(true);
+                setSelectedTemplate(null);
+              }
+            }}>
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />

@@ -197,15 +197,6 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
       return;
     }
 
-    // Check if photos are uploaded
-    if (photos.length === 0) {
-      toast({
-        title: "Evidence Required",
-        description: "Please upload at least one photo before completing the task",
-        variant: "destructive",
-      });
-      return;
-    }
 
     setIsCompleting(true);
     
@@ -400,7 +391,7 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
             </div>
             
             <div>
-              <Label>Plan</Label>
+              <Label>Plan *</Label>
               <Textarea
                 value={editData.plan}
                 onChange={(e) => setEditData(prev => ({ ...prev, plan: e.target.value }))}
@@ -410,7 +401,7 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
             </div>
             
             <div>
-              <Label>Implementation</Label>
+              <Label>Implementation *</Label>
               <Textarea
                 value={editData.observations}
                 onChange={(e) => setEditData(prev => ({ ...prev, observations: e.target.value }))}
@@ -518,7 +509,7 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
           <CardContent className="pt-0">
             <div className="space-y-4">
               <div>
-                <Label className="text-sm font-medium">Plan</Label>
+                <Label className="text-sm font-medium">Plan *</Label>
                 {task.status !== 'completed' ? (
                   <Textarea
                     value={editData.plan}
@@ -535,7 +526,7 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
               </div>
             
               <div>
-                <Label className="text-sm font-medium">Implementation</Label>
+                <Label className="text-sm font-medium">Implementation *</Label>
                 {task.status !== 'completed' ? (
                   <Textarea
                     value={editData.observations}
@@ -602,15 +593,14 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                   <div className="text-xs text-muted-foreground">
                     {!task.plan?.trim() && '• Add plan '}
                     {!task.observations?.trim() && '• Add implementation '}
-                    {photos.length === 0 && '• Upload photo '}
-                    {task.plan?.trim() && task.observations?.trim() && photos.length > 0 && 'Ready to complete!'}
+                    {task.plan?.trim() && task.observations?.trim() && 'Ready to complete!'}
                   </div>
                   <Button
-                    variant={task.plan?.trim() && task.observations?.trim() && photos.length > 0 ? "default" : "outline"}
+                    variant={task.plan?.trim() && task.observations?.trim() ? "default" : "outline"}
                     size="sm"
                     onClick={handleCompleteTask}
-                    disabled={isCompleting || !task.plan?.trim() || !task.observations?.trim() || photos.length === 0}
-                    className={task.plan?.trim() && task.observations?.trim() && photos.length > 0 ? 
+                    disabled={isCompleting || !task.plan?.trim() || !task.observations?.trim()}
+                    className={task.plan?.trim() && task.observations?.trim() ? 
                       "bg-green-600 hover:bg-green-700 text-white" : 
                       "text-xs text-muted-foreground border-muted-foreground/20 hover:border-muted-foreground/40"
                     }

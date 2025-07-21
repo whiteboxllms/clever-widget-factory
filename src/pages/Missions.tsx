@@ -229,6 +229,17 @@ const Missions = () => {
             .update({ status: 'in_progress' })
             .eq('id', mission.id);
         }
+        
+        // Auto-update mission to completed if all tasks are completed
+        if (mission.task_count > 0 && mission.completed_task_count === mission.task_count && mission.status !== 'completed') {
+          await supabase
+            .from('missions')
+            .update({ 
+              status: 'completed',
+              completed_at: new Date().toISOString()
+            })
+            .eq('id', mission.id);
+        }
       }
     }
     

@@ -146,6 +146,27 @@ const Missions = () => {
     fetchMissions();
     fetchProfiles();
     checkUserRole();
+
+    // Subscribe to real-time changes in mission_tasks table
+    const channel = supabase
+      .channel('mission-tasks-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'mission_tasks'
+        },
+        () => {
+          // Reload missions when tasks are added, updated, or deleted
+          fetchMissions();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const checkUserRole = async () => {

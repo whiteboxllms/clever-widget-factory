@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +48,8 @@ interface TaskCardProps {
 export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, onCancel }: TaskCardProps) {
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
+  const implementationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const planTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isExpanded, setIsExpanded] = useState(true); // Default expanded
   const [photos, setPhotos] = useState<TaskPhoto[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -246,42 +248,55 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
   const handlePlanChange = async (value: string) => {
     setEditData(prev => ({ ...prev, plan: value }));
     
-    if (task.status !== 'completed') {
-      try {
-        const { error } = await supabase
-          .from('mission_tasks')
-          .update({ plan: value })
-          .eq('id', task.id);
-
-        if (error) throw error;
-        onUpdate();
-      } catch (error) {
-        console.error('Error updating task plan:', error);
-      }
+    // Debounce database updates to prevent focus loss
+    if (planTimeoutRef.current) {
+      clearTimeout(planTimeoutRef.current);
     }
+    
+    planTimeoutRef.current = setTimeout(async () => {
+      if (task.status !== 'completed') {
+        try {
+          const { error } = await supabase
+            .from('mission_tasks')
+            .update({ plan: value })
+            .eq('id', task.id);
+
+          if (error) throw error;
+          // Don't call onUpdate() immediately to prevent focus loss
+        } catch (error) {
+          console.error('Error updating task plan:', error);
+        }
+      }
+    }, 1000); // Wait 1 second after user stops typing
   };
 
   // Fixed implementation change handler - updates status from any state except completed
   const handleImplementationChange = async (value: string) => {
     setEditData(prev => ({ ...prev, observations: value }));
     
-    // If adding implementation text and task is not completed, update to in_progress
-    if (value.trim() && task.status !== 'completed') {
-      try {
-        const { error } = await supabase
-          .from('mission_tasks')
-          .update({ 
-            status: 'in_progress',
-            observations: value
-          })
-          .eq('id', task.id);
-
-        if (error) throw error;
-        onUpdate();
-      } catch (error) {
-        console.error('Error updating task status:', error);
-      }
+    // Debounce database updates to prevent focus loss
+    if (implementationTimeoutRef.current) {
+      clearTimeout(implementationTimeoutRef.current);
     }
+    
+    implementationTimeoutRef.current = setTimeout(async () => {
+      if (value.trim() && task.status !== 'completed') {
+        try {
+          const { error } = await supabase
+            .from('mission_tasks')
+            .update({ 
+              status: 'in_progress',
+              observations: value
+            })
+            .eq('id', task.id);
+
+          if (error) throw error;
+          // Don't call onUpdate() immediately to prevent focus loss
+        } catch (error) {
+          console.error('Error updating task status:', error);
+        }
+      }
+    }, 1000); // Wait 1 second after user stops typing
   };
 
   const getTaskTheme = () => {

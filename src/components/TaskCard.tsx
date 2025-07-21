@@ -273,18 +273,37 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     implementationTimeoutRef.current = setTimeout(async () => {
       if (value.trim() && task.status !== 'completed') {
         try {
+          // Only change status to in_progress if currently not_started or planned
+          const updateData: { observations: string; status?: string } = {
+            observations: value
+          };
+          
+          // Only update status if task is not already in progress or completed
+          if (task.status === 'not_started') {
+            updateData.status = 'in_progress';
+          }
+          
           const { error } = await supabase
             .from('mission_tasks')
-            .update({ 
-              status: 'in_progress',
-              observations: value
-            })
+            .update(updateData)
             .eq('id', task.id);
 
           if (error) throw error;
           // Don't call onUpdate() immediately to prevent focus loss
         } catch (error) {
-          console.error('Error updating task status:', error);
+          console.error('Error updating task observations:', error);
+        }
+      } else if (task.status === 'completed') {
+        // For completed tasks, just update observations without changing status
+        try {
+          const { error } = await supabase
+            .from('mission_tasks')
+            .update({ observations: value })
+            .eq('id', task.id);
+
+          if (error) throw error;
+        } catch (error) {
+          console.error('Error updating completed task observations:', error);
         }
       }
     }, 1000); // Wait 1 second after user stops typing

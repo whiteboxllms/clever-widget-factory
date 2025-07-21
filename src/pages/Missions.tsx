@@ -67,6 +67,7 @@ const Missions = () => {
   const [editingMission, setEditingMission] = useState<Mission | null>(null);
   const [showTemplates, setShowTemplates] = useState(true);
   const [isLeadership, setIsLeadership] = useState(false);
+  const [isContributorOrLeadership, setIsContributorOrLeadership] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [expandedMissions, setExpandedMissions] = useState<Set<string>>(new Set());
   const [expandedProblemStatements, setExpandedProblemStatements] = useState<Set<string>>(new Set());
@@ -157,6 +158,7 @@ const Missions = () => {
       .single();
     
     setIsLeadership(profile?.role === 'leadership');
+    setIsContributorOrLeadership(profile?.role === 'leadership' || profile?.role === 'contributor');
   };
 
   const fetchProfiles = async () => {
@@ -380,7 +382,7 @@ const Missions = () => {
 
     try {
       // Check if user has permission to edit this mission
-      const canEdit = editingMission.created_by === user.id || isLeadership;
+      const canEdit = editingMission.created_by === user.id || isContributorOrLeadership;
       
       if (!canEdit) {
         toast({
@@ -768,7 +770,7 @@ const Missions = () => {
                            MISSION-{String(mission.mission_number).padStart(3, '0')}: {mission.title}
                          </CardTitle>
                          <div className="flex items-center gap-2">
-                           {(mission.created_by === user?.id || isLeadership) && (
+                           {(mission.created_by === user?.id || isContributorOrLeadership) && (
                              <Button
                                variant="ghost"
                                size="sm"
@@ -875,7 +877,7 @@ const Missions = () => {
                                <MissionTaskList
                                  missionId={mission.id}
                                  profiles={profiles}
-                                 canEdit={isLeadership || mission.created_by === user?.id}
+                                 canEdit={isContributorOrLeadership || mission.created_by === user?.id}
                                  missionNumber={mission.mission_number}
                                />
                             </CollapsibleContent>

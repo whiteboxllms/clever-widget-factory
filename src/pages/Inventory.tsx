@@ -1265,13 +1265,40 @@ export default function Inventory() {
 
                   <div>
                     <Label htmlFor="edit-current">Current Quantity *</Label>
-                    <Input
-                      id="edit-current"
-                      type="number"
-                      min="0"
-                      value={editingPart.current_quantity || ''}
-                      onChange={(e) => setEditingPart({...editingPart, current_quantity: parseInt(e.target.value) || 0})}
-                    />
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const newQuantity = Math.max(0, (editingPart.current_quantity || 0) - 1);
+                          setEditingPart({...editingPart, current_quantity: newQuantity});
+                        }}
+                        className="h-10 w-10 p-0"
+                      >
+                        -
+                      </Button>
+                      <Input
+                        id="edit-current"
+                        type="number"
+                        min="0"
+                        value={editingPart.current_quantity || ''}
+                        onChange={(e) => setEditingPart({...editingPart, current_quantity: parseInt(e.target.value) || 0})}
+                        className="text-center"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const newQuantity = (editingPart.current_quantity || 0) + 1;
+                          setEditingPart({...editingPart, current_quantity: newQuantity});
+                        }}
+                        className="h-10 w-10 p-0"
+                      >
+                        +
+                      </Button>
+                    </div>
                   </div>
                   <div>
                     <Label htmlFor="edit-unit">Unit</Label>

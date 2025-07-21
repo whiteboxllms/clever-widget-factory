@@ -308,6 +308,24 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
 
       if (updateError) throw updateError;
 
+      // Create a history record for the quantity change
+      const { error: historyError } = await supabase
+        .from('parts_history')
+        .insert({
+          part_id: resource.id,
+          change_type: 'quantity_remove',
+          old_quantity: partData?.current_quantity || 0,
+          new_quantity: Math.max(0, newQuantity),
+          quantity_change: -(resource.quantity || 1),
+          changed_by: user.email || 'Unknown User',
+          change_reason: `Used for mission - ${resource.quantity || 1} ${resource.unit || 'pieces'} of ${resource.name}`
+        });
+
+      if (historyError) {
+        console.error('Error creating history record:', historyError);
+        // Don't throw error here as the main operation succeeded
+      }
+
       toast({
         title: "Inventory used successfully",
         description: `${resource.quantity || 1} ${resource.unit || 'pieces'} of ${resource.name} recorded as used`,

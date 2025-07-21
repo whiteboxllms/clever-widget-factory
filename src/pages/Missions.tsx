@@ -270,13 +270,14 @@ const Missions = () => {
     }
 
     try {
-      // Check if user has leadership role using the enhanced auth utils
-      const roleCheck = await checkUserRoleAuth('leadership');
+      // Check if user has contributor or leadership role using the enhanced auth utils
+      const leadershipCheck = await checkUserRoleAuth('leadership');
+      const contributorCheck = await checkUserRoleAuth('contributor');
       
-      if (!roleCheck.hasRole) {
+      if (!leadershipCheck.hasRole && !contributorCheck.hasRole) {
         toast({
           title: "Permission Error", 
-          description: roleCheck.error || "You need leadership role to create missions",
+          description: "You need contributor or leadership role to create missions",
           variant: "destructive",
         });
         return;
@@ -387,7 +388,7 @@ const Missions = () => {
       if (!canEdit) {
         toast({
           title: "Permission Error",
-          description: "You can only edit missions you created or if you have leadership role",
+          description: "You can only edit missions you created or if you have contributor/leadership role",
           variant: "destructive",
         });
         return;
@@ -675,7 +676,7 @@ const Missions = () => {
             </div>
           </div>
           
-          {isLeadership && (
+          {isContributorOrLeadership && (
             <Dialog open={showCreateDialog} onOpenChange={(open) => {
               setShowCreateDialog(open);
               if (open) {
@@ -754,7 +755,7 @@ const Missions = () => {
               <Flag className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">No missions yet</h3>
               <p className="text-muted-foreground">
-                {isLeadership ? "Create your first mission to get started." : "No missions have been created yet."}
+                {isContributorOrLeadership ? "Create your first mission to get started." : "No missions have been created yet."}
               </p>
             </div>
           ) : (

@@ -262,7 +262,7 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
             .eq('id', task.id);
 
           if (error) throw error;
-          // Don't call onUpdate() immediately to prevent focus loss
+          // Only update task object, don't trigger full reload
         } catch (error) {
           console.error('Error updating task plan:', error);
         }

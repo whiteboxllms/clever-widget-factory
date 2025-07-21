@@ -51,6 +51,7 @@ interface SimpleMissionFormProps {
     icon: React.ComponentType<{ className?: string }>;
   };
   isEditing?: boolean;
+  missionId?: string; // Add mission ID prop
 }
 
 export function SimpleMissionForm({ 
@@ -61,7 +62,8 @@ export function SimpleMissionForm({
   onCancel,
   defaultTasks = [],
   selectedTemplate,
-  isEditing = false
+  isEditing = false,
+  missionId // Add mission ID parameter
 }: SimpleMissionFormProps) {
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
@@ -329,6 +331,7 @@ export function SimpleMissionForm({
             index === self.findIndex(u => u.user_id === user.user_id)
           ) // Remove duplicates
         }
+        missionId={missionId} // Pass mission ID to ResourceSelector
       />
 
       {/* Tasks Section */}

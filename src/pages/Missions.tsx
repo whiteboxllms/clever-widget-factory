@@ -771,6 +771,7 @@ const Missions = () => {
                 onCancel={resetEditDialog}
                 isEditing={true}
                 selectedTemplate={selectedTemplate}
+                missionId={editingMission?.id} // Pass mission ID when editing
               />
             </DialogContent>
           </Dialog>

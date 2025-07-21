@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { X, Plus, Search, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { ToolCheckoutDialog } from '@/components/ToolCheckoutDialog';
 import { ToolCheckInDialog } from '@/components/ToolCheckInDialog';
 import { Tables } from '@/integrations/supabase/types';
@@ -53,6 +54,7 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
   const [selectedCheckInTool, setSelectedCheckInTool] = useState<Tool | null>(null);
   const [showCheckInDialog, setShowCheckInDialog] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (showSearch) {
@@ -261,6 +263,70 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
     fetchToolCheckouts();
   };
 
+  const handleInventoryUsage = async (resource: SelectedResource) => {
+    if (!missionId || !user) {
+      toast({
+        title: "Error",
+        description: "Mission ID and user authentication required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Record inventory usage
+      const { error } = await supabase
+        .from('mission_inventory_usage')
+        .insert({
+          mission_id: missionId,
+          part_id: resource.id,
+          quantity_used: resource.quantity || 1,
+          used_by: user.id,
+          usage_description: `Used ${resource.quantity || 1} ${resource.unit || 'pieces'} of ${resource.name} for mission`
+        });
+
+      if (error) throw error;
+
+      // Get current quantity first, then update
+      const { data: partData, error: fetchError } = await supabase
+        .from('parts')
+        .select('current_quantity')
+        .eq('id', resource.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const newQuantity = (partData?.current_quantity || 0) - (resource.quantity || 1);
+      
+      // Update part quantity in inventory
+      const { error: updateError } = await supabase
+        .from('parts')
+        .update({
+          current_quantity: Math.max(0, newQuantity) // Ensure quantity doesn't go negative
+        })
+        .eq('id', resource.id);
+
+      if (updateError) throw updateError;
+
+      toast({
+        title: "Inventory used successfully",
+        description: `${resource.quantity || 1} ${resource.unit || 'pieces'} of ${resource.name} recorded as used`,
+      });
+
+      // Remove from selected resources after use
+      removeResource(resource.id);
+      
+      // Refresh parts data to show updated quantities
+      fetchParts();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to record inventory usage",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -343,6 +409,8 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
                             handleToolCheckout(tool);
                           }
                         }
+                      } else if (resource.type === 'part') {
+                        handleInventoryUsage(resource);
                       }
                     }}
                   >

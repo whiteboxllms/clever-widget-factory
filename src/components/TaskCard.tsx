@@ -596,15 +596,24 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                 </div>
               )}
 
-              {/* Complete Task Button - Less prominent */}
+              {/* Complete Task Button - More prominent and shows requirements */}
               {task.status !== 'completed' && (
-                <div className="flex justify-end mt-4">
+                <div className="flex justify-between items-center mt-4 pt-4 border-t">
+                  <div className="text-xs text-muted-foreground">
+                    {!task.plan?.trim() && '• Add plan '}
+                    {!task.observations?.trim() && '• Add implementation '}
+                    {photos.length === 0 && '• Upload photo '}
+                    {task.plan?.trim() && task.observations?.trim() && photos.length > 0 && 'Ready to complete!'}
+                  </div>
                   <Button
-                    variant="outline"
+                    variant={task.plan?.trim() && task.observations?.trim() && photos.length > 0 ? "default" : "outline"}
                     size="sm"
                     onClick={handleCompleteTask}
                     disabled={isCompleting || !task.plan?.trim() || !task.observations?.trim() || photos.length === 0}
-                    className="text-xs text-muted-foreground border-muted-foreground/20 hover:border-muted-foreground/40"
+                    className={task.plan?.trim() && task.observations?.trim() && photos.length > 0 ? 
+                      "bg-green-600 hover:bg-green-700 text-white" : 
+                      "text-xs text-muted-foreground border-muted-foreground/20 hover:border-muted-foreground/40"
+                    }
                   >
                     {isCompleting ? 'Completing...' : 'Mark Complete'}
                   </Button>

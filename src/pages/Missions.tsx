@@ -270,14 +270,13 @@ const Missions = () => {
     }
 
     try {
-      // Check if user has contributor or leadership role using the enhanced auth utils
-      const leadershipCheck = await checkUserRoleAuth('leadership');
-      const contributorCheck = await checkUserRoleAuth('contributor');
+      // Check if user has leadership role using the enhanced auth utils
+      const roleCheck = await checkUserRoleAuth('leadership');
       
-      if (!leadershipCheck.hasRole && !contributorCheck.hasRole) {
+      if (!roleCheck.hasRole) {
         toast({
           title: "Permission Error", 
-          description: "You need contributor or leadership role to create missions",
+          description: "Only leadership can create new missions",
           variant: "destructive",
         });
         return;
@@ -676,7 +675,7 @@ const Missions = () => {
             </div>
           </div>
           
-          {isContributorOrLeadership && (
+          {isLeadership && (
             <Dialog open={showCreateDialog} onOpenChange={(open) => {
               setShowCreateDialog(open);
               if (open) {
@@ -755,7 +754,7 @@ const Missions = () => {
               <Flag className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">No missions yet</h3>
               <p className="text-muted-foreground">
-                {isContributorOrLeadership ? "Create your first mission to get started." : "No missions have been created yet."}
+                {isLeadership ? "Create your first mission to get started." : "No missions have been created yet."}
               </p>
             </div>
           ) : (

@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Clock, User, Upload, Image, ChevronDown, ChevronRight } from 'lucide-react';
+import { CheckCircle, Clock, User, Upload, Image, ChevronDown, ChevronRight, Save } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -48,14 +47,21 @@ interface TaskCardProps {
 export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, onCancel }: TaskCardProps) {
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
-  const implementationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const planTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const planTextareaRef = useRef<HTMLTextAreaElement>(null);
   const implementationTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const [isExpanded, setIsExpanded] = useState(true); // Default expanded
+  const [isExpanded, setIsExpanded] = useState(true);
   const [photos, setPhotos] = useState<TaskPhoto[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  
+  // Focus tracking states
+  const [isPlanFocused, setIsPlanFocused] = useState(false);
+  const [isImplementationFocused, setIsImplementationFocused] = useState(false);
+  
+  // Unsaved changes tracking
+  const [hasUnsavedPlan, setHasUnsavedPlan] = useState(false);
+  const [hasUnsavedImplementation, setHasUnsavedImplementation] = useState(false);
+  
   const [editData, setEditData] = useState({
     title: task.title,
     plan: task.plan || '',
@@ -63,19 +69,36 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     assigned_to: task.assigned_to
   });
 
-  // Update editData when task prop changes, but preserve focus
+  // Update editData when task prop changes, but preserve local changes if focused
   useEffect(() => {
-    const activeElement = document.activeElement;
-    const isPlanFocused = activeElement === planTextareaRef.current;
-    const isImplementationFocused = activeElement === implementationTextareaRef.current;
-    
     setEditData(prev => ({
       title: task.title,
       plan: isPlanFocused ? prev.plan : (task.plan || ''),
       observations: isImplementationFocused ? prev.observations : (task.observations || ''),
       assigned_to: task.assigned_to
     }));
-  }, [task.title, task.plan, task.observations, task.assigned_to]);
+    
+    // Reset unsaved flags when task updates from external source
+    if (!isPlanFocused) setHasUnsavedPlan(false);
+    if (!isImplementationFocused) setHasUnsavedImplementation(false);
+  }, [task.title, task.plan, task.observations, task.assigned_to, isPlanFocused, isImplementationFocused]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 's') {
+        e.preventDefault();
+        if (isPlanFocused && hasUnsavedPlan) {
+          savePlan();
+        } else if (isImplementationFocused && hasUnsavedImplementation) {
+          saveImplementation();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isPlanFocused, isImplementationFocused, hasUnsavedPlan, hasUnsavedImplementation]);
 
   // Load existing photos when expanded or editing
   const loadPhotos = async () => {
@@ -106,6 +129,114 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
       loadPhotos();
     }
   });
+
+  // Save plan to database
+  const savePlan = async () => {
+    if (task.status === 'completed') return;
+    
+    try {
+      const updateData: { plan: string; assigned_to?: string } = { plan: editData.plan };
+      
+      // If task is unassigned, assign it to the current user
+      if (!task.assigned_to) {
+        const { data: user } = await supabase.auth.getUser();
+        if (user.user) {
+          updateData.assigned_to = user.user.id;
+        }
+      }
+
+      const { error } = await supabase
+        .from('mission_tasks')
+        .update(updateData)
+        .eq('id', task.id);
+
+      if (error) throw error;
+      
+      setHasUnsavedPlan(false);
+      onUpdate();
+    } catch (error) {
+      console.error('Error updating task plan:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save plan",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Save implementation to database
+  const saveImplementation = async () => {
+    try {
+      const updateData: { observations: string; status?: string; assigned_to?: string } = {
+        observations: editData.observations
+      };
+      
+      // If task is unassigned, assign it to the current user
+      if (!task.assigned_to) {
+        const { data: user } = await supabase.auth.getUser();
+        if (user.user) {
+          updateData.assigned_to = user.user.id;
+        }
+      }
+      
+      // Only update status if task is not already in progress or completed and has content
+      if (task.status === 'not_started' && editData.observations.trim()) {
+        updateData.status = 'in_progress';
+      }
+      
+      const { error } = await supabase
+        .from('mission_tasks')
+        .update(updateData)
+        .eq('id', task.id);
+
+      if (error) throw error;
+      
+      setHasUnsavedImplementation(false);
+      onUpdate();
+    } catch (error) {
+      console.error('Error updating task observations:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save implementation",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Plan change handler - just update local state
+  const handlePlanChange = (value: string) => {
+    setEditData(prev => ({ ...prev, plan: value }));
+    setHasUnsavedPlan(value !== (task.plan || ''));
+  };
+
+  // Implementation change handler - just update local state
+  const handleImplementationChange = (value: string) => {
+    setEditData(prev => ({ ...prev, observations: value }));
+    setHasUnsavedImplementation(value !== (task.observations || ''));
+  };
+
+  // Focus handlers
+  const handlePlanFocus = () => {
+    setIsPlanFocused(true);
+  };
+
+  const handlePlanBlur = () => {
+    setIsPlanFocused(false);
+    if (hasUnsavedPlan) {
+      savePlan();
+    }
+  };
+
+  const handleImplementationFocus = () => {
+    setIsImplementationFocused(true);
+  };
+
+  const handleImplementationBlur = () => {
+    setIsImplementationFocused(false);
+    if (hasUnsavedImplementation) {
+      saveImplementation();
+    }
+  };
 
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -213,7 +344,6 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
       return;
     }
 
-
     setIsCompleting(true);
     
     try {
@@ -249,150 +379,6 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     if (onSave) {
       onSave(editData);
     }
-  };
-
-  // Plan change handler - updates plan in database
-  const handlePlanChange = async (value: string) => {
-    setEditData(prev => ({ ...prev, plan: value }));
-    
-    // Debounce database updates to prevent focus loss
-    if (planTimeoutRef.current) {
-      clearTimeout(planTimeoutRef.current);
-    }
-    
-    planTimeoutRef.current = setTimeout(async () => {
-      if (task.status !== 'completed') {
-        try {
-          // Store current cursor position and focus state
-          const currentFocus = document.activeElement === planTextareaRef.current;
-          const cursorPosition = planTextareaRef.current?.selectionStart;
-
-          const updateData: { plan: string; assigned_to?: string } = { plan: value };
-          
-          // If task is unassigned, assign it to the current user
-          if (!task.assigned_to) {
-            const { data: user } = await supabase.auth.getUser();
-            if (user.user) {
-              updateData.assigned_to = user.user.id;
-            }
-          }
-
-          const { error } = await supabase
-            .from('mission_tasks')
-            .update(updateData)
-            .eq('id', task.id);
-
-          if (error) throw error;
-          
-          // Restore focus and cursor position after a brief delay
-          if (currentFocus && planTextareaRef.current) {
-            setTimeout(() => {
-              planTextareaRef.current?.focus();
-              if (cursorPosition !== undefined) {
-                planTextareaRef.current?.setSelectionRange(cursorPosition, cursorPosition);
-              }
-            }, 50);
-          }
-        } catch (error) {
-          console.error('Error updating task plan:', error);
-        }
-      }
-    }, 1000); // Wait 1 second after user stops typing
-  };
-
-  // Fixed implementation change handler - updates status from any state except completed
-  const handleImplementationChange = async (value: string) => {
-    setEditData(prev => ({ ...prev, observations: value }));
-    
-    // Debounce database updates to prevent focus loss
-    if (implementationTimeoutRef.current) {
-      clearTimeout(implementationTimeoutRef.current);
-    }
-    
-    implementationTimeoutRef.current = setTimeout(async () => {
-      if (value.trim() && task.status !== 'completed') {
-        try {
-          // Store current cursor position and focus state
-          const currentFocus = document.activeElement === implementationTextareaRef.current;
-          const cursorPosition = implementationTextareaRef.current?.selectionStart;
-
-          // Only change status to in_progress if currently not_started or planned
-          const updateData: { observations: string; status?: string; assigned_to?: string } = {
-            observations: value
-          };
-          
-          // If task is unassigned, assign it to the current user
-          if (!task.assigned_to) {
-            const { data: user } = await supabase.auth.getUser();
-            if (user.user) {
-              updateData.assigned_to = user.user.id;
-            }
-          }
-          
-          // Only update status if task is not already in progress or completed
-          if (task.status === 'not_started') {
-            updateData.status = 'in_progress';
-          }
-          
-          const { error } = await supabase
-            .from('mission_tasks')
-            .update(updateData)
-            .eq('id', task.id);
-
-          if (error) throw error;
-          
-          // Restore focus and cursor position after a brief delay
-          if (currentFocus && implementationTextareaRef.current) {
-            setTimeout(() => {
-              implementationTextareaRef.current?.focus();
-              if (cursorPosition !== undefined) {
-                implementationTextareaRef.current?.setSelectionRange(cursorPosition, cursorPosition);
-              }
-            }, 50);
-          }
-        } catch (error) {
-          console.error('Error updating task observations:', error);
-        }
-      } else if (task.status === 'completed') {
-        // For completed tasks, just update observations without changing status
-        try {
-          // Store current cursor position and focus state
-          const currentFocus = document.activeElement === implementationTextareaRef.current;
-          const cursorPosition = implementationTextareaRef.current?.selectionStart;
-
-          const updateData: { observations: string; assigned_to?: string } = {
-            observations: value
-          };
-          
-          // If task is unassigned, assign it to the current user even for completed tasks
-          if (!task.assigned_to) {
-            const { data: user } = await supabase.auth.getUser();
-            if (user.user) {
-              updateData.assigned_to = user.user.id;
-            }
-          }
-
-          const { error } = await supabase
-            .from('mission_tasks')
-            .update(updateData)
-            .eq('id', task.id);
-
-          if (error) throw error;
-          
-          // Restore focus and cursor position after a brief delay
-          if (currentFocus && implementationTextareaRef.current) {
-            setTimeout(() => {
-              implementationTextareaRef.current?.focus();
-              if (cursorPosition !== undefined) {
-                implementationTextareaRef.current?.setSelectionRange(cursorPosition, cursorPosition);
-              }
-            }, 50);
-          }
-        } catch (error) {
-          console.error('Error updating completed task observations:', error);
-        }
-      }
-    }, 1000); // Wait 1 second after user stops typing
   };
 
   const getTaskTheme = () => {
@@ -614,13 +600,23 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
           <CardContent className="pt-0">
             <div className="space-y-4">
               <div>
-                <Label className="text-sm font-medium">Plan *</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Plan *</Label>
+                  {hasUnsavedPlan && (
+                    <div className="flex items-center gap-1 text-xs text-amber-600">
+                      <Save className="h-3 w-3" />
+                      Unsaved changes
+                    </div>
+                  )}
+                </div>
                 {task.status !== 'completed' ? (
                   <Textarea
                     ref={planTextareaRef}
                     value={editData.plan}
                     onChange={(e) => handlePlanChange(e.target.value)}
-                    placeholder="What is the plan for this task?"
+                    onFocus={handlePlanFocus}
+                    onBlur={handlePlanBlur}
+                    placeholder="What is the plan for this task? (Auto-saves when you click away or press Ctrl+S)"
                     rows={2}
                     className="mt-1"
                   />
@@ -632,13 +628,23 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
               </div>
             
               <div>
-                <Label className="text-sm font-medium">Implementation *</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Implementation *</Label>
+                  {hasUnsavedImplementation && (
+                    <div className="flex items-center gap-1 text-xs text-amber-600">
+                      <Save className="h-3 w-3" />
+                      Unsaved changes
+                    </div>
+                  )}
+                </div>
                 {task.status !== 'completed' ? (
                   <Textarea
                     ref={implementationTextareaRef}
                     value={editData.observations}
                     onChange={(e) => handleImplementationChange(e.target.value)}
-                    placeholder="Add implementation notes, findings, or details..."
+                    onFocus={handleImplementationFocus}
+                    onBlur={handleImplementationBlur}
+                    placeholder="Add implementation notes, findings, or details... (Auto-saves when you click away or press Ctrl+S)"
                     rows={3}
                     className="mt-1"
                   />

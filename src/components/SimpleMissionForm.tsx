@@ -19,7 +19,7 @@ interface Task {
   title: string;
   plan?: string;
   observations?: string;
-  assigned_to: string;
+  assigned_to: string | null;
 }
 
 interface Profile {
@@ -77,7 +77,7 @@ export function SimpleMissionForm({
     if (defaultTasks.length > 0 && formData.tasks.length === 1 && !formData.tasks[0].title) {
       setFormData(prev => ({ 
         ...prev, 
-        tasks: defaultTasks.map(task => ({ ...task, assigned_to: '' }))
+        tasks: defaultTasks.map(task => ({ ...task, assigned_to: null }))
       }));
     }
   });
@@ -85,7 +85,7 @@ export function SimpleMissionForm({
   const addTask = () => {
     setFormData(prev => ({
       ...prev,
-      tasks: [...prev.tasks, { title: '', plan: '', observations: '', assigned_to: '' }]
+      tasks: [...prev.tasks, { title: '', plan: '', observations: '', assigned_to: null }]
     }));
     setEditingTaskIndex(formData.tasks.length);
   };

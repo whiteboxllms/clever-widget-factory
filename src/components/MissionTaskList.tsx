@@ -11,7 +11,7 @@ interface Task {
   title: string;
   plan?: string;
   observations?: string;
-  assigned_to: string;
+  assigned_to: string | null;
   status: string;
   mission_id: string;
   created_at: string;
@@ -126,7 +126,7 @@ export function MissionTaskList({ missionId, profiles, canEdit = false, missionN
             title: '',
             plan: '',
             observations: '',
-            assigned_to: '',
+            assigned_to: null,
             status: 'not_started',
             mission_id: missionId
           }}

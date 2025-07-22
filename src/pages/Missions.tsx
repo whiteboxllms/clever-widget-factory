@@ -52,7 +52,7 @@ interface Task {
   title: string;
   plan?: string;
   observations?: string;
-  assigned_to: string;
+  assigned_to: string | null;
 }
 
 const Missions = () => {
@@ -93,7 +93,7 @@ const Missions = () => {
     selected_resources: [] as { id: string; name: string; quantity?: number; unit?: string; type: 'part' | 'tool' }[],
     all_materials_available: false,
     qa_assigned_to: user?.id || '', // Default to current user
-    tasks: [{ title: '', plan: '', observations: '', assigned_to: '' }] as Task[]
+    tasks: [{ title: '', plan: '', observations: '', assigned_to: null }] as Task[]
   });
 
   // Updated function to determine mission color based on task content analysis
@@ -285,9 +285,9 @@ const Missions = () => {
             title: task.title, 
             plan: task.plan || '', 
             observations: task.observations || '',
-            assigned_to: '' 
+            assigned_to: null
           }))
-        : [{ title: '', plan: '', observations: '', assigned_to: '' }]
+        : [{ title: '', plan: '', observations: '', assigned_to: null }]
     });
   };
 
@@ -588,9 +588,9 @@ const Missions = () => {
             title: task.title,
             plan: task.plan || '',
             observations: task.observations || '',
-            assigned_to: task.assigned_to || ''
+            assigned_to: task.assigned_to || null
           }))
-        : [{ title: '', plan: '', observations: '', assigned_to: '' }]
+        : [{ title: '', plan: '', observations: '', assigned_to: null }]
     });
     
     setShowEditDialog(true);
@@ -605,7 +605,7 @@ const Missions = () => {
       selected_resources: [],
       all_materials_available: false,
       qa_assigned_to: user?.id || '', // Default to current user
-      tasks: [{ title: '', plan: '', observations: '', assigned_to: '' }]
+      tasks: [{ title: '', plan: '', observations: '', assigned_to: null }]
     });
   };
 

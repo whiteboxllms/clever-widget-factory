@@ -263,6 +263,10 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     planTimeoutRef.current = setTimeout(async () => {
       if (task.status !== 'completed') {
         try {
+          // Store current cursor position and focus state
+          const currentFocus = document.activeElement === planTextareaRef.current;
+          const cursorPosition = planTextareaRef.current?.selectionStart;
+
           const updateData: { plan: string; assigned_to?: string } = { plan: value };
           
           // If task is unassigned, assign it to the current user
@@ -279,7 +283,16 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
             .eq('id', task.id);
 
           if (error) throw error;
-          // Only update task object, don't trigger full reload
+          
+          // Restore focus and cursor position after a brief delay
+          if (currentFocus && planTextareaRef.current) {
+            setTimeout(() => {
+              planTextareaRef.current?.focus();
+              if (cursorPosition !== undefined) {
+                planTextareaRef.current?.setSelectionRange(cursorPosition, cursorPosition);
+              }
+            }, 50);
+          }
         } catch (error) {
           console.error('Error updating task plan:', error);
         }
@@ -299,6 +312,10 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     implementationTimeoutRef.current = setTimeout(async () => {
       if (value.trim() && task.status !== 'completed') {
         try {
+          // Store current cursor position and focus state
+          const currentFocus = document.activeElement === implementationTextareaRef.current;
+          const cursorPosition = implementationTextareaRef.current?.selectionStart;
+
           // Only change status to in_progress if currently not_started or planned
           const updateData: { observations: string; status?: string; assigned_to?: string } = {
             observations: value
@@ -323,13 +340,26 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
             .eq('id', task.id);
 
           if (error) throw error;
-          // Don't call onUpdate() immediately to prevent focus loss
+          
+          // Restore focus and cursor position after a brief delay
+          if (currentFocus && implementationTextareaRef.current) {
+            setTimeout(() => {
+              implementationTextareaRef.current?.focus();
+              if (cursorPosition !== undefined) {
+                implementationTextareaRef.current?.setSelectionRange(cursorPosition, cursorPosition);
+              }
+            }, 50);
+          }
         } catch (error) {
           console.error('Error updating task observations:', error);
         }
       } else if (task.status === 'completed') {
         // For completed tasks, just update observations without changing status
         try {
+          // Store current cursor position and focus state
+          const currentFocus = document.activeElement === implementationTextareaRef.current;
+          const cursorPosition = implementationTextareaRef.current?.selectionStart;
+
           const updateData: { observations: string; assigned_to?: string } = {
             observations: value
           };
@@ -348,6 +378,16 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
             .eq('id', task.id);
 
           if (error) throw error;
+          
+          // Restore focus and cursor position after a brief delay
+          if (currentFocus && implementationTextareaRef.current) {
+            setTimeout(() => {
+              implementationTextareaRef.current?.focus();
+              if (cursorPosition !== undefined) {
+                implementationTextareaRef.current?.setSelectionRange(cursorPosition, cursorPosition);
+              }
+            }, 50);
+          }
         } catch (error) {
           console.error('Error updating completed task observations:', error);
         }

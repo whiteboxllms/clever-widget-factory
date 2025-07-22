@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -72,6 +72,9 @@ const Missions = () => {
   const [expandedMissions, setExpandedMissions] = useState<Set<string>>(new Set());
   const [expandedProblemStatements, setExpandedProblemStatements] = useState<Set<string>>(new Set());
 
+  // Debouncing for real-time updates
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Icon mapping function
   const getIconComponent = (iconName: string) => {
     const iconMap: { [key: string]: React.ComponentType<{ className?: string }> } = {
@@ -142,12 +145,44 @@ const Missions = () => {
     };
   };
 
+  // Targeted state update function for real-time changes
+  const updateMissionTaskCounts = useCallback((missionId: string, tasks: any[]) => {
+    setMissions(prevMissions => {
+      return prevMissions.map(mission => {
+        if (mission.id !== missionId) return mission;
+
+        const completedTasks = tasks.filter((task: any) => task.status === 'completed');
+        const tasksWithPlans = tasks.filter((task: any) => task.plan && task.plan.trim());
+        const tasksWithImplementation = tasks.filter((task: any) => task.observations && task.observations.trim());
+
+        return {
+          ...mission,
+          task_count: tasks.length,
+          completed_task_count: completedTasks.length,
+          tasks_with_plans_count: tasksWithPlans.length,
+          tasks_with_implementation_count: tasksWithImplementation.length
+        };
+      });
+    });
+  }, []);
+
+  // Debounced mission refresh for structural changes
+  const debouncedMissionRefresh = useCallback((delay: number = 500) => {
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+    }
+    
+    updateTimeoutRef.current = setTimeout(() => {
+      fetchMissions();
+    }, delay);
+  }, []);
+
   useEffect(() => {
     fetchMissions();
     fetchProfiles();
     checkUserRole();
 
-    // Subscribe to real-time changes in mission_tasks table
+    // Subscribe to real-time changes in mission_tasks table with targeted updates
     const channel = supabase
       .channel('mission-tasks-changes')
       .on(
@@ -157,17 +192,43 @@ const Missions = () => {
           schema: 'public',
           table: 'mission_tasks'
         },
-        () => {
-          // Reload missions when tasks are added, updated, or deleted
-          fetchMissions();
+        async (payload) => {
+          console.log('Task update received:', payload);
+          
+          // For INSERT and DELETE events, we need to refresh to get accurate counts
+          if (payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
+            debouncedMissionRefresh();
+            return;
+          }
+
+          // For UPDATE events, we can do targeted updates to prevent focus loss
+          if (payload.eventType === 'UPDATE' && payload.new) {
+            const taskData = payload.new;
+            const missionId = taskData.mission_id;
+
+            if (missionId) {
+              // Fetch updated tasks for just this mission
+              const { data: updatedTasks } = await supabase
+                .from('mission_tasks')
+                .select('id, status, plan, observations')
+                .eq('mission_id', missionId);
+
+              if (updatedTasks) {
+                updateMissionTaskCounts(missionId, updatedTasks);
+              }
+            }
+          }
         }
       )
       .subscribe();
 
     return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [debouncedMissionRefresh, updateMissionTaskCounts]);
 
   const checkUserRole = async () => {
     if (!user) return;
@@ -795,7 +856,7 @@ const Missions = () => {
               {missions.map((mission) => {
                 const missionTheme = getMissionTheme(mission);
                 return (
-                  <Card key={mission.id} className={`hover:shadow-lg transition-shadow ${missionTheme.border}`}>
+                  <Card key={`mission-${mission.id}`} className={`hover:shadow-lg transition-shadow ${missionTheme.border}`}>
                     <CardHeader>
                       <div className="flex items-start justify-between">
                          <CardTitle className="flex items-center gap-2">

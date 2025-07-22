@@ -247,9 +247,19 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     planTimeoutRef.current = setTimeout(async () => {
       if (task.status !== 'completed') {
         try {
+          const updateData: { plan: string; assigned_to?: string } = { plan: value };
+          
+          // If task is unassigned, assign it to the current user
+          if (!task.assigned_to) {
+            const { data: user } = await supabase.auth.getUser();
+            if (user.user) {
+              updateData.assigned_to = user.user.id;
+            }
+          }
+
           const { error } = await supabase
             .from('mission_tasks')
-            .update({ plan: value })
+            .update(updateData)
             .eq('id', task.id);
 
           if (error) throw error;
@@ -274,9 +284,17 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
       if (value.trim() && task.status !== 'completed') {
         try {
           // Only change status to in_progress if currently not_started or planned
-          const updateData: { observations: string; status?: string } = {
+          const updateData: { observations: string; status?: string; assigned_to?: string } = {
             observations: value
           };
+          
+          // If task is unassigned, assign it to the current user
+          if (!task.assigned_to) {
+            const { data: user } = await supabase.auth.getUser();
+            if (user.user) {
+              updateData.assigned_to = user.user.id;
+            }
+          }
           
           // Only update status if task is not already in progress or completed
           if (task.status === 'not_started') {
@@ -296,9 +314,21 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
       } else if (task.status === 'completed') {
         // For completed tasks, just update observations without changing status
         try {
+          const updateData: { observations: string; assigned_to?: string } = {
+            observations: value
+          };
+          
+          // If task is unassigned, assign it to the current user even for completed tasks
+          if (!task.assigned_to) {
+            const { data: user } = await supabase.auth.getUser();
+            if (user.user) {
+              updateData.assigned_to = user.user.id;
+            }
+          }
+
           const { error } = await supabase
             .from('mission_tasks')
-            .update({ observations: value })
+            .update(updateData)
             .eq('id', task.id);
 
           if (error) throw error;

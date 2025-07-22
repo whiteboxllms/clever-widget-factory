@@ -50,6 +50,8 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
   const enhancedToast = useEnhancedToast();
   const implementationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const planTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const planTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const implementationTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [isExpanded, setIsExpanded] = useState(true); // Default expanded
   const [photos, setPhotos] = useState<TaskPhoto[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -60,6 +62,20 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     observations: task.observations || '',
     assigned_to: task.assigned_to
   });
+
+  // Update editData when task prop changes, but preserve focus
+  useEffect(() => {
+    const activeElement = document.activeElement;
+    const isPlanFocused = activeElement === planTextareaRef.current;
+    const isImplementationFocused = activeElement === implementationTextareaRef.current;
+    
+    setEditData(prev => ({
+      title: task.title,
+      plan: isPlanFocused ? prev.plan : (task.plan || ''),
+      observations: isImplementationFocused ? prev.observations : (task.observations || ''),
+      assigned_to: task.assigned_to
+    }));
+  }, [task.title, task.plan, task.observations, task.assigned_to]);
 
   // Load existing photos when expanded or editing
   const loadPhotos = async () => {
@@ -561,6 +577,7 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                 <Label className="text-sm font-medium">Plan *</Label>
                 {task.status !== 'completed' ? (
                   <Textarea
+                    ref={planTextareaRef}
                     value={editData.plan}
                     onChange={(e) => handlePlanChange(e.target.value)}
                     placeholder="What is the plan for this task?"
@@ -578,6 +595,7 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                 <Label className="text-sm font-medium">Implementation *</Label>
                 {task.status !== 'completed' ? (
                   <Textarea
+                    ref={implementationTextareaRef}
                     value={editData.observations}
                     onChange={(e) => handleImplementationChange(e.target.value)}
                     placeholder="Add implementation notes, findings, or details..."

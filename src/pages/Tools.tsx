@@ -676,15 +676,16 @@ export default function Tools() {
 
                   {/* Serial Number and Manual URL */}
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="serial">Serial Number</Label>
-                      <Input
-                        id="serial"
-                        value={newTool.serial_number}
-                        onChange={(e) => setNewTool(prev => ({ ...prev, serial_number: e.target.value }))}
-                        placeholder="Enter serial number"
-                      />
-                    </div>
+                     <div className="space-y-2">
+                       <Label htmlFor="serial">Serial Number *</Label>
+                       <Input
+                         id="serial"
+                         value={newTool.serial_number}
+                         onChange={(e) => setNewTool(prev => ({ ...prev, serial_number: e.target.value }))}
+                         placeholder="Enter serial number"
+                         required
+                       />
+                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="manual">Manual URL</Label>
                       <Input
@@ -707,9 +708,9 @@ export default function Tools() {
                     >
                       Cancel
                     </Button>
-                    <Button type="submit" disabled={isSubmitting || !newTool.name || !newTool.intended_storage_location}>
-                      {isSubmitting ? "Adding..." : "Add Tool"}
-                    </Button>
+                     <Button type="submit" disabled={isSubmitting || !newTool.name || !newTool.intended_storage_location || !newTool.serial_number}>
+                       {isSubmitting ? "Adding..." : "Add Tool"}
+                     </Button>
                   </div>
                 </form>
               </DialogContent>
@@ -1164,15 +1165,16 @@ export default function Tools() {
                       placeholder="Current location if different"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-serial">Serial Number</Label>
-                    <Input
-                      id="edit-serial"
-                      value={editTool.serial_number || ''}
-                      onChange={(e) => setEditTool(prev => prev ? { ...prev, serial_number: e.target.value } : null)}
-                      placeholder="Enter serial number"
-                    />
-                  </div>
+                   <div className="space-y-2">
+                     <Label htmlFor="edit-serial">Serial Number *</Label>
+                     <Input
+                       id="edit-serial"
+                       value={editTool.serial_number || ''}
+                       onChange={(e) => setEditTool(prev => prev ? { ...prev, serial_number: e.target.value } : null)}
+                       placeholder="Enter serial number"
+                       required
+                     />
+                   </div>
                 </div>
 
                 {/* Stargazer SOP */}
@@ -1229,9 +1231,9 @@ export default function Tools() {
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={isSubmitting || !editTool.name || !editTool.intended_storage_location}>
-                    {isSubmitting ? "Updating..." : "Update Tool"}
-                  </Button>
+                   <Button type="submit" disabled={isSubmitting || !editTool.name || !editTool.intended_storage_location || !editTool.serial_number}>
+                     {isSubmitting ? "Updating..." : "Update Tool"}
+                   </Button>
                 </div>
               </form>
             )}

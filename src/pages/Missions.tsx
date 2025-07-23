@@ -515,32 +515,50 @@ const Missions = () => {
       const tasksToCreate = formData.tasks.filter(task => task.title.trim());
       console.log('Tasks to create:', tasksToCreate); // Debug log
 
+      const createdTasks = [];
+      const taskIdMap: Record<string, string> = {};
+
       if (tasksToCreate.length > 0) {
         // First, delete existing tasks for this mission (if we want to replace them)
         // Or we could implement a more sophisticated update/insert/delete logic
-        const {
-          error: deleteError
-        } = await supabase.from('mission_tasks').delete().eq('mission_id', editingMission.id);
+        const { error: deleteError } = await supabase
+          .from('mission_tasks')
+          .delete()
+          .eq('mission_id', editingMission.id);
+        
         if (deleteError) {
           console.error('Error deleting existing tasks:', deleteError);
           throw deleteError;
         }
 
         // Insert all tasks (both existing and new)
-        const {
-          error: tasksError
-        } = await supabase.from('mission_tasks').insert(tasksToCreate.map(task => ({
-          mission_id: editingMission.id,
-          title: task.title,
-          plan: task.plan || null,
-          observations: task.observations || null,
-          assigned_to: task.assigned_to || null
-        })));
+        const { data: tasksData, error: tasksError } = await supabase
+          .from('mission_tasks')
+          .insert(tasksToCreate.map(task => ({
+            mission_id: editingMission.id,
+            title: task.title,
+            plan: task.plan || null,
+            observations: task.observations || null,
+            assigned_to: task.assigned_to || null
+          })))
+          .select();
+        
         if (tasksError) {
           console.error('Error creating tasks:', tasksError);
           throw tasksError;
         }
+
+        // Create task ID mapping from temp IDs to real IDs
+        tasksToCreate.forEach((task, index) => {
+          const tempId = `temp-${index}`;
+          if (tasksData && tasksData[index]) {
+            taskIdMap[tempId] = tasksData[index].id;
+          }
+        });
+        
+        createdTasks.push(...(tasksData || []));
       }
+
       toast({
         title: "Success",
         description: "Mission updated successfully!"
@@ -549,12 +567,20 @@ const Missions = () => {
       setEditingMission(null);
       resetFormData();
       fetchMissions();
+      
+      // Return the result for photo migration
+      return { 
+        missionId: editingMission.id, 
+        taskIdMap, 
+        createdTasks 
+      };
     } catch (error) {
       toast({
         title: "Error",
         description: "Failed to update mission",
         variant: "destructive"
       });
+      throw error; // Re-throw to allow form to handle the error
     }
   };
   const handleEditClick = async (mission: Mission) => {
@@ -797,8 +823,16 @@ const Missions = () => {
                 </DialogDescription>
               </DialogHeader>
               
-              <SimpleMissionForm formData={formData} setFormData={setFormData} profiles={profiles} onSubmit={handleEditMission} onCancel={resetEditDialog} isEditing={true} selectedTemplate={selectedTemplate} missionId={editingMission?.id} // Pass mission ID when editing
-            />
+              <SimpleMissionForm 
+                formData={formData} 
+                setFormData={setFormData} 
+                profiles={profiles} 
+                onSubmit={handleEditMission} 
+                onCancel={resetEditDialog} 
+                isEditing={true} 
+                selectedTemplate={selectedTemplate} 
+                missionId={editingMission?.id}
+              />
             </DialogContent>
           </Dialog>
         </div>

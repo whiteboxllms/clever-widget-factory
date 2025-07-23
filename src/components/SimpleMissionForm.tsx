@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronDown, ChevronRight, Plus, Upload, Image } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Upload, Image, X } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ResourceSelector } from '@/components/ResourceSelector';
 import { TaskCard } from '@/components/TaskCard';
@@ -85,15 +85,43 @@ export function SimpleMissionForm({
   const [problemPhotos, setProblemPhotos] = useState<Array<{id: string; file_url: string; file_name: string}>>([]);
   const [isUploading, setIsUploading] = useState(false);
 
+  // Load existing problem photos when editing
+  useEffect(() => {
+    if (isEditing && missionId) {
+      loadExistingProblemPhotos();
+    }
+  }, [isEditing, missionId]);
+
   // Initialize with default tasks if provided
-  useState(() => {
+  useEffect(() => {
     if (defaultTasks.length > 0 && formData.tasks.length === 1 && !formData.tasks[0].title) {
       setFormData(prev => ({ 
         ...prev, 
         tasks: defaultTasks.map(task => ({ ...task, assigned_to: null }))
       }));
     }
-  });
+  }, [defaultTasks]);
+
+  const loadExistingProblemPhotos = async () => {
+    if (!missionId) return;
+    
+    try {
+      const { data: attachments, error } = await supabase
+        .from('mission_attachments')
+        .select('id, file_url, file_name')
+        .eq('mission_id', missionId)
+        .eq('attachment_type', 'evidence')
+        .is('task_id', null); // Problem photos don't have task_id
+      
+      if (error) throw error;
+      
+      if (attachments) {
+        setProblemPhotos(attachments);
+      }
+    } catch (error) {
+      console.error('Failed to load existing problem photos:', error);
+    }
+  };
 
   const addTask = () => {
     setFormData(prev => ({
@@ -152,15 +180,43 @@ export function SimpleMissionForm({
 
       if (uploadError) throw uploadError;
 
-      enhancedToast.showUploadSuccess(file.name);
-      enhancedToast.dismiss(uploadToast.id);
-      
-      // Add to photos list
-      setProblemPhotos(prev => [...prev, {
-        id: Date.now().toString(),
-        file_url: uploadData.path,
-        file_name: file.name
-      }]);
+      // Save attachment record for editing mode
+      if (isEditing && missionId) {
+        const { data: attachmentData, error: attachmentError } = await supabase
+          .from('mission_attachments')
+          .insert({
+            mission_id: missionId,
+            file_name: file.name,
+            file_url: uploadData.path,
+            file_type: compressionResult.file.type,
+            attachment_type: 'evidence',
+            uploaded_by: (await supabase.auth.getUser()).data.user?.id
+          })
+          .select()
+          .single();
+
+        if (attachmentError) throw attachmentError;
+
+        enhancedToast.showUploadSuccess(file.name);
+        enhancedToast.dismiss(uploadToast.id);
+        
+        // Add to photos list with the real attachment ID
+        setProblemPhotos(prev => [...prev, {
+          id: attachmentData.id,
+          file_url: attachmentData.file_url,
+          file_name: attachmentData.file_name
+        }]);
+      } else {
+        // For creation mode, just add to the list (will be saved later)
+        enhancedToast.showUploadSuccess(file.name);
+        enhancedToast.dismiss(uploadToast.id);
+        
+        setProblemPhotos(prev => [...prev, {
+          id: Date.now().toString(),
+          file_url: uploadData.path,
+          file_name: file.name
+        }]);
+      }
 
     } catch (error) {
       console.error('Photo upload failed:', error);
@@ -187,6 +243,38 @@ export function SimpleMissionForm({
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const removeProblemPhoto = async (photoId: string) => {
+    const photo = problemPhotos.find(p => p.id === photoId);
+    if (!photo) return;
+
+    // If editing mode and photo exists in database, delete it
+    if (isEditing && missionId && !photo.id.toString().startsWith('temp-')) {
+      try {
+        // Delete from storage
+        await supabase.storage.from('mission-attachments').remove([photo.file_url]);
+        
+        // Delete from database
+        await supabase.from('mission_attachments').delete().eq('id', photo.id);
+        
+        toast({
+          title: "Photo removed",
+          description: "Photo has been deleted successfully."
+        });
+      } catch (error) {
+        console.error('Failed to remove photo:', error);
+        toast({
+          title: "Error",
+          description: "Failed to remove photo",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
+    // Remove from local state
+    setProblemPhotos(prev => prev.filter(p => p.id !== photoId));
   };
 
   // Enhanced onSubmit to handle temporary photo migration
@@ -289,6 +377,12 @@ export function SimpleMissionForm({
                   <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-md flex items-center justify-center">
                     <Image className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
+                  <button
+                    onClick={() => removeProblemPhoto(photo.id)}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
                 </div>
               ))}
             </div>

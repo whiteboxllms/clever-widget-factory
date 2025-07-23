@@ -104,6 +104,12 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
   const loadPhotos = async () => {
     if (!isExpanded && !isEditing) return;
     
+    // Don't try to load photos for temporary tasks (they start with "temp-")
+    if (task.id.startsWith('temp-')) {
+      setPhotos([]);
+      return;
+    }
+    
     const { data, error } = await supabase
       .from('mission_attachments')
       .select('id, file_url, file_name')
@@ -239,6 +245,16 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    // Don't allow photo upload for temporary tasks
+    if (task.id.startsWith('temp-')) {
+      toast({
+        title: "Save Task First",
+        description: "Please save the task before uploading photos",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsUploading(true);
     

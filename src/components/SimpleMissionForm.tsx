@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronDown, ChevronRight, Plus, Upload, Image } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Upload, Image, Save, Check } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ResourceSelector } from '@/components/ResourceSelector';
 import { TaskCard } from '@/components/TaskCard';
@@ -15,6 +15,7 @@ import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { DEFAULT_DONE_DEFINITION } from "@/lib/constants";
 import { useTempPhotoStorage } from "@/hooks/useTempPhotoStorage";
+import { useAutoSave } from "@/hooks/useAutoSave";
 
 interface Task {
   title: string;
@@ -84,6 +85,40 @@ export function SimpleMissionForm({
   const [editingTaskIndex, setEditingTaskIndex] = useState<number | null>(null);
   const [problemPhotos, setProblemPhotos] = useState<Array<{id: string; file_url: string; file_name: string}>>([]);
   const [isUploading, setIsUploading] = useState(false);
+
+  // Auto-save functionality
+  const handleAutoSave = async (data: any) => {
+    if (!isEditing || !missionId) return;
+    
+    // Only auto-save if we have required fields
+    if (!data.title || !data.problem_statement || !data.qa_assigned_to) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('missions')
+        .update({
+          title: data.title,
+          problem_statement: data.problem_statement,
+          done_definition: data.done_definition || DEFAULT_DONE_DEFINITION,
+          qa_assigned_to: data.qa_assigned_to,
+          all_materials_available: data.all_materials_available,
+        })
+        .eq('id', missionId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Auto-save error:', error);
+      throw error;
+    }
+  };
+
+  const { isSaving } = useAutoSave(formData, {
+    delay: 2000,
+    onSave: handleAutoSave,
+    enabled: isEditing && !!missionId,
+  });
 
   // Initialize with default tasks if provided
   useState(() => {
@@ -216,6 +251,28 @@ export function SimpleMissionForm({
 
   return (
     <div className="space-y-6">
+      {/* Auto-save indicator */}
+      {isEditing && (
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            {isSaving ? (
+              <>
+                <Save className="h-4 w-4 animate-pulse" />
+                <span>Saving changes...</span>
+              </>
+            ) : (
+              <>
+                <Check className="h-4 w-4 text-green-600" />
+                <span>All changes saved</span>
+              </>
+            )}
+          </div>
+          {isEditing && (
+            <span className="text-xs">Changes are saved automatically</span>
+          )}
+        </div>
+      )}
+
       {/* Template Header */}
       {selectedTemplate && !isEditing && (
         <div className={`${selectedTemplate.color} text-foreground rounded-lg p-4 mb-6`}>
@@ -465,12 +522,14 @@ export function SimpleMissionForm({
         <Button variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button 
-          onClick={handleSubmit}
-          className={selectedTemplate && !isEditing ? `${selectedTemplate.color} hover:opacity-90` : ''}
-        >
-          {isEditing ? 'Update Mission' : 'Create Mission'}
-        </Button>
+        {!isEditing && (
+          <Button 
+            onClick={handleSubmit}
+            className={selectedTemplate && !isEditing ? `${selectedTemplate.color} hover:opacity-90` : ''}
+          >
+            Create Mission
+          </Button>
+        )}
       </div>
     </div>
   );

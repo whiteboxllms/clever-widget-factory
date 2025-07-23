@@ -168,10 +168,10 @@ export default function Missions() {
           all_materials_available: formData.all_materials_available,
           qa_assigned_to: formData.qa_assigned_to,
           created_by: user.data.user.id,
-          template_id: selectedTemplate?.id || null,
-          template_name: selectedTemplate?.name || null,
-          template_color: selectedTemplate?.color || null,
-          template_icon: selectedTemplate?.icon?.name || null,
+          template_id: null,
+          template_name: null,
+          template_color: null,
+          template_icon: null,
         })
         .select()
         .single();
@@ -353,21 +353,6 @@ export default function Missions() {
         </Button>
       </div>
 
-      {/* Template Selection */}
-      {showForm && !editingMission && (
-        <MissionTemplateSelector
-          templates={templates}
-          selectedTemplate={selectedTemplate}
-          onSelectTemplate={(template) => {
-            setSelectedTemplate(template);
-            setFormData(prev => ({
-              ...prev,
-              tasks: template.defaultTasks ? template.defaultTasks.map(task => ({ ...task, assigned_to: null })) : [{ title: '', plan: '', observations: '', assigned_to: null }]
-            }));
-          }}
-        />
-      )}
-
       {showForm && (
         <SimpleMissionForm
           formData={formData}
@@ -379,8 +364,8 @@ export default function Missions() {
             setEditingMission(null);
             resetForm();
           }}
-          defaultTasks={selectedTemplate?.defaultTasks || []}
-          selectedTemplate={selectedTemplate}
+          defaultTasks={[]}
+          selectedTemplate={null}
           isEditing={!!editingMission}
           missionId={editingMission?.id}
         />

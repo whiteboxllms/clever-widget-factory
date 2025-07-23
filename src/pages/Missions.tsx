@@ -113,7 +113,7 @@ const Missions = () => {
       };
     }
 
-    // Priority 1: If all tasks are completed
+    // Priority 1: If all tasks are completed but no QA feedback, keep yellow (mission still in progress)
     if (mission.completed_task_count === mission.task_count) {
       // If QA feedback is provided, show green (fully complete)
       if (mission.qa_feedback && mission.qa_feedback.trim()) {
@@ -123,11 +123,11 @@ const Missions = () => {
           border: 'border-task-complete-border border-2'
         };
       }
-      // If no QA feedback yet, show blue (ready for QA)
+      // If no QA feedback yet, keep yellow (mission still in progress awaiting QA)
       return {
         bg: 'bg-card',
         text: 'text-card-foreground',
-        border: 'border-task-plan-border border-2'
+        border: 'border-task-implementation-border border-2'
       };
     }
 
@@ -992,7 +992,11 @@ const Missions = () => {
 
                          {/* QA Feedback Section */}
                          {(isLeadership || mission.created_by === user?.id || mission.status === 'completed') && (
-                           <div className="mt-4 p-3 border rounded-lg bg-muted/50">
+                           <div className={`mt-4 p-3 rounded-lg bg-muted/50 ${
+                             mission.status === 'completed' && (!mission.qa_feedback || !mission.qa_feedback.trim())
+                               ? 'border-2 border-task-plan-border' // Blue border when ready to be filled
+                               : 'border'
+                           }`}>
                              <Label className="text-sm font-medium">QA Feedback</Label>
                              <Textarea
                                value={mission.qa_feedback || ''}

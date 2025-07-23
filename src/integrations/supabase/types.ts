@@ -262,6 +262,7 @@ export type Database = {
           observations: string | null
           plan: string | null
           qa_approved_at: string | null
+          qa_feedback: string | null
           status: string
           title: string
           updated_at: string
@@ -277,6 +278,7 @@ export type Database = {
           observations?: string | null
           plan?: string | null
           qa_approved_at?: string | null
+          qa_feedback?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -292,6 +294,7 @@ export type Database = {
           observations?: string | null
           plan?: string | null
           qa_approved_at?: string | null
+          qa_feedback?: string | null
           status?: string
           title?: string
           updated_at?: string

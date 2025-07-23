@@ -36,6 +36,7 @@ interface TaskCardProps {
     assigned_to: string;
     status: string;
     mission_id: string;
+    qa_feedback?: string;
   };
   profiles: Profile[];
   onUpdate: () => void;
@@ -66,7 +67,8 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     title: task.title,
     plan: task.plan || '',
     observations: task.observations || '',
-    assigned_to: task.assigned_to
+    assigned_to: task.assigned_to,
+    qa_feedback: task.qa_feedback || ''
   });
 
   // Update editData when task prop changes, but preserve local changes if focused
@@ -75,13 +77,14 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
       title: task.title,
       plan: isPlanFocused ? prev.plan : (task.plan || ''),
       observations: isImplementationFocused ? prev.observations : (task.observations || ''),
-      assigned_to: task.assigned_to
+      assigned_to: task.assigned_to,
+      qa_feedback: task.qa_feedback || ''
     }));
     
     // Reset unsaved flags when task updates from external source
     if (!isPlanFocused) setHasUnsavedPlan(false);
     if (!isImplementationFocused) setHasUnsavedImplementation(false);
-  }, [task.title, task.plan, task.observations, task.assigned_to, isPlanFocused, isImplementationFocused]);
+  }, [task.title, task.plan, task.observations, task.assigned_to, task.qa_feedback, isPlanFocused, isImplementationFocused]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -382,6 +385,15 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
   const getTaskTheme = () => {
     // Determine task state based on content and status
     if (task.status === 'completed') {
+      // If completed but no QA feedback, stay yellow (pending QA)
+      if (!task.qa_feedback || !task.qa_feedback.trim()) {
+        return {
+          bg: 'bg-card',
+          text: 'text-card-foreground',
+          border: 'border-task-implementation-border border-2' // Yellow until QA feedback
+        };
+      }
+      // Completed with QA feedback - green
       return {
         bg: 'bg-card',
         text: 'text-card-foreground',
@@ -417,6 +429,11 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
 
   const getStatusIcon = () => {
     if (task.status === 'completed') {
+      // If completed but no QA feedback, show pending icon (yellow)
+      if (!task.qa_feedback || !task.qa_feedback.trim()) {
+        return <Clock className="h-4 w-4 text-task-implementation-border" />;
+      }
+      // Completed with QA feedback - green
       return <CheckCircle className="h-4 w-4 text-task-complete-border" />;
     }
     
@@ -436,6 +453,15 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
 
   const getStatusBadge = () => {
     if (task.status === 'completed') {
+      // If completed but no QA feedback, show pending QA badge
+      if (!task.qa_feedback || !task.qa_feedback.trim()) {
+        return (
+          <Badge variant="outline" className="border-task-implementation-border text-task-implementation-border">
+            Pending QA
+          </Badge>
+        );
+      }
+      // Completed with QA feedback - show completed
       return (
         <Badge variant="outline" className="border-task-complete-border text-task-complete-border">
           Completed
@@ -515,6 +541,17 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* QA Feedback field */}
+            <div>
+              <Label>QA Feedback</Label>
+              <Textarea
+                value={editData.qa_feedback}
+                onChange={(e) => setEditData(prev => ({ ...prev, qa_feedback: e.target.value }))}
+                placeholder="QA feedback and review notes..."
+                rows={2}
+              />
             </div>
 
             {/* Add Photo Upload to Edit Mode */}
@@ -651,6 +688,39 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                     {task.observations || 'No implementation notes provided'}
                   </p>
                 )}
+              </div>
+
+              {/* QA Feedback Section */}
+              <div>
+                <Label className="text-sm font-medium">QA Feedback</Label>
+                <Textarea
+                  value={editData.qa_feedback}
+                  onChange={(e) => setEditData(prev => ({ ...prev, qa_feedback: e.target.value }))}
+                  onBlur={async () => {
+                    // Auto-save QA feedback
+                    if (editData.qa_feedback !== (task.qa_feedback || '')) {
+                      try {
+                        const { error } = await supabase
+                          .from('mission_tasks')
+                          .update({ qa_feedback: editData.qa_feedback })
+                          .eq('id', task.id);
+
+                        if (error) throw error;
+                        onUpdate();
+                      } catch (error) {
+                        console.error('Error saving QA feedback:', error);
+                        toast({
+                          title: "Error",
+                          description: "Failed to save QA feedback",
+                          variant: "destructive",
+                        });
+                      }
+                    }
+                  }}
+                  placeholder="QA review notes and feedback..."
+                  rows={2}
+                  className="mt-1"
+                />
               </div>
 
               {/* Photo Gallery */}

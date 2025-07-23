@@ -53,7 +53,6 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
   const implementationTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [isExpanded, setIsExpanded] = useState(true);
   const [photos, setPhotos] = useState<TaskPhoto[]>([]);
-  const [tempPhotos, setTempPhotos] = useState<TempPhoto[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   
@@ -71,6 +70,11 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     observations: task.observations || '',
     assigned_to: task.assigned_to
   });
+
+  // Get temp photos directly from storage instead of local state
+  const tempPhotos = task.id.startsWith('temp-') && tempPhotoStorage 
+    ? tempPhotoStorage.getTempPhotosForTask(task.id) 
+    : [];
 
   // Update editData when task prop changes, but preserve local changes if focused
   useEffect(() => {
@@ -103,29 +107,22 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isPlanFocused, isImplementationFocused, hasUnsavedPlan, hasUnsavedImplementation]);
 
-  // Load photos (both real and temporary)
+  // Load photos (only real photos now, temp photos come from storage)
   const loadPhotos = async () => {
     if (!isExpanded && !isEditing) return;
     
-    // Load temporary photos if using temp storage
-    if (task.id.startsWith('temp-') && tempPhotoStorage) {
-      const tempTaskPhotos = tempPhotoStorage.getTempPhotosForTask(task.id);
-      setTempPhotos(tempTaskPhotos);
-      setPhotos([]); // No real photos for temp tasks
-      return;
-    }
-    
-    // Load real photos for saved tasks
-    const { data, error } = await supabase
-      .from('mission_attachments')
-      .select('id, file_url, file_name')
-      .eq('task_id', task.id);
+    // Only load real photos for saved tasks
+    if (!task.id.startsWith('temp-')) {
+      const { data, error } = await supabase
+        .from('mission_attachments')
+        .select('id, file_url, file_name')
+        .eq('task_id', task.id);
 
-    if (error) {
-      console.error('Error loading photos:', error);
-    } else {
-      setPhotos(data || []);
-      setTempPhotos([]); // No temp photos for real tasks
+      if (error) {
+        console.error('Error loading photos:', error);
+      } else {
+        setPhotos(data || []);
+      }
     }
   };
 
@@ -137,11 +134,11 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
   };
 
   // Load photos when editing mode starts
-  useState(() => {
+  useEffect(() => {
     if (isEditing) {
       loadPhotos();
     }
-  });
+  }, [isEditing]);
 
   // Save plan to database
   const savePlan = async () => {
@@ -266,9 +263,6 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
 
       try {
         await tempPhotoStorage.addTempPhoto(file, task.id);
-        // Reload temp photos to show the new one
-        const tempTaskPhotos = tempPhotoStorage.getTempPhotosForTask(task.id);
-        setTempPhotos(tempTaskPhotos);
         
         toast({
           title: "Photo Added",
@@ -282,6 +276,9 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
           variant: "destructive",
         });
       }
+      
+      // Clear the input
+      event.target.value = '';
       return;
     }
 
@@ -422,9 +419,6 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
   const handleRemoveTempPhoto = (photoId: string) => {
     if (tempPhotoStorage) {
       tempPhotoStorage.removeTempPhoto(photoId);
-      // Update local state
-      const tempTaskPhotos = tempPhotoStorage.getTempPhotosForTask(task.id);
-      setTempPhotos(tempTaskPhotos);
       
       toast({
         title: "Photo Removed",

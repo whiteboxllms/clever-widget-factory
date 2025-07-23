@@ -53,7 +53,11 @@ interface SimpleMissionFormProps {
   };
   setFormData: (data: any) => void;
   profiles: Profile[];
-  onSubmit: () => void;
+  onSubmit: () => Promise<{
+    missionId: string;
+    taskIdMap: Record<string, string>;
+    createdTasks: any[];
+  } | void>;
   onCancel: () => void;
   defaultTasks?: Task[];
   selectedTemplate?: {
@@ -63,7 +67,7 @@ interface SimpleMissionFormProps {
     icon: React.ComponentType<{ className?: string }>;
   };
   isEditing?: boolean;
-  missionId?: string; // Add mission ID prop
+  missionId?: string;
 }
 
 export function SimpleMissionForm({ 
@@ -75,7 +79,7 @@ export function SimpleMissionForm({
   defaultTasks = [],
   selectedTemplate,
   isEditing = false,
-  missionId // Add mission ID parameter
+  missionId
 }: SimpleMissionFormProps) {
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
@@ -192,24 +196,48 @@ export function SimpleMissionForm({
   // Enhanced onSubmit to handle temporary photo migration
   const handleSubmit = async () => {
     try {
-      // First, create the mission to get real task IDs
-      await onSubmit();
+      // Call the onSubmit function and get the result
+      const result = await onSubmit();
       
-      // If there are temporary photos, we need to migrate them after mission creation
-      if (tempPhotoStorage.tempPhotos.length > 0 && missionId) {
-        // Create task ID mapping from temp IDs to real IDs
-        const taskIdMap: Record<string, string> = {};
-        formData.tasks.forEach((task, index) => {
-          const tempId = `temp-${index}`;
-          // This would need the real task ID - we'd need to modify onSubmit to return the created task IDs
-          // For now, this is a placeholder that shows the concept
-        });
+      // If there are temporary photos and we have task mapping, migrate them
+      if (tempPhotoStorage.tempPhotos.length > 0 && result?.taskIdMap && result?.missionId) {
+        try {
+          // Show migration progress
+          toast({
+            title: "Saving Photos",
+            description: `Migrating ${tempPhotoStorage.tempPhotos.length} photo(s)...`,
+          });
 
-        // Migrate temporary photos
-        await tempPhotoStorage.migrateTempPhotos(taskIdMap, missionId);
+          // Migrate temporary photos with the correct task ID mapping
+          const savedPhotos = await tempPhotoStorage.migrateTempPhotos(result.taskIdMap, result.missionId);
+          
+          if (savedPhotos.length > 0) {
+            toast({
+              title: "Photos Saved",
+              description: `Successfully saved ${savedPhotos.length} photo(s)`,
+            });
+          }
+        } catch (photoError) {
+          console.error('Error migrating photos:', photoError);
+          toast({
+            title: "Photo Migration Error",
+            description: "Mission created but some photos failed to save",
+            variant: "destructive",
+          });
+        }
       }
+
+      // Show success message
+      toast({
+        title: isEditing ? "Mission Updated" : "Mission Created",
+        description: isEditing ? "Mission has been updated successfully" : "Mission has been created successfully",
+      });
+
+      // Close the form
+      onCancel();
+      
     } catch (error) {
-      console.error('Error during mission creation:', error);
+      console.error('Error during mission creation/update:', error);
       // Don't cleanup temp photos if there was an error - user might want to retry
     }
   };

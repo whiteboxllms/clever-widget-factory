@@ -29,12 +29,23 @@ interface Profile {
   role: string;
 }
 
+interface SelectedResource {
+  id: string;
+  name: string;
+  quantity?: number;
+  unit?: string;
+  type: 'part' | 'tool';
+  status: 'planned' | 'used' | 'returned';
+  usedAt?: string;
+  usedBy?: string;
+}
+
 interface SimpleMissionFormProps {
   formData: {
     title: string;
     problem_statement: string;
     done_definition: string;
-    selected_resources: Array<{ id: string; name: string; quantity?: number; unit?: string; type: 'part' | 'tool' }>;
+    selected_resources: SelectedResource[];
     all_materials_available: boolean;
     qa_assigned_to: string;
     tasks: Task[];

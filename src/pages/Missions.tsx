@@ -90,13 +90,24 @@ const Missions = () => {
     return iconMap[iconName] || Wrench; // Default to Wrench if not found
   };
 
+  interface SelectedResource {
+    id: string;
+    name: string;
+    quantity?: number;
+    unit?: string;
+    type: 'part' | 'tool';
+    status: 'planned' | 'used' | 'returned';
+    usedAt?: string;
+    usedBy?: string;
+  }
+
   // Form state for creating missions
   const [formData, setFormData] = useState({
     title: '',
     problem_statement: '',
     done_definition: DEFAULT_DONE_DEFINITION,
     resources_required: '',
-    selected_resources: [] as { id: string; name: string; quantity?: number; unit?: string; type: 'part' | 'tool' }[],
+    selected_resources: [] as SelectedResource[],
     all_materials_available: false,
     qa_assigned_to: user?.id || '', // Default to current user
     tasks: [{ title: '', plan: '', observations: '', assigned_to: null }] as Task[]
@@ -594,7 +605,7 @@ const Missions = () => {
       .eq('mission_id', mission.id);
 
     // Parse existing selected resources from resources_required string and lookup actual IDs
-    let parsedResources: Array<{ id: string; name: string; quantity?: number; unit?: string; type: 'part' | 'tool' }> = [];
+    let parsedResources: SelectedResource[] = [];
     if (mission.resources_required) {
       // Fetch current tools and parts to match names to IDs
       const { data: currentTools } = await supabase
@@ -617,7 +628,8 @@ const Missions = () => {
             id: matchingTool.id,
             name: matchingTool.name,
             type: 'tool' as const,
-            quantity: 1
+            quantity: 1,
+            status: 'planned' as const
           };
         }
         
@@ -633,7 +645,8 @@ const Missions = () => {
             name: matchingPart.name,
             type: 'part' as const,
             quantity: quantity,
-            unit: matchingPart.unit
+            unit: matchingPart.unit,
+            status: 'planned' as const
           };
         }
         
@@ -642,7 +655,8 @@ const Missions = () => {
           id: `unknown-${name}`,
           name: name,
           type: 'tool' as const,
-          quantity: 1
+          quantity: 1,
+          status: 'planned' as const
         };
       }).filter(resource => resource.name && resource.name !== 'undefined');
     }

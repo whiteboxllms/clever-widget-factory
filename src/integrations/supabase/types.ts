@@ -262,7 +262,6 @@ export type Database = {
           observations: string | null
           plan: string | null
           qa_approved_at: string | null
-          qa_feedback: string | null
           status: string
           title: string
           updated_at: string
@@ -278,7 +277,6 @@ export type Database = {
           observations?: string | null
           plan?: string | null
           qa_approved_at?: string | null
-          qa_feedback?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -294,7 +292,6 @@ export type Database = {
           observations?: string | null
           plan?: string | null
           qa_approved_at?: string | null
-          qa_feedback?: string | null
           status?: string
           title?: string
           updated_at?: string
@@ -373,6 +370,7 @@ export type Database = {
           plan: string
           problem_statement: string
           qa_assigned_to: string | null
+          qa_feedback: string | null
           resources_required: string | null
           status: string
           template_color: string | null
@@ -392,6 +390,7 @@ export type Database = {
           plan: string
           problem_statement: string
           qa_assigned_to?: string | null
+          qa_feedback?: string | null
           resources_required?: string | null
           status?: string
           template_color?: string | null
@@ -411,6 +410,7 @@ export type Database = {
           plan?: string
           problem_statement?: string
           qa_assigned_to?: string | null
+          qa_feedback?: string | null
           resources_required?: string | null
           status?: string
           template_color?: string | null

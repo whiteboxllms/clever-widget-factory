@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,6 +31,7 @@ interface Mission {
   created_at: string;
   updated_at: string;
   completed_at: string;
+  qa_feedback?: string;
   template_id?: string;
   template_name?: string;
   template_color?: string;
@@ -974,9 +977,62 @@ const Missions = () => {
                                  canEdit={isContributorOrLeadership || mission.created_by === user?.id}
                                  missionNumber={mission.mission_number}
                                />
-                            </CollapsibleContent>
-                          </Collapsible>
-                        )}
+                             </CollapsibleContent>
+                           </Collapsible>
+                         )}
+
+                         {/* QA Feedback Section */}
+                         {(isLeadership || mission.created_by === user?.id || mission.status === 'completed') && (
+                           <div className="mt-4 p-3 border rounded-lg bg-muted/50">
+                             <Label className="text-sm font-medium">QA Feedback</Label>
+                             <Textarea
+                               value={mission.qa_feedback || ''}
+                               onChange={async (e) => {
+                                 const newFeedback = e.target.value;
+                                 // Update mission locally first for immediate feedback
+                                 setMissions(prev => prev.map(m => 
+                                   m.id === mission.id 
+                                     ? { ...m, qa_feedback: newFeedback }
+                                     : m
+                                 ));
+                               }}
+                               onBlur={async (e) => {
+                                 const newFeedback = e.target.value;
+                                 // Save to database on blur
+                                 try {
+                                   const { error } = await supabase
+                                     .from('missions')
+                                     .update({ qa_feedback: newFeedback })
+                                     .eq('id', mission.id);
+
+                                   if (error) throw error;
+                                   
+                                   toast({
+                                     title: "QA Feedback Saved",
+                                     description: "QA feedback has been updated successfully."
+                                   });
+                                 } catch (error) {
+                                   console.error('Error saving QA feedback:', error);
+                                   toast({
+                                     title: "Error",
+                                     description: "Failed to save QA feedback",
+                                     variant: "destructive",
+                                   });
+                                   // Revert the local change on error
+                                   setMissions(prev => prev.map(m => 
+                                     m.id === mission.id 
+                                       ? { ...m, qa_feedback: mission.qa_feedback }
+                                       : m
+                                   ));
+                                 }
+                               }}
+                               placeholder={mission.status === 'completed' ? "Enter QA review and feedback..." : "QA feedback will be available once mission is completed"}
+                               disabled={mission.status !== 'completed'}
+                               rows={3}
+                               className="mt-1 text-sm"
+                             />
+                           </div>
+                         )}
                       </div>
                     </CardContent>
                   </Card>

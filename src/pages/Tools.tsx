@@ -623,6 +623,7 @@ export default function Tools() {
                           <SelectItem value="Vehicle">Vehicle</SelectItem>
                           <SelectItem value="Combustion Engine">Combustion Engine</SelectItem>
                           <SelectItem value="Hand Tools">Hand Tools</SelectItem>
+                          <SelectItem value="Recreation">Recreation</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

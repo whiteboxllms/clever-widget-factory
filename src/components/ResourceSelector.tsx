@@ -4,13 +4,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { X, Plus, Search, User } from 'lucide-react';
+import { X, Plus, Search, User, Undo2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { ToolCheckoutDialog } from '@/components/ToolCheckoutDialog';
 import { ToolCheckInDialog } from '@/components/ToolCheckInDialog';
 import { Tables } from '@/integrations/supabase/types';
+import { format } from 'date-fns';
 
 interface Part {
   id: string;
@@ -30,6 +31,9 @@ interface SelectedResource {
   quantity?: number;
   unit?: string;
   type: 'part' | 'tool';
+  status: 'planned' | 'used' | 'returned';
+  usedAt?: string;
+  usedBy?: string;
 }
 
 interface ResourceSelectorProps {
@@ -208,6 +212,7 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
         id: item.id,
         name: item.name,
         type: 'current_quantity' in item ? 'part' : 'tool',
+        status: 'planned',
         ...(quantity && { quantity, unit: (item as Part).unit }),
       };
       onResourcesChange([...selectedResources, newResource]);
@@ -229,6 +234,34 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
     
     const updated = selectedResources.map(r =>
       r.id === id ? { ...r, quantity } : r
+    );
+    onResourcesChange(updated);
+  };
+
+  const markResourceAsUsed = (resource: SelectedResource) => {
+    const updated = selectedResources.map(r =>
+      r.id === resource.id 
+        ? { 
+            ...r, 
+            status: 'used' as const, 
+            usedAt: new Date().toISOString(),
+            usedBy: user?.email || 'Unknown User'
+          }
+        : r
+    );
+    onResourcesChange(updated);
+  };
+
+  const revertResourceUsage = (resource: SelectedResource) => {
+    const updated = selectedResources.map(r =>
+      r.id === resource.id 
+        ? { 
+            ...r, 
+            status: 'planned' as const, 
+            usedAt: undefined,
+            usedBy: undefined
+          }
+        : r
     );
     onResourcesChange(updated);
   };
@@ -331,8 +364,8 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
         description: `${resource.quantity || 1} ${resource.unit || 'pieces'} of ${resource.name} recorded as used`,
       });
 
-      // Remove from selected resources after use
-      removeResource(resource.id);
+      // Mark resource as used instead of removing it
+      markResourceAsUsed(resource);
       
       // Refresh parts data to show updated quantities
       fetchParts();
@@ -342,6 +375,23 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
         description: "Failed to record inventory usage",
         variant: "destructive",
       });
+    }
+  };
+
+  // Separate resources by status
+  const plannedResources = selectedResources.filter(r => r.status === 'planned');
+  const usedResources = selectedResources.filter(r => r.status === 'used');
+
+  const getResourceStatusBadge = (resource: SelectedResource) => {
+    switch (resource.status) {
+      case 'planned':
+        return <Badge variant="outline" className="text-blue-600 border-blue-600">Planned</Badge>;
+      case 'used':
+        return <Badge variant="secondary" className="bg-gray-100 text-gray-600">Used</Badge>;
+      case 'returned':
+        return <Badge variant="outline" className="text-green-600 border-green-600">Returned</Badge>;
+      default:
+        return null;
     }
   };
 
@@ -377,11 +427,30 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
         </div>
       </div>
 
-      {/* Selected Resources */}
+      {/* Resource Summary */}
       {selectedResources.length > 0 && (
+        <div className="grid grid-cols-3 gap-4 p-3 bg-muted/30 rounded-lg">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-blue-600">{plannedResources.length}</div>
+            <div className="text-sm text-muted-foreground">Planned</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-600">{usedResources.length}</div>
+            <div className="text-sm text-muted-foreground">Used</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-green-600">{selectedResources.filter(r => r.status === 'returned').length}</div>
+            <div className="text-sm text-muted-foreground">Returned</div>
+          </div>
+        </div>
+      )}
+
+      {/* Planned Resources */}
+      {plannedResources.length > 0 && (
         <div className="space-y-2">
-          {selectedResources.map((resource) => (
-            <Card key={resource.id} className="p-3">
+          <h4 className="font-medium text-blue-600">Planned Resources</h4>
+          {plannedResources.map((resource) => (
+            <Card key={`${resource.id}-planned`} className="p-3">
               <div className="flex items-center justify-between">
                 <div className="flex flex-col space-y-1">
                   <div className="flex items-center space-x-2">
@@ -391,17 +460,8 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
                         {resource.quantity} {resource.unit}
                       </Badge>
                     )}
-                    <Badge variant="outline" className={resource.type === 'part' ? 'text-green-600 border-green-600' : 
-                      tools.find(t => t.id === resource.id)?.status === 'checked_out' ? 'text-orange-600 border-orange-600' : 'text-green-600 border-green-600'}>
-                      {resource.type === 'part' ? 'Available' : 
-                       tools.find(t => t.id === resource.id)?.status === 'checked_out' ? 'Checked Out' : 'Available for Checkout'}
-                    </Badge>
+                    {getResourceStatusBadge(resource)}
                   </div>
-                  {resource.type === 'tool' && tools.find(t => t.id === resource.id)?.status === 'checked_out' && toolCheckouts[resource.id] && (
-                    <div className="text-sm text-muted-foreground">
-                      Checked out to: {toolCheckouts[resource.id].user_name}
-                    </div>
-                  )}
                 </div>
                 <div className="flex items-center space-x-2">
                   {resource.type === 'part' && (
@@ -434,6 +494,55 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
                   >
                     {resource.type === 'part' ? 'Use' : 
                      tools.find(t => t.id === resource.id)?.status === 'checked_out' ? 'Check In' : 'Checkout'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeResource(resource.id)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Used Resources */}
+      {usedResources.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="font-medium text-gray-600">Used Resources</h4>
+          {usedResources.map((resource) => (
+            <Card key={`${resource.id}-used`} className="p-3 bg-gray-50 border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="font-medium text-gray-700">{resource.name}</span>
+                    {resource.type === 'part' && resource.quantity && resource.unit && (
+                      <Badge variant="secondary" className="bg-gray-200">
+                        {resource.quantity} {resource.unit}
+                      </Badge>
+                    )}
+                    {getResourceStatusBadge(resource)}
+                  </div>
+                  {resource.usedAt && (
+                    <div className="text-sm text-gray-500">
+                      Used on {format(new Date(resource.usedAt), 'PPp')} by {resource.usedBy}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => revertResourceUsage(resource)}
+                    className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                  >
+                    <Undo2 className="h-4 w-4 mr-1" />
+                    Revert
                   </Button>
                   <Button
                     type="button"

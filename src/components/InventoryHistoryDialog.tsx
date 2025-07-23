@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { History, TrendingUp, TrendingDown, Edit, Plus } from 'lucide-react';
+import { History, TrendingUp, TrendingDown, Edit, Plus, ExternalLink } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -18,8 +18,10 @@ interface HistoryEntry {
   changed_by: string;
   change_reason: string | null;
   changed_at: string;
-  mission_id?: string; // For mission usage entries
-  usage_description?: string; // For mission usage entries
+  mission_id?: string;
+  mission_number?: number;
+  mission_title?: string;
+  usage_description?: string;
 }
 
 interface InventoryHistoryDialogProps {
@@ -48,12 +50,17 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
 
       if (partsError) throw partsError;
 
-      // Fetch from mission_inventory_usage table
+      // Fetch from mission_inventory_usage table with mission details
       const { data: missionUsage, error: missionError } = await supabase
         .from('mission_inventory_usage')
         .select(`
           *,
-          missions(mission_number, title)
+          missions!inner(
+            id,
+            mission_number,
+            title,
+            status
+          )
         `)
         .eq('part_id', partId)
         .order('created_at', { ascending: false });
@@ -68,10 +75,11 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
         new_quantity: null,
         quantity_change: -usage.quantity_used,
         changed_by: usage.usage_description?.includes('User') ? 'Mission User' : 'Mission Team',
-        change_reason: `Used for Mission ${(usage.missions as any)?.mission_number ? 
-          `#${(usage.missions as any).mission_number}` : ''}: ${usage.usage_description}`,
+        change_reason: `Used for Mission #${(usage.missions as any)?.mission_number}: ${(usage.missions as any)?.title}`,
         changed_at: usage.created_at,
         mission_id: usage.mission_id,
+        mission_number: (usage.missions as any)?.mission_number,
+        mission_title: (usage.missions as any)?.title,
         usage_description: usage.usage_description
       }));
 
@@ -149,12 +157,20 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
     }
   };
 
+  const navigateToMission = (missionId: string) => {
+    window.open(`/missions#${missionId}`, '_blank');
+  };
+
+  // Group history by missions for better organization
+  const missionUsageEntries = history.filter(entry => entry.change_type === 'mission_usage');
+  const otherEntries = history.filter(entry => entry.change_type !== 'mission_usage');
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[80vh]">
+      <DialogContent className="max-w-3xl max-h-[80vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
@@ -172,34 +188,101 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
               No history records found for this item.
             </div>
           ) : (
-            <div className="space-y-4">
-              {history.map((entry) => (
-                <Card key={entry.id} className="p-4">
-                  <CardContent className="p-0">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3">
-                        {getChangeIcon(entry.change_type)}
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            {getChangeBadge(entry.change_type)}
-                            <span className="text-sm font-medium">
-                              {getChangeDescription(entry)}
-                            </span>
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            By {entry.changed_by} • {format(new Date(entry.changed_at), 'PPpp')}
-                          </div>
-                          {entry.change_reason && (
-                            <div className="text-sm text-muted-foreground mt-1">
-                              Reason: {entry.change_reason}
+            <div className="space-y-6">
+              {/* Mission Usage Summary */}
+              {missionUsageEntries.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                    <Badge variant="secondary" className="bg-orange-100 text-orange-800">
+                      {missionUsageEntries.length}
+                    </Badge>
+                    Mission Usage History
+                  </h3>
+                  <div className="space-y-3">
+                    {missionUsageEntries.map((entry) => (
+                      <Card key={entry.id} className="p-4 border-l-4 border-l-orange-400">
+                        <CardContent className="p-0">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-3 flex-1">
+                              {getChangeIcon(entry.change_type)}
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                  {getChangeBadge(entry.change_type)}
+                                  <span className="text-sm font-medium">
+                                    {getChangeDescription(entry)}
+                                  </span>
+                                </div>
+                                <div className="text-sm text-muted-foreground mb-2">
+                                  {format(new Date(entry.changed_at), 'PPpp')}
+                                </div>
+                                {entry.mission_id && (
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => navigateToMission(entry.mission_id!)}
+                                      className="h-8 text-xs"
+                                    >
+                                      <ExternalLink className="h-3 w-3 mr-1" />
+                                      Mission #{entry.mission_number}: {entry.mission_title}
+                                    </Button>
+                                  </div>
+                                )}
+                                {entry.usage_description && (
+                                  <div className="text-sm text-muted-foreground mt-1 italic">
+                                    "{entry.usage_description}"
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Other History */}
+              {otherEntries.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                      {otherEntries.length}
+                    </Badge>
+                    Inventory Changes
+                  </h3>
+                  <div className="space-y-3">
+                    {otherEntries.map((entry) => (
+                      <Card key={entry.id} className="p-4">
+                        <CardContent className="p-0">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-3">
+                              {getChangeIcon(entry.change_type)}
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  {getChangeBadge(entry.change_type)}
+                                  <span className="text-sm font-medium">
+                                    {getChangeDescription(entry)}
+                                  </span>
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                  By {entry.changed_by} • {format(new Date(entry.changed_at), 'PPpp')}
+                                </div>
+                                {entry.change_reason && (
+                                  <div className="text-sm text-muted-foreground mt-1">
+                                    Reason: {entry.change_reason}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </ScrollArea>

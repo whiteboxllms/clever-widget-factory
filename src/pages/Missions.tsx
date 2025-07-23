@@ -102,7 +102,7 @@ const Missions = () => {
     tasks: [{ title: '', plan: '', observations: '', assigned_to: null }] as Task[]
   });
 
-  // Updated function to determine mission color based on task content analysis
+  // Updated function to determine mission color based on task content analysis and QA feedback
   const getMissionTheme = (mission: Mission) => {
     // If no tasks, show blank state
     if (!mission.task_count || mission.task_count === 0) {
@@ -113,12 +113,21 @@ const Missions = () => {
       };
     }
 
-    // Priority 1: If all tasks are completed, show green
+    // Priority 1: If all tasks are completed
     if (mission.completed_task_count === mission.task_count) {
+      // If QA feedback is provided, show green (fully complete)
+      if (mission.qa_feedback && mission.qa_feedback.trim()) {
+        return {
+          bg: 'bg-card',
+          text: 'text-card-foreground',
+          border: 'border-task-complete-border border-2'
+        };
+      }
+      // If no QA feedback yet, show blue (ready for QA)
       return {
         bg: 'bg-card',
         text: 'text-card-foreground',
-        border: 'border-task-complete-border border-2'
+        border: 'border-task-plan-border border-2'
       };
     }
 

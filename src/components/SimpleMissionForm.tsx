@@ -200,7 +200,7 @@ export function SimpleMissionForm({
       const result = await onSubmit();
       
       // If there are temporary photos and we have task mapping, migrate them
-      if (tempPhotoStorage.tempPhotos.length > 0 && result?.taskIdMap && result?.missionId) {
+      if (tempPhotoStorage.tempPhotos.length > 0 && result && result.taskIdMap && result.missionId) {
         try {
           // Show migration progress
           toast({

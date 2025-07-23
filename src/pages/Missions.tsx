@@ -11,8 +11,6 @@ import { SimpleMissionForm } from "@/components/SimpleMissionForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { DEFAULT_DONE_DEFINITION } from "@/lib/constants";
-import { MissionTemplateSelector } from '@/components/MissionTemplateSelector';
-import { templates } from '@/lib/missionTemplates';
 
 interface Mission {
   id: string;
@@ -43,7 +41,6 @@ export default function Missions() {
   const [showForm, setShowForm] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [editingMission, setEditingMission] = useState<Mission | null>(null);
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
     problem_statement: '',
@@ -110,7 +107,6 @@ export default function Missions() {
       qa_assigned_to: '',
       tasks: [{ title: '', plan: '', observations: '', assigned_to: null }],
     });
-    setSelectedTemplate(null);
   };
 
   const handleDeleteMission = async (missionId: string) => {
@@ -184,7 +180,12 @@ export default function Missions() {
 
       // Create tasks and collect their IDs
       const createdTasks = [];
-      for (const task of formData.tasks.filter(t => t.title.trim())) {
+      const taskIdMap: Record<string, string> = {};
+      
+      for (let i = 0; i < formData.tasks.length; i++) {
+        const task = formData.tasks[i];
+        if (!task.title.trim()) continue;
+
         const { data: taskData, error: taskError } = await supabase
           .from('mission_tasks')
           .insert({
@@ -199,15 +200,11 @@ export default function Missions() {
 
         if (taskError) throw taskError;
         createdTasks.push(taskData);
+        taskIdMap[`temp-${i}`] = taskData.id;
       }
 
-      // Create task ID mapping for temporary photo migration
-      const taskIdMap: Record<string, string> = {};
-      formData.tasks.forEach((task, index) => {
-        if (task.title.trim() && createdTasks[index]) {
-          taskIdMap[`temp-${index}`] = createdTasks[index].id;
-        }
-      });
+      // Refresh missions list
+      await fetchMissions();
 
       // Return mission data and task mapping for photo migration
       return {
@@ -304,6 +301,9 @@ export default function Missions() {
           createdTasks.push(taskData);
         }
       }
+
+      // Refresh missions list
+      await fetchMissions();
 
       // Return mission data and task mapping for photo migration
       return {

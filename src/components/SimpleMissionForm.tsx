@@ -53,7 +53,7 @@ interface SimpleMissionFormProps {
   };
   setFormData: (data: any) => void;
   profiles: Profile[];
-  onSubmit: () => void;
+  onSubmit: () => Promise<any>;
   onCancel: () => void;
   defaultTasks?: Task[];
   selectedTemplate?: {
@@ -192,21 +192,12 @@ export function SimpleMissionForm({
   // Enhanced onSubmit to handle temporary photo migration
   const handleSubmit = async () => {
     try {
-      // First, create the mission to get real task IDs
-      await onSubmit();
+      // Call onSubmit and get the result with mission and task IDs
+      const result = await onSubmit();
       
-      // If there are temporary photos, we need to migrate them after mission creation
-      if (tempPhotoStorage.tempPhotos.length > 0 && missionId) {
-        // Create task ID mapping from temp IDs to real IDs
-        const taskIdMap: Record<string, string> = {};
-        formData.tasks.forEach((task, index) => {
-          const tempId = `temp-${index}`;
-          // This would need the real task ID - we'd need to modify onSubmit to return the created task IDs
-          // For now, this is a placeholder that shows the concept
-        });
-
-        // Migrate temporary photos
-        await tempPhotoStorage.migrateTempPhotos(taskIdMap, missionId);
+      // If there are temporary photos and we got task mapping, migrate them
+      if (tempPhotoStorage.tempPhotos.length > 0 && result && typeof result === 'object' && 'missionId' in result && 'taskIdMap' in result) {
+        await tempPhotoStorage.migrateTempPhotos(result.taskIdMap, result.missionId);
       }
     } catch (error) {
       console.error('Error during mission creation:', error);

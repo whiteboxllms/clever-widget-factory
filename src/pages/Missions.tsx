@@ -407,19 +407,39 @@ const Missions = () => {
 
         // Create tasks for the mission if any
         const tasksToCreate = formData.tasks.filter(task => task.title.trim());
+        const createdTasks = [];
+        const taskIdMap: Record<string, string> = {};
+        
         if (tasksToCreate.length > 0) {
-          const {
-            error: tasksError
-          } = await supabase.from('mission_tasks').insert(tasksToCreate.map(task => ({
-            mission_id: missionData.id,
-            title: task.title,
-            plan: task.plan || null,
-            observations: task.observations || null,
-            assigned_to: task.assigned_to || null
-          })));
+          const { data: tasksData, error: tasksError } = await supabase
+            .from('mission_tasks')
+            .insert(tasksToCreate.map(task => ({
+              mission_id: missionData.id,
+              title: task.title,
+              plan: task.plan || null,
+              observations: task.observations || null,
+              assigned_to: task.assigned_to || null
+            })))
+            .select();
+          
           if (tasksError) throw tasksError;
+          
+          // Create task ID mapping from temp IDs to real IDs
+          tasksToCreate.forEach((task, index) => {
+            const tempId = `temp-${index}`;
+            if (tasksData && tasksData[index]) {
+              taskIdMap[tempId] = tasksData[index].id;
+            }
+          });
+          
+          createdTasks.push(...(tasksData || []));
         }
-        return missionData;
+
+        return { 
+          missionId: missionData.id, 
+          taskIdMap, 
+          createdTasks 
+        };
       }, 'mission creation');
       if (result.error) {
         throw new Error(result.error);
@@ -441,12 +461,16 @@ const Missions = () => {
       setSelectedTemplate(null);
       resetFormData();
       fetchMissions();
+      
+      // Return the result for photo migration
+      return result.data;
     } catch (error) {
       toast({
         title: "Error",
         description: "Failed to create mission",
         variant: "destructive"
       });
+      throw error; // Re-throw to allow form to handle the error
     }
   };
   const handleEditMission = async () => {

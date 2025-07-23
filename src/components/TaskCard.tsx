@@ -222,9 +222,8 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
 
   const handlePlanBlur = () => {
     setIsPlanFocused(false);
-    if (hasUnsavedPlan) {
-      savePlan();
-    }
+    // Don't auto-save on blur to prevent focus loss when switching fields
+    // Save will happen on manual save or when leaving edit mode
   };
 
   const handleImplementationFocus = () => {
@@ -233,9 +232,8 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
 
   const handleImplementationBlur = () => {
     setIsImplementationFocused(false);
-    if (hasUnsavedImplementation) {
-      saveImplementation();
-    }
+    // Don't auto-save on blur to prevent focus loss
+    // Save will happen on manual save or when leaving edit mode
   };
 
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {

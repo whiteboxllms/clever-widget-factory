@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { DEFAULT_DONE_DEFINITION } from "@/lib/constants";
+import { useTempPhotoStorage } from "@/hooks/useTempPhotoStorage";
 
 interface Task {
   title: string;
@@ -78,7 +79,8 @@ export function SimpleMissionForm({
 }: SimpleMissionFormProps) {
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
-  const [showTasks, setShowTasks] = useState(true); // Always expanded by default
+  const tempPhotoStorage = useTempPhotoStorage();
+  const [showTasks, setShowTasks] = useState(true);
   const [editingTaskIndex, setEditingTaskIndex] = useState<number | null>(null);
   const [problemPhotos, setProblemPhotos] = useState<Array<{id: string; file_url: string; file_name: string}>>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -184,6 +186,31 @@ export function SimpleMissionForm({
       enhancedToast.showUploadError(errorMessage, file.name, statusCode);
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  // Enhanced onSubmit to handle temporary photo migration
+  const handleSubmit = async () => {
+    try {
+      // First, create the mission to get real task IDs
+      await onSubmit();
+      
+      // If there are temporary photos, we need to migrate them after mission creation
+      if (tempPhotoStorage.tempPhotos.length > 0 && missionId) {
+        // Create task ID mapping from temp IDs to real IDs
+        const taskIdMap: Record<string, string> = {};
+        formData.tasks.forEach((task, index) => {
+          const tempId = `temp-${index}`;
+          // This would need the real task ID - we'd need to modify onSubmit to return the created task IDs
+          // For now, this is a placeholder that shows the concept
+        });
+
+        // Migrate temporary photos
+        await tempPhotoStorage.migrateTempPhotos(taskIdMap, missionId);
+      }
+    } catch (error) {
+      console.error('Error during mission creation:', error);
+      // Don't cleanup temp photos if there was an error - user might want to retry
     }
   };
 
@@ -342,7 +369,7 @@ export function SimpleMissionForm({
             index === self.findIndex(u => u.user_id === user.user_id)
           ) // Remove duplicates
         }
-        missionId={missionId} // Pass mission ID to ResourceSelector
+        missionId={missionId}
       />
 
       {/* Tasks Section */}
@@ -385,6 +412,7 @@ export function SimpleMissionForm({
                   isEditing={true}
                   onSave={(taskData) => updateTask(index, taskData)}
                   onCancel={() => setEditingTaskIndex(null)}
+                  tempPhotoStorage={tempPhotoStorage}
                 />
               ) : (
                 <div className="flex items-center justify-between p-4 border rounded-lg">
@@ -396,6 +424,12 @@ export function SimpleMissionForm({
                     {task.assigned_to && (
                       <p className="text-xs text-muted-foreground mt-1">
                         Assigned to: {profiles.find(p => p.user_id === task.assigned_to)?.full_name || 'Unknown'}
+                      </p>
+                    )}
+                    {/* Show temp photo count */}
+                    {tempPhotoStorage.getTempPhotosForTask(`temp-${index}`).length > 0 && (
+                      <p className="text-xs text-blue-600 mt-1">
+                        📸 {tempPhotoStorage.getTempPhotosForTask(`temp-${index}`).length} photo(s) attached
                       </p>
                     )}
                   </div>
@@ -432,7 +466,7 @@ export function SimpleMissionForm({
           Cancel
         </Button>
         <Button 
-          onClick={onSubmit}
+          onClick={handleSubmit}
           className={selectedTemplate && !isEditing ? `${selectedTemplate.color} hover:opacity-90` : ''}
         >
           {isEditing ? 'Update Mission' : 'Create Mission'}

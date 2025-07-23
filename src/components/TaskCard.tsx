@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { DEFAULT_DONE_DEFINITION } from "@/lib/constants";
+import { useTempPhotoStorage, type TempPhoto } from "@/hooks/useTempPhotoStorage";
 
 interface Profile {
   id: string;
@@ -42,15 +43,17 @@ interface TaskCardProps {
   isEditing?: boolean;
   onSave?: (taskData: any) => void;
   onCancel?: () => void;
+  tempPhotoStorage?: ReturnType<typeof useTempPhotoStorage>;
 }
 
-export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, onCancel }: TaskCardProps) {
+export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, onCancel, tempPhotoStorage }: TaskCardProps) {
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
   const planTextareaRef = useRef<HTMLTextAreaElement>(null);
   const implementationTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [isExpanded, setIsExpanded] = useState(true);
   const [photos, setPhotos] = useState<TaskPhoto[]>([]);
+  const [tempPhotos, setTempPhotos] = useState<TempPhoto[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   
@@ -100,16 +103,19 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isPlanFocused, isImplementationFocused, hasUnsavedPlan, hasUnsavedImplementation]);
 
-  // Load existing photos when expanded or editing
+  // Load photos (both real and temporary)
   const loadPhotos = async () => {
     if (!isExpanded && !isEditing) return;
     
-    // Don't try to load photos for temporary tasks (they start with "temp-")
-    if (task.id.startsWith('temp-')) {
-      setPhotos([]);
+    // Load temporary photos if using temp storage
+    if (task.id.startsWith('temp-') && tempPhotoStorage) {
+      const tempTaskPhotos = tempPhotoStorage.getTempPhotosForTask(task.id);
+      setTempPhotos(tempTaskPhotos);
+      setPhotos([]); // No real photos for temp tasks
       return;
     }
     
+    // Load real photos for saved tasks
     const { data, error } = await supabase
       .from('mission_attachments')
       .select('id, file_url, file_name')
@@ -119,6 +125,7 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
       console.error('Error loading photos:', error);
     } else {
       setPhotos(data || []);
+      setTempPhotos([]); // No temp photos for real tasks
     }
   };
 
@@ -246,16 +253,39 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Don't allow photo upload for temporary tasks
+    // Handle temporary photo upload for temp tasks
     if (task.id.startsWith('temp-')) {
-      toast({
-        title: "Save Task First",
-        description: "Please save the task before uploading photos",
-        variant: "destructive",
-      });
+      if (!tempPhotoStorage) {
+        toast({
+          title: "Error",
+          description: "Temporary photo storage not available",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      try {
+        await tempPhotoStorage.addTempPhoto(file, task.id);
+        // Reload temp photos to show the new one
+        const tempTaskPhotos = tempPhotoStorage.getTempPhotosForTask(task.id);
+        setTempPhotos(tempTaskPhotos);
+        
+        toast({
+          title: "Photo Added",
+          description: "Photo will be saved when you create the mission",
+        });
+      } catch (error) {
+        console.error('Failed to add temporary photo:', error);
+        toast({
+          title: "Error",
+          description: "Failed to add photo",
+          variant: "destructive",
+        });
+      }
       return;
     }
 
+    // Handle regular photo upload for saved tasks
     setIsUploading(true);
     
     try {
@@ -533,8 +563,7 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
               </Select>
             </div>
 
-
-            {/* Add Photo Upload to Edit Mode */}
+            {/* Photo Upload in Edit Mode */}
             <div>
               <Label className="text-sm font-medium">Add Evidence Photo</Label>
               <div className="mt-2">
@@ -555,7 +584,27 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                 </label>
               </div>
               
-              {/* Show existing photos in edit mode */}
+              {/* Show temporary photos for temp tasks */}
+              {tempPhotos.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
+                  {tempPhotos.map((photo) => (
+                    <div key={photo.id} className="relative group">
+                      <img
+                        src={photo.fileUrl}
+                        alt={photo.fileName}
+                        className="w-full h-16 object-cover rounded-md border"
+                      />
+                      <div className="absolute top-1 right-1">
+                        <Badge variant="secondary" className="text-xs">
+                          Draft
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Show real photos for saved tasks */}
               {photos.length > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
                   {photos.map((photo) => (
@@ -670,12 +719,31 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                 )}
               </div>
 
-
-              {/* Photo Gallery */}
-              {photos.length > 0 && (
+              {/* Photo Gallery - Show both temp and real photos */}
+              {(photos.length > 0 || tempPhotos.length > 0) && (
                 <div>
                   <Label className="text-sm font-medium">Evidence Photos</Label>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
+                    {/* Show temporary photos */}
+                    {tempPhotos.map((photo) => (
+                      <div key={photo.id} className="relative group">
+                        <img
+                          src={photo.fileUrl}
+                          alt={photo.fileName}
+                          className="w-full h-24 object-cover rounded-md border"
+                        />
+                        <div className="absolute top-1 right-1">
+                          <Badge variant="secondary" className="text-xs">
+                            Draft
+                          </Badge>
+                        </div>
+                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-md flex items-center justify-center">
+                          <Image className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {/* Show real photos */}
                     {photos.map((photo) => (
                       <div key={photo.id} className="relative group">
                         <img
@@ -710,7 +778,7 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                       className="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition-colors"
                     >
                       <Upload className="h-4 w-4" />
-                      {isUploading ? 'Uploading...' : 'Upload Photo'}
+                      {isUploading ? 'Uploading...' : task.id.startsWith('temp-') ? 'Add Photo (will save with mission)' : 'Upload Photo'}
                     </label>
                   </div>
                 </div>

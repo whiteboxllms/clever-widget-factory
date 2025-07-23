@@ -247,8 +247,8 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
   };
 
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
 
     // Handle temporary photo upload for temp tasks
     if (task.id.startsWith('temp-')) {
@@ -262,17 +262,21 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
       }
 
       try {
-        await tempPhotoStorage.addTempPhoto(file, task.id);
+        // Process each file
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          await tempPhotoStorage.addTempPhoto(file, task.id);
+        }
         
         toast({
-          title: "Photo Added",
-          description: "Photo will be saved when you create the mission",
+          title: "Photos Added",
+          description: `${files.length} photo${files.length > 1 ? 's' : ''} will be saved when you create the mission`,
         });
       } catch (error) {
-        console.error('Failed to add temporary photo:', error);
+        console.error('Failed to add temporary photos:', error);
         toast({
           title: "Error",
-          description: "Failed to add photo",
+          description: "Failed to add photos",
           variant: "destructive",
         });
       }
@@ -285,82 +289,114 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     // Handle regular photo upload for saved tasks
     setIsUploading(true);
     
+    let successCount = 0;
+    let errorCount = 0;
+
     try {
-      // Show compression start
-      const compressionToast = enhancedToast.showCompressionStart(file.name, file.size);
-      
-      // Compress the image
-      const compressionResult = await compressImageDetailed(
-        file,
-        { maxSizeMB: 0.5, maxWidthOrHeight: 1920 },
-        enhancedToast.showCompressionProgress
-      );
-      
-      // Show compression complete
-      enhancedToast.showCompressionComplete(compressionResult);
-      enhancedToast.dismiss(compressionToast.id);
+      // Process each file
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        try {
+          // Show compression start
+          const compressionToast = enhancedToast.showCompressionStart(file.name, file.size);
+          
+          // Compress the image
+          const compressionResult = await compressImageDetailed(
+            file,
+            { maxSizeMB: 0.5, maxWidthOrHeight: 1920 },
+            enhancedToast.showCompressionProgress
+          );
+          
+          // Show compression complete
+          enhancedToast.showCompressionComplete(compressionResult);
+          enhancedToast.dismiss(compressionToast.id);
 
-      // Upload to Supabase
-      const uploadToast = enhancedToast.showUploadStart(file.name, compressionResult.compressedSize);
-      
-      const fileName = `${Date.now()}-${file.name}`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('mission-evidence')
-        .upload(fileName, compressionResult.file);
+          // Upload to Supabase
+          const uploadToast = enhancedToast.showUploadStart(file.name, compressionResult.compressedSize);
+          
+          const fileName = `${Date.now()}-${file.name}`;
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('mission-evidence')
+            .upload(fileName, compressionResult.file);
 
-      if (uploadError) throw uploadError;
+          if (uploadError) throw uploadError;
 
-      // Save attachment record
-      const { data: attachmentData, error: attachmentError } = await supabase
-        .from('mission_attachments')
-        .insert({
-          task_id: task.id,
-          mission_id: task.mission_id,
-          file_name: file.name,
-          file_url: uploadData.path,
-          file_type: compressionResult.file.type,
-          attachment_type: 'evidence',
-          uploaded_by: (await supabase.auth.getUser()).data.user?.id
-        })
-        .select()
-        .single();
+          // Save attachment record
+          const { data: attachmentData, error: attachmentError } = await supabase
+            .from('mission_attachments')
+            .insert({
+              task_id: task.id,
+              mission_id: task.mission_id,
+              file_name: file.name,
+              file_url: uploadData.path,
+              file_type: compressionResult.file.type,
+              attachment_type: 'evidence',
+              uploaded_by: (await supabase.auth.getUser()).data.user?.id
+            })
+            .select()
+            .single();
 
-      if (attachmentError) throw attachmentError;
+          if (attachmentError) throw attachmentError;
 
-      enhancedToast.showUploadSuccess(file.name);
-      enhancedToast.dismiss(uploadToast.id);
-      
-      // Add to photos list
-      setPhotos(prev => [...prev, {
-        id: attachmentData.id,
-        file_url: attachmentData.file_url,
-        file_name: attachmentData.file_name
-      }]);
+          enhancedToast.showUploadSuccess(file.name);
+          enhancedToast.dismiss(uploadToast.id);
+          
+          // Add to photos list
+          setPhotos(prev => [...prev, {
+            id: attachmentData.id,
+            file_url: attachmentData.file_url,
+            file_name: attachmentData.file_name
+          }]);
 
-    } catch (error) {
-      console.error('Photo upload failed:', error);
-      
-      // Extract status code and detailed error information
-      let statusCode: number | undefined;
-      let errorMessage = 'Upload failed';
-      
-      if (error && typeof error === 'object') {
-        // Supabase storage errors have specific structure
-        if ('status' in error) {
-          statusCode = error.status as number;
+          successCount++;
+
+        } catch (error) {
+          console.error('Photo upload failed:', file.name, error);
+          
+          // Extract status code and detailed error information
+          let statusCode: number | undefined;
+          let errorMessage = 'Upload failed';
+          
+          if (error && typeof error === 'object') {
+            // Supabase storage errors have specific structure
+            if ('status' in error) {
+              statusCode = error.status as number;
+            }
+            if ('message' in error) {
+              errorMessage = error.message as string;
+            } else if ('error' in error && typeof error.error === 'string') {
+              errorMessage = error.error;
+            }
+          } else if (error instanceof Error) {
+            errorMessage = error.message;
+          }
+          
+          enhancedToast.showUploadError(errorMessage, file.name, statusCode);
+          errorCount++;
         }
-        if ('message' in error) {
-          errorMessage = error.message as string;
-        } else if ('error' in error && typeof error.error === 'string') {
-          errorMessage = error.error;
-        }
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
       }
-      
-      enhancedToast.showUploadError(errorMessage, file.name, statusCode);
+
+      // Show summary toast if multiple files
+      if (files.length > 1) {
+        if (successCount > 0 && errorCount === 0) {
+          toast({
+            title: "All Photos Uploaded",
+            description: `Successfully uploaded ${successCount} photos`,
+          });
+        } else if (successCount > 0 && errorCount > 0) {
+          toast({
+            title: "Partial Upload Success",
+            description: `${successCount} photos uploaded, ${errorCount} failed`,
+            variant: "destructive",
+          });
+        }
+      }
+
     } finally {
       setIsUploading(false);
+      // Clear the input
+      event.target.value = '';
     }
   };
 
@@ -573,11 +609,12 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
 
             {/* Photo Upload in Edit Mode */}
             <div>
-              <Label className="text-sm font-medium">Add Evidence Photo</Label>
+              <Label className="text-sm font-medium">Add Evidence Photos</Label>
               <div className="mt-2">
                 <input
                   type="file"
                   accept="image/*"
+                  multiple
                   onChange={handlePhotoUpload}
                   disabled={isUploading}
                   className="hidden"
@@ -588,7 +625,7 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                   className="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition-colors"
                 >
                   <Upload className="h-4 w-4" />
-                  {isUploading ? 'Uploading...' : 'Upload Photo'}
+                  {isUploading ? 'Uploading...' : 'Upload Photos (multiple)'}
                 </label>
               </div>
               
@@ -785,11 +822,12 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
               {/* Upload Photo */}
               {task.status !== 'completed' && (
                 <div>
-                  <Label className="text-sm font-medium">Add Evidence Photo</Label>
+                  <Label className="text-sm font-medium">Add Evidence Photos</Label>
                   <div className="mt-2">
                     <input
                       type="file"
                       accept="image/*"
+                      multiple
                       onChange={handlePhotoUpload}
                       disabled={isUploading}
                       className="hidden"
@@ -800,7 +838,7 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                       className="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition-colors"
                     >
                       <Upload className="h-4 w-4" />
-                      {isUploading ? 'Uploading...' : task.id.startsWith('temp-') ? 'Add Photo (will save with mission)' : 'Upload Photo'}
+                      {isUploading ? 'Uploading...' : task.id.startsWith('temp-') ? 'Add Photos (will save with mission)' : 'Upload Photos (multiple)'}
                     </label>
                   </div>
                 </div>

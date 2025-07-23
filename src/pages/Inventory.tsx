@@ -580,7 +580,13 @@ export default function Inventory() {
 
       setNewSupplier('');
       setShowAddSupplierDialog(false);
+      
+      // First refresh suppliers, then auto-select
       await fetchSuppliers();
+      
+      // Close both popovers to reset their state
+      setSupplierOpen(false);
+      setEditSupplierOpen(false);
       
       // Auto-select the new supplier
       setNewPart({...newPart, supplier_id: data.id});

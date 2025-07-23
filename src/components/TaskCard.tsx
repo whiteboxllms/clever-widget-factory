@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Clock, User, Upload, Image, ChevronDown, ChevronRight, Save } from 'lucide-react';
+import { CheckCircle, Clock, User, Upload, Image, ChevronDown, ChevronRight, Save, X } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -419,6 +419,20 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     }
   };
 
+  const handleRemoveTempPhoto = (photoId: string) => {
+    if (tempPhotoStorage) {
+      tempPhotoStorage.removeTempPhoto(photoId);
+      // Update local state
+      const tempTaskPhotos = tempPhotoStorage.getTempPhotosForTask(task.id);
+      setTempPhotos(tempTaskPhotos);
+      
+      toast({
+        title: "Photo Removed",
+        description: "Photo has been removed",
+      });
+    }
+  };
+
   const handleSave = async () => {
     if (onSave) {
       onSave(editData);
@@ -599,6 +613,13 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                           Draft
                         </Badge>
                       </div>
+                      <button
+                        onClick={() => handleRemoveTempPhoto(photo.id)}
+                        className="absolute top-1 left-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Remove photo"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -724,24 +745,31 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                 <div>
                   <Label className="text-sm font-medium">Evidence Photos</Label>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
-                    {/* Show temporary photos */}
-                    {tempPhotos.map((photo) => (
-                      <div key={photo.id} className="relative group">
-                        <img
-                          src={photo.fileUrl}
-                          alt={photo.fileName}
-                          className="w-full h-24 object-cover rounded-md border"
-                        />
-                        <div className="absolute top-1 right-1">
-                          <Badge variant="secondary" className="text-xs">
-                            Draft
-                          </Badge>
-                        </div>
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-md flex items-center justify-center">
-                          <Image className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </div>
-                      </div>
-                    ))}
+                     {/* Show temporary photos */}
+                     {tempPhotos.map((photo) => (
+                       <div key={photo.id} className="relative group">
+                         <img
+                           src={photo.fileUrl}
+                           alt={photo.fileName}
+                           className="w-full h-24 object-cover rounded-md border"
+                         />
+                         <div className="absolute top-1 right-1">
+                           <Badge variant="secondary" className="text-xs">
+                             Draft
+                           </Badge>
+                         </div>
+                         <button
+                           onClick={() => handleRemoveTempPhoto(photo.id)}
+                           className="absolute top-1 left-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                           title="Remove photo"
+                         >
+                           <X className="h-3 w-3" />
+                         </button>
+                         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-md flex items-center justify-center">
+                           <Image className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                         </div>
+                       </div>
+                     ))}
                     
                     {/* Show real photos */}
                     {photos.map((photo) => (

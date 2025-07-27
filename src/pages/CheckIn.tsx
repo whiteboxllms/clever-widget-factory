@@ -22,7 +22,8 @@ type CheckInForm = {
   tool_issues: string;
   notes: string;
   returned_to_correct_location: boolean;
-  sop_deviation: string;
+  sop_best_practices: string;
+  what_did_you_do: string;
   hours_used: string;
 };
 
@@ -45,7 +46,8 @@ export default function CheckIn() {
     tool_issues: '',
     notes: '',
     returned_to_correct_location: true,
-    sop_deviation: '',
+    sop_best_practices: '',
+    what_did_you_do: '',
     hours_used: ''
   });
   const [resolvedIssues, setResolvedIssues] = useState<IssueResolution[]>([]);
@@ -131,6 +133,8 @@ export default function CheckIn() {
         location_found: selectedCheckout.tools.intended_storage_location,
         notes: form.notes || null,
         returned_to_correct_location: form.returned_to_correct_location,
+        sop_best_practices: form.sop_best_practices,
+        what_did_you_do: form.what_did_you_do,
         after_image_urls: imageUrls,
       };
 
@@ -193,7 +197,8 @@ export default function CheckIn() {
         tool_issues: '',
         notes: '',
         returned_to_correct_location: true,
-        sop_deviation: '',
+        sop_best_practices: '',
+        what_did_you_do: '',
         hours_used: ''
       });
       setResolvedIssues([]);
@@ -401,35 +406,42 @@ export default function CheckIn() {
                             </div>
                           )}
 
-                          <div>
-                            <Label htmlFor="sop_deviation">To what degree did you deviate from our SOP and best practices? *</Label>
-                            <div className="flex gap-2">
-                              <Select value={form.sop_deviation} onValueChange={(value) => setForm(prev => ({ ...prev, sop_deviation: value }))}>
-                                <SelectTrigger className="flex-1">
-                                  <SelectValue placeholder="Select deviation level" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">No deviation - followed all SOPs</SelectItem>
-                                  <SelectItem value="minor">Minor deviation - small adjustments made</SelectItem>
-                                  <SelectItem value="moderate">Moderate deviation - some procedures modified</SelectItem>
-                                  <SelectItem value="major">Major deviation - significant changes to procedures</SelectItem>
-                                  <SelectItem value="complete">Complete deviation - SOPs not followed</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              {checkout.tools.manual_url && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => window.open(checkout.tools.manual_url, '_blank')}
-                                  className="flex items-center gap-1"
-                                >
-                                  SOP
-                                  <ExternalLink className="h-3 w-3" />
-                                </Button>
-                              )}
-                            </div>
-                           </div>
+          <div>
+            <Label htmlFor="sop_best_practices">What is the SOP / best practices in this situation? *</Label>
+            <div className="flex gap-2">
+              <Textarea
+                id="sop_best_practices"
+                value={form.sop_best_practices}
+                onChange={(e) => setForm(prev => ({ ...prev, sop_best_practices: e.target.value }))}
+                placeholder="Describe the standard operating procedures or best practices for this tool/situation"
+                rows={3}
+                className="flex-1"
+              />
+              {checkout.tools.manual_url && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(checkout.tools.manual_url, '_blank')}
+                  className="flex items-center gap-1"
+                >
+                  SOP
+                  <ExternalLink className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="what_did_you_do">What did you do and why? *</Label>
+            <Textarea
+              id="what_did_you_do"
+              value={form.what_did_you_do}
+              onChange={(e) => setForm(prev => ({ ...prev, what_did_you_do: e.target.value }))}
+              placeholder="Describe what actions you took while using the tool and your reasoning"
+              rows={3}
+            />
+          </div>
 
                            {/* Known Issues Management */}
                            {checkout.tools.known_issues && (
@@ -602,7 +614,7 @@ export default function CheckIn() {
                            <div className="flex gap-2 pt-4">
                              <Button
                                onClick={handleCheckIn}
-                               disabled={isSubmitting || !form.condition_after || !form.sop_deviation || uploadingImages}
+                               disabled={isSubmitting || !form.condition_after || !form.sop_best_practices || !form.what_did_you_do || uploadingImages}
                                className="flex-1"
                              >
                                {uploadingImages ? "Uploading Images..." : isSubmitting ? "Checking In..." : "Complete Check In"}

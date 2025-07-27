@@ -27,8 +27,10 @@ export type Database = {
           notes: string | null
           problems_reported: string | null
           returned_to_correct_location: boolean
+          sop_best_practices: string
           tool_id: string
           user_name: string
+          what_did_you_do: string
         }
         Insert: {
           after_image_urls?: string[] | null
@@ -42,8 +44,10 @@ export type Database = {
           notes?: string | null
           problems_reported?: string | null
           returned_to_correct_location?: boolean
+          sop_best_practices?: string
           tool_id: string
           user_name: string
+          what_did_you_do?: string
         }
         Update: {
           after_image_urls?: string[] | null
@@ -57,8 +61,10 @@ export type Database = {
           notes?: string | null
           problems_reported?: string | null
           returned_to_correct_location?: boolean
+          sop_best_practices?: string
           tool_id?: string
           user_name?: string
+          what_did_you_do?: string
         }
         Relationships: [
           {

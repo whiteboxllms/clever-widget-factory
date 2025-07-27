@@ -16,7 +16,7 @@ export type Database = {
     Tables: {
       checkins: {
         Row: {
-          after_image_url: string | null
+          after_image_urls: string[] | null
           checkin_date: string
           checkout_id: string | null
           condition_after: Database["public"]["Enums"]["tool_condition"]
@@ -31,7 +31,7 @@ export type Database = {
           user_name: string
         }
         Insert: {
-          after_image_url?: string | null
+          after_image_urls?: string[] | null
           checkin_date?: string
           checkout_id?: string | null
           condition_after: Database["public"]["Enums"]["tool_condition"]
@@ -46,7 +46,7 @@ export type Database = {
           user_name: string
         }
         Update: {
-          after_image_url?: string | null
+          after_image_urls?: string[] | null
           checkin_date?: string
           checkout_id?: string | null
           condition_after?: Database["public"]["Enums"]["tool_condition"]

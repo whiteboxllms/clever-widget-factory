@@ -70,7 +70,7 @@ interface CheckoutHistory {
     user_name?: string;
     hours_used?: number;
     location_found?: string;
-    after_image_url?: string;
+    after_image_urls?: string[];
   };
 }
 
@@ -173,7 +173,7 @@ export default function Tools() {
             user_name,
             hours_used,
             location_found,
-            after_image_url
+            after_image_urls
           )
         `)
         .eq('tool_id', toolId)

@@ -55,6 +55,8 @@ export default function CheckIn() {
     bestPractice: '',
     actionTaken: ''
   });
+  const [uploadedImages, setUploadedImages] = useState<File[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
 
   useEffect(() => {
     fetchCheckouts();
@@ -89,7 +91,36 @@ export default function CheckIn() {
     if (!selectedCheckout) return;
 
     setIsSubmitting(true);
+    setUploadingImages(true);
     try {
+      // Upload images to storage if any
+      let imageUrls: string[] = [];
+      if (uploadedImages.length > 0) {
+        console.log('Uploading images:', uploadedImages.length);
+        
+        for (const [index, file] of uploadedImages.entries()) {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${selectedCheckout.tool_id}_${selectedCheckout.id}_${Date.now()}_${index + 1}.${fileExt}`;
+          
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('tool-checkout-images')
+            .upload(fileName, file);
+
+          if (uploadError) {
+            console.error('Upload error:', uploadError);
+            throw uploadError;
+          }
+
+          // Get public URL
+          const { data: { publicUrl } } = supabase.storage
+            .from('tool-checkout-images')
+            .getPublicUrl(fileName);
+          
+          imageUrls.push(publicUrl);
+        }
+        console.log('Images uploaded successfully:', imageUrls);
+      }
+
       // Create checkin record
       const checkinData: any = {
         checkout_id: selectedCheckout.id,
@@ -100,6 +131,7 @@ export default function CheckIn() {
         location_found: selectedCheckout.tools.intended_storage_location,
         notes: form.notes || null,
         returned_to_correct_location: form.returned_to_correct_location,
+        after_image_urls: imageUrls,
       };
 
       // Add hours used if tool has motor and hours were provided
@@ -171,6 +203,7 @@ export default function CheckIn() {
         bestPractice: '',
         actionTaken: ''
       });
+      setUploadedImages([]);
       setSelectedCheckout(null);
       
       // Refresh checkouts
@@ -185,6 +218,7 @@ export default function CheckIn() {
       });
     } finally {
       setIsSubmitting(false);
+      setUploadingImages(false);
     }
   };
 
@@ -228,6 +262,17 @@ export default function CheckIn() {
   const getKnownIssues = (knownIssues: string | null) => {
     if (!knownIssues) return [];
     return knownIssues.split('\n').filter(issue => issue.trim());
+  };
+
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length > 0) {
+      setUploadedImages(prev => [...prev, ...files]);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setUploadedImages(prev => prev.filter((_, i) => i !== index));
   };
 
   if (loading) {
@@ -484,6 +529,52 @@ export default function CheckIn() {
                              </Dialog>
                            )}
 
+                           {/* Image Upload Section */}
+                           <div>
+                             <Label htmlFor="images">Attach Images (Optional)</Label>
+                             <Input
+                               id="images"
+                               type="file"
+                               accept="image/*"
+                               multiple
+                               onChange={handleImageUpload}
+                               className="mt-2"
+                             />
+                             <p className="text-sm text-muted-foreground mt-1">
+                               Upload multiple images showing the tool's condition after use
+                             </p>
+                             
+                             {/* Image Preview */}
+                             {uploadedImages.length > 0 && (
+                               <div className="mt-3">
+                                 <p className="text-sm font-medium mb-2">Selected Images ({uploadedImages.length}):</p>
+                                 <div className="grid grid-cols-2 gap-2">
+                                   {uploadedImages.map((file, index) => (
+                                     <div key={index} className="relative group">
+                                       <img
+                                         src={URL.createObjectURL(file)}
+                                         alt={`Upload ${index + 1}`}
+                                         className="w-full h-20 object-cover rounded border"
+                                       />
+                                       <Button
+                                         type="button"
+                                         variant="destructive"
+                                         size="sm"
+                                         className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                         onClick={() => removeImage(index)}
+                                       >
+                                         <X className="h-3 w-3" />
+                                       </Button>
+                                       <p className="text-xs text-center mt-1 truncate px-1">
+                                         {file.name}
+                                       </p>
+                                     </div>
+                                   ))}
+                                 </div>
+                               </div>
+                             )}
+                           </div>
+
                            <div>
                              <Label htmlFor="notes">Notes</Label>
                             <Textarea
@@ -508,15 +599,15 @@ export default function CheckIn() {
                             </Label>
                           </div>
 
-                          <div className="flex gap-2 pt-4">
-                            <Button
-                              onClick={handleCheckIn}
-                              disabled={isSubmitting || !form.condition_after || !form.sop_deviation}
-                              className="flex-1"
-                            >
-                              {isSubmitting ? "Checking In..." : "Complete Check In"}
-                            </Button>
-                          </div>
+                           <div className="flex gap-2 pt-4">
+                             <Button
+                               onClick={handleCheckIn}
+                               disabled={isSubmitting || !form.condition_after || !form.sop_deviation || uploadingImages}
+                               className="flex-1"
+                             >
+                               {uploadingImages ? "Uploading Images..." : isSubmitting ? "Checking In..." : "Complete Check In"}
+                             </Button>
+                           </div>
                         </div>
                       </DialogContent>
                     </Dialog>

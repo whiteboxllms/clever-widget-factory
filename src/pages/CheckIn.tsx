@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Package, Calendar, User, AlertTriangle, CheckCircle2, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Package, Calendar, User, AlertTriangle, CheckCircle2, ExternalLink, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,13 @@ type CheckInForm = {
   hours_used: string;
 };
 
+type IssueResolution = {
+  issue: string;
+  rootCause: string;
+  bestPractice: string;
+  actionTaken: string;
+};
+
 export default function CheckIn() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -40,6 +47,13 @@ export default function CheckIn() {
     returned_to_correct_location: true,
     sop_deviation: '',
     hours_used: ''
+  });
+  const [resolvedIssues, setResolvedIssues] = useState<IssueResolution[]>([]);
+  const [showIssueResolution, setShowIssueResolution] = useState<string | null>(null);
+  const [issueResolutionForm, setIssueResolutionForm] = useState({
+    rootCause: '',
+    bestPractice: '',
+    actionTaken: ''
   });
 
   useEffect(() => {
@@ -107,13 +121,30 @@ export default function CheckIn() {
 
       if (checkoutError) throw checkoutError;
 
-      // Update tool status and condition
+      // Update tool status, condition, and remove resolved issues
+      let updatedKnownIssues = selectedCheckout.tools.known_issues;
+      if (resolvedIssues.length > 0) {
+        // Remove resolved issues from known_issues
+        const resolvedIssueTexts = resolvedIssues.map(r => r.issue);
+        const currentIssues = updatedKnownIssues ? updatedKnownIssues.split('\n').filter(issue => issue.trim()) : [];
+        const remainingIssues = currentIssues.filter(issue => !resolvedIssueTexts.some(resolved => issue.includes(resolved)));
+        updatedKnownIssues = remainingIssues.length > 0 ? remainingIssues.join('\n') : null;
+        
+        // Add resolution notes to checkin notes
+        const resolutionNotes = resolvedIssues.map(r => 
+          `ISSUE RESOLVED: ${r.issue}\nRoot Cause: ${r.rootCause}\nBest Practice: ${r.bestPractice}\nAction Taken: ${r.actionTaken}`
+        ).join('\n\n');
+        
+        checkinData.notes = checkinData.notes ? `${checkinData.notes}\n\n${resolutionNotes}` : resolutionNotes;
+      }
+
       const { error: toolError } = await supabase
         .from('tools')
         .update({ 
           condition: form.condition_after as any,
           status: form.condition_after === 'not_functional' ? 'unavailable' : 'available',
-          actual_location: selectedCheckout.tools.intended_storage_location
+          actual_location: selectedCheckout.tools.intended_storage_location,
+          known_issues: updatedKnownIssues
         })
         .eq('id', selectedCheckout.tool_id);
 
@@ -132,6 +163,13 @@ export default function CheckIn() {
         returned_to_correct_location: true,
         sop_deviation: '',
         hours_used: ''
+      });
+      setResolvedIssues([]);
+      setShowIssueResolution(null);
+      setIssueResolutionForm({
+        rootCause: '',
+        bestPractice: '',
+        actionTaken: ''
       });
       setSelectedCheckout(null);
       
@@ -162,6 +200,34 @@ export default function CheckIn() {
   const getDaysOut = (checkoutDate: string) => {
     const days = Math.floor((new Date().getTime() - new Date(checkoutDate).getTime()) / (1000 * 60 * 60 * 24));
     return days;
+  };
+
+  const handleRemoveIssue = (issue: string) => {
+    setShowIssueResolution(issue);
+  };
+
+  const confirmIssueResolution = () => {
+    if (!showIssueResolution) return;
+    
+    const newResolution: IssueResolution = {
+      issue: showIssueResolution,
+      rootCause: issueResolutionForm.rootCause,
+      bestPractice: issueResolutionForm.bestPractice,
+      actionTaken: issueResolutionForm.actionTaken
+    };
+    
+    setResolvedIssues(prev => [...prev, newResolution]);
+    setShowIssueResolution(null);
+    setIssueResolutionForm({
+      rootCause: '',
+      bestPractice: '',
+      actionTaken: ''
+    });
+  };
+
+  const getKnownIssues = (knownIssues: string | null) => {
+    if (!knownIssues) return [];
+    return knownIssues.split('\n').filter(issue => issue.trim());
   };
 
   if (loading) {
@@ -318,10 +384,108 @@ export default function CheckIn() {
                                 </Button>
                               )}
                             </div>
-                          </div>
+                           </div>
 
-                          <div>
-                            <Label htmlFor="notes">Notes</Label>
+                           {/* Known Issues Management */}
+                           {checkout.tools.known_issues && (
+                             <div>
+                               <Label>Current Known Issues</Label>
+                               <div className="space-y-2 mt-2 p-3 bg-muted rounded-md">
+                                 {getKnownIssues(checkout.tools.known_issues)
+                                   .filter(issue => !resolvedIssues.some(r => r.issue === issue))
+                                   .map((issue, index) => (
+                                   <div key={index} className="flex items-center justify-between p-2 bg-background rounded border">
+                                     <span className="text-sm">{issue}</span>
+                                     <Button
+                                       type="button"
+                                       variant="outline"
+                                       size="sm"
+                                       onClick={() => handleRemoveIssue(issue)}
+                                       className="text-red-600 hover:text-red-700"
+                                     >
+                                       <X className="h-4 w-4" />
+                                       Mark as Resolved
+                                     </Button>
+                                   </div>
+                                 ))}
+                                 {resolvedIssues.length > 0 && (
+                                   <div className="mt-3">
+                                     <p className="text-sm font-medium text-green-700 mb-2">Issues marked for resolution:</p>
+                                     {resolvedIssues.map((resolution, index) => (
+                                       <div key={index} className="text-sm p-2 bg-green-50 rounded border border-green-200">
+                                         <strong>{resolution.issue}</strong> - Will be removed after check-in
+                                       </div>
+                                     ))}
+                                   </div>
+                                 )}
+                               </div>
+                             </div>
+                           )}
+
+                           {/* Issue Resolution Dialog */}
+                           {showIssueResolution && (
+                             <Dialog open={!!showIssueResolution} onOpenChange={() => setShowIssueResolution(null)}>
+                               <DialogContent className="max-w-lg">
+                                 <DialogHeader>
+                                   <DialogTitle>Issue Resolution Documentation</DialogTitle>
+                                   <DialogDescription>
+                                     Document the resolution of: "{showIssueResolution}"
+                                   </DialogDescription>
+                                 </DialogHeader>
+                                 <div className="space-y-4">
+                                   <div>
+                                     <Label htmlFor="rootCause">Root Cause *</Label>
+                                     <Textarea
+                                       id="rootCause"
+                                       value={issueResolutionForm.rootCause}
+                                       onChange={(e) => setIssueResolutionForm(prev => ({ ...prev, rootCause: e.target.value }))}
+                                       placeholder="What was the underlying cause of this issue?"
+                                       rows={3}
+                                     />
+                                   </div>
+                                   <div>
+                                     <Label htmlFor="bestPractice">Best Practice *</Label>
+                                     <Textarea
+                                       id="bestPractice"
+                                       value={issueResolutionForm.bestPractice}
+                                       onChange={(e) => setIssueResolutionForm(prev => ({ ...prev, bestPractice: e.target.value }))}
+                                       placeholder="What is the recommended best practice to prevent this issue?"
+                                       rows={3}
+                                     />
+                                   </div>
+                                   <div>
+                                     <Label htmlFor="actionTaken">Action Taken *</Label>
+                                     <Textarea
+                                       id="actionTaken"
+                                       value={issueResolutionForm.actionTaken}
+                                       onChange={(e) => setIssueResolutionForm(prev => ({ ...prev, actionTaken: e.target.value }))}
+                                       placeholder="What specific action did you take to resolve this issue?"
+                                       rows={3}
+                                     />
+                                   </div>
+                                   <div className="flex gap-2 pt-4">
+                                     <Button
+                                       variant="outline"
+                                       onClick={() => setShowIssueResolution(null)}
+                                       className="flex-1"
+                                     >
+                                       Cancel
+                                     </Button>
+                                     <Button
+                                       onClick={confirmIssueResolution}
+                                       disabled={!issueResolutionForm.rootCause || !issueResolutionForm.bestPractice || !issueResolutionForm.actionTaken}
+                                       className="flex-1"
+                                     >
+                                       Confirm Resolution
+                                     </Button>
+                                   </div>
+                                 </div>
+                               </DialogContent>
+                             </Dialog>
+                           )}
+
+                           <div>
+                             <Label htmlFor="notes">Notes</Label>
                             <Textarea
                               id="notes"
                               value={form.notes}

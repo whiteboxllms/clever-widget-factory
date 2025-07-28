@@ -103,7 +103,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         user_name: checkout.user_name,
         condition_after: form.condition_after as any,
         problems_reported: form.tool_issues || null,
-        location_found: tool.intended_storage_location,
+        location_found: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : ''),
         notes: form.notes || null,
         returned_to_correct_location: form.returned_to_correct_location,
       };
@@ -133,7 +133,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         .update({ 
           condition: form.condition_after as any,
           status: form.condition_after === 'not_functional' ? 'unavailable' : 'available',
-          actual_location: tool.intended_storage_location
+          actual_location: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : '')
         })
         .eq('id', tool.id);
 
@@ -265,7 +265,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
               className="rounded border-gray-300"
             />
             <Label htmlFor="returned_to_correct_location">
-              Tool was returned to its correct storage location: {tool.intended_storage_location}
+              Tool was returned to its correct storage location: {tool.storage_vicinity}{tool.storage_location ? ` - ${tool.storage_location}` : ''}
             </Label>
           </div>
 

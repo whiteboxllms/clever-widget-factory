@@ -27,7 +27,8 @@ interface Tool {
   condition: string;
   status: string;
   image_url?: string;
-  intended_storage_location: string;
+  storage_vicinity: string;
+  storage_location: string | null;
   actual_location?: string;
   serial_number?: string;
   last_maintenance?: string;
@@ -45,7 +46,8 @@ interface NewToolForm {
   category: string;
   condition: string;
   status: string;
-  intended_storage_location: string;
+  storage_vicinity: string;
+  storage_location: string | null;
   serial_number: string;
   manual_url: string;
   image_file: File | null;
@@ -113,7 +115,8 @@ export default function Tools() {
     category: "",
         condition: "good",
     status: "available",
-    intended_storage_location: "",
+    storage_vicinity: "",
+    storage_location: "",
     serial_number: "",
     manual_url: "",
     image_file: null
@@ -325,7 +328,8 @@ export default function Tools() {
           category: newTool.category || null,
           condition: newTool.condition as any,
           status: newTool.status as any,
-          intended_storage_location: newTool.intended_storage_location,
+          storage_vicinity: newTool.storage_vicinity,
+          storage_location: newTool.storage_location || null,
           serial_number: newTool.serial_number || null,
           image_url: imageUrl,
           manual_url: newTool.manual_url || null
@@ -345,7 +349,8 @@ export default function Tools() {
         category: "",
         condition: "good",
         status: "available",
-        intended_storage_location: "",
+        storage_vicinity: "",
+        storage_location: "",
         serial_number: "",
         manual_url: "",
         image_file: null
@@ -375,7 +380,8 @@ export default function Tools() {
       category: "",
       condition: "good",
       status: "available",
-      intended_storage_location: "",
+      storage_vicinity: "",
+      storage_location: "",
       serial_number: "",
       manual_url: "",
       image_file: null
@@ -402,7 +408,8 @@ export default function Tools() {
         category: editTool.category || null,
         condition: editTool.condition as any,
         status: editTool.status as any,
-        intended_storage_location: editTool.intended_storage_location,
+        storage_vicinity: editTool.storage_vicinity,
+        storage_location: editTool.storage_location || null,
         actual_location: editTool.actual_location || null,
         serial_number: editTool.serial_number || null,
         manual_url: editTool.manual_url || null,
@@ -664,13 +671,22 @@ export default function Tools() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="location">Storage Location *</Label>
+                      <Label htmlFor="storage_vicinity">Storage Vicinity *</Label>
                       <Input
-                        id="location"
-                        value={newTool.intended_storage_location}
-                        onChange={(e) => setNewTool(prev => ({ ...prev, intended_storage_location: e.target.value }))}
-                        placeholder="e.g., Shelf A-3, Toolbox #2"
+                        id="storage_vicinity"
+                        value={newTool.storage_vicinity}
+                        onChange={(e) => setNewTool(prev => ({ ...prev, storage_vicinity: e.target.value }))}
+                        placeholder="e.g., Workshop A, Storage Room"
                         required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="storage_location">Storage Location</Label>
+                      <Input
+                        id="storage_location"
+                        value={newTool.storage_location}
+                        onChange={(e) => setNewTool(prev => ({ ...prev, storage_location: e.target.value }))}
+                        placeholder="e.g., Shelf A-3, Toolbox #2"
                       />
                     </div>
                   </div>
@@ -709,7 +725,7 @@ export default function Tools() {
                     >
                       Cancel
                     </Button>
-                     <Button type="submit" disabled={isSubmitting || !newTool.name || !newTool.intended_storage_location || !newTool.serial_number}>
+                     <Button type="submit" disabled={isSubmitting || !newTool.name || !newTool.storage_vicinity || !newTool.serial_number}>
                        {isSubmitting ? "Adding..." : "Add Tool"}
                      </Button>
                   </div>
@@ -757,7 +773,7 @@ export default function Tools() {
                         <p className="text-sm line-clamp-2">{tool.description}</p>
                       )}
                       <p className="text-xs text-muted-foreground mt-2">
-                        Location: {tool.actual_location || tool.intended_storage_location}
+                        Location: {tool.actual_location || (tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : ''))}
                       </p>
                       
                       {/* Action Buttons */}
@@ -863,7 +879,7 @@ export default function Tools() {
                         <div>
                           <h4 className="font-medium mb-2">Location & Maintenance</h4>
                           <div className="space-y-2 text-sm">
-                            <div><strong>Intended Location:</strong> {tool.intended_storage_location}</div>
+                            <div><strong>Intended Location:</strong> {tool.storage_vicinity}{tool.storage_location ? ` - ${tool.storage_location}` : ''}</div>
                             <div><strong>Current Location:</strong> {tool.actual_location || 'Same as intended'}</div>
                             <div><strong>Last Maintenance:</strong> {tool.last_maintenance || 'Not recorded'}</div>
                             <div><strong>Purchase Date:</strong> {tool.purchase_date || 'Not recorded'}</div>
@@ -1144,13 +1160,22 @@ export default function Tools() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit-intended-location">SOP location *</Label>
+                    <Label htmlFor="edit-storage-vicinity">Storage Vicinity *</Label>
                     <Input
-                      id="edit-intended-location"
-                      value={editTool.intended_storage_location}
-                      onChange={(e) => setEditTool(prev => prev ? { ...prev, intended_storage_location: e.target.value } : null)}
-                      placeholder="e.g., Shelf A-3, Toolbox #2"
+                      id="edit-storage-vicinity"
+                      value={editTool.storage_vicinity}
+                      onChange={(e) => setEditTool(prev => prev ? { ...prev, storage_vicinity: e.target.value } : null)}
+                      placeholder="e.g., Workshop A, Storage Room"
                       required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-storage-location">Storage Location</Label>
+                    <Input
+                      id="edit-storage-location"
+                      value={editTool.storage_location || ''}
+                      onChange={(e) => setEditTool(prev => prev ? { ...prev, storage_location: e.target.value } : null)}
+                      placeholder="e.g., Shelf A-3, Toolbox #2"
                     />
                   </div>
                 </div>
@@ -1232,7 +1257,7 @@ export default function Tools() {
                   >
                     Cancel
                   </Button>
-                   <Button type="submit" disabled={isSubmitting || !editTool.name || !editTool.intended_storage_location || !editTool.serial_number}>
+                   <Button type="submit" disabled={isSubmitting || !editTool.name || !editTool.storage_vicinity || !editTool.serial_number}>
                      {isSubmitting ? "Updating..." : "Update Tool"}
                    </Button>
                 </div>

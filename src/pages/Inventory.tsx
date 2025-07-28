@@ -43,7 +43,8 @@ interface Part {
   unit: string | null;
   supplier: string | null;
   supplier_id: string | null;
-  intended_storage_location: string;
+  storage_vicinity: string;
+  storage_location: string | null;
   image_url: string | null;
   created_at: string;
   updated_at: string;
@@ -55,7 +56,8 @@ interface Tool {
   category: string | null;
   status: 'available' | 'checked_out' | 'unavailable' | 'unable_to_find';
   condition: 'good' | 'functional_but_not_efficient' | 'not_functional';
-  intended_storage_location: string;
+  storage_vicinity: string;
+  storage_location: string | null;
 }
 
 interface ToolSummary {
@@ -96,7 +98,8 @@ export default function Inventory() {
     cost_per_unit: '',
     unit: 'pieces',
     supplier_id: '',
-    intended_storage_location: ''
+    storage_vicinity: '',
+    storage_location: ''
   });
 
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -175,7 +178,7 @@ export default function Inventory() {
     try {
       const { data, error } = await supabase
         .from('tools')
-        .select('id, name, category, status, intended_storage_location')
+        .select('id, name, category, status, storage_vicinity, storage_location')
         .order('name');
 
       if (error) throw error;
@@ -192,7 +195,7 @@ export default function Inventory() {
             checked_out_count: 0,
             unavailable_count: 0,
             unable_to_find_count: 0,
-            location: tool.intended_storage_location,
+            location: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : ''),
           };
         }
         
@@ -353,7 +356,8 @@ export default function Inventory() {
         cost_per_unit: '',
         unit: 'pieces',
         supplier_id: '',
-        intended_storage_location: ''
+        storage_vicinity: '',
+        storage_location: ''
       });
       setSelectedImage(null);
       setShowAddDialog(false);
@@ -391,7 +395,8 @@ export default function Inventory() {
           cost_per_unit: editingPart.cost_per_unit,
           unit: editingPart.unit,
           supplier_id: editingPart.supplier_id,
-          intended_storage_location: editingPart.intended_storage_location,
+          storage_vicinity: editingPart.storage_vicinity,
+          storage_location: editingPart.storage_location,
           image_url: imageUrl
         })
         .eq('id', editingPart.id);
@@ -811,13 +816,23 @@ export default function Inventory() {
                     />
                   </div>
 
-                  <div className="col-span-2">
-                    <Label htmlFor="intended_storage_location">Storage Location *</Label>
+                  <div>
+                    <Label htmlFor="storage_vicinity">Storage Vicinity *</Label>
                     <Input
-                      id="intended_storage_location"
-                      value={newPart.intended_storage_location}
-                      onChange={(e) => setNewPart({...newPart, intended_storage_location: e.target.value})}
-                      placeholder="Enter storage location"
+                      id="storage_vicinity"
+                      value={newPart.storage_vicinity}
+                      onChange={(e) => setNewPart({...newPart, storage_vicinity: e.target.value})}
+                      placeholder="e.g., Workshop A, Storage Room"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="storage_location">Storage Location</Label>
+                    <Input
+                      id="storage_location"
+                      value={newPart.storage_location}
+                      onChange={(e) => setNewPart({...newPart, storage_location: e.target.value})}
+                      placeholder="e.g., Shelf 3, Bin B2"
                     />
                   </div>
                 </div>
@@ -827,7 +842,7 @@ export default function Inventory() {
                 <Button variant="outline" onClick={() => setShowAddDialog(false)}>
                   Cancel
                 </Button>
-                <Button onClick={addPart} disabled={!newPart.name || !newPart.intended_storage_location || uploadingImage}>
+                <Button onClick={addPart} disabled={!newPart.name || !newPart.storage_vicinity || uploadingImage}>
                   {uploadingImage ? 'Uploading...' : 'Add Item'}
                 </Button>
               </div>
@@ -1079,7 +1094,7 @@ export default function Inventory() {
 
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">Location:</span>
-                    <span className="text-right">{part.intended_storage_location}</span>
+                    <span className="text-right">{part.storage_vicinity}{part.storage_location ? ` - ${part.storage_location}` : ''}</span>
                   </div>
 
                   {part.cost_per_unit && (
@@ -1338,12 +1353,23 @@ export default function Inventory() {
                     />
                   </div>
 
-                  <div className="col-span-2">
-                    <Label htmlFor="edit-location">Storage Location *</Label>
+                  <div>
+                    <Label htmlFor="edit-storage-vicinity">Storage Vicinity *</Label>
                     <Input
-                      id="edit-location"
-                      value={editingPart.intended_storage_location}
-                      onChange={(e) => setEditingPart({...editingPart, intended_storage_location: e.target.value})}
+                      id="edit-storage-vicinity"
+                      value={editingPart.storage_vicinity}
+                      onChange={(e) => setEditingPart({...editingPart, storage_vicinity: e.target.value})}
+                      placeholder="e.g., Workshop A, Storage Room"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="edit-storage-location">Storage Location</Label>
+                    <Input
+                      id="edit-storage-location"
+                      value={editingPart.storage_location || ''}
+                      onChange={(e) => setEditingPart({...editingPart, storage_location: e.target.value})}
+                      placeholder="e.g., Shelf 3, Bin B2"
                     />
                   </div>
                 </div>

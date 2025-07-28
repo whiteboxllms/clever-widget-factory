@@ -130,7 +130,7 @@ export default function CheckIn() {
         user_name: selectedCheckout.user_name,
         condition_after: form.condition_after as any,
         problems_reported: form.tool_issues || null,
-        location_found: selectedCheckout.tools.intended_storage_location,
+        location_found: selectedCheckout.tools.storage_vicinity + (selectedCheckout.tools.storage_location ? ` - ${selectedCheckout.tools.storage_location}` : ''),
         notes: form.notes || null,
         returned_to_correct_location: form.returned_to_correct_location,
         sop_best_practices: form.sop_best_practices,
@@ -179,7 +179,7 @@ export default function CheckIn() {
         .update({ 
           condition: form.condition_after as any,
           status: form.condition_after === 'not_functional' ? 'unavailable' : 'available',
-          actual_location: selectedCheckout.tools.intended_storage_location,
+          actual_location: selectedCheckout.tools.storage_vicinity + (selectedCheckout.tools.storage_location ? ` - ${selectedCheckout.tools.storage_location}` : ''),
           known_issues: updatedKnownIssues
         })
         .eq('id', selectedCheckout.tool_id);
@@ -607,7 +607,7 @@ export default function CheckIn() {
                               className="rounded border-gray-300"
                             />
                             <Label htmlFor="returned_to_correct_location">
-                              Tool was returned to its correct storage location: {checkout.tools.intended_storage_location}
+                              Tool was returned to its correct storage location: {checkout.tools.storage_vicinity}{checkout.tools.storage_location ? ` - ${checkout.tools.storage_location}` : ''}
                             </Label>
                           </div>
 

@@ -452,9 +452,10 @@ export type Database = {
           description: string | null
           id: string
           image_url: string | null
-          intended_storage_location: string
           minimum_quantity: number | null
           name: string
+          storage_location: string | null
+          storage_vicinity: string
           supplier: string | null
           supplier_id: string | null
           unit: string | null
@@ -468,9 +469,10 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
-          intended_storage_location: string
           minimum_quantity?: number | null
           name: string
+          storage_location?: string | null
+          storage_vicinity: string
           supplier?: string | null
           supplier_id?: string | null
           unit?: string | null
@@ -484,9 +486,10 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
-          intended_storage_location?: string
           minimum_quantity?: number | null
           name?: string
+          storage_location?: string | null
+          storage_vicinity?: string
           supplier?: string | null
           supplier_id?: string | null
           unit?: string | null
@@ -611,7 +614,6 @@ export type Database = {
           has_motor: boolean
           id: string
           image_url: string | null
-          intended_storage_location: string
           known_issues: string | null
           last_maintenance: string | null
           manual_url: string | null
@@ -620,6 +622,8 @@ export type Database = {
           serial_number: string | null
           stargazer_sop: string | null
           status: Database["public"]["Enums"]["tool_status"]
+          storage_location: string | null
+          storage_vicinity: string
           updated_at: string
         }
         Insert: {
@@ -631,7 +635,6 @@ export type Database = {
           has_motor?: boolean
           id?: string
           image_url?: string | null
-          intended_storage_location: string
           known_issues?: string | null
           last_maintenance?: string | null
           manual_url?: string | null
@@ -640,6 +643,8 @@ export type Database = {
           serial_number?: string | null
           stargazer_sop?: string | null
           status?: Database["public"]["Enums"]["tool_status"]
+          storage_location?: string | null
+          storage_vicinity: string
           updated_at?: string
         }
         Update: {
@@ -651,7 +656,6 @@ export type Database = {
           has_motor?: boolean
           id?: string
           image_url?: string | null
-          intended_storage_location?: string
           known_issues?: string | null
           last_maintenance?: string | null
           manual_url?: string | null
@@ -660,6 +664,8 @@ export type Database = {
           serial_number?: string | null
           stargazer_sop?: string | null
           status?: Database["public"]["Enums"]["tool_status"]
+          storage_location?: string | null
+          storage_vicinity?: string
           updated_at?: string
         }
         Relationships: []

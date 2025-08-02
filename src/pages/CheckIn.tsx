@@ -9,7 +9,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Tables } from '@/integrations/supabase/types';
 
@@ -37,8 +39,10 @@ type IssueResolution = {
 export default function CheckIn() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [checkouts, setCheckouts] = useState<CheckoutWithTool[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAllCheckouts, setShowAllCheckouts] = useState(false);
   const [selectedCheckout, setSelectedCheckout] = useState<CheckoutWithTool | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState<CheckInForm>({
@@ -307,17 +311,35 @@ export default function CheckIn() {
       </header>
 
       <main className="p-6">
-        {checkouts.length === 0 ? (
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Switch 
+              id="show-all" 
+              checked={showAllCheckouts} 
+              onCheckedChange={setShowAllCheckouts}
+            />
+            <Label htmlFor="show-all">Show all checked out tools</Label>
+          </div>
+          <div className="text-sm text-muted-foreground">
+            {showAllCheckouts ? `${checkouts.length} tools checked out` : `${checkouts.filter(c => c.user_id === user?.id).length} of your tools checked out`}
+          </div>
+        </div>
+
+        {(showAllCheckouts ? checkouts : checkouts.filter(c => c.user_id === user?.id)).length === 0 ? (
           <Card>
             <CardContent className="text-center py-12">
               <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-semibold mb-2">No tools checked out</h3>
-              <p className="text-muted-foreground">All tools are currently available.</p>
+              <h3 className="text-lg font-semibold mb-2">
+                {showAllCheckouts ? 'No tools checked out' : 'No tools checked out by you'}
+              </h3>
+              <p className="text-muted-foreground">
+                {showAllCheckouts ? 'All tools are currently available.' : 'You have no tools checked out.'}
+              </p>
             </CardContent>
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {checkouts.map((checkout) => {
+            {(showAllCheckouts ? checkouts : checkouts.filter(c => c.user_id === user?.id)).map((checkout) => {
               const daysOut = getDaysOut(checkout.checkout_date);
               const isOverdue = daysOut > 7; // Consider overdue after 7 days
 

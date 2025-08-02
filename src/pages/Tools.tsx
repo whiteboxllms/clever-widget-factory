@@ -764,9 +764,9 @@ export default function Tools() {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      {tool.category && (
+                      {tool.serial_number && (
                         <p className="text-sm text-muted-foreground mb-2">
-                          Category: {tool.category}
+                          Serial: {tool.serial_number}
                         </p>
                       )}
                       {tool.description && (

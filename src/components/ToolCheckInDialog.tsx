@@ -106,7 +106,11 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         location_found: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : ''),
         notes: form.notes || null,
         returned_to_correct_location: form.returned_to_correct_location,
+        sop_best_practices: form.sop_deviation || '',
+        what_did_you_do: form.notes || '',
       };
+
+      console.log('Checkin data:', checkinData);
 
       // Add hours used if tool has motor and hours were provided
       if (tool.has_motor && form.hours_used) {

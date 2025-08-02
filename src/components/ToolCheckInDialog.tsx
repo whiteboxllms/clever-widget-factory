@@ -25,7 +25,8 @@ type CheckInForm = {
   tool_issues: string;
   notes: string;
   returned_to_correct_location: boolean;
-  sop_deviation: string;
+  sop_best_practices: string;
+  what_did_you_do: string;
   hours_used: string;
 };
 
@@ -45,7 +46,8 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
     tool_issues: '',
     notes: '',
     returned_to_correct_location: true,
-    sop_deviation: '',
+    sop_best_practices: '',
+    what_did_you_do: '',
     hours_used: ''
   });
 
@@ -58,7 +60,8 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         tool_issues: '',
         notes: '',
         returned_to_correct_location: true,
-        sop_deviation: '',
+        sop_best_practices: '',
+        what_did_you_do: '',
         hours_used: ''
       });
     }
@@ -106,8 +109,8 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         location_found: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : ''),
         notes: form.notes || null,
         returned_to_correct_location: form.returned_to_correct_location,
-        sop_best_practices: form.sop_deviation || '',
-        what_did_you_do: form.notes || '',
+        sop_best_practices: form.sop_best_practices,
+        what_did_you_do: form.what_did_you_do,
       };
 
       console.log('Checkin data:', checkinData);
@@ -152,9 +155,32 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
       onOpenChange(false);
     } catch (error) {
       console.error('Error checking in tool:', error);
+      
+      let errorMessage = "Failed to check in tool";
+      let errorDetails = "";
+      
+      if (error && typeof error === 'object' && 'message' in error) {
+        errorDetails = String(error.message);
+        
+        // Provide specific guidance based on common error types
+        if (errorDetails.includes('violates row-level security')) {
+          errorMessage = "Permission denied";
+          errorDetails = "You don't have permission to check in this tool. Please ensure you're logged in and have the necessary access rights.";
+        } else if (errorDetails.includes('null value') || errorDetails.includes('not-null constraint')) {
+          errorMessage = "Missing required information";
+          errorDetails = "Please fill in all required fields: Tool Condition and SOP Deviation level are mandatory.";
+        } else if (errorDetails.includes('foreign key')) {
+          errorMessage = "Data reference error";
+          errorDetails = "There's an issue with the checkout record. Please try refreshing the page and checking in again.";
+        } else if (errorDetails.includes('duplicate key')) {
+          errorMessage = "Check-in already exists";
+          errorDetails = "This tool may have already been checked in. Please refresh the page to see the current status.";
+        }
+      }
+      
       toast({
-        title: "Error",
-        description: "Failed to check in tool",
+        title: errorMessage,
+        description: errorDetails || "An unexpected error occurred. Please try again or contact support if the problem persists.",
         variant: "destructive"
       });
     } finally {
@@ -220,33 +246,40 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
           )}
 
           <div>
-            <Label htmlFor="sop_deviation">To what degree did you deviate from our SOP and best practices? *</Label>
+            <Label htmlFor="sop_best_practices">What is the SOP / best practices in this situation? *</Label>
             <div className="flex gap-2">
-              <Select value={form.sop_deviation} onValueChange={(value) => setForm(prev => ({ ...prev, sop_deviation: value }))}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Select deviation level" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No deviation - followed all SOPs</SelectItem>
-                  <SelectItem value="minor">Minor deviation - small adjustments made</SelectItem>
-                  <SelectItem value="moderate">Moderate deviation - some procedures modified</SelectItem>
-                  <SelectItem value="major">Major deviation - significant changes to procedures</SelectItem>
-                  <SelectItem value="complete">Complete deviation - SOPs not followed</SelectItem>
-                </SelectContent>
-              </Select>
+              <Textarea
+                id="sop_best_practices"
+                value={form.sop_best_practices}
+                onChange={(e) => setForm(prev => ({ ...prev, sop_best_practices: e.target.value }))}
+                placeholder="Describe the standard operating procedures or best practices that should be followed"
+                rows={2}
+                className="flex-1"
+              />
               {tool.manual_url && (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => window.open(tool.manual_url, '_blank')}
-                  className="flex items-center gap-1"
+                  className="flex items-center gap-1 self-start"
                 >
                   SOP
                   <ExternalLink className="h-3 w-3" />
                 </Button>
               )}
             </div>
+          </div>
+
+          <div>
+            <Label htmlFor="what_did_you_do">What did you do and why? *</Label>
+            <Textarea
+              id="what_did_you_do"
+              value={form.what_did_you_do}
+              onChange={(e) => setForm(prev => ({ ...prev, what_did_you_do: e.target.value }))}
+              placeholder="Describe what actions you took and your reasoning"
+              rows={2}
+            />
           </div>
 
           <div>
@@ -276,7 +309,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
           <div className="flex gap-2 pt-4">
             <Button
               onClick={handleSubmit}
-              disabled={isSubmitting || !form.condition_after || !form.sop_deviation}
+              disabled={isSubmitting || !form.condition_after || !form.sop_best_practices || !form.what_did_you_do}
               className="flex-1"
             >
               {isSubmitting ? "Checking In..." : "Complete Check In"}

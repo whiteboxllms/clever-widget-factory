@@ -142,6 +142,9 @@ export default function CheckIn() {
         after_image_urls: imageUrls,
       };
 
+      console.log('CheckIn - Form data:', form);
+      console.log('CheckIn - Checkin data to insert:', checkinData);
+
       // Add hours used if tool has motor and hours were provided
       if (selectedCheckout.tools.has_motor && form.hours_used) {
         checkinData.hours_used = parseFloat(form.hours_used);
@@ -220,9 +223,33 @@ export default function CheckIn() {
 
     } catch (error) {
       console.error('Error checking in tool:', error);
+      
+      let errorMessage = "Failed to check in tool";
+      let errorDetails = "";
+      
+      if (error && typeof error === 'object' && 'message' in error) {
+        errorDetails = String(error.message);
+        console.log('Detailed error:', errorDetails);
+        
+        // Provide specific guidance based on common error types
+        if (errorDetails.includes('violates row-level security')) {
+          errorMessage = "Permission denied";
+          errorDetails = "You don't have permission to check in this tool. Please ensure you're logged in and have the necessary access rights.";
+        } else if (errorDetails.includes('null value') || errorDetails.includes('not-null constraint')) {
+          errorMessage = "Missing required information";
+          errorDetails = "Please fill in all required fields: Tool Condition, SOP Best Practices, and What Did You Do are mandatory.";
+        } else if (errorDetails.includes('foreign key')) {
+          errorMessage = "Data reference error";
+          errorDetails = "There's an issue with the checkout record. Please try refreshing the page and checking in again.";
+        } else if (errorDetails.includes('duplicate key')) {
+          errorMessage = "Check-in already exists";
+          errorDetails = "This tool may have already been checked in. Please refresh the page to see the current status.";
+        }
+      }
+      
       toast({
-        title: "Error",
-        description: "Failed to check in tool",
+        title: errorMessage,
+        description: errorDetails || "An unexpected error occurred. Please check that all required fields are filled and try again.",
         variant: "destructive",
       });
     } finally {

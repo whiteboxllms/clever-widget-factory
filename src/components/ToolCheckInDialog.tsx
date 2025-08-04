@@ -50,6 +50,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
     what_did_you_do: '',
     hours_used: ''
   });
+  const [showValidation, setShowValidation] = useState(false);
 
   useEffect(() => {
     if (tool && open) {
@@ -96,6 +97,19 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!checkout || !tool) return;
+
+    // Show validation errors
+    setShowValidation(true);
+    
+    // Check required fields
+    if (!form.condition_after || !form.sop_best_practices || !form.what_did_you_do) {
+      toast({
+        title: "Missing Required Fields",
+        description: "Please fill in all required fields marked with an asterisk (*)",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -208,7 +222,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
           <div>
             <Label htmlFor="condition_after">Tool Condition After Use *</Label>
             <Select value={form.condition_after} onValueChange={(value) => setForm(prev => ({ ...prev, condition_after: value }))}>
-              <SelectTrigger>
+              <SelectTrigger className={showValidation && !form.condition_after ? "border-red-500" : ""}>
                 <SelectValue placeholder="Select condition" />
               </SelectTrigger>
               <SelectContent>
@@ -254,7 +268,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
                 onChange={(e) => setForm(prev => ({ ...prev, sop_best_practices: e.target.value }))}
                 placeholder="Describe the standard operating procedures or best practices that should be followed"
                 rows={2}
-                className="flex-1"
+                className={`flex-1 ${showValidation && !form.sop_best_practices ? "border-red-500" : ""}`}
               />
               {tool.manual_url && (
                 <Button
@@ -279,6 +293,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
               onChange={(e) => setForm(prev => ({ ...prev, what_did_you_do: e.target.value }))}
               placeholder="Describe what actions you took and your reasoning"
               rows={2}
+              className={showValidation && !form.what_did_you_do ? "border-red-500" : ""}
             />
           </div>
 
@@ -309,7 +324,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
           <div className="flex gap-2 pt-4">
             <Button
               onClick={handleSubmit}
-              disabled={isSubmitting || !form.condition_after || !form.sop_best_practices || !form.what_did_you_do}
+              disabled={isSubmitting}
               className="flex-1"
             >
               {isSubmitting ? "Checking In..." : "Complete Check In"}

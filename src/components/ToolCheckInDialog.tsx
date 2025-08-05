@@ -7,6 +7,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { APP_VERSION, getBrowserInfo } from '@/lib/version';
 import { Tables } from '@/integrations/supabase/types';
 import { ExternalLink } from 'lucide-react';
 
@@ -39,6 +41,7 @@ interface ToolCheckInDialogProps {
 
 export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolCheckInDialogProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkout, setCheckout] = useState<CheckoutWithTool | null>(null);
   const [form, setForm] = useState<CheckInForm>({
@@ -98,11 +101,38 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
     e.preventDefault();
     if (!checkout || !tool) return;
 
+    // Get debugging information
+    const browserInfo = getBrowserInfo();
+    const debugInfo = {
+      appVersion: APP_VERSION,
+      userId: user?.id,
+      userName: user?.user_metadata?.full_name || 'Unknown',
+      toolId: tool.id,
+      toolName: tool.name,
+      checkoutId: checkout.id,
+      formData: form,
+      browserInfo,
+      timestamp: new Date().toISOString()
+    };
+
+    console.log('=== TOOL CHECK-IN ATTEMPT ===', debugInfo);
+
     // Show validation errors
     setShowValidation(true);
     
     // Check required fields
     if (!form.condition_after || !form.sop_best_practices || !form.what_did_you_do) {
+      const validationError = {
+        ...debugInfo,
+        error: 'Missing required fields',
+        missingFields: {
+          condition_after: !form.condition_after,
+          sop_best_practices: !form.sop_best_practices,
+          what_did_you_do: !form.what_did_you_do
+        }
+      };
+      console.error('=== CHECK-IN VALIDATION ERROR ===', validationError);
+      
       toast({
         title: "Missing Required Fields",
         description: "Please fill in all required fields marked with an asterisk (*)",

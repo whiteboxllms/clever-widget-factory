@@ -32,6 +32,7 @@ interface AuditFormData {
   auditComments: string;
   photoUrls: string[];
   flaggedForMaintenance: boolean;
+  toolTested: boolean;
 }
 
 const AuditTool = () => {
@@ -49,6 +50,7 @@ const AuditTool = () => {
     auditComments: '',
     photoUrls: [],
     flaggedForMaintenance: false,
+    toolTested: false,
   });
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -120,6 +122,7 @@ const AuditTool = () => {
         audit_comments: formData.auditComments,
         photo_urls: uploadedUrls,
         flagged_for_maintenance: formData.flaggedForMaintenance,
+        tool_tested: formData.toolTested,
         last_user_identified: null, // Will be enhanced later with proper user tracking
       };
 
@@ -185,15 +188,6 @@ const AuditTool = () => {
   };
 
   const handleSubmit = () => {
-    if (selectedFiles.length === 0) {
-      toast({
-        title: "Photo Required",
-        description: "Please take at least one photo of the tool.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     submitAuditMutation.mutate();
   };
 
@@ -310,10 +304,10 @@ const AuditTool = () => {
               {/* Photo Upload */}
               <div className="space-y-2">
                 <Label htmlFor="photos" className="text-base font-semibold">
-                  Tool Photos <span className="text-red-500">*</span>
+                  Tool Photos (Optional)
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Take 1-3 photos of the tool in its current location
+                  Take photos of the tool in its current location if needed
                 </p>
                 <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
                   <Camera className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
@@ -399,6 +393,25 @@ const AuditTool = () => {
                     <SelectItem value="missing">Missing</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Tool Tested Toggle */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="tested" className="text-base font-semibold">
+                    Tool Tested
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Mark if this tool was actually tested during the audit
+                  </p>
+                </div>
+                <Switch
+                  id="tested"
+                  checked={formData.toolTested}
+                  onCheckedChange={(checked) => 
+                    setFormData(prev => ({ ...prev, toolTested: checked }))
+                  }
+                />
               </div>
 
               {/* Maintenance Flag */}

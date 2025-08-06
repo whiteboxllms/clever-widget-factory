@@ -225,29 +225,32 @@ export function InventoryItemForm({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="current_quantity">Current Quantity *</Label>
-          <Input
-            id="current_quantity"
-            type="number"
-            step="1"
-            min="0"
-            value={formData.current_quantity}
-            onChange={(e) => updateFormData('current_quantity', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
-          />
+              <Input
+                id="current_quantity"
+                type="number"
+                step="1"
+                min="0"
+                value={formData.current_quantity}
+                onChange={(e) => updateFormData('current_quantity', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
+              />
             </div>
             
-            <div className="space-y-3">
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="use-minimum-quantity"
-                  checked={useMinimumQuantity}
-                  onCheckedChange={(checked) => setUseMinimumQuantity(checked === true)}
-                />
-                <Label htmlFor="use-minimum-quantity" className="text-sm font-medium">
-                  Set Minimum Quantity
-                </Label>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label htmlFor="minimum_quantity">Minimum Quantity</Label>
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="use-minimum-quantity"
+                    checked={useMinimumQuantity}
+                    onCheckedChange={(checked) => setUseMinimumQuantity(checked === true)}
+                  />
+                  <Label htmlFor="use-minimum-quantity" className="text-sm font-medium">
+                    Set Minimum
+                  </Label>
+                </div>
               </div>
               
-              {useMinimumQuantity && (
+              {useMinimumQuantity ? (
                 <Input
                   id="minimum_quantity"
                   type="number"
@@ -256,6 +259,10 @@ export function InventoryItemForm({
                   value={formData.minimum_quantity}
                   onChange={(e) => updateFormData('minimum_quantity', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
                 />
+              ) : (
+                <div className="h-10 border border-input rounded-md bg-muted flex items-center px-3 text-muted-foreground">
+                  No minimum set
+                </div>
               )}
             </div>
           </div>

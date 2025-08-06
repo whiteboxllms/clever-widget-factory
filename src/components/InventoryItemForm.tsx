@@ -8,7 +8,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Upload, UserPlus, Check, ChevronsUpDown } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Upload, UserPlus, Check, ChevronsUpDown, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Supplier {
@@ -279,7 +280,19 @@ export function InventoryItemForm({
         </div>
 
         <div>
-          <Label htmlFor="cost_per_unit">Cost per Unit</Label>
+          <div className="flex items-center gap-2 mb-2">
+            <Label htmlFor="cost_per_unit">Cost per unit (php)</Label>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Exclude shipping costs in calculation</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
           <Input
             id="cost_per_unit"
             type="number"

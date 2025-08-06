@@ -828,7 +828,7 @@ export default function Tools() {
                 <DialogTrigger asChild>
                   <Card className="cursor-pointer hover:shadow-lg transition-shadow">
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-lg mb-3">{tool.name}</CardTitle>
+                      <CardTitle className="text-lg mb-3 text-center">{tool.name}</CardTitle>
                       <div className="aspect-square w-full mb-3 bg-muted rounded-lg overflow-hidden">
                         {tool.image_url ? (
                           <img

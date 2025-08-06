@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, ClipboardCheck, Package, Wrench, Search } from 'lucide-react';
+import { ArrowLeft, ClipboardCheck, Package, Wrench, Search, CheckCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -20,12 +20,68 @@ interface Tool {
 
 const Audit = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [selectedType, setSelectedType] = useState<'tools' | 'inventory' | null>(null);
   const [selectedVicinity, setSelectedVicinity] = useState<string>('');
   const [auditQuantity, setAuditQuantity] = useState(5);
   const [generatedAudit, setGeneratedAudit] = useState<Tool[]>([]);
   const [currentStep, setCurrentStep] = useState<'type' | 'vicinity' | 'quantity' | 'execute'>('type');
+
+  // Handle returning from tool audit with URL parameters
+  useEffect(() => {
+    const step = searchParams.get('step');
+    if (step === 'execute') {
+      // Restore state from sessionStorage if available
+      const storedAuditData = sessionStorage.getItem('currentAudit');
+      if (storedAuditData) {
+        const auditData = JSON.parse(storedAuditData);
+        setSelectedType(auditData.selectedType);
+        setSelectedVicinity(auditData.selectedVicinity);
+        setAuditQuantity(auditData.auditQuantity);
+        setGeneratedAudit(auditData.generatedAudit);
+        setCurrentStep('execute');
+        // Refresh audit data to get updated audit status
+        refreshAuditData(auditData.generatedAudit);
+      }
+    }
+  }, [searchParams]);
+
+  // Save audit state to sessionStorage when generating audit
+  const saveAuditState = (auditData: any) => {
+    sessionStorage.setItem('currentAudit', JSON.stringify(auditData));
+  };
+
+  // Refresh audit data to check for updated audit status
+  const refreshAuditData = async (currentAudit: Tool[]) => {
+    try {
+      const toolIds = currentAudit.map(tool => tool.id);
+      const { data: updatedTools, error } = await supabase
+        .from('tools')
+        .select('id, name, storage_vicinity, storage_location, last_audited_at')
+        .in('id', toolIds);
+
+      if (error) throw error;
+
+      // Update the audit list with fresh data
+      const refreshedAudit = currentAudit.map(tool => {
+        const updatedTool = updatedTools.find(t => t.id === tool.id);
+        return updatedTool || tool;
+      });
+
+      setGeneratedAudit(refreshedAudit);
+    } catch (error) {
+      console.error('Error refreshing audit data:', error);
+    }
+  };
+
+  // Check if a tool was audited today
+  const isToolAuditedToday = (tool: Tool) => {
+    if (!tool.last_audited_at) return false;
+    const auditDate = new Date(tool.last_audited_at);
+    const today = new Date();
+    return auditDate.toDateString() === today.toDateString();
+  };
 
   // Get unique vicinities based on selected type
   const { data: vicinities, isLoading: vicinityLoading } = useQuery({
@@ -94,6 +150,15 @@ const Audit = () => {
 
       setGeneratedAudit(selectedTools);
       setCurrentStep('execute');
+
+      // Save audit state for potential restoration
+      const auditState = {
+        selectedType,
+        selectedVicinity,
+        auditQuantity,
+        generatedAudit: selectedTools
+      };
+      saveAuditState(auditState);
 
       toast({
         title: "Audit Generated",
@@ -318,38 +383,55 @@ const Audit = () => {
             </div>
 
             <div className="grid gap-4">
-              {generatedAudit.map((tool, index) => (
-                <Card key={tool.id}>
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-lg">
-                          {index + 1}. {tool.name}
-                        </CardTitle>
-                        <CardDescription>
-                          Expected: {tool.storage_vicinity} → {tool.storage_location || 'No specific location'}
-                        </CardDescription>
+              {generatedAudit.map((tool, index) => {
+                const isAudited = isToolAuditedToday(tool);
+                return (
+                  <Card 
+                    key={tool.id}
+                    className={`relative ${isAudited ? 'border-green-500 border-2 bg-green-50' : ''}`}
+                  >
+                    {isAudited && (
+                      <div className="absolute top-2 right-2 bg-green-500 rounded-full p-1">
+                        <CheckCircle className="h-5 w-5 text-white" />
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        {tool.last_audited_at ? (
-                          `Last audited: ${new Date(tool.last_audited_at).toLocaleDateString()}`
-                        ) : (
-                          'Never audited'
-                        )}
+                    )}
+                    <CardHeader>
+                      <div className="flex justify-between items-start pr-8">
+                        <div>
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            {index + 1}. {tool.name}
+                            {isAudited && (
+                              <span className="text-sm font-normal text-green-600 bg-green-100 px-2 py-1 rounded">
+                                Audited Today
+                              </span>
+                            )}
+                          </CardTitle>
+                          <CardDescription>
+                            Expected: {tool.storage_vicinity} → {tool.storage_location || 'No specific location'}
+                          </CardDescription>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {tool.last_audited_at ? (
+                            `Last audited: ${new Date(tool.last_audited_at).toLocaleDateString()}`
+                          ) : (
+                            'Never audited'
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <Button 
-                      className="w-full" 
-                      onClick={() => navigate(`/audit/tool/${tool.id}`)}
-                    >
-                      <Search className="h-4 w-4 mr-2" />
-                      Start Audit for this Tool
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardHeader>
+                    <CardContent>
+                      <Button 
+                        className="w-full" 
+                        onClick={() => navigate(`/audit/tool/${tool.id}`)}
+                        variant={isAudited ? "outline" : "default"}
+                      >
+                        <Search className="h-4 w-4 mr-2" />
+                        {isAudited ? 'View/Re-audit Tool' : 'Start Audit for this Tool'}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
 
             <div className="flex gap-2">

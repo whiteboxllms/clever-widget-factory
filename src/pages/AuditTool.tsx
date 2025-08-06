@@ -162,7 +162,8 @@ const AuditTool = () => {
         description: "Tool audit has been successfully submitted.",
       });
       queryClient.invalidateQueries({ queryKey: ['tool', toolId] });
-      navigate('/audit');
+      // Navigate back to audit execution with current parameters preserved
+      navigate('/audit?step=execute');
     },
     onError: (error: any) => {
       console.error('Error submitting audit:', error);

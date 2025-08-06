@@ -1371,6 +1371,7 @@ export default function Tools() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="accidentally_added">Accidentally added</SelectItem>
+                        <SelectItem value="duplicate_entry">Duplicate Entry</SelectItem>
                         <SelectItem value="tool_broken_unrecoverable">Tool is broken and unrecoverable</SelectItem>
                         <SelectItem value="other">Other</SelectItem>
                       </SelectContent>

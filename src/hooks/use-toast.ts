@@ -55,8 +55,13 @@ interface State {
 
 const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
 
-const addToRemoveQueue = (toastId: string) => {
+const addToRemoveQueue = (toastId: string, isError: boolean = false) => {
   if (toastTimeouts.has(toastId)) {
+    return
+  }
+
+  // Don't auto-remove error toasts - they stay until manually dismissed
+  if (isError) {
     return
   }
 
@@ -93,10 +98,11 @@ export const reducer = (state: State, action: Action): State => {
       // ! Side effects ! - This could be extracted into a dismissToast() action,
       // but I'll keep it here for simplicity
       if (toastId) {
-        addToRemoveQueue(toastId)
+        addToRemoveQueue(toastId, false) // Non-error toasts still auto-remove when dismissed
       } else {
         state.toasts.forEach((toast) => {
-          addToRemoveQueue(toast.id)
+          const isError = toast.variant === 'destructive'
+          addToRemoveQueue(toast.id, isError)
         })
       }
 
@@ -141,6 +147,7 @@ type Toast = Omit<ToasterToast, "id">
 
 function toast({ ...props }: Toast) {
   const id = genId()
+  const isError = props.variant === 'destructive'
 
   const update = (props: ToasterToast) =>
     dispatch({
@@ -160,6 +167,13 @@ function toast({ ...props }: Toast) {
       },
     },
   })
+
+  // Error toasts don't auto-dismiss, others still do after a delay
+  if (!isError) {
+    setTimeout(() => {
+      dispatch({ type: "DISMISS_TOAST", toastId: id })
+    }, 5000) // 5 second auto-dismiss for non-error toasts
+  }
 
   return {
     id: id,

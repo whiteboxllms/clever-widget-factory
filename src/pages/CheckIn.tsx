@@ -145,7 +145,7 @@ export default function CheckIn() {
         console.log('=== STARTING IMAGE UPLOAD ===');
         console.log('Images to upload:', uploadedImages.length);
         console.log('Network status before upload:', navigator.onLine ? 'Online' : 'Offline');
-        console.log('Storage bucket target: tool-checkout-images');
+        console.log('Storage bucket target: tool-images');
         
         for (const [index, file] of uploadedImages.entries()) {
           console.log(`=== UPLOADING IMAGE ${index + 1}/${uploadedImages.length} ===`);
@@ -174,7 +174,7 @@ export default function CheckIn() {
           
           try {
             const { data: uploadData, error: uploadError } = await supabase.storage
-              .from('tool-checkout-images')
+              .from('tool-images')
               .upload(fileName, file);
 
             console.log('Upload response:', { data: uploadData, error: uploadError });
@@ -207,7 +207,7 @@ export default function CheckIn() {
             
             // Get public URL
             const { data: { publicUrl } } = supabase.storage
-              .from('tool-checkout-images')
+              .from('tool-images')
               .getPublicUrl(fileName);
             
             console.log('Public URL generated:', publicUrl);

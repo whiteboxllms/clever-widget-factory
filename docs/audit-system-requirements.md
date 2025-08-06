@@ -10,12 +10,12 @@ Create a comprehensive tool audit system to verify tool locations and conditions
 
 ### 1. Audit Dashboard
 - New "Audit" page accessible from main navigation
-- Initial choice: "Tools" (with future "Inventory" option grayed out)
+- Initial choice: "Tools" or "Inventory"
 
 ### 2. Vicinity Selection
-- Display all tool storage vicinities from existing data
-- Single selection only (no multi-vicinity audits)
-- Show count of available tools per vicinity
+- Display all storage vicinities from existing data (tools or inventory based on selection)
+- Single selection only (no multi-vicinity audits for tools OR inventory)
+- Show count of available items per vicinity
 
 ### 3. Audit Generation Parameters
 - **Quantity Selector**: Default 5 items, allow 1-20 range
@@ -105,6 +105,17 @@ Create a comprehensive tool audit system to verify tool locations and conditions
 - Tool discrepancy trends
 - Missing tool reports
 - Maintenance request generation from audits
+
+#### Tool Acquisition Efficiency Metric:
+- **Benchmark**: 1 minute for 5 items (baseline efficiency)
+- **Penalties**:
+  - 10 minutes per item not in correct location
+  - 10 minutes per item marked as "functional but not efficient"
+- **Formula**: 1 ÷ total_penalty_minutes = efficiency percentage
+- **Examples**:
+  - All items in correct location: 1 ÷ 1 = 100% efficiency
+  - 2 items out of place: 1 ÷ 20 = 5% efficiency
+  - 1 missing + 1 inefficient: 1 ÷ 20 = 5% efficiency
 
 ### 9. Permissions & Security
 - Audit feature available to all authenticated users

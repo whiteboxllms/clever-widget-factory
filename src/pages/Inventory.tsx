@@ -835,7 +835,13 @@ export default function Inventory() {
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Info className="h-4 w-4 text-muted-foreground" />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto p-1 hover:bg-muted"
+                      >
+                        <Info className="h-4 w-4 text-muted-foreground" />
+                      </Button>
                     </TooltipTrigger>
                     <TooltipContent>
                       <p className="max-w-xs">Search for item in inventory and add to existing inventory before adding as a new item</p>

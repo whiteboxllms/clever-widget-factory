@@ -386,7 +386,7 @@ const AuditTool = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="good">Good</SelectItem>
+                    <SelectItem value="good">No problems observed</SelectItem>
                     <SelectItem value="functional_but_not_efficient">Functional but not efficient</SelectItem>
                     <SelectItem value="not_functional">Not functional</SelectItem>
                     <SelectItem value="missing">Missing</SelectItem>

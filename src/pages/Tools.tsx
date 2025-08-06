@@ -103,6 +103,7 @@ export default function Tools() {
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [toolHistory, setToolHistory] = useState<CheckoutHistory[]>([]);
   const [currentCheckout, setCurrentCheckout] = useState<{user_name: string} | null>(null);
+  const [activeCheckouts, setActiveCheckouts] = useState<{[key: string]: {user_name: string}}>({});
   const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -147,6 +148,22 @@ export default function Tools() {
 
       if (error) throw error;
       setTools(data || []);
+
+      // Fetch active checkouts for all tools
+      const { data: checkoutsData, error: checkoutsError } = await supabase
+        .from('checkouts')
+        .select('tool_id, user_name')
+        .eq('is_returned', false);
+
+      if (checkoutsError) {
+        console.error('Error fetching active checkouts:', checkoutsError);
+      } else {
+        const checkoutMap: {[key: string]: {user_name: string}} = {};
+        checkoutsData?.forEach(checkout => {
+          checkoutMap[checkout.tool_id] = { user_name: checkout.user_name };
+        });
+        setActiveCheckouts(checkoutMap);
+      }
     } catch (error) {
       console.error('Error fetching tools:', error);
       toast({
@@ -778,7 +795,17 @@ export default function Tools() {
                       
                       {/* Action Buttons */}
                       <div className="mt-3 space-y-2">
-                        {tool.status === 'available' && tool.condition !== 'not_functional' && (
+                        {activeCheckouts[tool.id] ? (
+                          <Button
+                            size="sm"
+                            className="w-full"
+                            disabled
+                            variant="secondary"
+                          >
+                            <User className="mr-2 h-3 w-3" />
+                            Checked out by {activeCheckouts[tool.id].user_name}
+                          </Button>
+                        ) : tool.status === 'available' && tool.condition !== 'not_functional' ? (
                           <Button
                             size="sm"
                             className="w-full"
@@ -791,7 +818,7 @@ export default function Tools() {
                             <LogOut className="mr-2 h-3 w-3" />
                             Checkout
                           </Button>
-                        )}
+                        ) : null}
                         
                         <div className="space-y-2">
                           <Button

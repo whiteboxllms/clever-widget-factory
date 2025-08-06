@@ -268,12 +268,8 @@ export function InventoryItemForm({
             <SelectContent>
               <SelectItem value="pieces">Pieces</SelectItem>
               <SelectItem value="kg">Kilograms</SelectItem>
-              <SelectItem value="lbs">Pounds</SelectItem>
               <SelectItem value="meters">Meters</SelectItem>
-              <SelectItem value="feet">Feet</SelectItem>
               <SelectItem value="liters">Liters</SelectItem>
-              <SelectItem value="gallons">Gallons</SelectItem>
-              <SelectItem value="boxes">Boxes</SelectItem>
               <SelectItem value="grams">Grams</SelectItem>
             </SelectContent>
           </Select>

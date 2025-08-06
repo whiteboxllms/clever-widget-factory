@@ -122,7 +122,6 @@ const AuditTool = () => {
         audit_comments: formData.auditComments,
         photo_urls: uploadedUrls,
         flagged_for_maintenance: formData.flaggedForMaintenance,
-        tool_tested: formData.toolTested,
         last_user_identified: null, // Will be enhanced later with proper user tracking
       };
 
@@ -164,11 +163,25 @@ const AuditTool = () => {
       queryClient.invalidateQueries({ queryKey: ['tool', toolId] });
       navigate('/audit');
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Error submitting audit:', error);
+      
+      // Provide more specific error messages
+      let errorMessage = "Failed to submit audit. Please try again.";
+      
+      if (error?.message?.includes('column')) {
+        errorMessage = "Database schema error. Please contact support.";
+      } else if (error?.message?.includes('upload')) {
+        errorMessage = "Failed to upload photos. Please try again.";
+      } else if (error?.message?.includes('network') || error?.message?.includes('fetch')) {
+        errorMessage = "Network error. Please check your connection and try again.";
+      } else if (error?.message) {
+        errorMessage = `Error: ${error.message}`;
+      }
+      
       toast({
-        title: "Error",
-        description: "Failed to submit audit. Please try again.",
+        title: "Audit Submission Failed",
+        description: errorMessage,
         variant: "destructive",
       });
     },

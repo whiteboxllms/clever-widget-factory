@@ -18,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { compressImage, formatFileSize } from '@/lib/imageUtils';
+import { Checkbox } from '@/components/ui/checkbox';
 import { compressImageDetailed } from '@/lib/enhancedImageUtils';
 import { useEnhancedToast } from '@/hooks/useEnhancedToast';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -83,6 +84,8 @@ export default function Inventory() {
     storage_vicinity: '',
     storage_location: ''
   });
+
+  const [useMinimumQuantity, setUseMinimumQuantity] = useState(false);
 
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [editSelectedImage, setEditSelectedImage] = useState<File | null>(null);
@@ -702,15 +705,30 @@ export default function Inventory() {
                     />
                   </div>
 
-                  <div>
-                    <Label htmlFor="minimum_quantity">Minimum Quantity</Label>
-                    <Input
-                      id="minimum_quantity"
-                      type="number"
-                      min="0"
-                      value={newPart.minimum_quantity}
-                      onChange={(e) => setNewPart({...newPart, minimum_quantity: e.target.value === '' ? 0 : parseInt(e.target.value)})}
-                    />
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="use-minimum-quantity"
+                        checked={useMinimumQuantity}
+                        onCheckedChange={(checked) => setUseMinimumQuantity(checked === true)}
+                      />
+                      <Label htmlFor="use-minimum-quantity" className="text-sm font-medium">
+                        Set minimum quantity threshold
+                      </Label>
+                    </div>
+                    
+                    {useMinimumQuantity && (
+                      <div>
+                        <Label htmlFor="minimum_quantity">Minimum Quantity</Label>
+                        <Input
+                          id="minimum_quantity"
+                          type="number"
+                          min="0"
+                          value={newPart.minimum_quantity}
+                          onChange={(e) => setNewPart({...newPart, minimum_quantity: e.target.value === '' ? 0 : parseInt(e.target.value)})}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div>

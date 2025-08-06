@@ -473,7 +473,7 @@ const Audit = () => {
                             )}
                           </div>
                           {tool.audit_info && (
-                            <div className="text-green-600 font-medium mt-1">
+                            <div className="text-green-600 font-medium mt-1 text-right">
                               Audited by {tool.audit_info.auditor_name} at {new Date(tool.audit_info.audited_at).toLocaleTimeString([], { 
                                 hour: '2-digit', 
                                 minute: '2-digit',

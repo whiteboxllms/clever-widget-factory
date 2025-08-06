@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Tables } from '@/integrations/supabase/types';
 import { compressImageDetailed } from '@/lib/enhancedImageUtils';
 import { useEnhancedToast } from '@/hooks/useEnhancedToast';
+import { useImageUpload } from '@/hooks/useImageUpload';
 
 type CheckoutWithTool = Tables<'checkouts'> & {
   tools: Tables<'tools'>;
@@ -42,6 +43,7 @@ export default function CheckIn() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
+  const { uploadImages } = useImageUpload();
   const { user } = useAuth();
   const [checkouts, setCheckouts] = useState<CheckoutWithTool[]>([]);
   const [loading, setLoading] = useState(true);
@@ -147,104 +149,30 @@ export default function CheckIn() {
       if (uploadedImages.length > 0) {
         console.log('=== STARTING IMAGE UPLOAD ===');
         console.log('Images to upload:', uploadedImages.length);
-        console.log('Network status before upload:', navigator.onLine ? 'Online' : 'Offline');
-        console.log('Storage bucket target: tool-images');
         
-        for (const [index, file] of uploadedImages.entries()) {
-          console.log(`=== UPLOADING IMAGE ${index + 1}/${uploadedImages.length} ===`);
-          console.log('File details:', {
-            name: file.name,
-            size: file.size,
-            type: file.type,
-            lastModified: file.lastModified
+        try {
+          const results = await uploadImages(uploadedImages, {
+            bucket: 'tool-images',
+            generateFileName: (file, index) => {
+              const fileExt = file.name.split('.').pop() || 'jpg';
+              return `checkin_${selectedCheckout.tool_id}_${selectedCheckout.id}_${Date.now()}_${index}.${fileExt}`;
+            },
+            onProgress: (stage, progress, details) => {
+              console.log(`Compression stage: ${stage} (${progress}%) - ${details}`);
+            }
           });
           
-          // Check file size (common issue)
-          if (file.size > 10 * 1024 * 1024) { // 10MB limit
-            throw new Error(`Image too large: ${(file.size / 1024 / 1024).toFixed(2)}MB. Maximum size is 10MB.`);
-          }
-          
-          // Check file type
-          if (!file.type.startsWith('image/')) {
-            throw new Error(`Invalid file type: ${file.type}. Only image files are allowed.`);
-          }
-          
-          try {
-            // Show compression start toast
-            console.log('Starting image compression...');
-            const compressionToast = enhancedToast.showCompressionStart(file.name, file.size);
+          // Extract URLs from results
+          imageUrls = Array.isArray(results) 
+            ? results.map(r => r.url)
+            : [results.url];
             
-            // Compress the image with detailed progress
-            const compressionResult = await compressImageDetailed(
-              file,
-              { maxSizeMB: 0.5, maxWidthOrHeight: 1920 },
-              (stage, progress, details) => {
-                console.log(`Compression stage: ${stage} (${progress}%) - ${details}`);
-              }
-            );
-            
-            // Show compression complete toast
-            enhancedToast.showCompressionComplete(compressionResult);
-            
-            const compressedFile = compressionResult.file;
-            console.log('Compression complete:', {
-              original: compressionResult.originalSize,
-              compressed: compressionResult.compressedSize,
-              ratio: compressionResult.compressionRatio
-            });
-            
-            const fileExt = compressedFile.name.split('.').pop() || 'jpg';
-            const fileName = `checkin_${selectedCheckout.tool_id}_${selectedCheckout.id}_${Date.now()}_${index + 1}.${fileExt}`;
-            
-            console.log('Generated filename:', fileName);
-            console.log('Attempting storage upload...');
-            
-            // Show upload start toast
-            const uploadToast = enhancedToast.showUploadStart(fileName, compressionResult.compressedSize);
-            
-            const { data: uploadData, error: uploadError } = await supabase.storage
-              .from('tool-images')
-              .upload(fileName, compressedFile);
-
-            console.log('Upload response:', { data: uploadData, error: uploadError });
-
-            if (uploadError) {
-              console.error('=== IMAGE UPLOAD ERROR ===');
-              console.error('Upload error details:', {
-                message: uploadError.message,
-                details: uploadError
-              });
-              
-              // Show enhanced upload error
-              enhancedToast.showUploadError(uploadError.message, fileName);
-              throw uploadError;
-            }
-
-            console.log('Upload successful, getting public URL...');
-            
-            // Get public URL
-            const { data: { publicUrl } } = supabase.storage
-              .from('tool-images')
-              .getPublicUrl(fileName);
-            
-            // Show upload success
-            enhancedToast.showUploadSuccess(fileName, publicUrl);
-            
-            console.log('Public URL generated:', publicUrl);
-            imageUrls.push(publicUrl);
-            console.log(`Image ${index + 1} uploaded successfully`);
-            
-          } catch (uploadErr) {
-            console.error(`Failed to upload image ${index + 1}:`, uploadErr);
-            // Show error toast if not already shown by enhanced toast
-            if (uploadErr instanceof Error && !uploadErr.message.includes('Upload')) {
-              enhancedToast.showUploadError(uploadErr.message, file.name);
-            }
-            throw uploadErr;
-          }
+          console.log('=== ALL IMAGES UPLOADED SUCCESSFULLY ===');
+          console.log('Final image URLs:', imageUrls);
+        } catch (error) {
+          console.error('Image upload failed:', error);
+          throw error;
         }
-        console.log('=== ALL IMAGES UPLOADED SUCCESSFULLY ===');
-        console.log('Final image URLs:', imageUrls);
       }
 
       // Create checkin record

@@ -860,7 +860,7 @@ export default function Tools() {
                         </Badge>
                       </div>
                       
-                      <p className="text-xs text-muted-foreground mb-3">
+                      <p className="text-sm text-muted-foreground mb-3">
                         Location: {tool.actual_location || (tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : ''))}
                       </p>
                       

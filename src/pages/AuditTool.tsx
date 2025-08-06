@@ -502,7 +502,7 @@ const AuditTool = () => {
                 {submitAuditMutation.isPending || isUploading ? (
                   'Submitting Audit...'
                 ) : (
-                  'Complete Audit'
+                  'Complete tool audit'
                 )}
               </Button>
             </CardContent>

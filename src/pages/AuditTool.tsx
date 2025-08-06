@@ -26,7 +26,7 @@ interface Tool {
 interface AuditFormData {
   foundInVicinity: boolean;
   foundInLocation: boolean;
-  conditionFound: 'good' | 'fair' | 'poor' | 'missing';
+  conditionFound: 'good' | 'functional_but_not_efficient' | 'not_functional' | 'missing';
   auditComments: string;
   photoUrls: string[];
   flaggedForMaintenance: boolean;
@@ -127,10 +127,11 @@ const AuditTool = () => {
 
       if (auditError) throw auditError;
 
-      // Update tool's last_audited_at and audit_status
+      // Update tool's last_audited_at, audit_status, and condition
       const toolUpdates: any = {
         last_audited_at: new Date().toISOString(),
         audit_status: 'audited',
+        condition: formData.conditionFound === 'missing' ? tool.condition : formData.conditionFound,
       };
 
       // If marked as missing, update tool status
@@ -375,10 +376,10 @@ const AuditTool = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="good">Good - Fully functional and efficient</SelectItem>
-                    <SelectItem value="fair">Fair - Functional but not efficient</SelectItem>
-                    <SelectItem value="poor">Poor - Needs maintenance or repair</SelectItem>
-                    <SelectItem value="missing">Missing - Tool not found</SelectItem>
+                    <SelectItem value="good">Good</SelectItem>
+                    <SelectItem value="functional_but_not_efficient">Functional but not efficient</SelectItem>
+                    <SelectItem value="not_functional">Not functional</SelectItem>
+                    <SelectItem value="missing">Missing</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

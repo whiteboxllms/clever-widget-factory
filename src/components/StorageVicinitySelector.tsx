@@ -191,7 +191,15 @@ export function StorageVicinitySelector({ value, onValueChange, placeholder = "S
               <Input
                 id="vicinity-name"
                 value={newVicinity.name}
-                onChange={(e) => setNewVicinity(prev => ({ ...prev, name: e.target.value }))}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Capitalize first letter of each word as user types
+                  const capitalizedValue = value
+                    .split(' ')
+                    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                    .join(' ');
+                  setNewVicinity(prev => ({ ...prev, name: capitalizedValue }));
+                }}
                 placeholder="e.g., Workshop, Garage, Storage Room"
                 required
               />

@@ -17,6 +17,7 @@ import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ToolCheckoutDialog } from "@/components/ToolCheckoutDialog";
+import { StorageVicinitySelector } from "@/components/StorageVicinitySelector";
 import { useNavigate, useParams } from "react-router-dom";
 
 interface Tool {
@@ -787,12 +788,10 @@ export default function Tools() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="storage_vicinity">Storage Vicinity *</Label>
-                      <Input
-                        id="storage_vicinity"
+                      <StorageVicinitySelector
                         value={newTool.storage_vicinity}
-                        onChange={(e) => setNewTool(prev => ({ ...prev, storage_vicinity: e.target.value }))}
-                        placeholder="e.g., Workshop A, Storage Room"
-                        required
+                        onValueChange={(value) => setNewTool(prev => ({ ...prev, storage_vicinity: value }))}
+                        placeholder="Select or add storage vicinity..."
                       />
                     </div>
                     <div className="space-y-2">
@@ -1273,12 +1272,10 @@ export default function Tools() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="edit-storage-vicinity">Storage Vicinity *</Label>
-                    <Input
-                      id="edit-storage-vicinity"
+                    <StorageVicinitySelector
                       value={editTool.storage_vicinity}
-                      onChange={(e) => setEditTool(prev => prev ? { ...prev, storage_vicinity: e.target.value } : null)}
-                      placeholder="e.g., Workshop A, Storage Room"
-                      required
+                      onValueChange={(value) => setEditTool(prev => prev ? { ...prev, storage_vicinity: value } : null)}
+                      placeholder="Select or add storage vicinity..."
                     />
                   </div>
                   <div className="space-y-2">

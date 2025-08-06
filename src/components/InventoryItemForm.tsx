@@ -224,7 +224,9 @@ export function InventoryItemForm({
         <div className="col-span-2">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="current_quantity">Current Quantity *</Label>
+              <div className="flex items-center justify-between mb-2 h-6">
+                <Label htmlFor="current_quantity">Current Quantity *</Label>
+              </div>
               <Input
                 id="current_quantity"
                 type="number"
@@ -236,7 +238,7 @@ export function InventoryItemForm({
             </div>
             
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-2 h-6">
                 <Label htmlFor="minimum_quantity">Minimum Quantity</Label>
                 <div className="flex items-center space-x-2">
                   <Checkbox 

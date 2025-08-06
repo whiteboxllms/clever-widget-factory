@@ -173,6 +173,7 @@ export default function CheckIn() {
       // Add hours used if tool has motor and hours were provided
       if (selectedCheckout.tools.has_motor && form.hours_used) {
         checkinData.hours_used = parseFloat(form.hours_used);
+        console.log('Added motor hours:', checkinData.hours_used);
       }
 
       const { error: checkinError } = await supabase
@@ -247,30 +248,87 @@ export default function CheckIn() {
       fetchCheckouts();
 
     } catch (error) {
-      console.error('Error checking in tool:', error);
+      console.error('=== TOOL CHECK-IN ERROR ===');
+      console.error('Error object:', error);
+      console.error('Error type:', typeof error);
+      console.error('Error constructor:', error?.constructor?.name);
+      console.error('Network status:', navigator.onLine ? 'Online' : 'Offline');
+      console.error('User agent:', navigator.userAgent);
+      console.error('Platform info:', {
+        platform: navigator.platform,
+        language: navigator.language,
+        cookieEnabled: navigator.cookieEnabled,
+        deviceMemory: (navigator as any).deviceMemory,
+        connection: (navigator as any).connection?.effectiveType
+      });
       
       let errorMessage = "Failed to check in tool";
       let errorDetails = "";
+      let statusCode = "Unknown";
       
       if (error && typeof error === 'object' && 'message' in error) {
         errorDetails = String(error.message);
-        console.log('Detailed error:', errorDetails);
+        console.log('Detailed error message:', errorDetails);
         
-        // Provide specific guidance based on common error types
-        if (errorDetails.includes('violates row-level security')) {
-          errorMessage = "Permission denied";
-          errorDetails = "You don't have permission to check in this tool. Please ensure you're logged in and have the necessary access rights.";
-        } else if (errorDetails.includes('null value') || errorDetails.includes('not-null constraint')) {
-          errorMessage = "Missing required information";
-          errorDetails = "Please fill in all required fields: Tool Condition, SOP Best Practices, and What Did You Do are mandatory.";
-        } else if (errorDetails.includes('foreign key')) {
-          errorMessage = "Data reference error";
-          errorDetails = "There's an issue with the checkout record. Please try refreshing the page and checking in again.";
-        } else if (errorDetails.includes('duplicate key')) {
-          errorMessage = "Check-in already exists";
-          errorDetails = "This tool may have already been checked in. Please refresh the page to see the current status.";
+        // Extract status code if available
+        if ('status' in error) {
+          statusCode = String(error.status);
+        } else if ('code' in error) {
+          statusCode = String(error.code);
+        } else if (errorDetails.includes('status')) {
+          const statusMatch = errorDetails.match(/status[:\s]*(\d+)/i);
+          if (statusMatch) statusCode = statusMatch[1];
         }
+        
+        // Enhanced mobile-specific error handling
+        const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        if (errorDetails.includes('fetch')) {
+          errorMessage = isMobile ? "Network Error (Mobile)" : "Network Error";
+          errorDetails = `Connection failed. Status: ${statusCode}. ${isMobile ? 'Try switching between WiFi/cellular data. ' : ''}Check your internet connection and try again.`;
+        } else if (errorDetails.includes('violates row-level security')) {
+          errorMessage = "Permission Denied";
+          errorDetails = `Access forbidden (Status: ${statusCode}). You don't have permission to check in this tool. ${isMobile ? 'Try refreshing the app or logging out and back in. ' : ''}Contact support if this persists.`;
+        } else if (errorDetails.includes('null value') || errorDetails.includes('not-null constraint')) {
+          errorMessage = "Missing Information";
+          errorDetails = `Required fields missing (Status: ${statusCode}). Please fill in: Tool Condition, SOP Best Practices, and What Did You Do.`;
+        } else if (errorDetails.includes('foreign key')) {
+          errorMessage = "Data Reference Error";
+          errorDetails = `Database constraint violation (Status: ${statusCode}). There's an issue with the checkout record. ${isMobile ? 'Try force-closing and reopening the app. ' : 'Try refreshing the page.'} If problem persists, contact support.`;
+        } else if (errorDetails.includes('duplicate key')) {
+          errorMessage = "Already Checked In";
+          errorDetails = `Duplicate entry (Status: ${statusCode}). This tool may have already been checked in. ${isMobile ? 'Pull down to refresh the screen. ' : 'Refresh the page to see current status.'}`;
+        } else if (errorDetails.includes('timeout') || errorDetails.includes('ETIMEDOUT')) {
+          errorMessage = isMobile ? "Request Timeout (Mobile)" : "Request Timeout";
+          errorDetails = `Server not responding (Status: ${statusCode}). ${isMobile ? 'Check signal strength and try again. ' : ''}The request took too long to complete.`;
+        } else if (errorDetails.includes('ENOTFOUND') || errorDetails.includes('DNS')) {
+          errorMessage = "Connection Error";
+          errorDetails = `Cannot reach server (Status: ${statusCode}). ${isMobile ? 'Check your internet connection and DNS settings. ' : ''}Try again in a moment.`;
+        } else if (statusCode === '401') {
+          errorMessage = "Authentication Error";
+          errorDetails = `Session expired (Status: ${statusCode}). Please log out and log back in to refresh your session.`;
+        } else if (statusCode === '403') {
+          errorMessage = "Access Forbidden";
+          errorDetails = `Permission denied (Status: ${statusCode}). You don't have the required permissions for this action.`;
+        } else if (statusCode === '429') {
+          errorMessage = "Rate Limited";
+          errorDetails = `Too many requests (Status: ${statusCode}). Please wait a moment before trying again.`;
+        } else if (statusCode === '500' || statusCode === '502' || statusCode === '503') {
+          errorMessage = "Server Error";
+          errorDetails = `Internal server error (Status: ${statusCode}). This is a temporary issue. Please try again in a few minutes.`;
+        } else {
+          errorDetails = `Error details: ${errorDetails} (Status: ${statusCode})${isMobile ? '. Device: Mobile' : ''}`;
+        }
+      } else {
+        errorDetails = `Unknown error occurred (Status: ${statusCode}). ${navigator.onLine ? 'Connected to internet' : 'No internet connection'}.`;
       }
+      
+      // Log comprehensive error info for debugging
+      console.error('=== FINAL ERROR DETAILS ===');
+      console.error('Message:', errorMessage);
+      console.error('Details:', errorDetails);
+      console.error('Status Code:', statusCode);
+      console.error('Is Mobile:', /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
       
       toast({
         title: errorMessage,

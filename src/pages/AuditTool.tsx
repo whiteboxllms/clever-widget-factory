@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useImageUpload } from '@/hooks/useImageUpload';
+import { showErrorToast } from '@/components/ErrorToast';
 
 interface Tool {
   id: string;
@@ -166,23 +167,16 @@ const AuditTool = () => {
     onError: (error: any) => {
       console.error('Error submitting audit:', error);
       
-      // Provide more specific error messages
-      let errorMessage = "Failed to submit audit. Please try again.";
-      
-      if (error?.message?.includes('column')) {
-        errorMessage = "Database schema error. Please contact support.";
-      } else if (error?.message?.includes('upload')) {
-        errorMessage = "Failed to upload photos. Please try again.";
-      } else if (error?.message?.includes('network') || error?.message?.includes('fetch')) {
-        errorMessage = "Network error. Please check your connection and try again.";
-      } else if (error?.message) {
-        errorMessage = `Error: ${error.message}`;
-      }
-      
-      toast({
+      showErrorToast({
+        error,
+        context: {
+          toolId: toolId,
+          userId: user?.id,
+          formData: formData,
+          selectedFilesCount: selectedFiles.length,
+        },
         title: "Audit Submission Failed",
-        description: errorMessage,
-        variant: "destructive",
+        storageKey: 'lastAuditError'
       });
     },
   });

@@ -175,10 +175,8 @@ export default function Inventory() {
 
     if (showLowInventoryOnly) {
       filtered = filtered.filter(part => {
-        // Only show items where minimum quantity is actually set AND current quantity is at or below minimum
-        return part.minimum_quantity !== null && 
-               part.minimum_quantity > 0 && 
-               part.current_quantity <= part.minimum_quantity;
+        // Only show items where minimum quantity is actually set (not null) AND current quantity is at or below minimum
+        return part.minimum_quantity !== null && part.current_quantity <= part.minimum_quantity;
       });
     }
 

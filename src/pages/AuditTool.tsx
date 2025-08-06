@@ -29,7 +29,7 @@ interface Tool {
 interface AuditFormData {
   foundInVicinity: boolean;
   foundInLocation: boolean;
-  conditionFound: 'good' | 'functional_but_not_efficient' | 'not_functional' | 'missing';
+  conditionFound: 'no_problems_observed' | 'functional_but_not_efficient' | 'not_functional' | 'missing';
   auditComments: string;
   photoUrls: string[];
   flaggedForMaintenance: boolean;
@@ -47,7 +47,7 @@ const AuditTool = () => {
   const [formData, setFormData] = useState<AuditFormData>({
     foundInVicinity: true,
     foundInLocation: true,
-    conditionFound: 'good',
+    conditionFound: 'no_problems_observed',
     auditComments: '',
     photoUrls: [],
     flaggedForMaintenance: false,
@@ -133,20 +133,10 @@ const AuditTool = () => {
       if (auditError) throw auditError;
 
       // Update tool's last_audited_at, audit_status, and condition
-      // Map form condition values to database enum values
-      const conditionMapping: Record<string, string> = {
-        'good': 'no_problems_observed',
-        'functional_but_not_efficient': 'functional_but_not_efficient',
-        'not_functional': 'not_functional',
-        'missing': 'missing'
-      };
-
-      const mappedCondition = conditionMapping[formData.conditionFound] || formData.conditionFound;
-
       const toolUpdates: any = {
         last_audited_at: new Date().toISOString(),
         audit_status: 'audited',
-        condition: formData.conditionFound === 'missing' ? tool.condition : mappedCondition,
+        condition: formData.conditionFound === 'missing' ? tool.condition : formData.conditionFound,
       };
 
       // If marked as missing, update tool status
@@ -404,7 +394,7 @@ const AuditTool = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="good">No problems observed</SelectItem>
+                    <SelectItem value="no_problems_observed">No problems observed</SelectItem>
                     <SelectItem value="functional_but_not_efficient">Functional but not efficient</SelectItem>
                     <SelectItem value="not_functional">Not functional</SelectItem>
                     <SelectItem value="missing">Missing</SelectItem>

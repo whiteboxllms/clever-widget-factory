@@ -222,7 +222,14 @@ const AuditTool = () => {
             <Button 
               variant="ghost" 
               size="sm" 
-              onClick={() => navigate(-1)}
+              onClick={() => {
+                console.log('Back button clicked');
+                if (window.history.length > 1) {
+                  navigate(-1);
+                } else {
+                  navigate('/audit');
+                }
+              }}
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back

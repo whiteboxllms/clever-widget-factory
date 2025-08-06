@@ -751,7 +751,10 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      tool_condition: "good" | "functional_but_not_efficient" | "not_functional"
+      tool_condition:
+        | "no_problems_observed"
+        | "functional_but_not_efficient"
+        | "not_functional"
       tool_status:
         | "available"
         | "checked_out"
@@ -885,7 +888,7 @@ export const Constants = {
   public: {
     Enums: {
       tool_condition: [
-        "good",
+        "no_problems_observed",
         "functional_but_not_efficient",
         "not_functional",
       ],

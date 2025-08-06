@@ -10,11 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Upload, UserPlus, Check, ChevronsUpDown, History, ArrowLeft } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Upload, UserPlus, Check, ChevronsUpDown, History, ArrowLeft, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { InventoryHistoryDialog } from '@/components/InventoryHistoryDialog';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { compressImage, formatFileSize } from '@/lib/imageUtils';
 import { compressImageDetailed } from '@/lib/enhancedImageUtils';
@@ -830,18 +831,29 @@ export default function Inventory() {
                   className="pl-10"
                 />
               </div>
-              {searchTerm && (
+              <div className="flex items-center gap-2">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">Search for item in inventory and add to existing inventory before adding as a new item</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <Button 
                   onClick={() => {
                     setNewPart(prev => ({ ...prev, name: searchTerm }));
                     setShowAddDialog(true);
                   }}
+                  disabled={!searchTerm}
                   className="flex items-center gap-2"
                 >
                   <Plus className="h-4 w-4" />
                   Add Item
                 </Button>
-              )}
+              </div>
             </div>
             
             <div className="flex items-center space-x-2">

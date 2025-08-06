@@ -230,8 +230,8 @@ export function InventoryItemForm({
             type="number"
             step="0.001"
             min="0"
-            value={formData.current_quantity}
-            onChange={(e) => updateFormData('current_quantity', parseFloat(e.target.value) || 0)}
+            value={formData.current_quantity === 0 ? '' : formData.current_quantity}
+            onChange={(e) => updateFormData('current_quantity', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
           />
             </div>
             
@@ -253,7 +253,7 @@ export function InventoryItemForm({
                   type="number"
                   step="0.001"
                   min="0"
-                  value={formData.minimum_quantity}
+                  value={formData.minimum_quantity === 0 ? '' : formData.minimum_quantity}
                   onChange={(e) => updateFormData('minimum_quantity', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
                 />
               )}

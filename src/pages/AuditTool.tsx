@@ -21,6 +21,8 @@ interface Tool {
   storage_location: string;
   condition: string;
   status: string;
+  serial_number?: string;
+  category?: string;
 }
 
 interface AuditFormData {
@@ -251,8 +253,16 @@ const AuditTool = () => {
                   <p>{tool.name}</p>
                 </div>
                 <div>
+                  <Label className="font-semibold">Serial Number</Label>
+                  <p className="font-mono text-lg">{tool.serial_number || 'No serial number'}</p>
+                </div>
+                <div>
                   <Label className="font-semibold">Current Condition</Label>
                   <p className="capitalize">{tool.condition}</p>
+                </div>
+                <div>
+                  <Label className="font-semibold">Category</Label>
+                  <p>{tool.category || 'Uncategorized'}</p>
                 </div>
                 <div>
                   <Label className="font-semibold">Expected Vicinity</Label>

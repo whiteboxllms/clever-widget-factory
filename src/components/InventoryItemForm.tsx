@@ -225,13 +225,14 @@ export function InventoryItemForm({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="current_quantity">Current Quantity *</Label>
-              <Input
-                id="current_quantity"
-                type="number"
-                min="0"
-                value={formData.current_quantity}
-                onChange={(e) => updateFormData('current_quantity', parseInt(e.target.value) || 0)}
-              />
+          <Input
+            id="current_quantity"
+            type="number"
+            step="0.001"
+            min="0"
+            value={formData.current_quantity}
+            onChange={(e) => updateFormData('current_quantity', parseFloat(e.target.value) || 0)}
+          />
             </div>
             
             <div className="space-y-3">
@@ -250,9 +251,10 @@ export function InventoryItemForm({
                 <Input
                   id="minimum_quantity"
                   type="number"
+                  step="0.001"
                   min="0"
                   value={formData.minimum_quantity}
-                  onChange={(e) => updateFormData('minimum_quantity', e.target.value === '' ? 0 : parseInt(e.target.value))}
+                  onChange={(e) => updateFormData('minimum_quantity', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
                 />
               )}
             </div>

@@ -414,11 +414,11 @@ export default function Inventory() {
   const updateQuantity = async () => {
     if (!quantityPart || !quantityChange.amount) return;
 
-    const amount = parseInt(quantityChange.amount);
+    const amount = parseFloat(quantityChange.amount);
     if (isNaN(amount) || amount <= 0) {
       toast({
         title: "Error",
-        description: "Please enter a valid quantity",
+        description: "Please enter a valid positive number",
         variant: "destructive",
       });
       return;
@@ -908,7 +908,8 @@ export default function Inventory() {
                 <Input
                   id="quantity-amount"
                   type="number"
-                  min="1"
+                  step="0.001"
+                  min="0.001"
                   value={quantityChange.amount}
                   onChange={(e) => setQuantityChange({...quantityChange, amount: e.target.value})}
                   placeholder="Enter quantity"

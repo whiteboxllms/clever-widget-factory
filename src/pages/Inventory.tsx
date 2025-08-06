@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Wrench, ExternalLink, Upload, UserPlus, Check, ChevronsUpDown, ChevronDown, History, ArrowLeft } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Upload, UserPlus, Check, ChevronsUpDown, History, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { InventoryHistoryDialog } from '@/components/InventoryHistoryDialog';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -50,31 +50,12 @@ interface Part {
   updated_at: string;
 }
 
-interface Tool {
-  id: string;
-  name: string;
-  category: string | null;
-  status: 'available' | 'checked_out' | 'unavailable' | 'unable_to_find';
-  condition: 'good' | 'functional_but_not_efficient' | 'not_functional';
-  storage_vicinity: string;
-  storage_location: string | null;
-}
 
-interface ToolSummary {
-  name: string;
-  category: string | null;
-  total_count: number;
-  available_count: number;
-  checked_out_count: number;
-  unavailable_count: number;
-  unable_to_find_count: number;
-  location: string;
-}
 
 export default function Inventory() {
   const [parts, setParts] = useState<Part[]>([]);
   const [filteredParts, setFilteredParts] = useState<Part[]>([]);
-  const [toolSummaries, setToolSummaries] = useState<ToolSummary[]>([]);
+  
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -109,7 +90,7 @@ export default function Inventory() {
   const [newSupplier, setNewSupplier] = useState('');
   const [supplierOpen, setSupplierOpen] = useState(false);
   const [editSupplierOpen, setEditSupplierOpen] = useState(false);
-  const [toolsSummaryExpanded, setToolsSummaryExpanded] = useState(false);
+  
   const [expandedDescriptions, setExpandedDescriptions] = useState<Set<string>>(new Set());
 
   const [quantityChange, setQuantityChange] = useState({
@@ -119,7 +100,6 @@ export default function Inventory() {
 
   useEffect(() => {
     fetchParts();
-    fetchToolSummaries();
     fetchSuppliers();
   }, []);
 
@@ -174,50 +154,6 @@ export default function Inventory() {
     }
   };
 
-  const fetchToolSummaries = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('tools')
-        .select('id, name, category, status, storage_vicinity, storage_location')
-        .order('name');
-
-      if (error) throw error;
-
-      // Group tools by name and aggregate counts
-      const toolGroups = (data || []).reduce((acc: { [key: string]: ToolSummary }, tool) => {
-        const key = tool.name;
-        if (!acc[key]) {
-          acc[key] = {
-            name: tool.name,
-            category: tool.category,
-            total_count: 0,
-            available_count: 0,
-            checked_out_count: 0,
-            unavailable_count: 0,
-            unable_to_find_count: 0,
-            location: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : ''),
-          };
-        }
-        
-        acc[key].total_count++;
-        if (tool.status === 'available') acc[key].available_count++;
-        else if (tool.status === 'checked_out') acc[key].checked_out_count++;
-        else if (tool.status === 'unavailable') acc[key].unavailable_count++;
-        else if (tool.status === 'unable_to_find') acc[key].unable_to_find_count++;
-        
-        return acc;
-      }, {});
-
-      setToolSummaries(Object.values(toolGroups));
-    } catch (error) {
-      console.error('Error fetching tool summaries:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch tool summaries",
-        variant: "destructive",
-      });
-    }
-  };
 
   const filterParts = () => {
     let filtered = parts;
@@ -636,7 +572,7 @@ export default function Inventory() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold">Manage Inventory</h1>
-            <p className="text-muted-foreground">Manage inventory items and view tool summaries</p>
+            <p className="text-muted-foreground">Manage inventory items</p>
           </div>
         </div>
       </header>
@@ -886,94 +822,6 @@ export default function Inventory() {
           </Dialog>
         </div>
 
-        {/* Tools Summary Section */}
-        <div className="mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <div 
-              className="flex items-center gap-2 cursor-pointer"
-              onClick={() => setToolsSummaryExpanded(!toolsSummaryExpanded)}
-            >
-              <ChevronDown 
-                className={`h-5 w-5 transition-transform ${toolsSummaryExpanded ? 'rotate-180' : ''}`} 
-              />
-              <h2 className="text-2xl font-bold text-foreground">Tools Summary</h2>
-            </div>
-            <Button 
-              variant="outline" 
-              onClick={() => navigate('/tools')}
-              className="flex items-center gap-2"
-            >
-              <Wrench className="h-4 w-4" />
-              Manage Tools
-              <ExternalLink className="h-4 w-4" />
-            </Button>
-          </div>
-          
-          {toolsSummaryExpanded && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {toolSummaries.map((tool) => (
-                <Card key={tool.name} className="hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <CardTitle className="text-lg">{tool.name}</CardTitle>
-                        <CardDescription className="mt-1">
-                          {tool.category || 'Uncategorized'}
-                        </CardDescription>
-                      </div>
-                      <Badge variant="secondary" className="ml-2">
-                        {tool.total_count} total
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  
-                  <CardContent>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Available:</span>
-                        <Badge variant="default" className="bg-green-100 text-green-800">
-                          {tool.available_count}
-                        </Badge>
-                      </div>
-                      
-                      {tool.checked_out_count > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Checked out:</span>
-                          <Badge variant="destructive">
-                            {tool.checked_out_count}
-                          </Badge>
-                        </div>
-                      )}
-                      
-                      {tool.unavailable_count > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Unavailable:</span>
-                          <Badge variant="secondary">
-                            {tool.unavailable_count}
-                          </Badge>
-                        </div>
-                      )}
-                      
-                      {tool.unable_to_find_count > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Unable to find:</span>
-                          <Badge variant="destructive">
-                            {tool.unable_to_find_count}
-                          </Badge>
-                        </div>
-                      )}
-                      
-                      <div className="flex justify-between text-sm pt-2 border-t">
-                        <span className="text-muted-foreground">Location:</span>
-                        <span className="text-right font-medium">{tool.location}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
 
         {/* Consumables Section */}
         <div className="mb-8">

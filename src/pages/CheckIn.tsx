@@ -72,6 +72,7 @@ export default function CheckIn() {
     try {
       console.log('=== FETCHING CHECKOUTS ===');
       console.log('Network status:', navigator.onLine ? 'Online' : 'Offline');
+      console.log('Timestamp:', new Date().toISOString());
       
       const { data, error } = await supabase
         .from('checkouts')
@@ -83,23 +84,37 @@ export default function CheckIn() {
         .order('checkout_date', { ascending: false });
 
       console.log('Checkout fetch result:', { data: data?.length, error });
+      console.log('Raw data:', data);
 
       if (error) {
         console.error('Supabase error details:', error);
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
+        console.error('Error details:', error.details);
         throw error;
       }
       setCheckouts(data || []);
       console.log('Successfully loaded checkouts:', data?.length || 0);
     } catch (error) {
       console.error('Error fetching checkouts:', error);
+      console.error('Error type:', typeof error);
+      console.error('Error stack:', error?.stack);
       
       // Enhanced error details
       let errorMessage = "Failed to load checked out tools";
       if (error instanceof Error) {
+        console.error('Error instance details:', {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        });
+        
         if (error.message.includes('fetch')) {
           errorMessage = "Network error - please check your internet connection";
         } else if (error.message.includes('timeout')) {
           errorMessage = "Request timed out - please try again";
+        } else if (error.message.includes('CORS')) {
+          errorMessage = "CORS error - there may be a configuration issue";
         }
       }
       

@@ -460,26 +460,26 @@ const Audit = () => {
                               </span>
                             )}
                           </CardTitle>
-                          <CardDescription className="space-y-1">
-                            <div>
-                              Expected: {tool.storage_vicinity} → {tool.storage_location || 'No specific location'}
-                            </div>
-                            {tool.audit_info && (
-                              <div className="text-green-600 font-medium">
-                                Audited by {tool.audit_info.auditor_name} at {new Date(tool.audit_info.audited_at).toLocaleTimeString([], { 
-                                  hour: '2-digit', 
-                                  minute: '2-digit',
-                                  hour12: true 
-                                })}
-                              </div>
-                            )}
+                          <CardDescription>
+                            Expected: {tool.storage_vicinity} → {tool.storage_location || 'No specific location'}
                           </CardDescription>
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          {tool.last_audited_at ? (
-                            `Last audited: ${new Date(tool.last_audited_at).toLocaleDateString()}`
-                          ) : (
-                            'Never audited'
+                          <div>
+                            {tool.last_audited_at ? (
+                              `Last audited: ${new Date(tool.last_audited_at).toLocaleDateString()}`
+                            ) : (
+                              'Never audited'
+                            )}
+                          </div>
+                          {tool.audit_info && (
+                            <div className="text-green-600 font-medium mt-1">
+                              Audited by {tool.audit_info.auditor_name} at {new Date(tool.audit_info.audited_at).toLocaleTimeString([], { 
+                                hour: '2-digit', 
+                                minute: '2-digit',
+                                hour12: true 
+                              })}
+                            </div>
                           )}
                         </div>
                       </div>

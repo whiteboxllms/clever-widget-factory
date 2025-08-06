@@ -1251,7 +1251,7 @@ export default function Tools() {
                         <SelectValue />
                       </SelectTrigger>
                        <SelectContent>
-                         <SelectItem value="good">Good</SelectItem>
+                          <SelectItem value="no_problems_observed">No problems detected</SelectItem>
                           <SelectItem value="functional_but_not_efficient">Functional but inefficient</SelectItem>
                          <SelectItem value="not_functional">Not functional</SelectItem>
                        </SelectContent>
@@ -1305,27 +1305,16 @@ export default function Tools() {
                   </div>
                 </div>
 
-                {/* Actual Location and Serial Number */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-actual-location">Actual Location</Label>
-                    <Input
-                      id="edit-actual-location"
-                      value={editTool.actual_location || ''}
-                      onChange={(e) => setEditTool(prev => prev ? { ...prev, actual_location: e.target.value } : null)}
-                      placeholder="Current location if different"
-                    />
-                  </div>
-                   <div className="space-y-2">
-                     <Label htmlFor="edit-serial">Serial Number *</Label>
-                     <Input
-                       id="edit-serial"
-                       value={editTool.serial_number || ''}
-                       onChange={(e) => setEditTool(prev => prev ? { ...prev, serial_number: e.target.value } : null)}
-                       placeholder="Enter serial number"
-                       required
-                     />
-                   </div>
+                {/* Serial Number */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-serial">Serial Number *</Label>
+                  <Input
+                    id="edit-serial"
+                    value={editTool.serial_number || ''}
+                    onChange={(e) => setEditTool(prev => prev ? { ...prev, serial_number: e.target.value } : null)}
+                    placeholder="Enter serial number"
+                    required
+                  />
                 </div>
 
                 {/* Stargazer SOP */}

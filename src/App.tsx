@@ -15,6 +15,8 @@ import Tools from "./pages/Tools";
 import Inventory from "./pages/Inventory";
 import CheckIn from "./pages/CheckIn";
 import Missions from "./pages/Missions";
+import Audit from "./pages/Audit";
+import AuditTool from "./pages/AuditTool";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -58,6 +60,16 @@ function AppContent() {
       <Route path="/missions" element={
         <ProtectedRoute>
           <Missions />
+        </ProtectedRoute>
+      } />
+      <Route path="/audit" element={
+        <ProtectedRoute>
+          <Audit />
+        </ProtectedRoute>
+      } />
+      <Route path="/audit/tool/:toolId" element={
+        <ProtectedRoute>
+          <AuditTool />
         </ProtectedRoute>
       } />
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

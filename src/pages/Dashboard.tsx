@@ -2,7 +2,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Package, Search, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target } from 'lucide-react';
+import { LogOut, Package, Search, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, ClipboardList } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DebugModeToggle } from '@/components/DebugModeToggle';
 import { AuthDiagnostics } from '@/components/AuthDiagnostics';
@@ -56,6 +56,13 @@ export default function Dashboard() {
       icon: Flag,
       path: "/missions",
       color: "bg-blue-500"
+    },
+    {
+      title: "Audit",
+      description: "Verify tool and inventory locations",
+      icon: ClipboardList,
+      path: "/audit",
+      color: "bg-purple-500"
     }
   ];
 

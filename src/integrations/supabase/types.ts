@@ -604,9 +604,77 @@ export type Database = {
         }
         Relationships: []
       }
+      tool_audits: {
+        Row: {
+          audit_comments: string | null
+          audited_at: string
+          audited_by: string
+          condition_found: string
+          created_at: string
+          flagged_for_maintenance: boolean
+          found_in_location: boolean
+          found_in_vicinity: boolean
+          id: string
+          last_user_identified: string | null
+          photo_urls: string[] | null
+          tool_id: string
+        }
+        Insert: {
+          audit_comments?: string | null
+          audited_at?: string
+          audited_by: string
+          condition_found: string
+          created_at?: string
+          flagged_for_maintenance?: boolean
+          found_in_location: boolean
+          found_in_vicinity: boolean
+          id?: string
+          last_user_identified?: string | null
+          photo_urls?: string[] | null
+          tool_id: string
+        }
+        Update: {
+          audit_comments?: string | null
+          audited_at?: string
+          audited_by?: string
+          condition_found?: string
+          created_at?: string
+          flagged_for_maintenance?: boolean
+          found_in_location?: boolean
+          found_in_vicinity?: boolean
+          id?: string
+          last_user_identified?: string | null
+          photo_urls?: string[] | null
+          tool_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tool_audits_audited_by_fkey"
+            columns: ["audited_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "tool_audits_last_user_identified_fkey"
+            columns: ["last_user_identified"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "tool_audits_tool_id_fkey"
+            columns: ["tool_id"]
+            isOneToOne: false
+            referencedRelation: "tools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tools: {
         Row: {
           actual_location: string | null
+          audit_status: string | null
           category: string | null
           condition: Database["public"]["Enums"]["tool_condition"]
           created_at: string
@@ -615,6 +683,7 @@ export type Database = {
           id: string
           image_url: string | null
           known_issues: string | null
+          last_audited_at: string | null
           last_maintenance: string | null
           manual_url: string | null
           name: string
@@ -628,6 +697,7 @@ export type Database = {
         }
         Insert: {
           actual_location?: string | null
+          audit_status?: string | null
           category?: string | null
           condition?: Database["public"]["Enums"]["tool_condition"]
           created_at?: string
@@ -636,6 +706,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           known_issues?: string | null
+          last_audited_at?: string | null
           last_maintenance?: string | null
           manual_url?: string | null
           name: string
@@ -649,6 +720,7 @@ export type Database = {
         }
         Update: {
           actual_location?: string | null
+          audit_status?: string | null
           category?: string | null
           condition?: Database["public"]["Enums"]["tool_condition"]
           created_at?: string
@@ -657,6 +729,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           known_issues?: string | null
+          last_audited_at?: string | null
           last_maintenance?: string | null
           manual_url?: string | null
           name?: string

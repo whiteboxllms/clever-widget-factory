@@ -220,38 +220,42 @@ export function InventoryItemForm({
           </Popover>
         </div>
 
-        <div>
-          <Label htmlFor="current_quantity">Current Quantity *</Label>
-          <Input
-            id="current_quantity"
-            type="number"
-            min="0"
-            value={formData.current_quantity}
-            onChange={(e) => updateFormData('current_quantity', parseInt(e.target.value) || 0)}
-          />
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex items-center space-x-2">
-            <Checkbox 
-              id="use-minimum-quantity"
-              checked={useMinimumQuantity}
-              onCheckedChange={(checked) => setUseMinimumQuantity(checked === true)}
-            />
-            <Label htmlFor="use-minimum-quantity" className="text-sm font-medium">
-              Set Minimum Quantity
-            </Label>
+        <div className="col-span-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="current_quantity">Current Quantity *</Label>
+              <Input
+                id="current_quantity"
+                type="number"
+                min="0"
+                value={formData.current_quantity}
+                onChange={(e) => updateFormData('current_quantity', parseInt(e.target.value) || 0)}
+              />
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="use-minimum-quantity"
+                  checked={useMinimumQuantity}
+                  onCheckedChange={(checked) => setUseMinimumQuantity(checked === true)}
+                />
+                <Label htmlFor="use-minimum-quantity" className="text-sm font-medium">
+                  Set Minimum Quantity
+                </Label>
+              </div>
+              
+              {useMinimumQuantity && (
+                <Input
+                  id="minimum_quantity"
+                  type="number"
+                  min="0"
+                  value={formData.minimum_quantity}
+                  onChange={(e) => updateFormData('minimum_quantity', e.target.value === '' ? 0 : parseInt(e.target.value))}
+                />
+              )}
+            </div>
           </div>
-          
-          {useMinimumQuantity && (
-            <Input
-              id="minimum_quantity"
-              type="number"
-              min="0"
-              value={formData.minimum_quantity}
-              onChange={(e) => updateFormData('minimum_quantity', e.target.value === '' ? 0 : parseInt(e.target.value))}
-            />
-          )}
         </div>
 
         <div>

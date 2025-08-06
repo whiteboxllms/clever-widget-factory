@@ -789,14 +789,15 @@ export default function Tools() {
                          <SelectTrigger>
                            <SelectValue placeholder="Select storage vicinity..." />
                          </SelectTrigger>
-                         <SelectContent>
-                           <SelectItem value="Composter Area">Composter Area</SelectItem>
-                           <SelectItem value="Guest House">Guest House</SelectItem>
-                           <SelectItem value="Storage Shed">Storage Shed</SelectItem>
-                           <SelectItem value="ATI Learning Site">ATI Learning Site</SelectItem>
-                           <SelectItem value="ATI Accomodations">ATI Accomodations</SelectItem>
-                           <SelectItem value="ATI CR">ATI CR</SelectItem>
-                         </SelectContent>
+                          <SelectContent>
+                            <SelectItem value="Composter Area">Composter Area</SelectItem>
+                            <SelectItem value="Guest House">Guest House</SelectItem>
+                            <SelectItem value="Storage Shed">Storage Shed</SelectItem>
+                            <SelectItem value="ATI Learning Site">ATI Learning Site</SelectItem>
+                            <SelectItem value="ATI Accomodations">ATI Accomodations</SelectItem>
+                            <SelectItem value="ATI CR">ATI CR</SelectItem>
+                            <SelectItem value="Lanai">Lanai</SelectItem>
+                          </SelectContent>
                        </Select>
                      </div>
                     <div className="space-y-2">
@@ -1281,14 +1282,15 @@ export default function Tools() {
                        <SelectTrigger>
                          <SelectValue placeholder="Select storage vicinity..." />
                        </SelectTrigger>
-                       <SelectContent>
-                         <SelectItem value="Composter Area">Composter Area</SelectItem>
-                         <SelectItem value="Guest House">Guest House</SelectItem>
-                         <SelectItem value="Storage Shed">Storage Shed</SelectItem>
-                         <SelectItem value="ATI Learning Site">ATI Learning Site</SelectItem>
-                         <SelectItem value="ATI Accomodations">ATI Accomodations</SelectItem>
-                         <SelectItem value="ATI CR">ATI CR</SelectItem>
-                       </SelectContent>
+                        <SelectContent>
+                          <SelectItem value="Composter Area">Composter Area</SelectItem>
+                          <SelectItem value="Guest House">Guest House</SelectItem>
+                          <SelectItem value="Storage Shed">Storage Shed</SelectItem>
+                          <SelectItem value="ATI Learning Site">ATI Learning Site</SelectItem>
+                          <SelectItem value="ATI Accomodations">ATI Accomodations</SelectItem>
+                          <SelectItem value="ATI CR">ATI CR</SelectItem>
+                          <SelectItem value="Lanai">Lanai</SelectItem>
+                        </SelectContent>
                      </Select>
                    </div>
                   <div className="space-y-2">

@@ -16,6 +16,11 @@ interface Tool {
   storage_vicinity: string;
   storage_location: string;
   last_audited_at: string | null;
+  audit_info?: {
+    audited_by: string;
+    audited_at: string;
+    auditor_name: string;
+  };
 }
 
 const Audit = () => {
@@ -56,17 +61,66 @@ const Audit = () => {
   const refreshAuditData = async (currentAudit: Tool[]) => {
     try {
       const toolIds = currentAudit.map(tool => tool.id);
-      const { data: updatedTools, error } = await supabase
+      
+      // Get updated tool data
+      const { data: updatedTools, error: toolsError } = await supabase
         .from('tools')
         .select('id, name, storage_vicinity, storage_location, last_audited_at')
         .in('id', toolIds);
 
-      if (error) throw error;
+      if (toolsError) throw toolsError;
 
-      // Update the audit list with fresh data
+      // Get audit information for tools audited today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const { data: auditData, error: auditError } = await supabase
+        .from('tool_audits')
+        .select(`
+          tool_id,
+          audited_by,
+          audited_at
+        `)
+        .in('tool_id', toolIds)
+        .gte('audited_at', today.toISOString())
+        .order('audited_at', { ascending: false });
+
+      if (auditError) throw auditError;
+
+      // Get auditor names
+      const auditorIds = auditData?.map(audit => audit.audited_by) || [];
+      let profilesData: any[] = [];
+      
+      if (auditorIds.length > 0) {
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('user_id, full_name')
+          .in('user_id', auditorIds);
+          
+        if (!profilesError) {
+          profilesData = profiles || [];
+        }
+      }
+
+      // Update the audit list with fresh data and audit info
       const refreshedAudit = currentAudit.map(tool => {
-        const updatedTool = updatedTools.find(t => t.id === tool.id);
-        return updatedTool || tool;
+        const updatedTool = updatedTools?.find(t => t.id === tool.id);
+        const auditInfo = auditData?.find(audit => audit.tool_id === tool.id);
+        
+        const result: Tool = {
+          ...(updatedTool || tool)
+        };
+        
+        if (auditInfo) {
+          const auditorProfile = profilesData.find(p => p.user_id === auditInfo.audited_by);
+          result.audit_info = {
+            audited_by: auditInfo.audited_by,
+            audited_at: auditInfo.audited_at,
+            auditor_name: auditorProfile?.full_name || 'Unknown User'
+          };
+        }
+        
+        return result;
       });
 
       setGeneratedAudit(refreshedAudit);
@@ -406,8 +460,19 @@ const Audit = () => {
                               </span>
                             )}
                           </CardTitle>
-                          <CardDescription>
-                            Expected: {tool.storage_vicinity} → {tool.storage_location || 'No specific location'}
+                          <CardDescription className="space-y-1">
+                            <div>
+                              Expected: {tool.storage_vicinity} → {tool.storage_location || 'No specific location'}
+                            </div>
+                            {tool.audit_info && (
+                              <div className="text-green-600 font-medium">
+                                Audited by {tool.audit_info.auditor_name} at {new Date(tool.audit_info.audited_at).toLocaleTimeString([], { 
+                                  hour: '2-digit', 
+                                  minute: '2-digit',
+                                  hour12: true 
+                                })}
+                              </div>
+                            )}
                           </CardDescription>
                         </div>
                         <div className="text-sm text-muted-foreground">

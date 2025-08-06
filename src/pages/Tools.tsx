@@ -828,6 +828,7 @@ export default function Tools() {
                 <DialogTrigger asChild>
                   <Card className="cursor-pointer hover:shadow-lg transition-shadow">
                     <CardHeader className="pb-3">
+                      <CardTitle className="text-lg mb-3">{tool.name}</CardTitle>
                       <div className="aspect-square w-full mb-3 bg-muted rounded-lg overflow-hidden">
                         {tool.image_url ? (
                           <img
@@ -841,29 +842,30 @@ export default function Tools() {
                           </div>
                         )}
                       </div>
-                      <CardTitle className="text-lg">{tool.name}</CardTitle>
-                      <div className="flex items-center gap-2">
+                      {tool.description && (
+                        <p className="text-sm line-clamp-2 mb-3">{tool.description}</p>
+                      )}
+                    </CardHeader>
+                    <CardContent>
+                      {/* Serial and Status on same line */}
+                      <div className="flex items-center justify-between mb-2">
+                        {tool.serial_number && (
+                          <p className="text-sm text-muted-foreground">
+                            Serial: {tool.serial_number}
+                          </p>
+                        )}
                         <Badge variant={getStatusVariant(tool.status, tool.condition)}>
                           <StatusIcon className="mr-1 h-3 w-3" />
                           {getStatusLabel(tool.status, tool.condition)}
                         </Badge>
                       </div>
-                    </CardHeader>
-                    <CardContent>
-                      {tool.serial_number && (
-                        <p className="text-sm text-muted-foreground mb-2">
-                          Serial: {tool.serial_number}
-                        </p>
-                      )}
-                      {tool.description && (
-                        <p className="text-sm line-clamp-2">{tool.description}</p>
-                      )}
-                      <p className="text-xs text-muted-foreground mt-2">
+                      
+                      <p className="text-xs text-muted-foreground mb-3">
                         Location: {tool.actual_location || (tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : ''))}
                       </p>
                       
                       {/* Action Buttons */}
-                      <div className="mt-3 space-y-2">
+                      <div className="space-y-2">
                         {activeCheckouts[tool.id] ? (
                           <Button
                             size="sm"
@@ -889,18 +891,31 @@ export default function Tools() {
                           </Button>
                         ) : null}
                         
+                        {/* Checkout, Edit and Remove on same line */}
                         <div className="flex gap-2">
                           <Button
                             size="sm"
-                            variant="outline"
                             className="flex-1"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCheckoutTool(tool);
+                              setIsCheckoutDialogOpen(true);
+                            }}
+                            disabled={!!activeCheckouts[tool.id] || tool.status !== 'available' || tool.condition === 'not_functional'}
+                          >
+                            <LogOut className="mr-2 h-3 w-3" />
+                            Checkout
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="px-2"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleEditTool(tool);
                             }}
                           >
-                            <Edit className="mr-2 h-3 w-3" />
-                            Edit Tool
+                            <Edit className="h-3 w-3" />
                           </Button>
                           <Button
                             size="sm"

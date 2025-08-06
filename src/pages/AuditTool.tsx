@@ -133,10 +133,20 @@ const AuditTool = () => {
       if (auditError) throw auditError;
 
       // Update tool's last_audited_at, audit_status, and condition
+      // Map form condition values to database enum values
+      const conditionMapping: Record<string, string> = {
+        'good': 'no_problems_observed',
+        'functional_but_not_efficient': 'functional_but_not_efficient',
+        'not_functional': 'not_functional',
+        'missing': 'missing'
+      };
+
+      const mappedCondition = conditionMapping[formData.conditionFound] || formData.conditionFound;
+
       const toolUpdates: any = {
         last_audited_at: new Date().toISOString(),
         audit_status: 'audited',
-        condition: formData.conditionFound === 'missing' ? tool.condition : formData.conditionFound,
+        condition: formData.conditionFound === 'missing' ? tool.condition : mappedCondition,
       };
 
       // If marked as missing, update tool status

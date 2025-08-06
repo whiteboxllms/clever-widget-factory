@@ -703,7 +703,7 @@ export default function Inventory() {
                 onCheckedChange={setShowLowInventoryOnly}
               />
               <Label htmlFor="low-inventory-filter" className="text-sm font-medium">
-                Show Low Inventory Only
+                Show items to order
               </Label>
             </div>
           </div>

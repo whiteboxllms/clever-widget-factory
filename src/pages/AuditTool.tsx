@@ -222,10 +222,10 @@ const AuditTool = () => {
             <Button 
               variant="ghost" 
               size="sm" 
-              onClick={() => navigate('/audit')}
+              onClick={() => navigate(-1)}
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Audit
+              Back
             </Button>
             <div>
               <h1 className="text-2xl font-bold">Audit: {tool.name}</h1>

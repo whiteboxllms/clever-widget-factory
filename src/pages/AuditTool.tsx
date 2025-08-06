@@ -382,7 +382,7 @@ const AuditTool = () => {
               {/* Condition Assessment */}
               <div className="space-y-2">
                 <Label htmlFor="condition" className="text-base font-semibold">
-                  Condition Assessment
+                  Condition
                 </Label>
                 <Select 
                   value={formData.conditionFound} 

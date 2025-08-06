@@ -70,6 +70,9 @@ export default function CheckIn() {
 
   const fetchCheckouts = async () => {
     try {
+      console.log('=== FETCHING CHECKOUTS ===');
+      console.log('Network status:', navigator.onLine ? 'Online' : 'Offline');
+      
       const { data, error } = await supabase
         .from('checkouts')
         .select(`
@@ -79,13 +82,30 @@ export default function CheckIn() {
         .eq('is_returned', false)
         .order('checkout_date', { ascending: false });
 
-      if (error) throw error;
+      console.log('Checkout fetch result:', { data: data?.length, error });
+
+      if (error) {
+        console.error('Supabase error details:', error);
+        throw error;
+      }
       setCheckouts(data || []);
+      console.log('Successfully loaded checkouts:', data?.length || 0);
     } catch (error) {
       console.error('Error fetching checkouts:', error);
+      
+      // Enhanced error details
+      let errorMessage = "Failed to load checked out tools";
+      if (error instanceof Error) {
+        if (error.message.includes('fetch')) {
+          errorMessage = "Network error - please check your internet connection";
+        } else if (error.message.includes('timeout')) {
+          errorMessage = "Request timed out - please try again";
+        }
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to load checked out tools",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -95,6 +115,11 @@ export default function CheckIn() {
 
   const handleCheckIn = async () => {
     if (!selectedCheckout) return;
+
+    console.log('=== STARTING TOOL CHECK-IN ===');
+    console.log('Network status:', navigator.onLine ? 'Online' : 'Offline');
+    console.log('Selected checkout:', selectedCheckout.id);
+    console.log('Form data:', form);
 
     setIsSubmitting(true);
     setUploadingImages(true);

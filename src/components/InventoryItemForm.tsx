@@ -230,7 +230,7 @@ export function InventoryItemForm({
             type="number"
             step="1"
             min="0"
-            value={formData.current_quantity === 0 ? '' : formData.current_quantity}
+            value={formData.current_quantity}
             onChange={(e) => updateFormData('current_quantity', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
           />
             </div>

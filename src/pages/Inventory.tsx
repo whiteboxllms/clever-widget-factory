@@ -579,15 +579,8 @@ export default function Inventory() {
 
       <main className="p-6">
         <div className="max-w-7xl mx-auto">
-          <div className="flex justify-between items-center mb-8">
           
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-            <DialogTrigger asChild>
-              <Button className="flex items-center gap-2">
-                <Plus className="h-4 w-4" />
-                Add Item
-              </Button>
-            </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>Add New Inventory Item</DialogTitle>
@@ -820,8 +813,6 @@ export default function Inventory() {
               </div>
             </DialogContent>
           </Dialog>
-        </div>
-
 
         {/* Consumables Section */}
         <div className="mb-8">

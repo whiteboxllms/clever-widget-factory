@@ -438,9 +438,6 @@ export default function Tools() {
         storage_vicinity: editTool.storage_vicinity,
         storage_location: editTool.storage_location || null,
         serial_number: editTool.serial_number || null,
-        last_maintenance: editTool.last_maintenance || null,
-        
-        stargazer_sop: editTool.stargazer_sop || null
       };
 
       const { error } = await supabase
@@ -1317,28 +1314,6 @@ export default function Tools() {
                   />
                 </div>
 
-                {/* Stargazer SOP */}
-                <div className="space-y-2">
-                  <Label htmlFor="edit-stargazer-sop">Stargazer SOP</Label>
-                  <Textarea
-                    id="edit-stargazer-sop"
-                    value={editTool.stargazer_sop || ''}
-                    onChange={(e) => setEditTool(prev => prev ? { ...prev, stargazer_sop: e.target.value } : null)}
-                    placeholder="Standard Operating Procedures specific to Stargazer"
-                    rows={3}
-                  />
-                </div>
-
-                {/* Last Maintenance */}
-                <div className="space-y-2">
-                  <Label htmlFor="edit-maintenance">Last Maintenance</Label>
-                  <Input
-                    id="edit-maintenance"
-                    type="date"
-                    value={editTool.last_maintenance || ''}
-                    onChange={(e) => setEditTool(prev => prev ? { ...prev, last_maintenance: e.target.value } : null)}
-                  />
-                </div>
 
                 {/* Submit Buttons */}
                 <div className="flex justify-end gap-3 pt-4">

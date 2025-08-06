@@ -17,7 +17,7 @@ import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ToolCheckoutDialog } from "@/components/ToolCheckoutDialog";
-import { StorageVicinitySelector } from "@/components/StorageVicinitySelector";
+
 import { useNavigate, useParams } from "react-router-dom";
 
 interface Tool {
@@ -786,14 +786,22 @@ export default function Tools() {
                          </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="storage_vicinity">Storage Vicinity *</Label>
-                      <StorageVicinitySelector
-                        value={newTool.storage_vicinity}
-                        onValueChange={(value) => setNewTool(prev => ({ ...prev, storage_vicinity: value }))}
-                        placeholder="Select or add storage vicinity..."
-                      />
-                    </div>
+                     <div className="space-y-2">
+                       <Label htmlFor="storage_vicinity">Storage Vicinity *</Label>
+                       <Select value={newTool.storage_vicinity} onValueChange={(value) => setNewTool(prev => ({ ...prev, storage_vicinity: value }))}>
+                         <SelectTrigger>
+                           <SelectValue placeholder="Select storage vicinity..." />
+                         </SelectTrigger>
+                         <SelectContent>
+                           <SelectItem value="Composter Area">Composter Area</SelectItem>
+                           <SelectItem value="Guest House">Guest House</SelectItem>
+                           <SelectItem value="Storage Shed">Storage Shed</SelectItem>
+                           <SelectItem value="ATI Learning Site">ATI Learning Site</SelectItem>
+                           <SelectItem value="ATI Accomodations">ATI Accomodations</SelectItem>
+                           <SelectItem value="ATI CR">ATI CR</SelectItem>
+                         </SelectContent>
+                       </Select>
+                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="storage_location">Storage Location</Label>
                       <Input
@@ -1270,14 +1278,22 @@ export default function Tools() {
                        </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-storage-vicinity">Storage Vicinity *</Label>
-                    <StorageVicinitySelector
-                      value={editTool.storage_vicinity}
-                      onValueChange={(value) => setEditTool(prev => prev ? { ...prev, storage_vicinity: value } : null)}
-                      placeholder="Select or add storage vicinity..."
-                    />
-                  </div>
+                   <div className="space-y-2">
+                     <Label htmlFor="edit-storage-vicinity">Storage Vicinity *</Label>
+                     <Select value={editTool.storage_vicinity} onValueChange={(value) => setEditTool(prev => prev ? { ...prev, storage_vicinity: value } : null)}>
+                       <SelectTrigger>
+                         <SelectValue placeholder="Select storage vicinity..." />
+                       </SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="Composter Area">Composter Area</SelectItem>
+                         <SelectItem value="Guest House">Guest House</SelectItem>
+                         <SelectItem value="Storage Shed">Storage Shed</SelectItem>
+                         <SelectItem value="ATI Learning Site">ATI Learning Site</SelectItem>
+                         <SelectItem value="ATI Accomodations">ATI Accomodations</SelectItem>
+                         <SelectItem value="ATI CR">ATI CR</SelectItem>
+                       </SelectContent>
+                     </Select>
+                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="edit-storage-location">Storage Location</Label>
                     <Input

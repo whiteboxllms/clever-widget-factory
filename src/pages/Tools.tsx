@@ -1219,36 +1219,6 @@ export default function Tools() {
             
             {editTool && (
               <form onSubmit={handleUpdateTool} className="space-y-6">
-                {/* Image Upload Section */}
-                <div className="space-y-2">
-                  <Label>Tool Image</Label>
-                  {editTool.image_url && (
-                    <div className="mb-4">
-                      <img 
-                        src={editTool.image_url} 
-                        alt="Current tool image" 
-                        className="w-32 h-32 object-cover rounded-lg border"
-                      />
-                      <p className="text-sm text-muted-foreground mt-1">Current image</p>
-                    </div>
-                  )}
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleEditImageUpload}
-                    className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/80"
-                  />
-                  {editImageUploading && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                      Uploading image...
-                    </div>
-                  )}
-                  <p className="text-sm text-muted-foreground">
-                    Upload an image of the tool (optional)
-                  </p>
-                </div>
-
                 {/* Tool Name */}
                 <div className="space-y-2">
                   <Label htmlFor="edit-name">Tool Name *</Label>
@@ -1259,6 +1229,41 @@ export default function Tools() {
                     placeholder="Enter tool name"
                     required
                   />
+                </div>
+
+                {/* Image Upload Section */}
+                <div className="space-y-2">
+                  <Label>Tool Image</Label>
+                  <div className="flex items-start gap-4">
+                    {editTool.image_url ? (
+                      <img 
+                        src={editTool.image_url} 
+                        alt="Current tool image" 
+                        className="w-32 h-32 object-cover rounded-lg border"
+                      />
+                    ) : (
+                      <div className="w-32 h-32 bg-muted rounded-lg border flex items-center justify-center">
+                        <Wrench className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="flex-1 space-y-2">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleEditImageUpload}
+                        className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/80"
+                      />
+                      {editImageUploading && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                          Uploading image...
+                        </div>
+                      )}
+                      <p className="text-sm text-muted-foreground">
+                        Upload an image of the tool (optional)
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Description */}

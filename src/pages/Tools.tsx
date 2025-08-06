@@ -49,7 +49,6 @@ interface NewToolForm {
   storage_vicinity: string;
   storage_location: string | null;
   serial_number: string;
-  manual_url: string;
   image_file: File | null;
 }
 
@@ -119,7 +118,6 @@ export default function Tools() {
     storage_vicinity: "",
     storage_location: "",
     serial_number: "",
-    manual_url: "",
     image_file: null
   });
   const { toast } = useToast();
@@ -350,8 +348,7 @@ export default function Tools() {
           storage_vicinity: newTool.storage_vicinity,
           storage_location: newTool.storage_location || null,
           serial_number: newTool.serial_number || null,
-          image_url: imageUrl,
-          manual_url: newTool.manual_url || null
+          image_url: imageUrl
         });
 
       if (error) throw error;
@@ -371,7 +368,6 @@ export default function Tools() {
         storage_vicinity: "",
         storage_location: "",
         serial_number: "",
-        manual_url: "",
         image_file: null
       });
       setImagePreview(null);
@@ -402,7 +398,6 @@ export default function Tools() {
       storage_vicinity: "",
       storage_location: "",
       serial_number: "",
-      manual_url: "",
       image_file: null
     });
     setImagePreview(null);
@@ -431,7 +426,6 @@ export default function Tools() {
         storage_location: editTool.storage_location || null,
         actual_location: editTool.actual_location || null,
         serial_number: editTool.serial_number || null,
-        manual_url: editTool.manual_url || null,
         last_maintenance: editTool.last_maintenance || null,
         purchase_date: editTool.purchase_date || null,
         stargazer_sop: editTool.stargazer_sop || null
@@ -796,28 +790,16 @@ export default function Tools() {
                     </div>
                   </div>
 
-                  {/* Serial Number and Manual URL */}
-                  <div className="grid grid-cols-2 gap-4">
-                     <div className="space-y-2">
-                       <Label htmlFor="serial">Serial Number *</Label>
-                       <Input
-                         id="serial"
-                         value={newTool.serial_number}
-                         onChange={(e) => setNewTool(prev => ({ ...prev, serial_number: e.target.value }))}
-                         placeholder="Enter serial number"
-                         required
-                       />
-                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="manual">Manual URL</Label>
-                      <Input
-                        id="manual"
-                        type="url"
-                        value={newTool.manual_url}
-                        onChange={(e) => setNewTool(prev => ({ ...prev, manual_url: e.target.value }))}
-                        placeholder="https://example.com/manual.pdf"
-                      />
-                    </div>
+                  {/* Serial Number */}
+                  <div className="space-y-2">
+                    <Label htmlFor="serial">Serial Number *</Label>
+                    <Input
+                      id="serial"
+                      value={newTool.serial_number}
+                      onChange={(e) => setNewTool(prev => ({ ...prev, serial_number: e.target.value }))}
+                      placeholder="Enter serial number"
+                      required
+                    />
                   </div>
 
                   {/* Submit Buttons */}
@@ -1327,18 +1309,8 @@ export default function Tools() {
                   />
                 </div>
 
-                {/* Manual URL and Maintenance/Purchase Dates */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-manual">Manual URL</Label>
-                    <Input
-                      id="edit-manual"
-                      type="url"
-                      value={editTool.manual_url || ''}
-                      onChange={(e) => setEditTool(prev => prev ? { ...prev, manual_url: e.target.value } : null)}
-                      placeholder="https://example.com/manual.pdf"
-                    />
-                  </div>
+                {/* Maintenance and Purchase Dates */}
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="edit-maintenance">Last Maintenance</Label>
                     <Input

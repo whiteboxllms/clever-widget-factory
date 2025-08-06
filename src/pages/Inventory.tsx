@@ -798,7 +798,7 @@ export default function Inventory() {
                         <SelectItem value="liters">Liters</SelectItem>
                         <SelectItem value="gallons">Gallons</SelectItem>
                         <SelectItem value="boxes">Boxes</SelectItem>
-                        <SelectItem value="rolls">Rolls</SelectItem>
+                        <SelectItem value="grams">Grams</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1336,7 +1336,7 @@ export default function Inventory() {
                         <SelectItem value="liters">Liters</SelectItem>
                         <SelectItem value="gallons">Gallons</SelectItem>
                         <SelectItem value="boxes">Boxes</SelectItem>
-                        <SelectItem value="rolls">Rolls</SelectItem>
+                        <SelectItem value="grams">Grams</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

@@ -17,7 +17,7 @@ import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ToolCheckoutDialog } from "@/components/ToolCheckoutDialog";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 interface Tool {
   id: string;
@@ -97,6 +97,7 @@ const getConditionIcon = (status: string, condition: string) => {
 };
 
 export default function Tools() {
+  const { toolId } = useParams();
   const [tools, setTools] = useState<Tool[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
@@ -255,6 +256,17 @@ export default function Tools() {
   useEffect(() => {
     fetchTools();
   }, [showRemovedItems]);
+
+  // Handle editing from URL parameter
+  useEffect(() => {
+    if (toolId && tools.length > 0) {
+      const toolToEdit = tools.find(tool => tool.id === toolId);
+      if (toolToEdit) {
+        setEditTool(toolToEdit);
+        setIsEditDialogOpen(true);
+      }
+    }
+  }, [toolId, tools]);
 
   const filteredTools = tools.filter(tool =>
     tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -445,6 +457,11 @@ export default function Tools() {
       setIsEditDialogOpen(false);
       setEditTool(null);
       await fetchTools();
+
+      // If we came from the audit page, navigate back
+      if (toolId) {
+        navigate(`/audit/tool/${toolId}`);
+      }
 
     } catch (error) {
       console.error('Error updating tool:', error);

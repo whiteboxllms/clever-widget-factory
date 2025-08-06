@@ -14,6 +14,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Tables } from '@/integrations/supabase/types';
+import { compressImageDetailed } from '@/lib/enhancedImageUtils';
+import { useEnhancedToast } from '@/hooks/useEnhancedToast';
 
 type CheckoutWithTool = Tables<'checkouts'> & {
   tools: Tables<'tools'>;
@@ -39,6 +41,7 @@ type IssueResolution = {
 export default function CheckIn() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const enhancedToast = useEnhancedToast();
   const { user } = useAuth();
   const [checkouts, setCheckouts] = useState<CheckoutWithTool[]>([]);
   const [loading, setLoading] = useState(true);
@@ -166,16 +169,42 @@ export default function CheckIn() {
             throw new Error(`Invalid file type: ${file.type}. Only image files are allowed.`);
           }
           
-          const fileExt = file.name.split('.').pop();
-          const fileName = `${selectedCheckout.tool_id}_${selectedCheckout.id}_${Date.now()}_${index + 1}.${fileExt}`;
-          
-          console.log('Generated filename:', fileName);
-          console.log('Attempting storage upload...');
-          
           try {
+            // Show compression start toast
+            console.log('Starting image compression...');
+            const compressionToast = enhancedToast.showCompressionStart(file.name, file.size);
+            
+            // Compress the image with detailed progress
+            const compressionResult = await compressImageDetailed(
+              file,
+              { maxSizeMB: 0.5, maxWidthOrHeight: 1920 },
+              (stage, progress, details) => {
+                console.log(`Compression stage: ${stage} (${progress}%) - ${details}`);
+              }
+            );
+            
+            // Show compression complete toast
+            enhancedToast.showCompressionComplete(compressionResult);
+            
+            const compressedFile = compressionResult.file;
+            console.log('Compression complete:', {
+              original: compressionResult.originalSize,
+              compressed: compressionResult.compressedSize,
+              ratio: compressionResult.compressionRatio
+            });
+            
+            const fileExt = compressedFile.name.split('.').pop() || 'jpg';
+            const fileName = `checkin_${selectedCheckout.tool_id}_${selectedCheckout.id}_${Date.now()}_${index + 1}.${fileExt}`;
+            
+            console.log('Generated filename:', fileName);
+            console.log('Attempting storage upload...');
+            
+            // Show upload start toast
+            const uploadToast = enhancedToast.showUploadStart(fileName, compressionResult.compressedSize);
+            
             const { data: uploadData, error: uploadError } = await supabase.storage
               .from('tool-images')
-              .upload(fileName, file);
+              .upload(fileName, compressedFile);
 
             console.log('Upload response:', { data: uploadData, error: uploadError });
 
@@ -186,21 +215,9 @@ export default function CheckIn() {
                 details: uploadError
               });
               
-              // Provide specific error messages based on common upload issues
-              let errorMsg = `Image upload failed: ${uploadError.message}`;
-              if (uploadError.message?.includes('413') || uploadError.message?.includes('too large')) {
-                errorMsg = `Image file too large. Please compress the image and try again.`;
-              } else if (uploadError.message?.includes('401') || uploadError.message?.includes('unauthorized')) {
-                errorMsg = `Upload permission denied. Please log out and back in, then try again.`;
-              } else if (uploadError.message?.includes('403') || uploadError.message?.includes('forbidden')) {
-                errorMsg = `Access forbidden. You may not have permission to upload images.`;
-              } else if (uploadError.message?.includes('timeout')) {
-                errorMsg = `Upload timed out. Check your internet connection and try again.`;
-              } else if (uploadError.message?.includes('network') || uploadError.message?.includes('fetch')) {
-                errorMsg = `Network error during upload. Check your connection and try again.`;
-              }
-              
-              throw new Error(errorMsg);
+              // Show enhanced upload error
+              enhancedToast.showUploadError(uploadError.message, fileName);
+              throw uploadError;
             }
 
             console.log('Upload successful, getting public URL...');
@@ -210,12 +227,19 @@ export default function CheckIn() {
               .from('tool-images')
               .getPublicUrl(fileName);
             
+            // Show upload success
+            enhancedToast.showUploadSuccess(fileName, publicUrl);
+            
             console.log('Public URL generated:', publicUrl);
             imageUrls.push(publicUrl);
             console.log(`Image ${index + 1} uploaded successfully`);
             
           } catch (uploadErr) {
             console.error(`Failed to upload image ${index + 1}:`, uploadErr);
+            // Show error toast if not already shown by enhanced toast
+            if (uploadErr instanceof Error && !uploadErr.message.includes('Upload')) {
+              enhancedToast.showUploadError(uploadErr.message, file.name);
+            }
             throw uploadErr;
           }
         }

@@ -131,6 +131,8 @@ export default function Tools() {
   const [toolToRemove, setToolToRemove] = useState<Tool | null>(null);
   const [removeReason, setRemoveReason] = useState("");
   const [removeComment, setRemoveComment] = useState("");
+  const [removeImageFiles, setRemoveImageFiles] = useState<File[]>([]);
+  const [removeImagePreviews, setRemoveImagePreviews] = useState<string[]>([]);
   const [showRemovedItems, setShowRemovedItems] = useState(false);
   const navigate = useNavigate();
 
@@ -463,17 +465,100 @@ export default function Tools() {
     }
   };
 
+  const handleRemoveImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      setRemoveImageFiles(prev => [...prev, ...files]);
+      
+      // Generate previews
+      files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          setRemoveImagePreviews(prev => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  const removeRemovalImage = (index: number) => {
+    setRemoveImageFiles(prev => prev.filter((_, i) => i !== index));
+    setRemoveImagePreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const uploadRemovalImages = async (files: File[]): Promise<string[]> => {
+    if (files.length === 0) return [];
+
+    const uploadPromises = files.map(async (file) => {
+      try {
+        const compressionToast = enhancedToast.showCompressionStart(file.name, file.size);
+        const compressionResult = await compressImageDetailed(
+          file,
+          {},
+          enhancedToast.showCompressionProgress
+        );
+        
+        enhancedToast.dismiss(compressionToast.id);
+        const compressionCompleteToast = enhancedToast.showCompressionComplete(compressionResult);
+        
+        const compressedFile = compressionResult.file;
+        const fileName = `removal-${Date.now()}-${compressedFile.name}`;
+        
+        enhancedToast.dismiss(compressionCompleteToast.id);
+        const uploadToast = enhancedToast.showUploadStart(fileName, compressedFile.size);
+
+        const { data, error } = await supabase.storage
+          .from('tool-images')
+          .upload(fileName, compressedFile);
+
+        if (error) {
+          enhancedToast.dismiss(uploadToast.id);
+          const statusCode = error && typeof error === 'object' && 'status' in error ? error.status as number : undefined;
+          enhancedToast.showUploadError(error.message, file.name, statusCode);
+          return null;
+        }
+
+        enhancedToast.dismiss(uploadToast.id);
+        
+        const { data: urlData } = supabase.storage
+          .from('tool-images')
+          .getPublicUrl(fileName);
+
+        enhancedToast.showUploadSuccess(fileName, urlData.publicUrl);
+        return urlData.publicUrl;
+        
+      } catch (error) {
+        enhancedToast.showCompressionError(error.message, file.name);
+        return null;
+      }
+    });
+
+    const results = await Promise.all(uploadPromises);
+    return results.filter(url => url !== null) as string[];
+  };
+
   const handleRemoveTool = async () => {
     if (!toolToRemove) return;
 
     setIsSubmitting(true);
 
     try {
+      // Upload images if any
+      const imageUrls = await uploadRemovalImages(removeImageFiles);
+      
+      // Prepare the removal details
+      const removalDetails = {
+        reason: removeReason,
+        comment: removeComment,
+        images: imageUrls,
+        removed_at: new Date().toISOString()
+      };
+
       const { error } = await supabase
         .from('tools')
         .update({
           status: 'unable_to_find',
-          known_issues: `Tool removed: ${removeReason}${removeComment ? ` - ${removeComment}` : ''}`
+          known_issues: `Tool removed: ${removeReason}${removeComment ? ` - ${removeComment}` : ''}${imageUrls.length > 0 ? ` (${imageUrls.length} image(s) attached)` : ''}`
         })
         .eq('id', toolToRemove.id);
 
@@ -481,13 +566,16 @@ export default function Tools() {
 
       toast({
         title: "Tool Removed",
-        description: `${toolToRemove.name} has been marked as unable to find`
+        description: `${toolToRemove.name} has been marked as removed`
       });
 
+      // Reset form
       setIsRemoveDialogOpen(false);
       setToolToRemove(null);
       setRemoveReason("");
       setRemoveComment("");
+      setRemoveImageFiles([]);
+      setRemoveImagePreviews([]);
       await fetchTools();
 
     } catch (error) {
@@ -820,11 +908,11 @@ export default function Tools() {
                           </Button>
                         ) : null}
                         
-                        <div className="space-y-2">
+                        <div className="flex gap-2">
                           <Button
                             size="sm"
                             variant="outline"
-                            className="w-full"
+                            className="flex-1"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleEditTool(tool);
@@ -833,21 +921,18 @@ export default function Tools() {
                             <Edit className="mr-2 h-3 w-3" />
                             Edit Tool
                           </Button>
-                          {isAdmin && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="w-full text-muted-foreground hover:text-destructive text-xs"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setToolToRemove(tool);
-                                setIsRemoveDialogOpen(true);
-                              }}
-                            >
-                              <Trash2 className="mr-2 h-3 w-3" />
-                              Remove Tool
-                            </Button>
-                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="px-2 text-muted-foreground hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setToolToRemove(tool);
+                              setIsRemoveDialogOpen(true);
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
                         </div>
                       </div>
                     </CardContent>
@@ -1295,7 +1380,7 @@ export default function Tools() {
 
         {/* Remove Tool Dialog */}
         <Dialog open={isRemoveDialogOpen} onOpenChange={setIsRemoveDialogOpen}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Remove Tool</DialogTitle>
             </DialogHeader>
@@ -1303,26 +1388,26 @@ export default function Tools() {
             {toolToRemove && (
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Are you sure you want to remove <strong>{toolToRemove.name}</strong>? This will mark the tool as "Unable to Find".
+                  Are you sure you want to remove <strong>{toolToRemove.name}</strong>? This will mark the tool as removed.
                 </p>
                 
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="remove-reason">Reason for removal</Label>
+                    <Label htmlFor="remove-reason">Reason for removal *</Label>
                     <Select value={removeReason} onValueChange={setRemoveReason}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a reason" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="testing">Testing</SelectItem>
-                        <SelectItem value="tool thrown away">Tool thrown away</SelectItem>
-                        <SelectItem value="unable to find">Unable to find</SelectItem>
+                        <SelectItem value="accidentally_added">Accidentally added</SelectItem>
+                        <SelectItem value="tool_broken_unrecoverable">Tool is broken and unrecoverable</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="remove-comment">Additional comment (optional)</Label>
+                    <Label htmlFor="remove-comment">Notes</Label>
                     <Textarea
                       id="remove-comment"
                       value={removeComment}
@@ -1331,13 +1416,67 @@ export default function Tools() {
                       rows={3}
                     />
                   </div>
+
+                  {/* Image Upload */}
+                  <div className="space-y-2">
+                    <Label htmlFor="removal-images">Upload Pictures (optional)</Label>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="removal-images"
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handleRemoveImageChange}
+                          className="flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => document.getElementById('removal-images')?.click()}
+                        >
+                          <Upload className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      
+                      {removeImagePreviews.length > 0 && (
+                        <div className="grid grid-cols-2 gap-2">
+                          {removeImagePreviews.map((preview, index) => (
+                            <div key={index} className="relative">
+                              <img
+                                src={preview}
+                                alt={`Removal evidence ${index + 1}`}
+                                className="w-full h-24 object-cover rounded-lg border"
+                              />
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                className="absolute top-1 right-1 h-6 w-6 p-0"
+                                onClick={() => removeRemovalImage(index)}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex justify-end gap-3 pt-4">
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setIsRemoveDialogOpen(false)}
+                    onClick={() => {
+                      setIsRemoveDialogOpen(false);
+                      setRemoveReason("");
+                      setRemoveComment("");
+                      setRemoveImageFiles([]);
+                      setRemoveImagePreviews([]);
+                    }}
                     disabled={isSubmitting}
                   >
                     Cancel

@@ -127,6 +127,7 @@ export default function Tools() {
   const { isAdmin, canEditTools } = useAuth();
   const [editTool, setEditTool] = useState<Tool | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editImageUploading, setEditImageUploading] = useState(false);
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
   const [toolToRemove, setToolToRemove] = useState<Tool | null>(null);
   const [removeReason, setRemoveReason] = useState("");
@@ -421,6 +422,23 @@ export default function Tools() {
     setIsEditDialogOpen(true);
   };
 
+  const handleEditImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && editTool) {
+      setEditImageUploading(true);
+      try {
+        const imageUrl = await uploadImage(file);
+        if (imageUrl) {
+          setEditTool(prev => prev ? { ...prev, image_url: imageUrl } : null);
+        }
+      } catch (error) {
+        console.error('Error uploading image:', error);
+      } finally {
+        setEditImageUploading(false);
+      }
+    }
+  };
+
   const handleUpdateTool = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editTool) return;
@@ -438,6 +456,7 @@ export default function Tools() {
         storage_vicinity: editTool.storage_vicinity,
         storage_location: editTool.storage_location || null,
         serial_number: editTool.serial_number || null,
+        image_url: editTool.image_url || null,
       };
 
       const { error } = await supabase
@@ -1200,6 +1219,36 @@ export default function Tools() {
             
             {editTool && (
               <form onSubmit={handleUpdateTool} className="space-y-6">
+                {/* Image Upload Section */}
+                <div className="space-y-2">
+                  <Label>Tool Image</Label>
+                  {editTool.image_url && (
+                    <div className="mb-4">
+                      <img 
+                        src={editTool.image_url} 
+                        alt="Current tool image" 
+                        className="w-32 h-32 object-cover rounded-lg border"
+                      />
+                      <p className="text-sm text-muted-foreground mt-1">Current image</p>
+                    </div>
+                  )}
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleEditImageUpload}
+                    className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/80"
+                  />
+                  {editImageUploading && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                      Uploading image...
+                    </div>
+                  )}
+                  <p className="text-sm text-muted-foreground">
+                    Upload an image of the tool (optional)
+                  </p>
+                </div>
+
                 {/* Tool Name */}
                 <div className="space-y-2">
                   <Label htmlFor="edit-name">Tool Name *</Label>
@@ -1234,8 +1283,10 @@ export default function Tools() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Electric Tool">Electric Tool</SelectItem>
+                        <SelectItem value="Vehicle">Vehicle</SelectItem>
                         <SelectItem value="Combustion Engine">Combustion Engine</SelectItem>
                         <SelectItem value="Hand Tools">Hand Tools</SelectItem>
+                        <SelectItem value="Recreation">Recreation</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1249,8 +1300,8 @@ export default function Tools() {
                         <SelectValue />
                       </SelectTrigger>
                        <SelectContent>
-                          <SelectItem value="no_problems_observed">No problems detected</SelectItem>
-                          <SelectItem value="functional_but_not_efficient">Functional but inefficient</SelectItem>
+                          <SelectItem value="good">Good</SelectItem>
+                          <SelectItem value="functional_but_not_efficient">Functional but not as efficient as it could be</SelectItem>
                          <SelectItem value="not_functional">Not functional</SelectItem>
                        </SelectContent>
                     </Select>

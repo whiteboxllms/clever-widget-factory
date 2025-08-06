@@ -142,29 +142,85 @@ export default function CheckIn() {
       // Upload images to storage if any
       let imageUrls: string[] = [];
       if (uploadedImages.length > 0) {
-        console.log('Uploading images:', uploadedImages.length);
+        console.log('=== STARTING IMAGE UPLOAD ===');
+        console.log('Images to upload:', uploadedImages.length);
+        console.log('Network status before upload:', navigator.onLine ? 'Online' : 'Offline');
+        console.log('Storage bucket target: tool-checkout-images');
         
         for (const [index, file] of uploadedImages.entries()) {
+          console.log(`=== UPLOADING IMAGE ${index + 1}/${uploadedImages.length} ===`);
+          console.log('File details:', {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            lastModified: file.lastModified
+          });
+          
+          // Check file size (common issue)
+          if (file.size > 10 * 1024 * 1024) { // 10MB limit
+            throw new Error(`Image too large: ${(file.size / 1024 / 1024).toFixed(2)}MB. Maximum size is 10MB.`);
+          }
+          
+          // Check file type
+          if (!file.type.startsWith('image/')) {
+            throw new Error(`Invalid file type: ${file.type}. Only image files are allowed.`);
+          }
+          
           const fileExt = file.name.split('.').pop();
           const fileName = `${selectedCheckout.tool_id}_${selectedCheckout.id}_${Date.now()}_${index + 1}.${fileExt}`;
           
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('tool-checkout-images')
-            .upload(fileName, file);
-
-          if (uploadError) {
-            console.error('Upload error:', uploadError);
-            throw uploadError;
-          }
-
-          // Get public URL
-          const { data: { publicUrl } } = supabase.storage
-            .from('tool-checkout-images')
-            .getPublicUrl(fileName);
+          console.log('Generated filename:', fileName);
+          console.log('Attempting storage upload...');
           
-          imageUrls.push(publicUrl);
+          try {
+            const { data: uploadData, error: uploadError } = await supabase.storage
+              .from('tool-checkout-images')
+              .upload(fileName, file);
+
+            console.log('Upload response:', { data: uploadData, error: uploadError });
+
+            if (uploadError) {
+              console.error('=== IMAGE UPLOAD ERROR ===');
+              console.error('Upload error details:', {
+                message: uploadError.message,
+                details: uploadError
+              });
+              
+              // Provide specific error messages based on common upload issues
+              let errorMsg = `Image upload failed: ${uploadError.message}`;
+              if (uploadError.message?.includes('413') || uploadError.message?.includes('too large')) {
+                errorMsg = `Image file too large. Please compress the image and try again.`;
+              } else if (uploadError.message?.includes('401') || uploadError.message?.includes('unauthorized')) {
+                errorMsg = `Upload permission denied. Please log out and back in, then try again.`;
+              } else if (uploadError.message?.includes('403') || uploadError.message?.includes('forbidden')) {
+                errorMsg = `Access forbidden. You may not have permission to upload images.`;
+              } else if (uploadError.message?.includes('timeout')) {
+                errorMsg = `Upload timed out. Check your internet connection and try again.`;
+              } else if (uploadError.message?.includes('network') || uploadError.message?.includes('fetch')) {
+                errorMsg = `Network error during upload. Check your connection and try again.`;
+              }
+              
+              throw new Error(errorMsg);
+            }
+
+            console.log('Upload successful, getting public URL...');
+            
+            // Get public URL
+            const { data: { publicUrl } } = supabase.storage
+              .from('tool-checkout-images')
+              .getPublicUrl(fileName);
+            
+            console.log('Public URL generated:', publicUrl);
+            imageUrls.push(publicUrl);
+            console.log(`Image ${index + 1} uploaded successfully`);
+            
+          } catch (uploadErr) {
+            console.error(`Failed to upload image ${index + 1}:`, uploadErr);
+            throw uploadErr;
+          }
         }
-        console.log('Images uploaded successfully:', imageUrls);
+        console.log('=== ALL IMAGES UPLOADED SUCCESSFULLY ===');
+        console.log('Final image URLs:', imageUrls);
       }
 
       // Create checkin record

@@ -239,21 +239,18 @@ export function InventoryItemForm({
               onCheckedChange={(checked) => setUseMinimumQuantity(checked === true)}
             />
             <Label htmlFor="use-minimum-quantity" className="text-sm font-medium">
-              Set minimum quantity threshold
+              Set Minimum Quantity
             </Label>
           </div>
           
           {useMinimumQuantity && (
-            <div>
-              <Label htmlFor="minimum_quantity">Minimum Quantity</Label>
-              <Input
-                id="minimum_quantity"
-                type="number"
-                min="0"
-                value={formData.minimum_quantity}
-                onChange={(e) => updateFormData('minimum_quantity', e.target.value === '' ? 0 : parseInt(e.target.value))}
-              />
-            </div>
+            <Input
+              id="minimum_quantity"
+              type="number"
+              min="0"
+              value={formData.minimum_quantity}
+              onChange={(e) => updateFormData('minimum_quantity', e.target.value === '' ? 0 : parseInt(e.target.value))}
+            />
           )}
         </div>
 

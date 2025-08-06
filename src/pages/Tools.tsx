@@ -1239,14 +1239,14 @@ export default function Tools() {
                       <img 
                         src={editTool.image_url} 
                         alt="Current tool image" 
-                        className="w-32 h-32 object-cover rounded-lg border"
+                        className="w-32 h-32 object-cover rounded-lg border flex-shrink-0"
                       />
                     ) : (
-                      <div className="w-32 h-32 bg-muted rounded-lg border flex items-center justify-center">
+                      <div className="w-32 h-32 bg-muted rounded-lg border flex items-center justify-center flex-shrink-0">
                         <Wrench className="h-8 w-8 text-muted-foreground" />
                       </div>
                     )}
-                    <div className="flex-1 space-y-2">
+                    <div className="flex-1 space-y-3 min-h-32 flex flex-col justify-center">
                       <Input
                         type="file"
                         accept="image/*"

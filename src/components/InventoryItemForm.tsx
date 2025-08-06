@@ -239,7 +239,6 @@ export function InventoryItemForm({
             
             <div>
               <div className="flex items-center justify-between mb-2 h-6">
-                <Label htmlFor="minimum_quantity">Minimum Quantity</Label>
                 <div className="flex items-center space-x-2">
                   <Checkbox 
                     id="use-minimum-quantity"
@@ -247,12 +246,12 @@ export function InventoryItemForm({
                     onCheckedChange={(checked) => setUseMinimumQuantity(checked === true)}
                   />
                   <Label htmlFor="use-minimum-quantity" className="text-sm font-medium">
-                    Set Minimum
+                    Set Minimum Quantity
                   </Label>
                 </div>
               </div>
               
-              {useMinimumQuantity ? (
+              {useMinimumQuantity && (
                 <Input
                   id="minimum_quantity"
                   type="number"
@@ -261,10 +260,6 @@ export function InventoryItemForm({
                   value={formData.minimum_quantity}
                   onChange={(e) => updateFormData('minimum_quantity', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
                 />
-              ) : (
-                <div className="h-10 border border-input rounded-md bg-muted flex items-center px-3 text-muted-foreground">
-                  No minimum set
-                </div>
               )}
             </div>
           </div>

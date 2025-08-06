@@ -60,7 +60,7 @@ interface InventoryItemFormProps {
   isLoading: boolean;
   onSubmit: (data: FormData, useMinimumQuantity: boolean) => void;
   onCancel: () => void;
-  onAddSupplier: () => void;
+  onAddSupplier: (supplierName?: string) => void;
   submitButtonText: string;
   editingPart?: Part | null;
 }
@@ -92,6 +92,7 @@ export function InventoryItemForm({
 
   const [useMinimumQuantity, setUseMinimumQuantity] = useState(false);
   const [supplierOpen, setSupplierOpen] = useState(false);
+  const [supplierSearchQuery, setSupplierSearchQuery] = useState('');
 
   // Initialize form data when editing
   useEffect(() => {
@@ -162,19 +163,7 @@ export function InventoryItemForm({
         </div>
 
         <div className="col-span-2">
-          <div className="flex items-center justify-between mb-2">
-            <Label>Supplier</Label>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onAddSupplier}
-              className="flex items-center gap-1"
-            >
-              <UserPlus className="h-3 w-3" />
-              Add Supplier
-            </Button>
-          </div>
+          <Label>Supplier</Label>
           <Popover open={supplierOpen} onOpenChange={setSupplierOpen}>
             <PopoverTrigger asChild>
               <Button
@@ -191,9 +180,32 @@ export function InventoryItemForm({
             </PopoverTrigger>
             <PopoverContent className="w-full p-0">
               <Command>
-                <CommandInput placeholder="Search supplier..." />
+                <CommandInput 
+                  placeholder="Search supplier..." 
+                  value={supplierSearchQuery}
+                  onValueChange={setSupplierSearchQuery}
+                />
                 <CommandList>
-                  <CommandEmpty>No supplier found.</CommandEmpty>
+                  <CommandEmpty>
+                    <div className="flex flex-col items-center gap-2 py-4">
+                      <p className="text-sm text-muted-foreground">No supplier found.</p>
+                      {supplierSearchQuery.trim() && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            onAddSupplier(supplierSearchQuery.trim());
+                            setSupplierOpen(false);
+                            setSupplierSearchQuery('');
+                          }}
+                          className="flex items-center gap-1"
+                        >
+                          <UserPlus className="h-3 w-3" />
+                          Add "{supplierSearchQuery.trim()}" as new supplier
+                        </Button>
+                      )}
+                    </div>
+                  </CommandEmpty>
                   <CommandGroup>
                     {suppliers.map((supplier) => (
                       <CommandItem
@@ -203,6 +215,7 @@ export function InventoryItemForm({
                           const selectedSupplier = suppliers.find(s => s.name.toLowerCase() === currentValue.toLowerCase());
                           updateFormData('supplier_id', selectedSupplier?.id || '');
                           setSupplierOpen(false);
+                          setSupplierSearchQuery('');
                         }}
                       >
                         <Check

@@ -424,7 +424,6 @@ export default function Tools() {
         status: editTool.status as any,
         storage_vicinity: editTool.storage_vicinity,
         storage_location: editTool.storage_location || null,
-        actual_location: editTool.actual_location || null,
         serial_number: editTool.serial_number || null,
         last_maintenance: editTool.last_maintenance || null,
         purchase_date: editTool.purchase_date || null,

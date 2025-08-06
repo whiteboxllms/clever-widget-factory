@@ -228,7 +228,7 @@ export function InventoryItemForm({
           <Input
             id="current_quantity"
             type="number"
-            step="0.001"
+            step="1"
             min="0"
             value={formData.current_quantity === 0 ? '' : formData.current_quantity}
             onChange={(e) => updateFormData('current_quantity', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
@@ -251,7 +251,7 @@ export function InventoryItemForm({
                 <Input
                   id="minimum_quantity"
                   type="number"
-                  step="0.001"
+                  step="1"
                   min="0"
                   value={formData.minimum_quantity}
                   onChange={(e) => updateFormData('minimum_quantity', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}

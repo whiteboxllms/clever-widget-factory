@@ -866,7 +866,7 @@ export default function Tools() {
                       
                       {/* Action Buttons */}
                       <div className="space-y-2">
-                        {activeCheckouts[tool.id] ? (
+                        {activeCheckouts[tool.id] && (
                           <Button
                             size="sm"
                             className="w-full"
@@ -876,20 +876,7 @@ export default function Tools() {
                             <User className="mr-2 h-3 w-3" />
                             Checked out by {activeCheckouts[tool.id].user_name}
                           </Button>
-                        ) : tool.status === 'available' && tool.condition !== 'not_functional' ? (
-                          <Button
-                            size="sm"
-                            className="w-full"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setCheckoutTool(tool);
-                              setIsCheckoutDialogOpen(true);
-                            }}
-                          >
-                            <LogOut className="mr-2 h-3 w-3" />
-                            Checkout
-                          </Button>
-                        ) : null}
+                        )}
                         
                         {/* Checkout, Edit and Remove on same line */}
                         <div className="flex gap-2">

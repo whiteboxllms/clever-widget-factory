@@ -33,7 +33,7 @@ interface Tool {
   actual_location?: string;
   serial_number?: string;
   last_maintenance?: string;
-  purchase_date?: string;
+  
   manual_url?: string;
   known_issues?: string;
   stargazer_sop?: string;
@@ -439,7 +439,7 @@ export default function Tools() {
         storage_location: editTool.storage_location || null,
         serial_number: editTool.serial_number || null,
         last_maintenance: editTool.last_maintenance || null,
-        purchase_date: editTool.purchase_date || null,
+        
         stargazer_sop: editTool.stargazer_sop || null
       };
 
@@ -1001,7 +1001,7 @@ export default function Tools() {
                             <div><strong>Intended Location:</strong> {tool.storage_vicinity}{tool.storage_location ? ` - ${tool.storage_location}` : ''}</div>
                             <div><strong>Current Location:</strong> {tool.actual_location || 'Same as intended'}</div>
                             <div><strong>Last Maintenance:</strong> {tool.last_maintenance || 'Not recorded'}</div>
-                            <div><strong>Purchase Date:</strong> {tool.purchase_date || 'Not recorded'}</div>
+                            
                           </div>
                         </div>
                       </div>
@@ -1329,26 +1329,15 @@ export default function Tools() {
                   />
                 </div>
 
-                {/* Maintenance and Purchase Dates */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-maintenance">Last Maintenance</Label>
-                    <Input
-                      id="edit-maintenance"
-                      type="date"
-                      value={editTool.last_maintenance || ''}
-                      onChange={(e) => setEditTool(prev => prev ? { ...prev, last_maintenance: e.target.value } : null)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-purchase">Purchase Date</Label>
-                    <Input
-                      id="edit-purchase"
-                      type="date"
-                      value={editTool.purchase_date || ''}
-                      onChange={(e) => setEditTool(prev => prev ? { ...prev, purchase_date: e.target.value } : null)}
-                    />
-                  </div>
+                {/* Last Maintenance */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-maintenance">Last Maintenance</Label>
+                  <Input
+                    id="edit-maintenance"
+                    type="date"
+                    value={editTool.last_maintenance || ''}
+                    onChange={(e) => setEditTool(prev => prev ? { ...prev, last_maintenance: e.target.value } : null)}
+                  />
                 </div>
 
                 {/* Submit Buttons */}

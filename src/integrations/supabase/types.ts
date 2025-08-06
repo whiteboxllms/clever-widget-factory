@@ -717,7 +717,6 @@ export type Database = {
           last_maintenance: string | null
           manual_url: string | null
           name: string
-          purchase_date: string | null
           serial_number: string | null
           stargazer_sop: string | null
           status: Database["public"]["Enums"]["tool_status"]
@@ -740,7 +739,6 @@ export type Database = {
           last_maintenance?: string | null
           manual_url?: string | null
           name: string
-          purchase_date?: string | null
           serial_number?: string | null
           stargazer_sop?: string | null
           status?: Database["public"]["Enums"]["tool_status"]
@@ -763,7 +761,6 @@ export type Database = {
           last_maintenance?: string | null
           manual_url?: string | null
           name?: string
-          purchase_date?: string | null
           serial_number?: string | null
           stargazer_sop?: string | null
           status?: Database["public"]["Enums"]["tool_status"]

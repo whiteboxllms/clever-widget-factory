@@ -13,6 +13,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useImageUpload } from '@/hooks/useImageUpload';
 import { showErrorToast } from '@/components/ErrorToast';
+import { useEnhancedToast } from '@/hooks/useEnhancedToast';
+import { TOOL_CONDITION_OPTIONS } from '@/lib/constants';
 
 interface Tool {
   id: string;
@@ -395,9 +397,11 @@ const AuditTool = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="no_problems_observed">No problems observed</SelectItem>
-                    <SelectItem value="functional_but_not_efficient">Functional but not efficient</SelectItem>
-                    <SelectItem value="not_functional">Not functional</SelectItem>
+                    {TOOL_CONDITION_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
                     <SelectItem value="missing">Missing</SelectItem>
                   </SelectContent>
                 </Select>

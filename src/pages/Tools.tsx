@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Search, Plus, Wrench, AlertTriangle, CheckCircle, Clock, User, Calendar, Upload, X, LogOut, Edit, ArrowLeft, Trash2 } from "lucide-react";
 import { compressImage, formatFileSize } from "@/lib/imageUtils";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
+import { TOOL_CONDITION_OPTIONS } from '@/lib/constants';
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ToolCheckoutDialog } from "@/components/ToolCheckoutDialog";
@@ -79,7 +80,7 @@ interface CheckoutHistory {
 const getStatusVariant = (status: string, condition: string) => {
   if (condition === 'not_functional' || status === 'unavailable' || status === 'unable_to_find') return 'destructive';
   if (status === 'checked_out') return 'secondary';
-  if (condition === 'good') return 'default';
+  if (condition === 'no_problems_observed') return 'default';
   return 'outline';
 };
 
@@ -115,7 +116,7 @@ export default function Tools() {
     name: "",
     description: "",
     category: "",
-        condition: "good",
+        condition: "no_problems_observed",
     status: "available",
     storage_vicinity: "",
     storage_location: "",
@@ -377,7 +378,7 @@ export default function Tools() {
         name: "",
         description: "",
         category: "",
-        condition: "good",
+        condition: "no_problems_observed",
         status: "available",
         storage_vicinity: "",
         storage_location: "",
@@ -407,7 +408,7 @@ export default function Tools() {
       name: "",
       description: "",
       category: "",
-      condition: "good",
+      condition: "no_problems_observed",
       status: "available",
       storage_vicinity: "",
       storage_location: "",
@@ -776,9 +777,11 @@ export default function Tools() {
                           <SelectValue />
                         </SelectTrigger>
                           <SelectContent>
-                           <SelectItem value="good">Good</SelectItem>
-                            <SelectItem value="functional_but_not_efficient">Functional but not as efficient as it could be</SelectItem>
-                            <SelectItem value="not_functional">Not functional</SelectItem>
+                            {TOOL_CONDITION_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                       </Select>
                     </div>

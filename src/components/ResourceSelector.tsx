@@ -576,7 +576,7 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant={tool.condition === 'good' ? 'default' : 'destructive'}>
+                  <Badge variant={tool.condition === 'no_problems_observed' ? 'default' : 'destructive'}>
                     {tool.condition}
                   </Badge>
                   <Badge variant="secondary">Available for mission</Badge>

@@ -11,13 +11,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { APP_VERSION, getBrowserInfo } from '@/lib/version';
 import { Tables, Database } from '@/integrations/supabase/types';
 import { ExternalLink } from 'lucide-react';
+import { TOOL_CONDITION_OPTIONS } from '@/lib/constants';
 
-// Tool condition options - reusable for consistency across the app
-export const TOOL_CONDITION_OPTIONS = [
-  { value: 'no_problems_observed' as const, label: 'No problems detected' },
-  { value: 'functional_but_not_efficient' as const, label: 'Functional but not efficient' },
-  { value: 'not_functional' as const, label: 'Not functional' }
-] as const;
 
 type Tool = Tables<'tools'>;
 

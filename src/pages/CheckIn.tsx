@@ -17,6 +17,7 @@ import { Tables } from '@/integrations/supabase/types';
 import { compressImageDetailed } from '@/lib/enhancedImageUtils';
 import { useEnhancedToast } from '@/hooks/useEnhancedToast';
 import { useImageUpload } from '@/hooks/useImageUpload';
+import { TOOL_CONDITION_OPTIONS } from '@/lib/constants';
 
 type CheckoutWithTool = Tables<'checkouts'> & {
   tools: Tables<'tools'>;
@@ -366,7 +367,7 @@ export default function CheckIn() {
 
   const getStatusColor = (condition: string) => {
     switch (condition) {
-      case 'good': return 'bg-green-100 text-green-800';
+      case 'no_problems_observed': return 'bg-green-100 text-green-800';
       case 'functional_but_not_efficient': return 'bg-yellow-100 text-yellow-800';
       case 'not_functional': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
@@ -528,9 +529,11 @@ export default function CheckIn() {
                                 <SelectValue placeholder="Select condition" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="good">Good</SelectItem>
-                                <SelectItem value="functional_but_not_efficient">Functional but not as efficient as it could be</SelectItem>
-                                <SelectItem value="not_functional">Not functional</SelectItem>
+                                {TOOL_CONDITION_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           </div>

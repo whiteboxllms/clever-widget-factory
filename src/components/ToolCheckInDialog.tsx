@@ -9,8 +9,15 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_VERSION, getBrowserInfo } from '@/lib/version';
-import { Tables } from '@/integrations/supabase/types';
+import { Tables, Database } from '@/integrations/supabase/types';
 import { ExternalLink } from 'lucide-react';
+
+// Tool condition options - reusable for consistency across the app
+export const TOOL_CONDITION_OPTIONS = [
+  { value: 'no_problems_observed' as const, label: 'No problems observed' },
+  { value: 'functional_but_not_efficient' as const, label: 'Functional but not efficient' },
+  { value: 'not_functional' as const, label: 'Not functional' }
+] as const;
 
 type Tool = Tables<'tools'>;
 
@@ -23,7 +30,7 @@ type CheckoutWithTool = {
 };
 
 type CheckInForm = {
-  condition_after: string;
+  condition_after: Database['public']['Enums']['tool_condition'] | '';
   tool_issues: string;
   notes: string;
   returned_to_correct_location: boolean;
@@ -182,7 +189,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
       const { error: toolError } = await supabase
         .from('tools')
         .update({ 
-          condition: form.condition_after as any,
+          condition: form.condition_after as Database['public']['Enums']['tool_condition'],
           status: form.condition_after === 'not_functional' ? 'unavailable' : 'available',
           actual_location: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : '')
         })
@@ -251,14 +258,16 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         <div className="space-y-4">
           <div>
             <Label htmlFor="condition_after">Tool Condition After Use *</Label>
-            <Select value={form.condition_after} onValueChange={(value) => setForm(prev => ({ ...prev, condition_after: value }))}>
+            <Select value={form.condition_after} onValueChange={(value: Database['public']['Enums']['tool_condition']) => setForm(prev => ({ ...prev, condition_after: value }))}>
               <SelectTrigger className={showValidation && !form.condition_after ? "border-red-500" : ""}>
                 <SelectValue placeholder="Select condition" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="good">Good</SelectItem>
-                <SelectItem value="functional_but_not_efficient">Functional but not as efficient as it could be</SelectItem>
-                <SelectItem value="not_functional">Not functional</SelectItem>
+                {TOOL_CONDITION_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

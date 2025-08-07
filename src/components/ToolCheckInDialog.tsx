@@ -14,7 +14,7 @@ import { ExternalLink } from 'lucide-react';
 
 // Tool condition options - reusable for consistency across the app
 export const TOOL_CONDITION_OPTIONS = [
-  { value: 'no_problems_observed' as const, label: 'No problems observed' },
+  { value: 'no_problems_observed' as const, label: 'No problems detected' },
   { value: 'functional_but_not_efficient' as const, label: 'Functional but not efficient' },
   { value: 'not_functional' as const, label: 'Not functional' }
 ] as const;

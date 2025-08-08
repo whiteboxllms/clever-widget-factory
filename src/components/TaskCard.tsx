@@ -64,6 +64,10 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
   const [hasUnsavedPlan, setHasUnsavedPlan] = useState(false);
   const [hasUnsavedImplementation, setHasUnsavedImplementation] = useState(false);
   
+  // Auto-save states
+  const [isSavingPlan, setIsSavingPlan] = useState(false);
+  const [isSavingImplementation, setIsSavingImplementation] = useState(false);
+  
   const [editData, setEditData] = useState({
     title: task.title,
     plan: task.plan || '',
@@ -109,25 +113,29 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
 
   // Auto-save implementation for plan field
   useEffect(() => {
-    if (!hasUnsavedPlan) return;
+    if (!hasUnsavedPlan || isSavingPlan) return;
     
-    const timeoutId = setTimeout(() => {
-      savePlan();
-    }, 2000); // Save after 2 seconds of inactivity
+    const timeoutId = setTimeout(async () => {
+      setIsSavingPlan(true);
+      await savePlan();
+      setIsSavingPlan(false);
+    }, 5000); // Save after 5 seconds of inactivity
 
     return () => clearTimeout(timeoutId);
-  }, [editData.plan, hasUnsavedPlan]);
+  }, [editData.plan, hasUnsavedPlan, isSavingPlan]);
 
   // Auto-save implementation for implementation field
   useEffect(() => {
-    if (!hasUnsavedImplementation) return;
+    if (!hasUnsavedImplementation || isSavingImplementation) return;
     
-    const timeoutId = setTimeout(() => {
-      saveImplementation();
-    }, 2000); // Save after 2 seconds of inactivity
+    const timeoutId = setTimeout(async () => {
+      setIsSavingImplementation(true);
+      await saveImplementation();
+      setIsSavingImplementation(false);
+    }, 5000); // Save after 5 seconds of inactivity
 
     return () => clearTimeout(timeoutId);
-  }, [editData.observations, hasUnsavedImplementation]);
+  }, [editData.observations, hasUnsavedImplementation, isSavingImplementation]);
 
   // Load photos (only real photos now, temp photos come from storage)
   const loadPhotos = async () => {
@@ -185,7 +193,14 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
       if (error) throw error;
       
       setHasUnsavedPlan(false);
-      onUpdate();
+      // Don't call onUpdate() here to prevent disruptive refreshes
+      
+      // Show subtle success feedback
+      toast({
+        title: "Plan saved",
+        description: "Your plan has been automatically saved",
+        duration: 2000,
+      });
     } catch (error) {
       console.error('Error updating task plan:', error);
       toast({
@@ -224,7 +239,14 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
       if (error) throw error;
       
       setHasUnsavedImplementation(false);
-      onUpdate();
+      // Don't call onUpdate() here to prevent disruptive refreshes
+      
+      // Show subtle success feedback
+      toast({
+        title: "Implementation saved",
+        description: "Your implementation has been automatically saved",
+        duration: 2000,
+      });
     } catch (error) {
       console.error('Error updating task observations:', error);
       toast({
@@ -740,10 +762,15 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
               <div>
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-medium">Plan *</Label>
-                  {hasUnsavedPlan && (
+                  {isSavingPlan ? (
+                    <div className="flex items-center gap-1 text-xs text-blue-600">
+                      <Save className="h-3 w-3 animate-pulse" />
+                      Saving...
+                    </div>
+                  ) : hasUnsavedPlan && (
                     <div className="flex items-center gap-1 text-xs text-amber-600">
                       <Save className="h-3 w-3" />
-                      Unsaved changes
+                      Auto-save in 5s
                     </div>
                   )}
                 </div>
@@ -768,10 +795,15 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
               <div>
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-medium">Implementation *</Label>
-                  {hasUnsavedImplementation && (
+                  {isSavingImplementation ? (
+                    <div className="flex items-center gap-1 text-xs text-blue-600">
+                      <Save className="h-3 w-3 animate-pulse" />
+                      Saving...
+                    </div>
+                  ) : hasUnsavedImplementation && (
                     <div className="flex items-center gap-1 text-xs text-amber-600">
                       <Save className="h-3 w-3" />
-                      Unsaved changes
+                      Auto-save in 5s
                     </div>
                   )}
                 </div>

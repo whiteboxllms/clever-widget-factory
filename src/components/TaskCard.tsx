@@ -795,30 +795,17 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
               <div>
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-medium">Implementation *</Label>
-                  <div className="flex items-center gap-2">
-                    {editData.observations && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleImplementationChange('')}
-                        className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
-                      >
-                        <X className="h-3 w-3 mr-1" />
-                        Clear
-                      </Button>
-                    )}
-                    {isSavingImplementation ? (
-                      <div className="flex items-center gap-1 text-xs text-blue-600">
-                        <Save className="h-3 w-3 animate-pulse" />
-                        Saving...
-                      </div>
-                    ) : hasUnsavedImplementation && (
-                      <div className="flex items-center gap-1 text-xs text-amber-600">
-                        <Save className="h-3 w-3" />
-                        Auto-save in 5s
-                      </div>
-                    )}
-                  </div>
+                  {isSavingImplementation ? (
+                    <div className="flex items-center gap-1 text-xs text-blue-600">
+                      <Save className="h-3 w-3 animate-pulse" />
+                      Saving...
+                    </div>
+                  ) : hasUnsavedImplementation && (
+                    <div className="flex items-center gap-1 text-xs text-amber-600">
+                      <Save className="h-3 w-3" />
+                      Auto-save in 5s
+                    </div>
+                  )}
                 </div>
                 {task.status !== 'completed' ? (
                   <Textarea

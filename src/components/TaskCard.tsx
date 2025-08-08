@@ -107,6 +107,28 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isPlanFocused, isImplementationFocused, hasUnsavedPlan, hasUnsavedImplementation]);
 
+  // Auto-save implementation for plan field
+  useEffect(() => {
+    if (!hasUnsavedPlan) return;
+    
+    const timeoutId = setTimeout(() => {
+      savePlan();
+    }, 2000); // Save after 2 seconds of inactivity
+
+    return () => clearTimeout(timeoutId);
+  }, [editData.plan, hasUnsavedPlan]);
+
+  // Auto-save implementation for implementation field
+  useEffect(() => {
+    if (!hasUnsavedImplementation) return;
+    
+    const timeoutId = setTimeout(() => {
+      saveImplementation();
+    }, 2000); // Save after 2 seconds of inactivity
+
+    return () => clearTimeout(timeoutId);
+  }, [editData.observations, hasUnsavedImplementation]);
+
   // Load photos (only real photos now, temp photos come from storage)
   const loadPhotos = async () => {
     if (!isExpanded && !isEditing) return;

@@ -152,22 +152,15 @@ export function DocumentationQualityDetailsDialog({
               {details.map((transaction) => {
                 const score = calculateScore(transaction.part);
                 return (
-                  <Card key={transaction.id}>
+                  <Card 
+                    key={transaction.id} 
+                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => handleEditPart(transaction.part.id)}
+                  >
                     <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-start gap-2 flex-1">
-                          <CardTitle className="text-base">{transaction.part.name}</CardTitle>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEditPart(transaction.part.id)}
-                            className="h-6 px-2 text-xs"
-                          >
-                            <Edit className="w-3 h-3 mr-1" />
-                            Edit
-                          </Button>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base">{transaction.part.name}</CardTitle>
+                        <div className="flex items-center gap-2">
                           <Badge 
                             variant={getScoreBadgeVariant(score)}
                             className="font-medium"
@@ -202,7 +195,7 @@ export function DocumentationQualityDetailsDialog({
                         </div>
                         <div className="col-span-2">
                           <div className="mt-2 p-2 bg-muted/50 rounded text-xs">
-                            <strong>Tip:</strong> Click the "Edit" button above to improve this part's documentation and increase your quality score.
+                            <strong>Tip:</strong> Click anywhere on this card to edit the part and improve your quality score.
                           </div>
                         </div>
                       </div>

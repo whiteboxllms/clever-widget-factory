@@ -353,12 +353,16 @@ export default function Inventory() {
 
       // Log the creation to history
       try {
-        if (!user?.id) {
+        // Get the current authenticated user ID from the session
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        
+        if (!currentUser?.id) {
+          console.error('No authenticated user found for history logging');
           throw new Error('User must be authenticated to create inventory items');
         }
         
-        console.log('Creating history entry with user ID:', user.id);
-        console.log('Current user object:', user);
+        console.log('Creating history entry with user ID:', currentUser.id);
+        console.log('Current user object:', currentUser);
         
         const { error: historyError } = await supabase
           .from('parts_history')
@@ -368,7 +372,7 @@ export default function Inventory() {
             old_quantity: null,
             new_quantity: formData.current_quantity,
             quantity_change: null,
-            changed_by: user.id,
+            changed_by: currentUser.id,
             change_reason: 'Item created'
           }]);
 
@@ -376,7 +380,7 @@ export default function Inventory() {
           console.error('Error logging history:', historyError);
           // Don't fail the operation if history logging fails
         } else {
-          console.log('History logged successfully');
+          console.log('History logged successfully for user:', currentUser.id);
         }
       } catch (historyError) {
         console.error('History logging failed:', historyError);
@@ -474,25 +478,34 @@ export default function Inventory() {
       if (error) throw error;
 
       // Log the update to history
-      if (!user?.id) {
-        throw new Error('User must be authenticated to update inventory items');
-      }
-      
-      const { error: historyError } = await supabase
-        .from('parts_history')
-        .insert([{
-          part_id: editingPart.id,
-          change_type: 'update',
-          old_quantity: null,
-          new_quantity: null,
-          quantity_change: null,
-          changed_by: user.id,
-          change_reason: 'Item details updated'
-        }]);
+      try {
+        // Get the current authenticated user ID from the session
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        
+        if (!currentUser?.id) {
+          console.error('No authenticated user found for history logging');
+          throw new Error('User must be authenticated to update inventory items');
+        }
+        
+        const { error: historyError } = await supabase
+          .from('parts_history')
+          .insert([{
+            part_id: editingPart.id,
+            change_type: 'update',
+            old_quantity: null,
+            new_quantity: null,
+            quantity_change: null,
+            changed_by: currentUser.id,
+            change_reason: 'Item details updated'
+          }]);
 
-      if (historyError) {
-        console.error('Error logging history:', historyError);
-        // Don't fail the operation if history logging fails
+        if (historyError) {
+          console.error('Error logging history:', historyError);
+          // Don't fail the operation if history logging fails
+        }
+      } catch (historyError) {
+        console.error('History logging failed:', historyError);
+        // Continue with success flow even if history fails
       }
 
       toast({
@@ -586,25 +599,34 @@ export default function Inventory() {
       if (error) throw error;
 
       // Log the change to history
-      if (!user?.id) {
-        throw new Error('User must be authenticated to modify inventory quantities');
-      }
-      
-      const { error: historyError } = await supabase
-        .from('parts_history')
-        .insert([{
-          part_id: quantityPart.id,
-          change_type: quantityOperation === 'add' ? 'quantity_add' : 'quantity_remove',
-          old_quantity: quantityPart.current_quantity,
-          new_quantity: newQuantity,
-          quantity_change: quantityOperation === 'add' ? amount : -amount,
-          changed_by: user.id,
-          change_reason: quantityChange.reason || null
-        }]);
+      try {
+        // Get the current authenticated user ID from the session
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        
+        if (!currentUser?.id) {
+          console.error('No authenticated user found for history logging');
+          throw new Error('User must be authenticated to modify inventory quantities');
+        }
+        
+        const { error: historyError } = await supabase
+          .from('parts_history')
+          .insert([{
+            part_id: quantityPart.id,
+            change_type: quantityOperation === 'add' ? 'quantity_add' : 'quantity_remove',
+            old_quantity: quantityPart.current_quantity,
+            new_quantity: newQuantity,
+            quantity_change: quantityOperation === 'add' ? amount : -amount,
+            changed_by: currentUser.id,
+            change_reason: quantityChange.reason || null
+          }]);
 
-      if (historyError) {
-        console.error('Error logging history:', historyError);
-        // Don't fail the operation if history logging fails
+        if (historyError) {
+          console.error('Error logging history:', historyError);
+          // Don't fail the operation if history logging fails
+        }
+      } catch (historyError) {
+        console.error('History logging failed:', historyError);
+        // Continue with success flow even if history fails
       }
 
       toast({

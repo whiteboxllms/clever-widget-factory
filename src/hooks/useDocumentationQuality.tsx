@@ -66,9 +66,9 @@ export function useDocumentationQuality() {
 
       const profilesMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
 
-      // Helper function to calculate documentation quality score (removed category)
+      // Helper function to calculate documentation quality score (only optional fields)
       const calculateScore = (part: any) => {
-        const fields = ['description', 'storage_location', 'supplier', 'cost_per_unit', 'image_url'];
+        const fields = ['description', 'cost_per_unit', 'image_url'];
         const filledFields = fields.filter(field => part[field] && part[field].toString().trim() !== '');
         return filledFields.length / fields.length;
       };

@@ -71,8 +71,6 @@ export function DocumentationQualityDetailsDialog({
   const calculateScore = (part: any) => {
     const fields = {
       description: part.description,
-      storage_location: part.storage_location,
-      supplier: part.supplier,
       cost_per_unit: part.cost_per_unit,
       image_url: part.image_url
     };
@@ -81,7 +79,7 @@ export function DocumentationQualityDetailsDialog({
       value !== null && value !== undefined && value !== ''
     ).length;
 
-    return Math.round((filledFields / 5) * 100);
+    return Math.round((filledFields / 3) * 100);
   };
 
   const getScoreColor = (score: number) => {
@@ -109,10 +107,10 @@ export function DocumentationQualityDetailsDialog({
               <strong>Documentation Quality Score:</strong> Percentage of optional fields filled out for each part.
             </p>
             <p>
-              <strong>Tracked Fields:</strong> Description, Storage Location, Supplier, Cost per Unit, Image
+              <strong>Optional Fields:</strong> Description, Cost per Unit, Image
             </p>
             <p>
-              <strong>Score Calculation:</strong> (Filled Optional Fields ÷ 5) × 100%
+              <strong>Score Calculation:</strong> (Filled Optional Fields ÷ 3) × 100%
             </p>
             <p>
               <strong>Current State:</strong> Shows the current documentation completeness of parts you've {activityType.toLowerCase()} recently.
@@ -160,24 +158,12 @@ export function DocumentationQualityDetailsDialog({
                           </p>
                         </div>
                         <div>
-                          <span className="font-medium">Storage Location:</span>
-                          <p className={transaction.part.storage_location ? "text-foreground" : "text-muted-foreground italic"}>
-                            {transaction.part.storage_location || "Missing - Add specific location details"}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="font-medium">Supplier:</span>
-                          <p className={transaction.part.supplier ? "text-foreground" : "text-muted-foreground italic"}>
-                            {transaction.part.supplier || "Missing - Add supplier information"}
-                          </p>
-                        </div>
-                        <div>
                           <span className="font-medium">Cost per Unit:</span>
                           <p className={transaction.part.cost_per_unit ? "text-foreground" : "text-muted-foreground italic"}>
                             {transaction.part.cost_per_unit ? `$${transaction.part.cost_per_unit}` : "Missing - Add cost information"}
                           </p>
                         </div>
-                        <div>
+                        <div className="col-span-2">
                           <span className="font-medium">Image:</span>
                           <p className={transaction.part.image_url ? "text-foreground" : "text-muted-foreground italic"}>
                             {transaction.part.image_url ? "Provided" : "Missing - Add a photo for identification"}
@@ -185,7 +171,7 @@ export function DocumentationQualityDetailsDialog({
                         </div>
                         <div className="col-span-2">
                           <div className="mt-2 p-2 bg-muted/50 rounded text-xs">
-                            <strong>Tip:</strong> Improve this part's documentation by editing it and filling in the missing fields above.
+                            <strong>Tip:</strong> Improve this part's documentation by editing it and filling in the missing optional fields above.
                           </div>
                         </div>
                       </div>

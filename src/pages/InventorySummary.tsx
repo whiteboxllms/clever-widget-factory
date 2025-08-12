@@ -6,6 +6,7 @@ import { useInventoryAnalytics } from "@/hooks/useInventoryAnalytics";
 import { InventoryMetricCard } from "@/components/InventoryMetricCard";
 import { UserActivityChart } from "@/components/UserActivityChart";
 import { AdditionsLineChart } from "@/components/AdditionsLineChart";
+import { DocumentationQualityCard } from "@/components/DocumentationQualityCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect, useState } from "react";
 
@@ -70,9 +71,10 @@ export default function InventorySummary() {
         </div>
 
         {/* Metrics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {isLoading ? (
             <>
+              <Skeleton className="h-24" />
               <Skeleton className="h-24" />
               <Skeleton className="h-24" />
               <Skeleton className="h-24" />
@@ -99,6 +101,7 @@ export default function InventorySummary() {
                 description="Last 14 days"
                 variant="success"
               />
+              <DocumentationQualityCard />
             </>
           )}
         </div>

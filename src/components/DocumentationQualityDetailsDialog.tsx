@@ -2,8 +2,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
+import { Edit } from "lucide-react";
 
 interface DocumentationQualityDetailsDialogProps {
   open: boolean;
@@ -20,6 +23,7 @@ export function DocumentationQualityDetailsDialog({
   userName,
   activityType
 }: DocumentationQualityDetailsDialogProps) {
+  const navigate = useNavigate();
   const { data: details, isLoading } = useQuery({
     queryKey: ["documentation-quality-details", userId, activityType],
     queryFn: async () => {
@@ -95,6 +99,11 @@ export function DocumentationQualityDetailsDialog({
     return "destructive";
   };
 
+  const handleEditPart = (partId: string) => {
+    navigate(`/inventory?edit=${partId}`);
+    onOpenChange(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[80vh]">
@@ -137,6 +146,15 @@ export function DocumentationQualityDetailsDialog({
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-base">{transaction.part.name}</CardTitle>
                         <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditPart(transaction.part.id)}
+                            className="h-7 px-2"
+                          >
+                            <Edit className="w-3 h-3 mr-1" />
+                            Edit
+                          </Button>
                           <Badge 
                             variant={getScoreBadgeVariant(score)}
                             className="font-medium"
@@ -171,7 +189,7 @@ export function DocumentationQualityDetailsDialog({
                         </div>
                         <div className="col-span-2">
                           <div className="mt-2 p-2 bg-muted/50 rounded text-xs">
-                            <strong>Tip:</strong> Improve this part's documentation by editing it and filling in the missing optional fields above.
+                            <strong>Tip:</strong> Click the "Edit" button above to improve this part's documentation and increase your quality score.
                           </div>
                         </div>
                       </div>

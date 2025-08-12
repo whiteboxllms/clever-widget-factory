@@ -18,161 +18,97 @@ export function useDocumentationQuality() {
     queryFn: async (): Promise<DocumentationQualityData> => {
       console.log("Fetching documentation quality data...");
 
-      // Get all parts edits from the last week
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-      // Get parts history for the last week (modifications and creations)
-      const { data: partsHistory, error: historyError } = await supabase
-        .from("parts_history")
-        .select(`
-          id,
-          part_id,
-          change_type,
-          created_at,
-          changed_by
-        `)
-        .gte("created_at", oneWeekAgo.toISOString())
-        .in("change_type", ["create", "update"]);
+      // Get all parts that were updated in the last week
+      const { data: recentParts, error: partsError } = await supabase
+        .from('parts')
+        .select('id, name, description, storage_location, supplier, cost_per_unit, image_url, updated_at')
+        .gte('updated_at', oneWeekAgo.toISOString())
+        .order('updated_at', { ascending: false });
 
-      // Get inventory usage for the last week
-      const { data: inventoryUsage, error: usageError } = await supabase
-        .from("inventory_usage")
-        .select(`
-          id,
-          part_id,
-          used_by,
-          created_at
-        `)
-        .gte("created_at", oneWeekAgo.toISOString());
+      if (partsError) throw partsError;
 
-      if (historyError || usageError) {
-        console.error("Error fetching data:", historyError || usageError);
-        throw historyError || usageError;
-      }
-
-      // Combine all activities
-      const allActivities = [
-        ...(partsHistory || []).map(h => ({
-          part_id: h.part_id,
-          user_id: h.changed_by,
-          type: h.change_type,
-          created_at: h.created_at
-        })),
-        ...(inventoryUsage || []).map(u => ({
-          part_id: u.part_id,
-          user_id: u.used_by,
-          type: 'used',
-          created_at: u.created_at
-        }))
-      ];
-
-      if (allActivities.length === 0) {
+      if (!recentParts || recentParts.length === 0) {
         return { userScores: [] };
       }
 
-      // Get unique part IDs
-      const partIds = [...new Set(allActivities.map(a => a.part_id))];
+      // For each part, find who last updated it from parts_history
+      const partIds = recentParts.map(p => p.id);
+      const { data: partsHistory, error: historyError } = await supabase
+        .from('parts_history')
+        .select('part_id, changed_by, created_at, change_type')
+        .in('part_id', partIds)
+        .order('created_at', { ascending: false });
 
-      // Get current part data for scoring
-      const { data: partsData, error: partsError } = await supabase
-        .from("parts")
-        .select(`
-          id,
-          name,
-          description,
-          category,
-          storage_location,
-          supplier,
-          cost_per_unit,
-          image_url
-        `)
-        .in("id", partIds);
+      if (historyError) throw historyError;
 
-      // Get user names
-      const userIds = [...new Set(allActivities.map(a => a.user_id))];
-      const { data: userData, error: userError } = await supabase
-        .from("profiles")
-        .select("user_id, full_name")
-        .in("user_id", userIds);
-
-      if (partsError || userError) {
-        console.error("Error fetching parts or users:", partsError || userError);
-        throw partsError || userError;
-      }
-
-      // Create lookup maps
-      const partsMap = new Map((partsData || []).map(part => [part.id, part]));
-      const usersMap = new Map((userData || []).map(user => [user.user_id, user.full_name || 'Unknown User']));
-
-      // Calculate documentation quality score for each activity
-      const activitiesWithScores = allActivities.map(activity => {
-        const part = partsMap.get(activity.part_id);
-        
-        if (!part) {
-          return {
-            user_id: activity.user_id,
-            type: activity.type,
-            score: 0
-          };
+      // Create a map of part_id to last updater
+      const lastUpdaterMap = new Map();
+      const lastUpdateTypeMap = new Map();
+      
+      (partsHistory || []).forEach(history => {
+        if (!lastUpdaterMap.has(history.part_id)) {
+          lastUpdaterMap.set(history.part_id, history.changed_by);
+          lastUpdateTypeMap.set(history.part_id, history.change_type === 'create' ? 'created' : 'modified');
         }
-        
-        // Fields that contribute to documentation quality
-        const fields = {
-          description: part.description,
-          category: part.category,
-          storage_location: part.storage_location,
-          supplier: part.supplier,
-          cost_per_unit: part.cost_per_unit,
-          image_url: part.image_url
-        };
-
-        // Count filled fields (non-null and non-empty strings)
-        const filledFields = Object.values(fields).filter(value => 
-          value !== null && value !== undefined && value !== ''
-        ).length;
-
-        const totalFields = Object.keys(fields).length;
-        const score = filledFields / totalFields;
-
-        return {
-          user_id: activity.user_id,
-          type: activity.type,
-          score
-        };
       });
 
-      // Group by user and activity type
-      const userScores = userIds.map(userId => {
-        const userName = usersMap.get(userId) || 'Unknown User';
-        const userActivities = activitiesWithScores.filter(a => a.user_id === userId);
+      // Get user profiles for display names
+      const allUserIds = new Set(Array.from(lastUpdaterMap.values()));
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, full_name')
+        .in('user_id', Array.from(allUserIds));
+
+      if (profilesError) throw profilesError;
+
+      const profilesMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
+
+      // Helper function to calculate documentation quality score (removed category)
+      const calculateScore = (part: any) => {
+        const fields = ['description', 'storage_location', 'supplier', 'cost_per_unit', 'image_url'];
+        const filledFields = fields.filter(field => part[field] && part[field].toString().trim() !== '');
+        return filledFields.length / fields.length;
+      };
+
+      // Group by user and calculate scores based on current part state
+      const userScores = new Map();
+
+      recentParts.forEach(part => {
+        const userId = lastUpdaterMap.get(part.id);
+        const activityType = lastUpdateTypeMap.get(part.id) || 'modified';
         
-        const created = userActivities.filter(a => a.type === 'create');
-        const modified = userActivities.filter(a => a.type === 'update');
-        const used = userActivities.filter(a => a.type === 'used');
+        if (!userId) return; // Skip if we can't determine who updated it
 
-        const calculateAverage = (activities: typeof userActivities) => {
-          if (activities.length === 0) return { score: 0, count: 0 };
-          const avgScore = activities.reduce((sum, a) => sum + a.score, 0) / activities.length;
-          return { score: avgScore, count: activities.length };
-        };
+        const userName = profilesMap.get(userId) || 'Unknown User';
+        const score = calculateScore(part);
 
-        const createdStats = calculateAverage(created);
-        const modifiedStats = calculateAverage(modified);
-        const usedStats = calculateAverage(used);
-        const overallStats = calculateAverage(userActivities);
+        if (!userScores.has(userId)) {
+          userScores.set(userId, {
+            user: userId,
+            userName,
+            created: { count: 0, totalScore: 0, score: 0 },
+            modified: { count: 0, totalScore: 0, score: 0 },
+            used: { count: 0, totalScore: 0, score: 0 },
+            overall: { count: 0, totalScore: 0, score: 0 }
+          });
+        }
 
-        return {
-          user: userId,
-          userName,
-          created: createdStats,
-          modified: modifiedStats,
-          used: usedStats,
-          overall: overallStats
-        };
-      }).filter(user => user.overall.count > 0); // Only include users with activities
+        const userScore = userScores.get(userId);
+        userScore[activityType].count++;
+        userScore[activityType].totalScore += score;
+        userScore[activityType].score = userScore[activityType].totalScore / userScore[activityType].count;
 
-      return { userScores };
+        userScore.overall.count++;
+        userScore.overall.totalScore += score;
+        userScore.overall.score = userScore.overall.totalScore / userScore.overall.count;
+      });
+
+      return {
+        userScores: Array.from(userScores.values())
+      };
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 1,

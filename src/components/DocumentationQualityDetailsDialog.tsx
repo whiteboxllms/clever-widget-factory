@@ -28,75 +28,41 @@ export function DocumentationQualityDetailsDialog({
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-      if (activityType === "Used") {
-        // Get inventory usage data
-        const { data: inventoryUsage, error } = await supabase
-          .from("inventory_usage")
-          .select("id, part_id, created_at")
-          .eq("used_by", userId)
-          .gte("created_at", oneWeekAgo.toISOString())
-          .order("created_at", { ascending: false });
+      // Get parts that were updated in the last week by this user
+      const changeType = activityType === "Created" ? "create" : "update";
+      const { data: partsHistory, error } = await supabase
+        .from("parts_history")
+        .select("part_id, created_at, change_type")
+        .eq("changed_by", userId)
+        .eq("change_type", changeType)
+        .gte("created_at", oneWeekAgo.toISOString())
+        .order("created_at", { ascending: false });
 
-        if (error) throw error;
+      if (error) throw error;
 
-        if (!inventoryUsage || inventoryUsage.length === 0) {
-          return [];
-        }
-
-        // Get the part details for these usage records
-        const partIds = [...new Set(inventoryUsage.map(u => u.part_id))];
-        const { data: parts, error: partsError } = await supabase
-          .from("parts")
-          .select("id, name, description, category, storage_location, supplier, cost_per_unit, image_url")
-          .in("id", partIds);
-
-        if (partsError) throw partsError;
-
-        const partsMap = new Map((parts || []).map(p => [p.id, p]));
-
-        return inventoryUsage.map(usage => ({
-          id: usage.id,
-          part_id: usage.part_id,
-          created_at: usage.created_at,
-          type: "used",
-          part: partsMap.get(usage.part_id)
-        })).filter(item => item.part); // Filter out items where part wasn't found
-      } else {
-        // Get parts history data
-        const changeType = activityType === "Created" ? "create" : "update";
-        const { data: partsHistory, error } = await supabase
-          .from("parts_history")
-          .select("id, part_id, change_type, created_at")
-          .eq("changed_by", userId)
-          .eq("change_type", changeType)
-          .gte("created_at", oneWeekAgo.toISOString())
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-
-        if (!partsHistory || partsHistory.length === 0) {
-          return [];
-        }
-
-        // Get the part details for these history records
-        const partIds = [...new Set(partsHistory.map(h => h.part_id))];
-        const { data: parts, error: partsError } = await supabase
-          .from("parts")
-          .select("id, name, description, category, storage_location, supplier, cost_per_unit, image_url")
-          .in("id", partIds);
-
-        if (partsError) throw partsError;
-
-        const partsMap = new Map((parts || []).map(p => [p.id, p]));
-
-        return partsHistory.map(history => ({
-          id: history.id,
-          part_id: history.part_id,
-          created_at: history.created_at,
-          type: history.change_type,
-          part: partsMap.get(history.part_id)
-        })).filter(item => item.part); // Filter out items where part wasn't found
+      if (!partsHistory || partsHistory.length === 0) {
+        return [];
       }
+
+      // Get current state of these parts
+      const partIds = [...new Set(partsHistory.map(h => h.part_id))];
+      const { data: parts, error: partsError } = await supabase
+        .from("parts")
+        .select("id, name, description, storage_location, supplier, cost_per_unit, image_url, updated_at")
+        .in("id", partIds);
+
+      if (partsError) throw partsError;
+
+      const partsMap = new Map((parts || []).map(p => [p.id, p]));
+
+      // Return current state of parts, not historical changes
+      return partsHistory.map(history => ({
+        id: history.part_id, // Use part_id as unique identifier
+        part_id: history.part_id,
+        created_at: history.created_at,
+        type: activityType.toLowerCase(),
+        part: partsMap.get(history.part_id)
+      })).filter(item => item.part); // Filter out items where part wasn't found
     },
     enabled: open && !!userId && !!activityType,
     staleTime: 2 * 60 * 1000, // 2 minutes
@@ -105,7 +71,6 @@ export function DocumentationQualityDetailsDialog({
   const calculateScore = (part: any) => {
     const fields = {
       description: part.description,
-      category: part.category,
       storage_location: part.storage_location,
       supplier: part.supplier,
       cost_per_unit: part.cost_per_unit,
@@ -116,7 +81,7 @@ export function DocumentationQualityDetailsDialog({
       value !== null && value !== undefined && value !== ''
     ).length;
 
-    return Math.round((filledFields / 6) * 100);
+    return Math.round((filledFields / 5) * 100);
   };
 
   const getScoreColor = (score: number) => {
@@ -141,13 +106,16 @@ export function DocumentationQualityDetailsDialog({
           </DialogTitle>
           <div className="text-sm text-muted-foreground space-y-2">
             <p>
-              <strong>Documentation Quality Score:</strong> Percentage of important fields filled out for each part.
+              <strong>Documentation Quality Score:</strong> Percentage of optional fields filled out for each part.
             </p>
             <p>
-              <strong>Tracked Fields:</strong> Description, Category, Storage Location, Supplier, Cost per Unit, Image
+              <strong>Tracked Fields:</strong> Description, Storage Location, Supplier, Cost per Unit, Image
             </p>
             <p>
-              <strong>Score Calculation:</strong> (Filled Fields ÷ 6) × 100%
+              <strong>Score Calculation:</strong> (Filled Optional Fields ÷ 5) × 100%
+            </p>
+            <p>
+              <strong>Current State:</strong> Shows the current documentation completeness of parts you've {activityType.toLowerCase()} recently.
             </p>
           </div>
         </DialogHeader>
@@ -188,38 +156,37 @@ export function DocumentationQualityDetailsDialog({
                         <div>
                           <span className="font-medium">Description:</span>
                           <p className={transaction.part.description ? "text-foreground" : "text-muted-foreground italic"}>
-                            {transaction.part.description || "Not provided"}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="font-medium">Category:</span>
-                          <p className={transaction.part.category ? "text-foreground" : "text-muted-foreground italic"}>
-                            {transaction.part.category || "Not provided"}
+                            {transaction.part.description || "Missing - Add a detailed description"}
                           </p>
                         </div>
                         <div>
                           <span className="font-medium">Storage Location:</span>
                           <p className={transaction.part.storage_location ? "text-foreground" : "text-muted-foreground italic"}>
-                            {transaction.part.storage_location || "Not provided"}
+                            {transaction.part.storage_location || "Missing - Add specific location details"}
                           </p>
                         </div>
                         <div>
                           <span className="font-medium">Supplier:</span>
                           <p className={transaction.part.supplier ? "text-foreground" : "text-muted-foreground italic"}>
-                            {transaction.part.supplier || "Not provided"}
+                            {transaction.part.supplier || "Missing - Add supplier information"}
                           </p>
                         </div>
                         <div>
                           <span className="font-medium">Cost per Unit:</span>
                           <p className={transaction.part.cost_per_unit ? "text-foreground" : "text-muted-foreground italic"}>
-                            {transaction.part.cost_per_unit ? `$${transaction.part.cost_per_unit}` : "Not provided"}
+                            {transaction.part.cost_per_unit ? `$${transaction.part.cost_per_unit}` : "Missing - Add cost information"}
                           </p>
                         </div>
                         <div>
                           <span className="font-medium">Image:</span>
                           <p className={transaction.part.image_url ? "text-foreground" : "text-muted-foreground italic"}>
-                            {transaction.part.image_url ? "Provided" : "Not provided"}
+                            {transaction.part.image_url ? "Provided" : "Missing - Add a photo for identification"}
                           </p>
+                        </div>
+                        <div className="col-span-2">
+                          <div className="mt-2 p-2 bg-muted/50 rounded text-xs">
+                            <strong>Tip:</strong> Improve this part's documentation by editing it and filling in the missing fields above.
+                          </div>
                         </div>
                       </div>
                     </CardContent>

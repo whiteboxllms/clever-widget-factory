@@ -46,6 +46,7 @@ interface FormData {
   current_quantity: number;
   minimum_quantity: number;
   cost_per_unit: string;
+  cost_evidence_url: string;
   unit: string;
   supplier_id: string;
   storage_vicinity: string;
@@ -83,6 +84,7 @@ export function InventoryItemForm({
     current_quantity: 0,
     minimum_quantity: 0,
     cost_per_unit: '',
+    cost_evidence_url: '',
     unit: 'pieces',
     supplier_id: '',
     storage_vicinity: '',
@@ -103,6 +105,7 @@ export function InventoryItemForm({
         current_quantity: editingPart.current_quantity,
         minimum_quantity: editingPart.minimum_quantity || 0,
         cost_per_unit: editingPart.cost_per_unit?.toString() || '',
+        cost_evidence_url: '',
         unit: editingPart.unit || 'pieces',
         supplier_id: editingPart.supplier_id || '',
         storage_vicinity: editingPart.storage_vicinity,
@@ -328,6 +331,29 @@ export function InventoryItemForm({
             value={formData.cost_per_unit}
             onChange={(e) => updateFormData('cost_per_unit', e.target.value)}
             placeholder="0.00"
+          />
+        </div>
+
+        <div className="col-span-2">
+          <div className="flex items-center gap-2 mb-2">
+            <Label htmlFor="cost_evidence_url">Cost Evidence URL</Label>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Link to evidence of the cost per unit - should be a benchmark price</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <Input
+            id="cost_evidence_url"
+            type="url"
+            value={formData.cost_evidence_url}
+            onChange={(e) => updateFormData('cost_evidence_url', e.target.value)}
+            placeholder="https://example.com/product-price"
           />
         </div>
 

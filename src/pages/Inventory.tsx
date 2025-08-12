@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -73,6 +74,7 @@ export default function Inventory() {
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [newPart, setNewPart] = useState({
     name: '',
@@ -246,6 +248,15 @@ export default function Inventory() {
   };
 
   const addPart = async (formData: any, useMinimumQuantity: boolean) => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to add parts",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setUploadingImage(true);
       
@@ -316,7 +327,7 @@ export default function Inventory() {
             old_quantity: null,
             new_quantity: formData.current_quantity,
             quantity_change: null,
-            changed_by: 'System User', // TODO: Replace with actual user when authentication is implemented
+            changed_by: user?.email || user?.id || 'Unknown User',
             change_reason: 'Item created'
           }]);
 
@@ -430,7 +441,7 @@ export default function Inventory() {
           old_quantity: null,
           new_quantity: null,
           quantity_change: null,
-          changed_by: 'System User', // TODO: Replace with actual user when authentication is implemented
+          changed_by: user?.email || user?.id || 'Unknown User',
           change_reason: 'Item details updated'
         }]);
 
@@ -488,6 +499,15 @@ export default function Inventory() {
   const updateQuantity = async () => {
     if (!quantityPart || !quantityChange.amount) return;
 
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to update quantities",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const amount = parseFloat(quantityChange.amount);
     if (isNaN(amount) || amount <= 0) {
       toast({
@@ -529,7 +549,7 @@ export default function Inventory() {
           old_quantity: quantityPart.current_quantity,
           new_quantity: newQuantity,
           quantity_change: quantityOperation === 'add' ? amount : -amount,
-          changed_by: 'System User', // TODO: Replace with actual user when authentication is implemented
+          changed_by: user?.email || user?.id || 'Unknown User',
           change_reason: quantityChange.reason || null
         }]);
 

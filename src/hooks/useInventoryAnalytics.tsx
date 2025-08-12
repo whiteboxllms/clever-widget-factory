@@ -126,6 +126,7 @@ export function useInventoryAnalytics() {
 
       historyData?.forEach(record => {
         const date = new Date(record.created_at).toLocaleDateString();
+        // Display email for changed_by since it's more readable than UUID
         const user = record.changed_by || "Unknown";
         allUsersSet.add(user);
         
@@ -150,6 +151,7 @@ export function useInventoryAnalytics() {
 
       usageData?.forEach(record => {
         const date = new Date(record.created_at).toLocaleDateString();
+        // Use used_by (UUID) for now - can be improved with user profiles later
         const user = record.used_by || "Unknown";
         allUsersSet.add(user);
         

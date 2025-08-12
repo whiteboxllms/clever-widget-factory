@@ -625,11 +625,11 @@ export default function Inventory() {
           // Don't fail the operation if history logging fails
         }
 
-        // If this is a quantity removal (usage), also log it to mission_inventory_usage for activity tracking
+        // If this is a quantity removal (usage), also log it to inventory_usage for activity tracking
         if (quantityOperation === 'remove') {
           try {
             const { error: usageError } = await supabase
-              .from('mission_inventory_usage')
+              .from('inventory_usage')
               .insert([{
                 mission_id: '00000000-0000-0000-0000-000000000000', // Use a special UUID for manual usage
                 part_id: quantityPart.id,
@@ -639,7 +639,7 @@ export default function Inventory() {
               }]);
 
             if (usageError) {
-              console.error('Error logging usage to mission_inventory_usage:', usageError);
+              console.error('Error logging usage to inventory_usage:', usageError);
               // Don't fail the operation if usage logging fails
             }
           } catch (usageError) {

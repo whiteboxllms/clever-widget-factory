@@ -175,7 +175,7 @@ export function useInventoryAnalytics() {
 
       // Fetch detailed usage data with part, mission, and user information
       const { data: usageData, error: usageError } = await supabase
-        .from("mission_inventory_usage")
+        .from("inventory_usage")
         .select(`
           id,
           used_by,

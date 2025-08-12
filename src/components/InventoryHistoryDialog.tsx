@@ -50,9 +50,9 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
 
       if (partsError) throw partsError;
 
-      // Fetch from mission_inventory_usage table with mission details
+      // Fetch from inventory_usage table with mission details
       const { data: missionUsage, error: missionError } = await supabase
-        .from('mission_inventory_usage')
+        .from('inventory_usage')
         .select(`
           *,
           missions!inner(

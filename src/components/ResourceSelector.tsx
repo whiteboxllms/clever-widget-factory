@@ -313,7 +313,7 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
     try {
       // Record inventory usage
       const { error } = await supabase
-        .from('mission_inventory_usage')
+        .from('inventory_usage')
         .insert({
           mission_id: missionId,
           part_id: resource.id,

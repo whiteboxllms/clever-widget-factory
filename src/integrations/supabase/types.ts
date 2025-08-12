@@ -136,6 +136,68 @@ export type Database = {
           },
         ]
       }
+      inventory_usage: {
+        Row: {
+          created_at: string
+          id: string
+          mission_id: string
+          part_id: string
+          quantity_used: number
+          task_id: string | null
+          usage_description: string | null
+          used_by: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mission_id: string
+          part_id: string
+          quantity_used: number
+          task_id?: string | null
+          usage_description?: string | null
+          used_by: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mission_id?: string
+          part_id?: string
+          quantity_used?: number
+          task_id?: string | null
+          usage_description?: string | null
+          used_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_usage_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_usage_part_id_fkey"
+            columns: ["part_id"]
+            isOneToOne: false
+            referencedRelation: "parts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_usage_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "mission_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_usage_used_by_fkey"
+            columns: ["used_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       mission_attachments: {
         Row: {
           attachment_type: string
@@ -188,68 +250,6 @@ export type Database = {
           {
             foreignKeyName: "mission_attachments_uploaded_by_fkey"
             columns: ["uploaded_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-        ]
-      }
-      mission_inventory_usage: {
-        Row: {
-          created_at: string
-          id: string
-          mission_id: string
-          part_id: string
-          quantity_used: number
-          task_id: string | null
-          usage_description: string | null
-          used_by: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          mission_id: string
-          part_id: string
-          quantity_used: number
-          task_id?: string | null
-          usage_description?: string | null
-          used_by: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          mission_id?: string
-          part_id?: string
-          quantity_used?: number
-          task_id?: string | null
-          usage_description?: string | null
-          used_by?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "mission_inventory_usage_mission_id_fkey"
-            columns: ["mission_id"]
-            isOneToOne: false
-            referencedRelation: "missions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "mission_inventory_usage_part_id_fkey"
-            columns: ["part_id"]
-            isOneToOne: false
-            referencedRelation: "parts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "mission_inventory_usage_task_id_fkey"
-            columns: ["task_id"]
-            isOneToOne: false
-            referencedRelation: "mission_tasks"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "mission_inventory_usage_used_by_fkey"
-            columns: ["used_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]

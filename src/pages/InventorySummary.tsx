@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useInventoryAnalytics } from "@/hooks/useInventoryAnalytics";
 import { InventoryMetricCard } from "@/components/InventoryMetricCard";
-import { CategoryDistributionChart } from "@/components/CategoryDistributionChart";
+
 import { UserActivityChart } from "@/components/UserActivityChart";
 import { AdditionsLineChart } from "@/components/AdditionsLineChart";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -51,10 +51,9 @@ export default function InventorySummary() {
         </div>
 
         {/* Metrics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {isLoading ? (
             <>
-              <Skeleton className="h-24" />
               <Skeleton className="h-24" />
               <Skeleton className="h-24" />
               <Skeleton className="h-24" />
@@ -74,12 +73,6 @@ export default function InventorySummary() {
                 variant="warning"
               />
               <InventoryMetricCard
-                title="Categories"
-                value={data?.categoryDistribution?.length || 0}
-                description="Item categories"
-                variant="info"
-              />
-              <InventoryMetricCard
                 title="Recent Additions"
                 value={data?.recentAdditions || 0}
                 description="Last 14 days"
@@ -89,36 +82,19 @@ export default function InventorySummary() {
           )}
         </div>
 
-        {/* Charts Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Category Distribution */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Items by Category</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <Skeleton className="h-64" />
-              ) : (
-                <CategoryDistributionChart data={data?.categoryDistribution || []} />
-              )}
-            </CardContent>
-          </Card>
-
-          {/* User Activity */}
-          <Card>
-            <CardHeader>
-              <CardTitle>User Activity Overview</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <Skeleton className="h-64" />
-              ) : (
-                <UserActivityChart data={data?.userActivity || []} />
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        {/* User Activity Chart */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>User Activity Overview</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <Skeleton className="h-64" />
+            ) : (
+              <UserActivityChart data={data?.userActivity || []} />
+            )}
+          </CardContent>
+        </Card>
 
         {/* Additions Trend Chart */}
         <Card>

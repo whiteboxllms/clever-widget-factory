@@ -23,7 +23,6 @@ interface InventoryAnalyticsData {
   totalItems: number;
   lowStockItems: number;
   recentAdditions: number;
-  categoryDistribution: CategoryData[];
   userActivity: UserActivityData[];
   additionsTrend: AdditionsTrendData[];
 }
@@ -61,26 +60,6 @@ export function useInventoryAnalytics() {
         item => item.current_quantity <= (item.minimum_quantity || 0)
       ).length || 0;
 
-      // Category distribution
-      const { data: categoryData, error: categoryError } = await supabase
-        .from("parts")
-        .select("category")
-        .gt("current_quantity", 0);
-
-      if (categoryError) {
-        console.error("Error fetching category data:", categoryError);
-        throw categoryError;
-      }
-
-      const categoryDistribution = categoryData?.reduce((acc: Record<string, number>, item) => {
-        const category = item.category || "Uncategorized";
-        acc[category] = (acc[category] || 0) + 1;
-        return acc;
-      }, {});
-
-      const categoryArray: CategoryData[] = Object.entries(categoryDistribution || {}).map(
-        ([category, count]) => ({ category, count })
-      );
 
       // Recent additions (last 14 days)
       const twoWeeksAgo = new Date();
@@ -182,7 +161,6 @@ export function useInventoryAnalytics() {
         totalItems: totalItemsData?.length || 0,
         lowStockCount,
         recentAdditions: recentAdditionsData?.length || 0,
-        categoryCount: categoryArray.length,
         userActivityCount: userActivity.length,
         trendPointsCount: additionsTrend.length
       });
@@ -191,7 +169,6 @@ export function useInventoryAnalytics() {
         totalItems: totalItemsData?.length || 0,
         lowStockItems: lowStockCount,
         recentAdditions: recentAdditionsData?.length || 0,
-        categoryDistribution: categoryArray,
         userActivity,
         additionsTrend
       };

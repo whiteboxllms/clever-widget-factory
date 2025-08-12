@@ -191,7 +191,7 @@ export function UserActivityChart({
         </div>
       </Card>
 
-      <div className="h-64">
+      <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={filteredData}
@@ -199,7 +199,7 @@ export function UserActivityChart({
               top: 20,
               right: 30,
               left: 20,
-              bottom: 60,
+              bottom: 35,
             }}
             onClick={handleBarClick}
           >
@@ -223,7 +223,6 @@ export function UserActivityChart({
             <Tooltip content={<CustomTooltip />} />
             <Legend 
               wrapperStyle={{ 
-                paddingTop: "10px",
                 fontSize: "12px",
                 color: "hsl(var(--foreground))"
               }}

@@ -67,7 +67,7 @@ export function AdditionsLineChart({ data }: AdditionsLineChartProps) {
   };
 
   return (
-    <div className="h-80">
+    <div className="h-96">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart
           data={chartData}
@@ -75,7 +75,7 @@ export function AdditionsLineChart({ data }: AdditionsLineChartProps) {
             top: 20,
             right: 30,
             left: 20,
-            bottom: 60,
+            bottom: 20,
           }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -91,7 +91,6 @@ export function AdditionsLineChart({ data }: AdditionsLineChartProps) {
           <Tooltip content={<CustomTooltip />} />
           <Legend 
             wrapperStyle={{ 
-              paddingTop: "10px",
               fontSize: "12px",
               color: "hsl(var(--foreground))"
             }}

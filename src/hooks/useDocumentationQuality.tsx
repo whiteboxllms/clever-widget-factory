@@ -2,12 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 interface DocumentationQualityData {
-  averageScore: number;
-  totalEdits: number;
-  trend: {
-    date: string;
-    score: number;
-    edits: number;
+  userScores: {
+    user: string;
+    userName: string;
+    created: { score: number; count: number };
+    modified: { score: number; count: number };
+    used: { score: number; count: number };
+    overall: { score: number; count: number };
   }[];
 }
 
@@ -28,26 +29,50 @@ export function useDocumentationQuality() {
           id,
           part_id,
           change_type,
-          created_at
+          created_at,
+          changed_by
         `)
         .gte("created_at", oneWeekAgo.toISOString())
         .in("change_type", ["created", "updated", "modified"]);
 
-      if (historyError) {
-        console.error("Error fetching parts history:", historyError);
-        throw historyError;
+      // Get inventory usage for the last week
+      const { data: inventoryUsage, error: usageError } = await supabase
+        .from("inventory_usage")
+        .select(`
+          id,
+          part_id,
+          used_by,
+          created_at
+        `)
+        .gte("created_at", oneWeekAgo.toISOString());
+
+      if (historyError || usageError) {
+        console.error("Error fetching data:", historyError || usageError);
+        throw historyError || usageError;
       }
 
-      if (!partsHistory || partsHistory.length === 0) {
-        return {
-          averageScore: 0,
-          totalEdits: 0,
-          trend: []
-        };
+      // Combine all activities
+      const allActivities = [
+        ...(partsHistory || []).map(h => ({
+          part_id: h.part_id,
+          user_id: h.changed_by,
+          type: h.change_type,
+          created_at: h.created_at
+        })),
+        ...(inventoryUsage || []).map(u => ({
+          part_id: u.part_id,
+          user_id: u.used_by,
+          type: 'used',
+          created_at: u.created_at
+        }))
+      ];
+
+      if (allActivities.length === 0) {
+        return { userScores: [] };
       }
 
-      // Get unique part IDs from the history
-      const partIds = [...new Set(partsHistory.map(h => h.part_id))];
+      // Get unique part IDs
+      const partIds = [...new Set(allActivities.map(a => a.part_id))];
 
       // Get current part data for scoring
       const { data: partsData, error: partsError } = await supabase
@@ -64,37 +89,35 @@ export function useDocumentationQuality() {
         `)
         .in("id", partIds);
 
-      if (partsError) {
-        console.error("Error fetching parts data:", partsError);
-        throw partsError;
+      // Get user names
+      const userIds = [...new Set(allActivities.map(a => a.user_id))];
+      const { data: userData, error: userError } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", userIds);
+
+      if (partsError || userError) {
+        console.error("Error fetching parts or users:", partsError || userError);
+        throw partsError || userError;
       }
 
-      if (!partsData || partsData.length === 0) {
-        return {
-          averageScore: 0,
-          totalEdits: 0,
-          trend: []
-        };
-      }
+      // Create lookup maps
+      const partsMap = new Map((partsData || []).map(part => [part.id, part]));
+      const usersMap = new Map((userData || []).map(user => [user.user_id, user.full_name || 'Unknown User']));
 
-      // Create a map for quick part lookup
-      const partsMap = new Map(partsData.map(part => [part.id, part]));
-
-      // Calculate documentation quality score for each edit
-      const editsWithScores = partsHistory.map(edit => {
-        const part = partsMap.get(edit.part_id);
+      // Calculate documentation quality score for each activity
+      const activitiesWithScores = allActivities.map(activity => {
+        const part = partsMap.get(activity.part_id);
         
         if (!part) {
           return {
-            id: edit.id,
-            date: edit.created_at.split('T')[0],
-            score: 0,
-            part_id: edit.part_id
+            user_id: activity.user_id,
+            type: activity.type,
+            score: 0
           };
         }
         
         // Fields that contribute to documentation quality
-        // Don't count minimum_quantity as mentioned in requirements
         const fields = {
           description: part.description,
           category: part.category,
@@ -113,41 +136,43 @@ export function useDocumentationQuality() {
         const score = filledFields / totalFields;
 
         return {
-          id: edit.id,
-          date: edit.created_at.split('T')[0],
-          score,
-          part_id: edit.part_id
+          user_id: activity.user_id,
+          type: activity.type,
+          score
         };
       });
 
-      // Calculate overall average
-      const averageScore = editsWithScores.reduce((sum, edit) => sum + edit.score, 0) / editsWithScores.length;
+      // Group by user and activity type
+      const userScores = userIds.map(userId => {
+        const userName = usersMap.get(userId) || 'Unknown User';
+        const userActivities = activitiesWithScores.filter(a => a.user_id === userId);
+        
+        const created = userActivities.filter(a => a.type === 'created');
+        const modified = userActivities.filter(a => a.type === 'modified' || a.type === 'updated');
+        const used = userActivities.filter(a => a.type === 'used');
 
-      // Group by date for trend analysis
-      const dailyData = editsWithScores.reduce((acc, edit) => {
-        const date = edit.date;
-        if (!acc[date]) {
-          acc[date] = { scores: [], count: 0 };
-        }
-        acc[date].scores.push(edit.score);
-        acc[date].count++;
-        return acc;
-      }, {} as Record<string, { scores: number[], count: number }>);
+        const calculateAverage = (activities: typeof userActivities) => {
+          if (activities.length === 0) return { score: 0, count: 0 };
+          const avgScore = activities.reduce((sum, a) => sum + a.score, 0) / activities.length;
+          return { score: avgScore, count: activities.length };
+        };
 
-      // Calculate daily averages
-      const trend = Object.entries(dailyData)
-        .map(([date, data]) => ({
-          date,
-          score: data.scores.reduce((sum, score) => sum + score, 0) / data.scores.length,
-          edits: data.count
-        }))
-        .sort((a, b) => a.date.localeCompare(b.date));
+        const createdStats = calculateAverage(created);
+        const modifiedStats = calculateAverage(modified);
+        const usedStats = calculateAverage(used);
+        const overallStats = calculateAverage(userActivities);
 
-      return {
-        averageScore,
-        totalEdits: editsWithScores.length,
-        trend
-      };
+        return {
+          user: userId,
+          userName,
+          created: createdStats,
+          modified: modifiedStats,
+          used: usedStats,
+          overall: overallStats
+        };
+      }).filter(user => user.overall.count > 0); // Only include users with activities
+
+      return { userScores };
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 1,

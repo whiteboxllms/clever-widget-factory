@@ -7,9 +7,11 @@ interface InventoryMetricCardProps {
   value: number;
   description: string;
   variant: "default" | "warning" | "info" | "success";
+  change?: number;
+  changeLabel?: string;
 }
 
-export function InventoryMetricCard({ title, value, description, variant }: InventoryMetricCardProps) {
+export function InventoryMetricCard({ title, value, description, variant, change, changeLabel }: InventoryMetricCardProps) {
   const getVariantStyles = () => {
     switch (variant) {
       case "warning":
@@ -53,9 +55,16 @@ export function InventoryMetricCard({ title, value, description, variant }: Inve
         <div className="text-2xl font-bold text-foreground mb-1">
           {value.toLocaleString()}
         </div>
-        <Badge variant={badgeVariant} className="text-xs">
-          {description}
-        </Badge>
+        <div className="flex items-center justify-between">
+          <Badge variant={badgeVariant} className="text-xs">
+            {description}
+          </Badge>
+          {change !== undefined && changeLabel && (
+            <div className="text-xs text-muted-foreground">
+              {change > 0 ? `+${change}` : change} {changeLabel}
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

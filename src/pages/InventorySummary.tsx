@@ -84,6 +84,8 @@ export default function InventorySummary() {
                 value={data?.totalItems || 0}
                 description="Non-zero inventory"
                 variant="default"
+                change={data?.totalItemsChange}
+                changeLabel="vs last week"
               />
               <InventoryMetricCard
                 title="Low Stock Items"

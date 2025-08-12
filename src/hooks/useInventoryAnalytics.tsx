@@ -51,6 +51,8 @@ interface DetailedActivityRecord {
 
 interface InventoryAnalyticsData {
   totalItems: number;
+  totalItemsLastWeek: number;
+  totalItemsChange: number;
   lowStockItems: number;
   recentAdditions: number;
   userActivity: UserActivityData[];
@@ -76,6 +78,43 @@ export function useInventoryAnalytics() {
         console.error("Error fetching total items:", totalError);
         throw totalError;
       }
+
+      // Total items from 1 week ago
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+      // Get items that existed a week ago and had non-zero quantity
+      const { data: itemsLastWeekData, error: itemsLastWeekError } = await supabase
+        .from("parts")
+        .select("id, created_at")
+        .lte("created_at", oneWeekAgo.toISOString());
+
+      if (itemsLastWeekError) {
+        console.error("Error fetching items from last week:", itemsLastWeekError);
+        throw itemsLastWeekError;
+      }
+
+      // Get quantity changes in the last week to determine what quantities were a week ago
+      const { data: weeklyChanges, error: weeklyChangesError } = await supabase
+        .from("parts_history")
+        .select("part_id, old_quantity, new_quantity, created_at")
+        .gte("created_at", oneWeekAgo.toISOString())
+        .in("change_type", ["create", "quantity_add", "quantity_remove", "update"]);
+
+      if (weeklyChangesError) {
+        console.error("Error fetching weekly changes:", weeklyChangesError);
+        throw weeklyChangesError;
+      }
+
+      // Calculate total items that had non-zero quantity a week ago
+      const currentItems = totalItemsData?.length || 0;
+      const itemsCreatedThisWeek = weeklyChanges?.filter(change => 
+        change.new_quantity && change.new_quantity > 0 && 
+        (!change.old_quantity || change.old_quantity === 0)
+      ).length || 0;
+
+      const totalItemsLastWeek = Math.max(0, currentItems - itemsCreatedThisWeek);
+      const totalItemsChange = currentItems - totalItemsLastWeek;
 
       // Low stock items
       const { data: lowStockData, error: lowStockError } = await supabase
@@ -369,6 +408,8 @@ export function useInventoryAnalytics() {
 
       return {
         totalItems: totalItemsData?.length || 0,
+        totalItemsLastWeek,
+        totalItemsChange,
         lowStockItems: lowStockCount,
         recentAdditions: recentAdditionsData?.length || 0,
         userActivity,

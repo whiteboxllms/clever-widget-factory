@@ -80,14 +80,17 @@ export default function Inventory() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const editPartId = urlParams.get('edit');
-    const returnTo = urlParams.get('return');
     
-    if (editPartId && returnTo === 'activity-details') {
-      // Find and set the part for editing when coming from activity details
+    if (editPartId && parts.length > 0) {
+      // Find and set the part for editing when edit parameter is present
       const partToEdit = parts.find(part => part.id === editPartId);
       if (partToEdit) {
         setEditingPart(partToEdit);
         setShowEditDialog(true);
+        // Clear the URL parameter to avoid reopening on refresh
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('edit');
+        window.history.replaceState({}, '', newUrl.toString());
       }
     }
   }, [parts]);

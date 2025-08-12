@@ -249,11 +249,40 @@ export default function Inventory() {
     try {
       setUploadingImage(true);
       
-      let imageUrl = null;
-      if (selectedImage) {
-        imageUrl = await uploadImage(selectedImage);
+      // Debug logging for form data validation
+      console.log('Adding part with data:', {
+        formData,
+        useMinimumQuantity,
+        hasImage: !!selectedImage,
+        imageFile: selectedImage ? { name: selectedImage.name, size: selectedImage.size, type: selectedImage.type } : null
+      });
+
+      // Validate required fields before proceeding
+      if (!formData.name?.trim()) {
+        throw new Error('Part name is required');
+      }
+      if (!formData.storage_vicinity?.trim()) {
+        throw new Error('Storage vicinity is required');
+      }
+      if (formData.current_quantity === undefined || formData.current_quantity < 0) {
+        throw new Error('Valid current quantity is required');
       }
 
+      let imageUrl = null;
+      
+      // Handle image upload phase separately for better error tracking
+      if (selectedImage) {
+        console.log('Starting image upload for:', selectedImage.name);
+        try {
+          imageUrl = await uploadImage(selectedImage);
+          console.log('Image upload successful:', imageUrl);
+        } catch (uploadError) {
+          console.error('Image upload failed:', uploadError);
+          throw new Error(`Image upload failed: ${uploadError.message || 'Unknown upload error'}`);
+        }
+      }
+
+      // Prepare data for database insertion
       const partData = {
         ...formData,
         cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
@@ -261,30 +290,45 @@ export default function Inventory() {
         image_url: imageUrl
       };
 
+      console.log('Inserting part data to database:', partData);
+
+      // Database insertion phase
       const { data, error } = await supabase
         .from('parts')
         .insert([partData])
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database insert error:', error);
+        throw new Error(`Database error: ${error.message} (Code: ${error.code || 'unknown'})`);
+      }
+
+      console.log('Part inserted successfully:', data);
 
       // Log the creation to history
-      const { error: historyError } = await supabase
-        .from('parts_history')
-        .insert([{
-          part_id: data.id,
-          change_type: 'create',
-          old_quantity: null,
-          new_quantity: formData.current_quantity,
-          quantity_change: null,
-          changed_by: 'System User', // TODO: Replace with actual user when authentication is implemented
-          change_reason: 'Item created'
-        }]);
+      try {
+        const { error: historyError } = await supabase
+          .from('parts_history')
+          .insert([{
+            part_id: data.id,
+            change_type: 'create',
+            old_quantity: null,
+            new_quantity: formData.current_quantity,
+            quantity_change: null,
+            changed_by: 'System User', // TODO: Replace with actual user when authentication is implemented
+            change_reason: 'Item created'
+          }]);
 
-      if (historyError) {
-        console.error('Error logging history:', historyError);
-        // Don't fail the operation if history logging fails
+        if (historyError) {
+          console.error('Error logging history:', historyError);
+          // Don't fail the operation if history logging fails
+        } else {
+          console.log('History logged successfully');
+        }
+      } catch (historyError) {
+        console.error('History logging failed:', historyError);
+        // Continue with success flow even if history fails
       }
 
       toast({
@@ -307,10 +351,38 @@ export default function Inventory() {
       setShowAddDialog(false);
       fetchParts();
     } catch (error) {
-      console.error('Error adding part:', error);
+      console.error('Error adding part - Full error details:', error);
+      
+      // Enhanced error reporting with specific messages
+      let errorMessage = 'Failed to add part';
+      let errorDetails = '';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        errorDetails = error.stack || '';
+      } else if (error && typeof error === 'object') {
+        if ('message' in error) {
+          errorMessage = error.message as string;
+        }
+        if ('details' in error) {
+          errorDetails = error.details as string;
+        }
+        if ('hint' in error) {
+          errorDetails += error.hint ? ` Hint: ${error.hint}` : '';
+        }
+      }
+
+      console.error('Detailed error info:', {
+        message: errorMessage,
+        details: errorDetails,
+        formData,
+        hasImage: !!selectedImage,
+        timestamp: new Date().toISOString()
+      });
+
       toast({
-        title: "Error",
-        description: "Failed to add part",
+        title: "Error Adding Part",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

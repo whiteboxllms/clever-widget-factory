@@ -190,7 +190,16 @@ export function UserActivityChart({ data, userActivityByPerson, allUsers, detail
               fontSize={12}
               tick={{ fontSize: 11 }}
             />
-            <YAxis stroke="hsl(var(--foreground))" fontSize={12} />
+            <YAxis 
+              stroke="hsl(var(--foreground))" 
+              fontSize={12}
+              label={{ 
+                value: 'Actions', 
+                angle: -90, 
+                position: 'insideLeft',
+                style: { textAnchor: 'middle', fill: 'hsl(var(--foreground))', fontSize: '12px' }
+              }}
+            />
             <Tooltip content={<CustomTooltip />} />
             <Legend 
               wrapperStyle={{ 

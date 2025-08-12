@@ -7,6 +7,14 @@ interface CategoryData {
 }
 
 interface UserActivityData {
+  date: string;
+  created: number;
+  modified: number;
+  used: number;
+}
+
+interface UserActivityByPerson {
+  date: string;
   user: string;
   created: number;
   modified: number;
@@ -24,6 +32,8 @@ interface InventoryAnalyticsData {
   lowStockItems: number;
   recentAdditions: number;
   userActivity: UserActivityData[];
+  userActivityByPerson: UserActivityByPerson[];
+  allUsers: string[];
   additionsTrend: AdditionsTrendData[];
 }
 
@@ -102,6 +112,8 @@ export function useInventoryAnalytics() {
 
       // Process daily user activity for last 7 days
       const dailyActivityMap: Record<string, { created: number; modified: number; used: number }> = {};
+      const userActivityByPersonMap: Record<string, Record<string, { created: number; modified: number; used: number }>> = {};
+      const allUsersSet = new Set<string>();
 
       // Initialize all 7 days
       for (let i = 6; i >= 0; i--) {
@@ -109,29 +121,61 @@ export function useInventoryAnalytics() {
         date.setDate(date.getDate() - i);
         const dateKey = date.toLocaleDateString();
         dailyActivityMap[dateKey] = { created: 0, modified: 0, used: 0 };
+        userActivityByPersonMap[dateKey] = {};
       }
 
       historyData?.forEach(record => {
         const date = new Date(record.created_at).toLocaleDateString();
+        const user = record.changed_by || "Unknown";
+        allUsersSet.add(user);
+        
         if (dailyActivityMap[date]) {
           if (record.change_type === "create") {
             dailyActivityMap[date].created++;
           } else {
             dailyActivityMap[date].modified++;
           }
+          
+          // Track by person
+          if (!userActivityByPersonMap[date][user]) {
+            userActivityByPersonMap[date][user] = { created: 0, modified: 0, used: 0 };
+          }
+          if (record.change_type === "create") {
+            userActivityByPersonMap[date][user].created++;
+          } else {
+            userActivityByPersonMap[date][user].modified++;
+          }
         }
       });
 
       usageData?.forEach(record => {
         const date = new Date(record.created_at).toLocaleDateString();
+        const user = record.used_by || "Unknown";
+        allUsersSet.add(user);
+        
         if (dailyActivityMap[date]) {
           dailyActivityMap[date].used++;
+          
+          // Track by person
+          if (!userActivityByPersonMap[date][user]) {
+            userActivityByPersonMap[date][user] = { created: 0, modified: 0, used: 0 };
+          }
+          userActivityByPersonMap[date][user].used++;
         }
       });
 
       const userActivity: UserActivityData[] = Object.entries(dailyActivityMap).map(
-        ([date, activity]) => ({ user: date, ...activity })
+        ([date, activity]) => ({ date, ...activity })
       );
+
+      const userActivityByPerson: UserActivityByPerson[] = [];
+      Object.entries(userActivityByPersonMap).forEach(([date, users]) => {
+        Object.entries(users).forEach(([user, activity]) => {
+          userActivityByPerson.push({ date, user, ...activity });
+        });
+      });
+
+      const allUsers = Array.from(allUsersSet).sort();
 
       // Additions trend (last 14 days)
       const { data: trendData, error: trendError } = await supabase
@@ -179,6 +223,8 @@ export function useInventoryAnalytics() {
         lowStockItems: lowStockCount,
         recentAdditions: recentAdditionsData?.length || 0,
         userActivity,
+        userActivityByPerson,
+        allUsers,
         additionsTrend
       };
     },

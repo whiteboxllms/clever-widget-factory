@@ -91,7 +91,11 @@ export default function InventorySummary() {
             {isLoading ? (
               <Skeleton className="h-64" />
             ) : (
-              <UserActivityChart data={data?.userActivity || []} />
+              <UserActivityChart 
+                data={data?.userActivity || []} 
+                userActivityByPerson={data?.userActivityByPerson || []}
+                allUsers={data?.allUsers || []}
+              />
             )}
           </CardContent>
         </Card>

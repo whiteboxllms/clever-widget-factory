@@ -27,13 +27,8 @@ interface UserActivityChartProps {
 
 export function UserActivityChart({ data, userActivityByPerson, allUsers }: UserActivityChartProps) {
   const [selectedUsers, setSelectedUsers] = useState<string[]>(allUsers);
-  const [showAll, setShowAll] = useState(true);
 
   const filteredData = useMemo(() => {
-    if (showAll) {
-      return data;
-    }
-
     // Aggregate data for selected users only
     const filtered: Record<string, { created: number; modified: number; used: number }> = {};
     
@@ -57,7 +52,7 @@ export function UserActivityChart({ data, userActivityByPerson, allUsers }: User
       date,
       ...activity
     }));
-  }, [data, userActivityByPerson, selectedUsers, showAll]);
+  }, [data, userActivityByPerson, selectedUsers]);
 
   const handleUserToggle = (user: string, checked: boolean) => {
     if (checked) {
@@ -105,24 +100,12 @@ export function UserActivityChart({ data, userActivityByPerson, allUsers }: User
     <div className="space-y-4">
       <Card className="p-4">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="show-all"
-                checked={showAll}
-                onCheckedChange={(checked) => setShowAll(checked as boolean)}
-              />
-              <label htmlFor="show-all" className="text-sm font-medium">
-                Show All Users
-              </label>
-            </div>
-          </div>
+          <h3 className="text-sm font-medium">Filter Users</h3>
           <div className="flex space-x-2">
             <Button
               variant="outline"
               size="sm"
               onClick={handleSelectAll}
-              disabled={showAll}
             >
               Select All
             </Button>
@@ -130,33 +113,30 @@ export function UserActivityChart({ data, userActivityByPerson, allUsers }: User
               variant="outline"
               size="sm"
               onClick={handleDeselectAll}
-              disabled={showAll}
             >
               Clear All
             </Button>
           </div>
         </div>
 
-        {!showAll && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-32 overflow-y-auto">
-            {allUsers.map((user) => (
-              <div key={user} className="flex items-center space-x-2">
-                <Checkbox
-                  id={`user-${user}`}
-                  checked={selectedUsers.includes(user)}
-                  onCheckedChange={(checked) => handleUserToggle(user, checked as boolean)}
-                />
-                <label
-                  htmlFor={`user-${user}`}
-                  className="text-sm truncate"
-                  title={user}
-                >
-                  {user}
-                </label>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-32 overflow-y-auto">
+          {allUsers.map((user) => (
+            <div key={user} className="flex items-center space-x-2">
+              <Checkbox
+                id={`user-${user}`}
+                checked={selectedUsers.includes(user)}
+                onCheckedChange={(checked) => handleUserToggle(user, checked as boolean)}
+              />
+              <label
+                htmlFor={`user-${user}`}
+                className="text-sm truncate"
+                title={user}
+              >
+                {user}
+              </label>
+            </div>
+          ))}
+        </div>
       </Card>
 
       <div className="h-64">

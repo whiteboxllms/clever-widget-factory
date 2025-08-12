@@ -165,19 +165,21 @@ export function ActivityDetailsDialog({
                         <span className="text-muted-foreground">Operation:</span> {activity.changeType}
                       </p>
                     )}
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                      {activity.oldQuantity !== undefined && (
-                        <p className="text-xs">
-                          <span className="text-muted-foreground">Previous:</span> {activity.oldQuantity}
-                        </p>
-                      )}
-                      {activity.newQuantity !== undefined && (
-                        <p className="text-xs">
-                          <span className="text-muted-foreground">New:</span> {activity.newQuantity}
-                        </p>
-                      )}
-                    </div>
-                    {activity.quantityChange !== undefined && (
+                    {(activity.oldQuantity !== undefined || activity.newQuantity !== undefined || activity.quantityChange !== undefined) && (
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        {activity.oldQuantity !== undefined && (
+                          <p className="text-xs">
+                            <span className="text-muted-foreground">Previous:</span> {activity.oldQuantity}
+                          </p>
+                        )}
+                        {activity.newQuantity !== undefined && (
+                          <p className="text-xs">
+                            <span className="text-muted-foreground">New:</span> {activity.newQuantity}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {activity.quantityChange !== undefined && activity.quantityChange !== 0 && (
                       <p className="text-xs">
                         <span className="text-muted-foreground">Change:</span> 
                         <span className={`ml-1 font-medium ${activity.quantityChange > 0 ? "text-green-600" : activity.quantityChange < 0 ? "text-red-600" : "text-gray-600"}`}>

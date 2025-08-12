@@ -1,0 +1,62 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { TrendingUp, AlertTriangle, Info, CheckCircle } from "lucide-react";
+
+interface InventoryMetricCardProps {
+  title: string;
+  value: number;
+  description: string;
+  variant: "default" | "warning" | "info" | "success";
+}
+
+export function InventoryMetricCard({ title, value, description, variant }: InventoryMetricCardProps) {
+  const getVariantStyles = () => {
+    switch (variant) {
+      case "warning":
+        return {
+          icon: AlertTriangle,
+          badgeVariant: "destructive" as const,
+          iconColor: "text-destructive"
+        };
+      case "info":
+        return {
+          icon: Info,
+          badgeVariant: "secondary" as const,
+          iconColor: "text-muted-foreground"
+        };
+      case "success":
+        return {
+          icon: CheckCircle,
+          badgeVariant: "default" as const,
+          iconColor: "text-primary"
+        };
+      default:
+        return {
+          icon: TrendingUp,
+          badgeVariant: "outline" as const,
+          iconColor: "text-foreground"
+        };
+    }
+  };
+
+  const { icon: Icon, badgeVariant, iconColor } = getVariantStyles();
+
+  return (
+    <Card className="hover:shadow-md transition-shadow">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">
+          {title}
+        </CardTitle>
+        <Icon className={`h-4 w-4 ${iconColor}`} />
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold text-foreground mb-1">
+          {value.toLocaleString()}
+        </div>
+        <Badge variant={badgeVariant} className="text-xs">
+          {description}
+        </Badge>
+      </CardContent>
+    </Card>
+  );
+}

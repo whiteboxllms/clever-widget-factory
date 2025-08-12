@@ -13,6 +13,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Tools from "./pages/Tools";
 import Inventory from "./pages/Inventory";
+import InventorySummary from "./pages/InventorySummary";
 import CheckIn from "./pages/CheckIn";
 import Missions from "./pages/Missions";
 import Audit from "./pages/Audit";
@@ -55,6 +56,11 @@ function AppContent() {
       <Route path="/inventory" element={
         <ProtectedRoute>
           <Inventory />
+        </ProtectedRoute>
+      } />
+      <Route path="/inventory/summary" element={
+        <ProtectedRoute>
+          <InventorySummary />
         </ProtectedRoute>
       } />
       <Route path="/checkin" element={

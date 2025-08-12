@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Upload, UserPlus, Check, ChevronsUpDown, History, ArrowLeft, Info } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Upload, UserPlus, Check, ChevronsUpDown, History, ArrowLeft, Info, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { InventoryHistoryDialog } from '@/components/InventoryHistoryDialog';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -723,7 +723,18 @@ export default function Inventory() {
 
         {/* Consumables Section */}
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-foreground mb-4">Inventory Items</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold text-foreground">Inventory Items</h2>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/inventory/summary')}
+              className="flex items-center gap-2"
+            >
+              <BarChart3 className="h-4 w-4" />
+              Summary
+            </Button>
+          </div>
           
           {/* Search and Filters */}
           <div className="mb-6 space-y-4">

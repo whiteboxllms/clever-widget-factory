@@ -357,6 +357,9 @@ export default function Inventory() {
           throw new Error('User must be authenticated to create inventory items');
         }
         
+        console.log('Creating history entry with user ID:', user.id);
+        console.log('Current user object:', user);
+        
         const { error: historyError } = await supabase
           .from('parts_history')
           .insert([{

@@ -1,7 +1,7 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 interface UserActivityData {
-  user: string;
+  user: string; // This will be the date string
   created: number;
   modified: number;
   used: number;
@@ -22,9 +22,11 @@ export function UserActivityChart({ data }: UserActivityChartProps) {
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
+      const total = payload.reduce((sum: number, entry: any) => sum + entry.value, 0);
       return (
         <div className="bg-card border border-border rounded-lg p-3 shadow-md">
           <p className="font-medium text-foreground mb-2">{label}</p>
+          <p className="text-sm text-muted-foreground mb-1">Total: {total}</p>
           {payload.map((entry: any, index: number) => (
             <p key={index} className="text-sm" style={{ color: entry.color }}>
               {entry.name}: {entry.value}
@@ -53,9 +55,7 @@ export function UserActivityChart({ data }: UserActivityChartProps) {
             dataKey="user" 
             stroke="hsl(var(--foreground))"
             fontSize={12}
-            angle={-45}
-            textAnchor="end"
-            height={80}
+            tick={{ fontSize: 11 }}
           />
           <YAxis stroke="hsl(var(--foreground))" fontSize={12} />
           <Tooltip content={<CustomTooltip />} />
@@ -68,16 +68,19 @@ export function UserActivityChart({ data }: UserActivityChartProps) {
           />
           <Bar 
             dataKey="created" 
+            stackId="activity"
             fill="hsl(var(--mission-education))" 
             name="Created"
           />
           <Bar 
             dataKey="modified" 
+            stackId="activity"
             fill="hsl(var(--mission-construction))" 
             name="Modified"
           />
           <Bar 
             dataKey="used" 
+            stackId="activity"
             fill="hsl(var(--mission-research))" 
             name="Used"
           />

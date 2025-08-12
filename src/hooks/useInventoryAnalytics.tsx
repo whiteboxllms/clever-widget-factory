@@ -76,10 +76,14 @@ export function useInventoryAnalytics() {
         throw recentAdditionsError;
       }
 
-      // User activity data
+      // User activity data (last 7 days)
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
       const { data: historyData, error: historyError } = await supabase
         .from("parts_history")
-        .select("changed_by, change_type");
+        .select("changed_by, change_type, created_at")
+        .gte("created_at", sevenDaysAgo.toISOString());
 
       if (historyError) {
         console.error("Error fetching history data:", historyError);
@@ -88,40 +92,45 @@ export function useInventoryAnalytics() {
 
       const { data: usageData, error: usageError } = await supabase
         .from("mission_inventory_usage")
-        .select("used_by");
+        .select("used_by, created_at")
+        .gte("created_at", sevenDaysAgo.toISOString());
 
       if (usageError) {
         console.error("Error fetching usage data:", usageError);
         throw usageError;
       }
 
-      // Process user activity
-      const userActivityMap: Record<string, { created: number; modified: number; used: number }> = {};
+      // Process daily user activity for last 7 days
+      const dailyActivityMap: Record<string, { created: number; modified: number; used: number }> = {};
+
+      // Initialize all 7 days
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateKey = date.toLocaleDateString();
+        dailyActivityMap[dateKey] = { created: 0, modified: 0, used: 0 };
+      }
 
       historyData?.forEach(record => {
-        const user = record.changed_by || "Unknown";
-        if (!userActivityMap[user]) {
-          userActivityMap[user] = { created: 0, modified: 0, used: 0 };
-        }
-        if (record.change_type === "create") {
-          userActivityMap[user].created++;
-        } else {
-          userActivityMap[user].modified++;
+        const date = new Date(record.created_at).toLocaleDateString();
+        if (dailyActivityMap[date]) {
+          if (record.change_type === "create") {
+            dailyActivityMap[date].created++;
+          } else {
+            dailyActivityMap[date].modified++;
+          }
         }
       });
 
       usageData?.forEach(record => {
-        // Get user name from profiles if available, otherwise use ID
-        const userId = record.used_by;
-        const user = `User-${userId?.slice(0, 8)}` || "Unknown";
-        if (!userActivityMap[user]) {
-          userActivityMap[user] = { created: 0, modified: 0, used: 0 };
+        const date = new Date(record.created_at).toLocaleDateString();
+        if (dailyActivityMap[date]) {
+          dailyActivityMap[date].used++;
         }
-        userActivityMap[user].used++;
       });
 
-      const userActivity: UserActivityData[] = Object.entries(userActivityMap).map(
-        ([user, activity]) => ({ user, ...activity })
+      const userActivity: UserActivityData[] = Object.entries(dailyActivityMap).map(
+        ([date, activity]) => ({ user: date, ...activity })
       );
 
       // Additions trend (last 14 days)

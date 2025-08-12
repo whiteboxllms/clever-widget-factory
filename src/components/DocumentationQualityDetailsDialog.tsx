@@ -48,24 +48,35 @@ export function DocumentationQualityDetailsDialog({
         return [];
       }
 
+      // Get unique part IDs to avoid duplicates
+      const uniquePartIds = [...new Set(partsHistory.map(h => h.part_id))];
+      
       // Get current state of these parts
-      const partIds = [...new Set(partsHistory.map(h => h.part_id))];
       const { data: parts, error: partsError } = await supabase
         .from("parts")
         .select("id, name, description, storage_location, supplier, cost_per_unit, image_url, updated_at")
-        .in("id", partIds);
+        .in("id", uniquePartIds);
 
       if (partsError) throw partsError;
 
       const partsMap = new Map((parts || []).map(p => [p.id, p]));
 
-      // Return current state of parts, not historical changes
-      return partsHistory.map(history => ({
-        id: history.part_id, // Use part_id as unique identifier
-        part_id: history.part_id,
-        created_at: history.created_at,
+      // Get the most recent activity date for each part
+      const partToLatestActivity = new Map();
+      partsHistory.forEach(history => {
+        const currentLatest = partToLatestActivity.get(history.part_id);
+        if (!currentLatest || new Date(history.created_at) > new Date(currentLatest)) {
+          partToLatestActivity.set(history.part_id, history.created_at);
+        }
+      });
+
+      // Return one entry per unique part
+      return uniquePartIds.map(partId => ({
+        id: partId, // Use part_id as unique identifier
+        part_id: partId,
+        created_at: partToLatestActivity.get(partId),
         type: activityType.toLowerCase(),
-        part: partsMap.get(history.part_id)
+        part: partsMap.get(partId)
       })).filter(item => item.part); // Filter out items where part wasn't found
     },
     enabled: open && !!userId && !!activityType,
@@ -143,18 +154,20 @@ export function DocumentationQualityDetailsDialog({
                 return (
                   <Card key={transaction.id}>
                     <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base">{transaction.part.name}</CardTitle>
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2 flex-1">
+                          <CardTitle className="text-base">{transaction.part.name}</CardTitle>
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => handleEditPart(transaction.part.id)}
-                            className="h-7 px-2"
+                            className="h-6 px-2 text-xs"
                           >
                             <Edit className="w-3 h-3 mr-1" />
                             Edit
                           </Button>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
                           <Badge 
                             variant={getScoreBadgeVariant(score)}
                             className="font-medium"

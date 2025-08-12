@@ -350,7 +350,7 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
           old_quantity: partData?.current_quantity || 0,
           new_quantity: Math.max(0, newQuantity),
           quantity_change: -(resource.quantity || 1),
-          changed_by: user.email || 'Unknown User',
+          changed_by: user.id || 'system',
           change_reason: `Used for mission - ${resource.quantity || 1} ${resource.unit || 'pieces'} of ${resource.name}`
         });
 

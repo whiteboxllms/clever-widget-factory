@@ -327,7 +327,7 @@ export default function Inventory() {
             old_quantity: null,
             new_quantity: formData.current_quantity,
             quantity_change: null,
-            changed_by: user?.email || user?.id || 'Unknown User',
+            changed_by: user?.id || 'system',
             change_reason: 'Item created'
           }]);
 
@@ -441,7 +441,7 @@ export default function Inventory() {
           old_quantity: null,
           new_quantity: null,
           quantity_change: null,
-          changed_by: user?.email || user?.id || 'Unknown User',
+          changed_by: user?.id || 'system',
           change_reason: 'Item details updated'
         }]);
 
@@ -549,7 +549,7 @@ export default function Inventory() {
           old_quantity: quantityPart.current_quantity,
           new_quantity: newQuantity,
           quantity_change: quantityOperation === 'add' ? amount : -amount,
-          changed_by: user?.email || user?.id || 'Unknown User',
+          changed_by: user?.id || 'system',
           change_reason: quantityChange.reason || null
         }]);
 

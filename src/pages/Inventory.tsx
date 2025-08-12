@@ -859,8 +859,7 @@ export default function Inventory() {
               className="flex items-center gap-2 self-start sm:self-auto"
             >
               <BarChart3 className="h-4 w-4" />
-              <span className="hidden xs:inline">Summary</span>
-              <BarChart3 className="h-4 w-4 xs:hidden" />
+              Summary
             </Button>
           </div>
           

@@ -155,9 +155,21 @@ export function InventoryItemForm({
             />
             <Upload className="h-4 w-4 text-muted-foreground" />
           </div>
+          {editingPart?.image_url && !selectedImage && (
+            <div className="mt-2 p-2 border rounded-lg bg-muted/20">
+              <p className="text-sm text-muted-foreground">
+                Current image: ✓ Image attached
+              </p>
+              <img 
+                src={editingPart.image_url} 
+                alt={editingPart.name}
+                className="mt-2 w-20 h-20 object-cover rounded border"
+              />
+            </div>
+          )}
           {selectedImage && (
             <p className="text-sm text-muted-foreground mt-2">
-              Selected: {selectedImage.name}
+              Selected: {selectedImage.name} (will replace current image)
             </p>
           )}
         </div>

@@ -16,6 +16,7 @@ interface HistoryEntry {
   new_quantity: number | null;
   quantity_change: number | null;
   changed_by: string;
+  changed_by_name?: string;
   change_reason: string | null;
   changed_at: string;
   mission_id?: string;
@@ -67,6 +68,31 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
 
       if (missionError) throw missionError;
 
+      // Get unique user IDs from parts history
+      const userIds = new Set<string>();
+      partsHistory?.forEach(entry => {
+        if (entry.changed_by) userIds.add(entry.changed_by);
+      });
+      missionUsage?.forEach(usage => {
+        if (usage.used_by) userIds.add(usage.used_by);
+      });
+
+      // Fetch user names using the database function
+      const userMap: Record<string, string> = {};
+      if (userIds.size > 0) {
+        for (const userId of userIds) {
+          try {
+            const { data: userName } = await supabase.rpc('get_user_display_name', { 
+              target_user_id: userId 
+            });
+            userMap[userId] = userName || 'Unknown User';
+          } catch (error) {
+            console.error('Error fetching user name:', error);
+            userMap[userId] = 'Unknown User';
+          }
+        }
+      }
+
       // Convert mission usage to history entry format
       const missionHistoryEntries: HistoryEntry[] = (missionUsage || []).map(usage => ({
         id: usage.id,
@@ -74,7 +100,8 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
         old_quantity: null,
         new_quantity: null,
         quantity_change: -usage.quantity_used,
-        changed_by: usage.usage_description?.includes('User') ? 'Mission User' : 'Mission Team',
+        changed_by: usage.used_by,
+        changed_by_name: userMap[usage.used_by] || 'Mission Team',
         change_reason: `Used for Mission #${(usage.missions as any)?.mission_number}: ${(usage.missions as any)?.title}`,
         changed_at: usage.created_at,
         mission_id: usage.mission_id,
@@ -83,9 +110,15 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
         usage_description: usage.usage_description
       }));
 
+      // Add user names to parts history entries
+      const partsHistoryWithNames: HistoryEntry[] = (partsHistory || []).map(entry => ({
+        ...entry,
+        changed_by_name: userMap[entry.changed_by] || 'Unknown User'
+      }));
+
       // Combine and sort all history entries
       const allHistory = [
-        ...(partsHistory || []),
+        ...partsHistoryWithNames,
         ...missionHistoryEntries
       ].sort((a, b) => new Date(b.changed_at).getTime() - new Date(a.changed_at).getTime());
 
@@ -267,7 +300,7 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
                                   </span>
                                 </div>
                                 <div className="text-sm text-muted-foreground">
-                                  By {entry.changed_by} • {format(new Date(entry.changed_at), 'PPpp')}
+                                  By {entry.changed_by_name || 'Unknown User'} • {format(new Date(entry.changed_at), 'PPpp')}
                                 </div>
                                 {entry.change_reason && (
                                   <div className="text-sm text-muted-foreground mt-1">

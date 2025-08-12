@@ -32,55 +32,41 @@ export function DocumentationQualityDetailsDialog({
         // Get inventory usage data
         const { data: inventoryUsage, error } = await supabase
           .from("inventory_usage")
-          .select(`
-            id,
-            part_id,
-            created_at,
-            parts!inner(
-              id,
-              name,
-              description,
-              category,
-              storage_location,
-              supplier,
-              cost_per_unit,
-              image_url
-            )
-          `)
+          .select("id, part_id, created_at")
           .eq("used_by", userId)
           .gte("created_at", oneWeekAgo.toISOString())
           .order("created_at", { ascending: false });
 
         if (error) throw error;
 
-        return inventoryUsage?.map(usage => ({
+        if (!inventoryUsage || inventoryUsage.length === 0) {
+          return [];
+        }
+
+        // Get the part details for these usage records
+        const partIds = [...new Set(inventoryUsage.map(u => u.part_id))];
+        const { data: parts, error: partsError } = await supabase
+          .from("parts")
+          .select("id, name, description, category, storage_location, supplier, cost_per_unit, image_url")
+          .in("id", partIds);
+
+        if (partsError) throw partsError;
+
+        const partsMap = new Map((parts || []).map(p => [p.id, p]));
+
+        return inventoryUsage.map(usage => ({
           id: usage.id,
           part_id: usage.part_id,
           created_at: usage.created_at,
           type: "used",
-          part: usage.parts
-        })) || [];
+          part: partsMap.get(usage.part_id)
+        })).filter(item => item.part); // Filter out items where part wasn't found
       } else {
         // Get parts history data
         const changeType = activityType === "Created" ? "create" : "update";
         const { data: partsHistory, error } = await supabase
           .from("parts_history")
-          .select(`
-            id,
-            part_id,
-            change_type,
-            created_at,
-            parts!inner(
-              id,
-              name,
-              description,
-              category,
-              storage_location,
-              supplier,
-              cost_per_unit,
-              image_url
-            )
-          `)
+          .select("id, part_id, change_type, created_at")
           .eq("changed_by", userId)
           .eq("change_type", changeType)
           .gte("created_at", oneWeekAgo.toISOString())
@@ -88,13 +74,28 @@ export function DocumentationQualityDetailsDialog({
 
         if (error) throw error;
 
-        return partsHistory?.map(history => ({
+        if (!partsHistory || partsHistory.length === 0) {
+          return [];
+        }
+
+        // Get the part details for these history records
+        const partIds = [...new Set(partsHistory.map(h => h.part_id))];
+        const { data: parts, error: partsError } = await supabase
+          .from("parts")
+          .select("id, name, description, category, storage_location, supplier, cost_per_unit, image_url")
+          .in("id", partIds);
+
+        if (partsError) throw partsError;
+
+        const partsMap = new Map((parts || []).map(p => [p.id, p]));
+
+        return partsHistory.map(history => ({
           id: history.id,
           part_id: history.part_id,
           created_at: history.created_at,
           type: history.change_type,
-          part: history.parts
-        })) || [];
+          part: partsMap.get(history.part_id)
+        })).filter(item => item.part); // Filter out items where part wasn't found
       }
     },
     enabled: open && !!userId && !!activityType,

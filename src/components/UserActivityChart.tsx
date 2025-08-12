@@ -1,8 +1,5 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useState, useMemo, useEffect } from "react";
-import { Card } from "./ui/card";
-import { Checkbox } from "./ui/checkbox";
-import { Button } from "./ui/button";
 import { ActivityDetailsDialog } from "./ActivityDetailsDialog";
 
 interface UserActivityData {
@@ -61,6 +58,7 @@ export function UserActivityChart({
   initialDialogState
 }: UserActivityChartProps) {
   const [selectedUsers, setSelectedUsers] = useState<string[]>(allUsers);
+  const [selectedActivityTypes, setSelectedActivityTypes] = useState<string[]>(['created', 'modified', 'used']);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -95,24 +93,26 @@ export function UserActivityChart({
 
     return Object.entries(filtered).map(([date, activity]) => ({
       date,
-      ...activity
+      created: selectedActivityTypes.includes('created') ? activity.created : 0,
+      modified: selectedActivityTypes.includes('modified') ? activity.modified : 0,
+      used: selectedActivityTypes.includes('used') ? activity.used : 0
     }));
-  }, [data, userActivityByPerson, selectedUsers]);
+  }, [data, userActivityByPerson, selectedUsers, selectedActivityTypes]);
 
-  const handleUserToggle = (user: string, checked: boolean) => {
-    if (checked) {
-      setSelectedUsers(prev => [...prev, user]);
-    } else {
-      setSelectedUsers(prev => prev.filter(u => u !== user));
-    }
+  const handleUserToggle = (user: string) => {
+    setSelectedUsers(prev => 
+      prev.includes(user) 
+        ? prev.filter(u => u !== user)
+        : [...prev, user]
+    );
   };
 
-  const handleSelectAll = () => {
-    setSelectedUsers(allUsers);
-  };
-
-  const handleDeselectAll = () => {
-    setSelectedUsers([]);
+  const handleActivityTypeToggle = (activityType: string) => {
+    setSelectedActivityTypes(prev => 
+      prev.includes(activityType) 
+        ? prev.filter(t => t !== activityType)
+        : [...prev, activityType]
+    );
   };
 
   const handleBarClick = (data: any) => {
@@ -150,47 +150,6 @@ export function UserActivityChart({
 
   return (
     <div className="space-y-4">
-      <Card className="p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-medium">Filter Users</h3>
-          <div className="flex space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSelectAll}
-            >
-              Select All
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDeselectAll}
-            >
-              Clear All
-            </Button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-32 overflow-y-auto">
-          {allUsers.map((user) => (
-            <div key={user} className="flex items-center space-x-2">
-              <Checkbox
-                id={`user-${user}`}
-                checked={selectedUsers.includes(user)}
-                onCheckedChange={(checked) => handleUserToggle(user, checked as boolean)}
-              />
-              <label
-                htmlFor={`user-${user}`}
-                className="text-sm truncate"
-                title={user}
-              >
-                {user}
-              </label>
-            </div>
-          ))}
-        </div>
-      </Card>
-
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
@@ -221,32 +180,78 @@ export function UserActivityChart({
               }}
             />
             <Tooltip content={<CustomTooltip />} />
-            <Legend 
-              wrapperStyle={{ 
-                fontSize: "14px",
-                color: "hsl(var(--foreground))"
-              }}
-            />
             <Bar 
               dataKey="created" 
               stackId="activity"
-              fill="hsl(var(--mission-education))" 
+              fill={selectedActivityTypes.includes('created') ? "hsl(var(--mission-education))" : "hsl(var(--muted))"}
               name="Created"
+              onClick={() => handleActivityTypeToggle('created')}
+              style={{ cursor: 'pointer' }}
             />
             <Bar 
               dataKey="modified" 
               stackId="activity"
-              fill="hsl(var(--mission-construction))" 
+              fill={selectedActivityTypes.includes('modified') ? "hsl(var(--mission-construction))" : "hsl(var(--muted))"}
               name="Modified"
+              onClick={() => handleActivityTypeToggle('modified')}
+              style={{ cursor: 'pointer' }}
             />
             <Bar 
               dataKey="used" 
               stackId="activity"
-              fill="hsl(var(--mission-research))" 
+              fill={selectedActivityTypes.includes('used') ? "hsl(var(--mission-research))" : "hsl(var(--muted))"}
               name="Used"
+              onClick={() => handleActivityTypeToggle('used')}
+              style={{ cursor: 'pointer' }}
             />
           </BarChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* Activity Type Filters */}
+      <div className="flex items-center justify-center space-x-6 py-2">
+        <div className="text-sm font-medium text-muted-foreground">Activity Types:</div>
+        {[
+          { key: 'created', label: 'Created', color: 'hsl(var(--mission-education))' },
+          { key: 'modified', label: 'Modified', color: 'hsl(var(--mission-construction))' },
+          { key: 'used', label: 'Used', color: 'hsl(var(--mission-research))' }
+        ].map(({ key, label, color }) => (
+          <button
+            key={key}
+            onClick={() => handleActivityTypeToggle(key)}
+            className={`flex items-center space-x-2 px-3 py-1 rounded-md transition-all ${
+              selectedActivityTypes.includes(key) 
+                ? 'bg-muted hover:bg-muted/80' 
+                : 'opacity-50 hover:opacity-75'
+            }`}
+          >
+            <div 
+              className="w-3 h-3 rounded" 
+              style={{ backgroundColor: selectedActivityTypes.includes(key) ? color : 'hsl(var(--muted))' }}
+            />
+            <span className="text-sm">{label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* User Filters */}
+      <div className="space-y-2">
+        <div className="text-sm font-medium text-muted-foreground text-center">Users (click to filter):</div>
+        <div className="flex flex-wrap justify-center gap-2">
+          {allUsers.map((user) => (
+            <button
+              key={user}
+              onClick={() => handleUserToggle(user)}
+              className={`px-3 py-1 rounded-full text-sm transition-all ${
+                selectedUsers.includes(user)
+                  ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+            >
+              {user}
+            </button>
+          ))}
+        </div>
       </div>
 
       <ActivityDetailsDialog

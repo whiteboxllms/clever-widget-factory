@@ -2,9 +2,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Badge } from "./ui/badge";
 import { Separator } from "./ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { Button } from "./ui/button";
+import { ChevronDown, ChevronUp, Edit } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface DetailedActivityRecord {
   id: string;
@@ -20,6 +22,7 @@ interface DetailedActivityRecord {
   missionTitle?: string;
   taskTitle?: string;
   timestamp: string;
+  partId: string;
   // Additional fields for parts_history
   oldQuantity?: number;
   newQuantity?: number;
@@ -42,6 +45,7 @@ export function ActivityDetailsDialog({
   detailedActivity,
   selectedUsers 
 }: ActivityDetailsDialogProps) {
+  const navigate = useNavigate();
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     created: true,
     modified: true,
@@ -49,6 +53,16 @@ export function ActivityDetailsDialog({
   });
 
   if (!selectedDate) return null;
+
+  const handleEditItem = (partId: string) => {
+    const params = new URLSearchParams({
+      edit: partId,
+      return: 'activity-details',
+      date: selectedDate,
+      users: selectedUsers.join(',')
+    });
+    navigate(`/inventory?${params.toString()}`);
+  };
 
   const dateActivities = detailedActivity.filter(
     activity => activity.date === selectedDate && selectedUsers.includes(activity.userName)
@@ -110,9 +124,20 @@ export function ActivityDetailsDialog({
                     <p className="text-xs text-muted-foreground mt-1">{activity.partDescription}</p>
                   )}
                 </div>
-                <span className="text-xs text-muted-foreground">
-                  {format(new Date(activity.timestamp), 'HH:mm')}
-                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleEditItem(activity.partId)}
+                    className="h-6 px-2 text-xs"
+                  >
+                    <Edit className="h-3 w-3 mr-1" />
+                    Edit
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    {format(new Date(activity.timestamp), 'HH:mm')}
+                  </span>
+                </div>
               </div>
               
               <div className="space-y-1">

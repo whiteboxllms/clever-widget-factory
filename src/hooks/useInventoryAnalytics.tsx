@@ -41,6 +41,7 @@ interface DetailedActivityRecord {
   missionTitle?: string;
   taskTitle?: string;
   timestamp: string;
+  partId: string;
   // Additional fields for parts_history
   oldQuantity?: number;
   newQuantity?: number;
@@ -270,6 +271,7 @@ export function useInventoryAnalytics() {
           partDescription: partInfo?.description,
           changeReason: record.change_reason,
           timestamp: record.created_at,
+          partId: record.part_id,
           oldQuantity: record.old_quantity,
           newQuantity: record.new_quantity,
           quantityChange: record.quantity_change,
@@ -306,7 +308,8 @@ export function useInventoryAnalytics() {
           quantityUsed: record.quantity_used,
           missionTitle: missionsMap[record.mission_id],
           taskTitle: tasksMap[record.task_id],
-          timestamp: record.created_at
+          timestamp: record.created_at,
+          partId: record.part_id
         });
       });
 

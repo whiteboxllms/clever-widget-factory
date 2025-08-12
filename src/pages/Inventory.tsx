@@ -76,6 +76,40 @@ export default function Inventory() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  // Handle URL parameters for edit mode and return navigation
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const editPartId = urlParams.get('edit');
+    const returnTo = urlParams.get('return');
+    
+    if (editPartId && returnTo === 'activity-details') {
+      // Find and set the part for editing when coming from activity details
+      const partToEdit = parts.find(part => part.id === editPartId);
+      if (partToEdit) {
+        setEditingPart(partToEdit);
+        setShowEditDialog(true);
+      }
+    }
+  }, [parts]);
+
+  const handleReturnToActivityDetails = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const returnTo = urlParams.get('return');
+    const date = urlParams.get('date');
+    const users = urlParams.get('users');
+    
+    if (returnTo === 'activity-details' && date && users) {
+      const params = new URLSearchParams({
+        date,
+        users
+      });
+      navigate(`/inventory/summary?${params.toString()}`);
+    } else {
+      // Default back navigation
+      navigate('/inventory/summary');
+    }
+  };
+
   const [newPart, setNewPart] = useState({
     name: '',
     description: '',
@@ -680,9 +714,22 @@ export default function Inventory() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="flex items-center gap-4 p-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
+          <Button variant="ghost" size="sm" onClick={() => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const returnTo = urlParams.get('return');
+            
+            if (returnTo === 'activity-details') {
+              handleReturnToActivityDetails();
+            } else {
+              navigate('/');
+            }
+          }}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
+            {(() => {
+              const urlParams = new URLSearchParams(window.location.search);
+              const returnTo = urlParams.get('return');
+              return returnTo === 'activity-details' ? 'Back to Activity Details' : 'Back to Dashboard';
+            })()}
           </Button>
           <div>
             <h1 className="text-2xl font-bold">Manage Inventory</h1>
@@ -990,7 +1037,16 @@ export default function Inventory() {
                 suppliers={suppliers}
                 isLoading={uploadingImage}
                 onSubmit={updatePart}
-                onCancel={() => setShowEditDialog(false)}
+                onCancel={() => {
+                  const urlParams = new URLSearchParams(window.location.search);
+                  const returnTo = urlParams.get('return');
+                  
+                  if (returnTo === 'activity-details') {
+                    handleReturnToActivityDetails();
+                  } else {
+                    setShowEditDialog(false);
+                  }
+                }}
                 onAddSupplier={() => setShowAddSupplierDialog(true)}
                 submitButtonText="Update Inventory Item"
                 editingPart={editingPart}

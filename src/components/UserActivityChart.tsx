@@ -1,5 +1,5 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card } from "./ui/card";
 import { Checkbox } from "./ui/checkbox";
 import { Button } from "./ui/button";
@@ -34,6 +34,7 @@ interface DetailedActivityRecord {
   missionTitle?: string;
   taskTitle?: string;
   timestamp: string;
+  partId: string;
   // Additional fields for parts_history
   oldQuantity?: number;
   newQuantity?: number;
@@ -46,12 +47,31 @@ interface UserActivityChartProps {
   userActivityByPerson: UserActivityByPerson[];
   allUsers: string[];
   detailedActivity: DetailedActivityRecord[];
+  initialDialogState?: {
+    date: string;
+    users: string[];
+  } | null;
 }
 
-export function UserActivityChart({ data, userActivityByPerson, allUsers, detailedActivity }: UserActivityChartProps) {
+export function UserActivityChart({ 
+  data, 
+  userActivityByPerson, 
+  allUsers, 
+  detailedActivity,
+  initialDialogState
+}: UserActivityChartProps) {
   const [selectedUsers, setSelectedUsers] = useState<string[]>(allUsers);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Handle initial dialog state from URL parameters
+  useEffect(() => {
+    if (initialDialogState) {
+      setSelectedDate(initialDialogState.date);
+      setSelectedUsers(initialDialogState.users);
+      setDialogOpen(true);
+    }
+  }, [initialDialogState]);
 
   const filteredData = useMemo(() => {
     // Aggregate data for selected users only

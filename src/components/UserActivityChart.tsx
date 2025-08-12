@@ -199,7 +199,7 @@ export function UserActivityChart({
               top: 20,
               right: 30,
               left: 20,
-              bottom: 35,
+              bottom: 20,
             }}
             onClick={handleBarClick}
           >
@@ -223,7 +223,7 @@ export function UserActivityChart({
             <Tooltip content={<CustomTooltip />} />
             <Legend 
               wrapperStyle={{ 
-                fontSize: "12px",
+                fontSize: "14px",
                 color: "hsl(var(--foreground))"
               }}
             />

@@ -75,7 +75,7 @@ export function AdditionsLineChart({ data }: AdditionsLineChartProps) {
             top: 20,
             right: 30,
             left: 20,
-            bottom: 20,
+            bottom: 5,
           }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -91,7 +91,7 @@ export function AdditionsLineChart({ data }: AdditionsLineChartProps) {
           <Tooltip content={<CustomTooltip />} />
           <Legend 
             wrapperStyle={{ 
-              fontSize: "12px",
+              fontSize: "14px",
               color: "hsl(var(--foreground))"
             }}
           />

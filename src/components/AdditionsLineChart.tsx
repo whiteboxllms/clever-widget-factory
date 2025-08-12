@@ -124,9 +124,9 @@ export function AdditionsLineChart({ data }: AdditionsLineChartProps) {
               dot={{ r: 4 }}
               connectNulls={false}
               isAnimationActive={true}
-              animationDuration={800}
+              animationDuration={200}
               animationEasing="ease-out"
-              animationBegin={100 * index}
+              animationBegin={50 * index}
             />
           ))}
         </LineChart>

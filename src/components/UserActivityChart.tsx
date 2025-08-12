@@ -205,7 +205,7 @@ export function UserActivityChart({
               onClick={() => handleActivityTypeToggle('created')}
               style={{ cursor: 'pointer' }}
               isAnimationActive={true}
-              animationDuration={800}
+              animationDuration={200}
               animationEasing="ease-out"
               animationBegin={0}
             />
@@ -217,7 +217,7 @@ export function UserActivityChart({
               onClick={() => handleActivityTypeToggle('modified')}
               style={{ cursor: 'pointer' }}
               isAnimationActive={true}
-              animationDuration={800}
+              animationDuration={200}
               animationEasing="ease-out"
               animationBegin={0}
             />
@@ -229,7 +229,7 @@ export function UserActivityChart({
               onClick={() => handleActivityTypeToggle('used')}
               style={{ cursor: 'pointer' }}
               isAnimationActive={true}
-              animationDuration={800}
+              animationDuration={200}
               animationEasing="ease-out"
               animationBegin={0}
             />

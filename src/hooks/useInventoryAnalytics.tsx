@@ -153,20 +153,20 @@ export function useInventoryAnalytics() {
         throw usageError;
       }
 
-      // Fetch all user profiles for name mapping using secure function
+      // Fetch all user profiles for name mapping
       const { data: profilesData, error: profilesError } = await supabase
-        .rpc('get_user_display_names');
+        .from('profiles')
+        .select('user_id, full_name');
 
       if (profilesError) {
         console.error("Error fetching profiles:", profilesError);
+        throw profilesError;
       }
 
       // Create user mapping
       const userMap: Record<string, string> = {};
       profilesData?.forEach(profile => {
-        if (profile.full_name) {
-          userMap[profile.user_id] = profile.full_name;
-        }
+        userMap[profile.user_id] = profile.full_name || 'Unknown User';
       });
 
       // Fetch part details for history records
@@ -237,11 +237,7 @@ export function useInventoryAnalytics() {
 
       historyData?.forEach(record => {
         const date = new Date(record.created_at).toLocaleDateString();
-        const historyUserName = userMap[record.changed_by];
-        if (!historyUserName) {
-          console.warn(`User mapping not found for user ID: ${record.changed_by}. Skipping record.`);
-          return; // Skip this record instead of throwing
-        }
+        const historyUserName = userMap[record.changed_by] || 'Unknown User';
         allUsersSet.add(historyUserName);
         
         if (dailyActivityMap[date]) {
@@ -283,11 +279,7 @@ export function useInventoryAnalytics() {
 
       usageData?.forEach(record => {
         const date = new Date(record.created_at).toLocaleDateString();
-        const usageUserName = userMap[record.used_by];
-        if (!usageUserName) {
-          console.warn(`User mapping not found for user ID: ${record.used_by}. Skipping record.`);
-          return; // Skip this record instead of throwing
-        }
+        const usageUserName = userMap[record.used_by] || 'Unknown User';
         allUsersSet.add(usageUserName);
         
         if (dailyActivityMap[date]) {
@@ -349,11 +341,7 @@ export function useInventoryAnalytics() {
       
       trendData?.forEach(record => {
         const date = new Date(record.created_at).toLocaleDateString();
-        const trendUserName = userMap[record.changed_by];
-        if (!trendUserName) {
-          console.warn(`User mapping not found for user ID: ${record.changed_by}. Skipping trend record.`);
-          return; // Skip this record instead of throwing
-        }
+        const trendUserName = userMap[record.changed_by] || 'Unknown User';
         
         if (!trendMap[date]) {
           trendMap[date] = {};

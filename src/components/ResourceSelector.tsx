@@ -239,7 +239,7 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
   };
 
   const markResourceAsUsed = (resource: SelectedResource) => {
-    if (!user?.email) {
+    if (!user?.id) {
       throw new Error('User must be authenticated to mark resources as used');
     }
     
@@ -249,7 +249,7 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
             ...r, 
             status: 'used' as const, 
             usedAt: new Date().toISOString(),
-            usedBy: user.email
+            usedBy: user.id
           }
         : r
     );

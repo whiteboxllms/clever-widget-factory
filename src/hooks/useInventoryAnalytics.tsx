@@ -239,7 +239,8 @@ export function useInventoryAnalytics() {
         const date = new Date(record.created_at).toLocaleDateString();
         const historyUserName = userMap[record.changed_by];
         if (!historyUserName) {
-          throw new Error(`User mapping not found for user ID: ${record.changed_by}`);
+          console.warn(`User mapping not found for user ID: ${record.changed_by}. Skipping record.`);
+          return; // Skip this record instead of throwing
         }
         allUsersSet.add(historyUserName);
         
@@ -284,7 +285,8 @@ export function useInventoryAnalytics() {
         const date = new Date(record.created_at).toLocaleDateString();
         const usageUserName = userMap[record.used_by];
         if (!usageUserName) {
-          throw new Error(`User mapping not found for user ID: ${record.used_by}`);
+          console.warn(`User mapping not found for user ID: ${record.used_by}. Skipping record.`);
+          return; // Skip this record instead of throwing
         }
         allUsersSet.add(usageUserName);
         
@@ -349,7 +351,8 @@ export function useInventoryAnalytics() {
         const date = new Date(record.created_at).toLocaleDateString();
         const trendUserName = userMap[record.changed_by];
         if (!trendUserName) {
-          throw new Error(`User mapping not found for user ID: ${record.changed_by}`);
+          console.warn(`User mapping not found for user ID: ${record.changed_by}. Skipping trend record.`);
+          return; // Skip this record instead of throwing
         }
         
         if (!trendMap[date]) {

@@ -1,4 +1,5 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { useMemo } from "react";
 
 interface AdditionsTrendData {
   date: string;
@@ -38,6 +39,20 @@ export function AdditionsLineChart({ data }: AdditionsLineChartProps) {
 
   // Get unique users for line colors
   const users = Array.from(new Set(data.map(item => item.user)));
+
+  // Calculate dynamic Y-axis domain with padding
+  const yAxisDomain = useMemo(() => {
+    const allValues: number[] = [];
+    chartData.forEach((item: any) => {
+      users.forEach(user => {
+        if (item[user] !== undefined) {
+          allValues.push(item[user]);
+        }
+      });
+    });
+    const maxValue = Math.max(...allValues, 1);
+    return [0, Math.ceil(maxValue * 1.1)]; // Add 10% padding
+  }, [chartData, users]);
   
   const COLORS = [
     "hsl(var(--primary))",
@@ -69,15 +84,15 @@ export function AdditionsLineChart({ data }: AdditionsLineChartProps) {
   return (
     <div className="h-96">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart
-          data={chartData}
-          margin={{
-            top: 20,
-            right: 30,
-            left: 20,
-            bottom: 5,
-          }}
-        >
+          <LineChart
+            data={chartData}
+            margin={{
+              top: 20,
+              right: 30,
+              left: 20,
+              bottom: 5,
+            }}
+          >
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis 
             dataKey="date" 
@@ -87,7 +102,11 @@ export function AdditionsLineChart({ data }: AdditionsLineChartProps) {
             textAnchor="end"
             height={80}
           />
-          <YAxis stroke="hsl(var(--foreground))" fontSize={12} />
+          <YAxis 
+            stroke="hsl(var(--foreground))" 
+            fontSize={12} 
+            domain={yAxisDomain}
+          />
           <Tooltip content={<CustomTooltip />} />
           <Legend 
             wrapperStyle={{ 
@@ -104,6 +123,10 @@ export function AdditionsLineChart({ data }: AdditionsLineChartProps) {
               strokeWidth={2}
               dot={{ r: 4 }}
               connectNulls={false}
+              isAnimationActive={true}
+              animationDuration={800}
+              animationEasing="ease-out"
+              animationBegin={100 * index}
             />
           ))}
         </LineChart>

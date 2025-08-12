@@ -99,6 +99,21 @@ export function UserActivityChart({
     }));
   }, [data, userActivityByPerson, selectedUsers, selectedActivityTypes]);
 
+  // Calculate dynamic Y-axis domain with padding
+  const yAxisDomain = useMemo(() => {
+    const maxValues = filteredData.map(item => 
+      Math.max(item.created, item.modified, item.used, item.created + item.modified + item.used)
+    );
+    const maxValue = Math.max(...maxValues, 1);
+    return [0, Math.ceil(maxValue * 1.1)]; // Add 10% padding
+  }, [filteredData]);
+
+  // Animation key to force re-animation when filters change
+  const animationKey = useMemo(() => 
+    `${selectedUsers.join(',')}-${selectedActivityTypes.join(',')}`, 
+    [selectedUsers, selectedActivityTypes]
+  );
+
   const handleUserToggle = (user: string) => {
     setSelectedUsers(prev => 
       prev.includes(user) 
@@ -153,6 +168,7 @@ export function UserActivityChart({
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
+            key={animationKey}
             data={filteredData}
             margin={{
               top: 20,
@@ -172,6 +188,7 @@ export function UserActivityChart({
             <YAxis 
               stroke="hsl(var(--foreground))" 
               fontSize={12}
+              domain={yAxisDomain}
               label={{ 
                 value: 'Actions', 
                 angle: -90, 
@@ -187,6 +204,10 @@ export function UserActivityChart({
               name="Created"
               onClick={() => handleActivityTypeToggle('created')}
               style={{ cursor: 'pointer' }}
+              isAnimationActive={true}
+              animationDuration={800}
+              animationEasing="ease-out"
+              animationBegin={0}
             />
             <Bar 
               dataKey="modified" 
@@ -195,6 +216,10 @@ export function UserActivityChart({
               name="Modified"
               onClick={() => handleActivityTypeToggle('modified')}
               style={{ cursor: 'pointer' }}
+              isAnimationActive={true}
+              animationDuration={800}
+              animationEasing="ease-out"
+              animationBegin={0}
             />
             <Bar 
               dataKey="used" 
@@ -203,6 +228,10 @@ export function UserActivityChart({
               name="Used"
               onClick={() => handleActivityTypeToggle('used')}
               style={{ cursor: 'pointer' }}
+              isAnimationActive={true}
+              animationDuration={800}
+              animationEasing="ease-out"
+              animationBegin={0}
             />
           </BarChart>
         </ResponsiveContainer>

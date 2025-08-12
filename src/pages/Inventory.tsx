@@ -743,16 +743,17 @@ export default function Inventory() {
 
         {/* Consumables Section */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <h2 className="text-2xl font-bold text-foreground">Inventory Items</h2>
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate('/inventory/summary')}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 self-start sm:self-auto"
             >
               <BarChart3 className="h-4 w-4" />
-              Summary
+              <span className="hidden xs:inline">Summary</span>
+              <BarChart3 className="h-4 w-4 xs:hidden" />
             </Button>
           </div>
           

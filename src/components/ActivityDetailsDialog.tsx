@@ -55,6 +55,9 @@ export function ActivityDetailsDialog({
   if (!selectedDate) return null;
 
   const handleEditItem = (partId: string) => {
+    // Close this dialog first to avoid state conflicts
+    onOpenChange(false);
+    
     const params = new URLSearchParams({
       edit: partId,
       return: 'activity-details',

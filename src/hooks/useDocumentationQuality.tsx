@@ -33,7 +33,7 @@ export function useDocumentationQuality() {
           changed_by
         `)
         .gte("created_at", oneWeekAgo.toISOString())
-        .in("change_type", ["created", "updated", "modified"]);
+        .in("change_type", ["create", "update"]);
 
       // Get inventory usage for the last week
       const { data: inventoryUsage, error: usageError } = await supabase
@@ -147,8 +147,8 @@ export function useDocumentationQuality() {
         const userName = usersMap.get(userId) || 'Unknown User';
         const userActivities = activitiesWithScores.filter(a => a.user_id === userId);
         
-        const created = userActivities.filter(a => a.type === 'created');
-        const modified = userActivities.filter(a => a.type === 'modified' || a.type === 'updated');
+        const created = userActivities.filter(a => a.type === 'create');
+        const modified = userActivities.filter(a => a.type === 'update');
         const used = userActivities.filter(a => a.type === 'used');
 
         const calculateAverage = (activities: typeof userActivities) => {

@@ -189,6 +189,8 @@ export function UserActivityChart({
               stroke="hsl(var(--foreground))" 
               fontSize={12}
               domain={yAxisDomain}
+              allowDecimals={false}
+              tickCount={Math.min(Math.max(yAxisDomain[1], 3), 8)}
               label={{ 
                 value: 'Actions', 
                 angle: -90, 

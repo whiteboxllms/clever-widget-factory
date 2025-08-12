@@ -88,7 +88,14 @@ export function ActivityDetailsDialog({
                 <div className="flex-1">
                   <h5 className="font-medium text-sm">{activity.partName}</h5>
                   {activity.partDescription && (
-                    <p className="text-xs text-muted-foreground">{activity.partDescription}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{activity.partDescription}</p>
+                  )}
+                  {(type === 'created' || type === 'modified') && (
+                    <div className="mt-1">
+                      <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
+                        {type === 'created' ? 'Item Added' : 'Item Modified'}
+                      </span>
+                    </div>
                   )}
                 </div>
                 <span className="text-xs text-muted-foreground">
@@ -105,7 +112,7 @@ export function ActivityDetailsDialog({
                   <>
                     {activity.quantityUsed && (
                       <p className="text-xs">
-                        <span className="text-muted-foreground">Quantity:</span> {activity.quantityUsed}
+                        <span className="text-muted-foreground">Quantity Used:</span> {activity.quantityUsed}
                       </p>
                     )}
                     {activity.missionTitle && (
@@ -119,9 +126,12 @@ export function ActivityDetailsDialog({
                       </p>
                     )}
                     {activity.usageDescription && (
-                      <p className="text-xs">
-                        <span className="text-muted-foreground">Description:</span> {activity.usageDescription}
-                      </p>
+                      <div className="bg-blue-50 rounded p-2 mt-2">
+                        <p className="text-xs">
+                          <span className="text-muted-foreground font-medium">Usage Description:</span>
+                        </p>
+                        <p className="text-xs mt-1">{activity.usageDescription}</p>
+                      </div>
                     )}
                   </>
                 )}
@@ -129,29 +139,36 @@ export function ActivityDetailsDialog({
                 {(type === 'created' || type === 'modified') && (
                   <>
                     {activity.changeReason && (
-                      <p className="text-xs">
-                        <span className="text-muted-foreground">Reason:</span> {activity.changeReason}
-                      </p>
+                      <div className="bg-gray-50 rounded p-2 mt-2">
+                        <p className="text-xs">
+                          <span className="text-muted-foreground font-medium">
+                            {type === 'created' ? 'Addition Reason:' : 'Edit Reason:'}
+                          </span>
+                        </p>
+                        <p className="text-xs mt-1">{activity.changeReason}</p>
+                      </div>
                     )}
                     {activity.changeType && (
                       <p className="text-xs">
-                        <span className="text-muted-foreground">Change Type:</span> {activity.changeType}
+                        <span className="text-muted-foreground">Operation:</span> {activity.changeType}
                       </p>
                     )}
-                    {activity.oldQuantity !== undefined && (
-                      <p className="text-xs">
-                        <span className="text-muted-foreground">Previous Quantity:</span> {activity.oldQuantity}
-                      </p>
-                    )}
-                    {activity.newQuantity !== undefined && (
-                      <p className="text-xs">
-                        <span className="text-muted-foreground">New Quantity:</span> {activity.newQuantity}
-                      </p>
-                    )}
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      {activity.oldQuantity !== undefined && (
+                        <p className="text-xs">
+                          <span className="text-muted-foreground">Previous:</span> {activity.oldQuantity}
+                        </p>
+                      )}
+                      {activity.newQuantity !== undefined && (
+                        <p className="text-xs">
+                          <span className="text-muted-foreground">New:</span> {activity.newQuantity}
+                        </p>
+                      )}
+                    </div>
                     {activity.quantityChange !== undefined && (
                       <p className="text-xs">
-                        <span className="text-muted-foreground">Quantity Change:</span> 
-                        <span className={activity.quantityChange > 0 ? "text-green-600" : activity.quantityChange < 0 ? "text-red-600" : ""}>
+                        <span className="text-muted-foreground">Change:</span> 
+                        <span className={`ml-1 font-medium ${activity.quantityChange > 0 ? "text-green-600" : activity.quantityChange < 0 ? "text-red-600" : "text-gray-600"}`}>
                           {activity.quantityChange > 0 ? '+' : ''}{activity.quantityChange}
                         </span>
                       </p>

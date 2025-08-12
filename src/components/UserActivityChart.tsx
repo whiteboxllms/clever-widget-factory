@@ -34,6 +34,11 @@ interface DetailedActivityRecord {
   missionTitle?: string;
   taskTitle?: string;
   timestamp: string;
+  // Additional fields for parts_history
+  oldQuantity?: number;
+  newQuantity?: number;
+  quantityChange?: number;
+  changeType?: string;
 }
 
 interface UserActivityChartProps {

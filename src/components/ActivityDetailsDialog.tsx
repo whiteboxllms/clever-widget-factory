@@ -17,6 +17,11 @@ interface DetailedActivityRecord {
   missionTitle?: string;
   taskTitle?: string;
   timestamp: string;
+  // Additional fields for parts_history
+  oldQuantity?: number;
+  newQuantity?: number;
+  quantityChange?: number;
+  changeType?: string;
 }
 
 interface ActivityDetailsDialogProps {
@@ -121,10 +126,37 @@ export function ActivityDetailsDialog({
                   </>
                 )}
                 
-                {(type === 'created' || type === 'modified') && activity.changeReason && (
-                  <p className="text-xs">
-                    <span className="text-muted-foreground">Reason:</span> {activity.changeReason}
-                  </p>
+                {(type === 'created' || type === 'modified') && (
+                  <>
+                    {activity.changeReason && (
+                      <p className="text-xs">
+                        <span className="text-muted-foreground">Reason:</span> {activity.changeReason}
+                      </p>
+                    )}
+                    {activity.changeType && (
+                      <p className="text-xs">
+                        <span className="text-muted-foreground">Change Type:</span> {activity.changeType}
+                      </p>
+                    )}
+                    {activity.oldQuantity !== undefined && (
+                      <p className="text-xs">
+                        <span className="text-muted-foreground">Previous Quantity:</span> {activity.oldQuantity}
+                      </p>
+                    )}
+                    {activity.newQuantity !== undefined && (
+                      <p className="text-xs">
+                        <span className="text-muted-foreground">New Quantity:</span> {activity.newQuantity}
+                      </p>
+                    )}
+                    {activity.quantityChange !== undefined && (
+                      <p className="text-xs">
+                        <span className="text-muted-foreground">Quantity Change:</span> 
+                        <span className={activity.quantityChange > 0 ? "text-green-600" : activity.quantityChange < 0 ? "text-red-600" : ""}>
+                          {activity.quantityChange > 0 ? '+' : ''}{activity.quantityChange}
+                        </span>
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             </div>

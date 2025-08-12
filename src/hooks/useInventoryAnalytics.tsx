@@ -41,6 +41,11 @@ interface DetailedActivityRecord {
   missionTitle?: string;
   taskTitle?: string;
   timestamp: string;
+  // Additional fields for parts_history
+  oldQuantity?: number;
+  newQuantity?: number;
+  quantityChange?: number;
+  changeType?: string;
 }
 
 interface InventoryAnalyticsData {
@@ -116,7 +121,10 @@ export function useInventoryAnalytics() {
           change_type,
           created_at,
           change_reason,
-          part_id
+          part_id,
+          old_quantity,
+          new_quantity,
+          quantity_change
         `)
         .gte("created_at", sevenDaysAgo.toISOString());
 
@@ -263,7 +271,11 @@ export function useInventoryAnalytics() {
           partName: partInfo?.name || "Unknown Part",
           partDescription: partInfo?.description,
           changeReason: record.change_reason,
-          timestamp: record.created_at
+          timestamp: record.created_at,
+          oldQuantity: record.old_quantity,
+          newQuantity: record.new_quantity,
+          quantityChange: record.quantity_change,
+          changeType: record.change_type
         });
       });
 

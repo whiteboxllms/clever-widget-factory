@@ -95,6 +95,7 @@ export default function InventorySummary() {
                 data={data?.userActivity || []} 
                 userActivityByPerson={data?.userActivityByPerson || []}
                 allUsers={data?.allUsers || []}
+                detailedActivity={data?.detailedActivity || []}
               />
             )}
           </CardContent>

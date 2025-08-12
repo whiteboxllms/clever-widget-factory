@@ -3,6 +3,7 @@ import { useState, useMemo } from "react";
 import { Card } from "./ui/card";
 import { Checkbox } from "./ui/checkbox";
 import { Button } from "./ui/button";
+import { ActivityDetailsDialog } from "./ActivityDetailsDialog";
 
 interface UserActivityData {
   date: string;
@@ -19,14 +20,33 @@ interface UserActivityByPerson {
   used: number;
 }
 
+interface DetailedActivityRecord {
+  id: string;
+  date: string;
+  user: string;
+  userName: string;
+  type: 'created' | 'modified' | 'used';
+  partName: string;
+  partDescription?: string;
+  changeReason?: string;
+  usageDescription?: string;
+  quantityUsed?: number;
+  missionTitle?: string;
+  taskTitle?: string;
+  timestamp: string;
+}
+
 interface UserActivityChartProps {
   data: UserActivityData[];
   userActivityByPerson: UserActivityByPerson[];
   allUsers: string[];
+  detailedActivity: DetailedActivityRecord[];
 }
 
-export function UserActivityChart({ data, userActivityByPerson, allUsers }: UserActivityChartProps) {
+export function UserActivityChart({ data, userActivityByPerson, allUsers, detailedActivity }: UserActivityChartProps) {
   const [selectedUsers, setSelectedUsers] = useState<string[]>(allUsers);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const filteredData = useMemo(() => {
     // Aggregate data for selected users only
@@ -68,6 +88,13 @@ export function UserActivityChart({ data, userActivityByPerson, allUsers }: User
 
   const handleDeselectAll = () => {
     setSelectedUsers([]);
+  };
+
+  const handleBarClick = (data: any) => {
+    if (data && data.activeLabel) {
+      setSelectedDate(data.activeLabel);
+      setDialogOpen(true);
+    }
   };
 
   if (!data || data.length === 0) {
@@ -149,6 +176,7 @@ export function UserActivityChart({ data, userActivityByPerson, allUsers }: User
               left: 20,
               bottom: 60,
             }}
+            onClick={handleBarClick}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis 
@@ -187,6 +215,14 @@ export function UserActivityChart({ data, userActivityByPerson, allUsers }: User
           </BarChart>
         </ResponsiveContainer>
       </div>
+
+      <ActivityDetailsDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        selectedDate={selectedDate}
+        detailedActivity={detailedActivity}
+        selectedUsers={selectedUsers}
+      />
     </div>
   );
 }

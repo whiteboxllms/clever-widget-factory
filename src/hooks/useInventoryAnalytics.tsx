@@ -27,6 +27,22 @@ interface AdditionsTrendData {
   count: number;
 }
 
+interface DetailedActivityRecord {
+  id: string;
+  date: string;
+  user: string;
+  userName: string;
+  type: 'created' | 'modified' | 'used';
+  partName: string;
+  partDescription?: string;
+  changeReason?: string;
+  usageDescription?: string;
+  quantityUsed?: number;
+  missionTitle?: string;
+  taskTitle?: string;
+  timestamp: string;
+}
+
 interface InventoryAnalyticsData {
   totalItems: number;
   lowStockItems: number;
@@ -35,6 +51,7 @@ interface InventoryAnalyticsData {
   userActivityByPerson: UserActivityByPerson[];
   allUsers: string[];
   additionsTrend: AdditionsTrendData[];
+  detailedActivity: DetailedActivityRecord[];
 }
 
 export function useInventoryAnalytics() {
@@ -90,9 +107,17 @@ export function useInventoryAnalytics() {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
+      // Fetch detailed history data with part and user information
       const { data: historyData, error: historyError } = await supabase
         .from("parts_history")
-        .select("changed_by, change_type, created_at")
+        .select(`
+          id,
+          changed_by,
+          change_type,
+          created_at,
+          change_reason,
+          part_id
+        `)
         .gte("created_at", sevenDaysAgo.toISOString());
 
       if (historyError) {
@@ -100,9 +125,19 @@ export function useInventoryAnalytics() {
         throw historyError;
       }
 
+      // Fetch detailed usage data with part, mission, and user information
       const { data: usageData, error: usageError } = await supabase
         .from("mission_inventory_usage")
-        .select("used_by, created_at")
+        .select(`
+          id,
+          used_by,
+          created_at,
+          usage_description,
+          quantity_used,
+          part_id,
+          mission_id,
+          task_id
+        `)
         .gte("created_at", sevenDaysAgo.toISOString());
 
       if (usageError) {
@@ -110,10 +145,79 @@ export function useInventoryAnalytics() {
         throw usageError;
       }
 
+      // Fetch all user profiles for name mapping
+      const { data: profilesData, error: profilesError } = await supabase
+        .from("profiles")
+        .select("user_id, full_name");
+
+      if (profilesError) {
+        console.error("Error fetching profiles:", profilesError);
+      }
+
+      // Create user mapping
+      const userMap: Record<string, string> = {};
+      profilesData?.forEach(profile => {
+        if (profile.full_name) {
+          userMap[profile.user_id] = profile.full_name;
+        }
+      });
+
+      // Fetch part details for history records
+      const historyPartIds = historyData?.map(h => h.part_id).filter(Boolean) || [];
+      const usagePartIds = usageData?.map(u => u.part_id).filter(Boolean) || [];
+      const allPartIds = [...new Set([...historyPartIds, ...usagePartIds])];
+
+      const { data: partsData, error: partsError } = await supabase
+        .from("parts")
+        .select("id, name, description")
+        .in("id", allPartIds);
+
+      if (partsError) {
+        console.error("Error fetching parts:", partsError);
+      }
+
+      const partsMap: Record<string, { name: string; description?: string }> = {};
+      partsData?.forEach(part => {
+        partsMap[part.id] = { name: part.name, description: part.description };
+      });
+
+      // Fetch mission details for usage records
+      const missionIds = usageData?.map(u => u.mission_id).filter(Boolean) || [];
+      const taskIds = usageData?.map(u => u.task_id).filter(Boolean) || [];
+
+      const { data: missionsData, error: missionsError } = await supabase
+        .from("missions")
+        .select("id, title")
+        .in("id", missionIds);
+
+      const { data: tasksData, error: tasksError } = await supabase
+        .from("mission_tasks")
+        .select("id, title")
+        .in("id", taskIds);
+
+      if (missionsError) {
+        console.error("Error fetching missions:", missionsError);
+      }
+      if (tasksError) {
+        console.error("Error fetching tasks:", tasksError);
+      }
+
+      const missionsMap: Record<string, string> = {};
+      const tasksMap: Record<string, string> = {};
+      
+      missionsData?.forEach(mission => {
+        missionsMap[mission.id] = mission.title;
+      });
+      
+      tasksData?.forEach(task => {
+        tasksMap[task.id] = task.title;
+      });
+
       // Process daily user activity for last 7 days
       const dailyActivityMap: Record<string, { created: number; modified: number; used: number }> = {};
       const userActivityByPersonMap: Record<string, Record<string, { created: number; modified: number; used: number }>> = {};
       const allUsersSet = new Set<string>();
+      const detailedActivity: DetailedActivityRecord[] = [];
 
       // Initialize all 7 days
       for (let i = 6; i >= 0; i--) {
@@ -126,9 +230,9 @@ export function useInventoryAnalytics() {
 
       historyData?.forEach(record => {
         const date = new Date(record.created_at).toLocaleDateString();
-        // Display email for changed_by since it's more readable than UUID
-        const user = record.changed_by || "Unknown";
-        allUsersSet.add(user);
+        const userEmail = record.changed_by || "Unknown";
+        const userName = userMap[record.changed_by] || userEmail;
+        allUsersSet.add(userName);
         
         if (dailyActivityMap[date]) {
           if (record.change_type === "create") {
@@ -138,32 +242,63 @@ export function useInventoryAnalytics() {
           }
           
           // Track by person
-          if (!userActivityByPersonMap[date][user]) {
-            userActivityByPersonMap[date][user] = { created: 0, modified: 0, used: 0 };
+          if (!userActivityByPersonMap[date][userName]) {
+            userActivityByPersonMap[date][userName] = { created: 0, modified: 0, used: 0 };
           }
           if (record.change_type === "create") {
-            userActivityByPersonMap[date][user].created++;
+            userActivityByPersonMap[date][userName].created++;
           } else {
-            userActivityByPersonMap[date][user].modified++;
+            userActivityByPersonMap[date][userName].modified++;
           }
         }
+
+        // Add to detailed activity
+        const partInfo = partsMap[record.part_id];
+        detailedActivity.push({
+          id: record.id,
+          date,
+          user: userEmail,
+          userName,
+          type: record.change_type === "create" ? "created" : "modified",
+          partName: partInfo?.name || "Unknown Part",
+          partDescription: partInfo?.description,
+          changeReason: record.change_reason,
+          timestamp: record.created_at
+        });
       });
 
       usageData?.forEach(record => {
         const date = new Date(record.created_at).toLocaleDateString();
-        // Use used_by (UUID) for now - can be improved with user profiles later
-        const user = record.used_by || "Unknown";
-        allUsersSet.add(user);
+        const userId = record.used_by || "Unknown";
+        const userName = userMap[record.used_by] || userId;
+        allUsersSet.add(userName);
         
         if (dailyActivityMap[date]) {
           dailyActivityMap[date].used++;
           
           // Track by person
-          if (!userActivityByPersonMap[date][user]) {
-            userActivityByPersonMap[date][user] = { created: 0, modified: 0, used: 0 };
+          if (!userActivityByPersonMap[date][userName]) {
+            userActivityByPersonMap[date][userName] = { created: 0, modified: 0, used: 0 };
           }
-          userActivityByPersonMap[date][user].used++;
+          userActivityByPersonMap[date][userName].used++;
         }
+
+        // Add to detailed activity
+        const partInfo = partsMap[record.part_id];
+        detailedActivity.push({
+          id: record.id,
+          date,
+          user: userId,
+          userName,
+          type: "used",
+          partName: partInfo?.name || "Unknown Part",
+          partDescription: partInfo?.description,
+          usageDescription: record.usage_description,
+          quantityUsed: record.quantity_used,
+          missionTitle: missionsMap[record.mission_id],
+          taskTitle: tasksMap[record.task_id],
+          timestamp: record.created_at
+        });
       });
 
       const userActivity: UserActivityData[] = Object.entries(dailyActivityMap).map(
@@ -227,7 +362,8 @@ export function useInventoryAnalytics() {
         userActivity,
         userActivityByPerson,
         allUsers,
-        additionsTrend
+        additionsTrend,
+        detailedActivity
       };
     },
     staleTime: 1000 * 60 * 5, // 5 minutes

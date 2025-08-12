@@ -1,7 +1,10 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Badge } from "./ui/badge";
 import { Separator } from "./ui/separator";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { format } from "date-fns";
+import { useState } from "react";
 
 interface DetailedActivityRecord {
   id: string;
@@ -39,6 +42,12 @@ export function ActivityDetailsDialog({
   detailedActivity,
   selectedUsers 
 }: ActivityDetailsDialogProps) {
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    created: true,
+    modified: true,
+    used: true
+  });
+
   if (!selectedDate) return null;
 
   const dateActivities = detailedActivity.filter(
@@ -69,19 +78,29 @@ export function ActivityDetailsDialog({
       }
     };
 
+    const isOpen = openSections[type];
+
     return (
-      <div className="space-y-3">
-        <div className="flex items-center space-x-2">
-          <h4 className="font-medium text-sm">{title}</h4>
-          <Badge 
-            variant="secondary" 
-            style={{ backgroundColor: getTypeColor(type), color: 'white' }}
-          >
-            {activities.length}
-          </Badge>
-        </div>
+      <Collapsible 
+        open={isOpen} 
+        onOpenChange={(open) => setOpenSections(prev => ({ ...prev, [type]: open }))}
+      >
+        <CollapsibleTrigger className="w-full">
+          <div className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <h4 className="font-medium text-sm">{title}</h4>
+              <Badge 
+                variant="secondary" 
+                style={{ backgroundColor: getTypeColor(type), color: 'white' }}
+              >
+                {activities.length}
+              </Badge>
+            </div>
+            {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </div>
+        </CollapsibleTrigger>
         
-        <div className="space-y-2">
+        <CollapsibleContent className="space-y-2 mt-2 pl-2">
           {activities.map((activity) => (
             <div key={activity.id} className="border rounded-lg p-3 space-y-2">
               <div className="flex justify-between items-start">
@@ -89,13 +108,6 @@ export function ActivityDetailsDialog({
                   <h5 className="font-medium text-sm">{activity.partName}</h5>
                   {activity.partDescription && (
                     <p className="text-xs text-muted-foreground mt-1">{activity.partDescription}</p>
-                  )}
-                  {(type === 'created' || type === 'modified') && (
-                    <div className="mt-1">
-                      <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
-                        {type === 'created' ? 'Item Added' : 'Item Modified'}
-                      </span>
-                    </div>
                   )}
                 </div>
                 <span className="text-xs text-muted-foreground">
@@ -178,8 +190,8 @@ export function ActivityDetailsDialog({
               </div>
             </div>
           ))}
-        </div>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
     );
   };
 

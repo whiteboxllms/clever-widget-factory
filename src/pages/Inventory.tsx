@@ -334,6 +334,7 @@ export default function Inventory() {
       const partData = {
         ...formData,
         cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
+        cost_evidence_url: formData.cost_evidence_url || null,
         minimum_quantity: useMinimumQuantity ? formData.minimum_quantity : null,
         image_url: imageUrl
       };

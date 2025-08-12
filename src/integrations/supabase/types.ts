@@ -446,6 +446,7 @@ export type Database = {
       parts: {
         Row: {
           category: string | null
+          cost_evidence_url: string | null
           cost_per_unit: number | null
           created_at: string
           current_quantity: number
@@ -463,6 +464,7 @@ export type Database = {
         }
         Insert: {
           category?: string | null
+          cost_evidence_url?: string | null
           cost_per_unit?: number | null
           created_at?: string
           current_quantity?: number
@@ -480,6 +482,7 @@ export type Database = {
         }
         Update: {
           category?: string | null
+          cost_evidence_url?: string | null
           cost_per_unit?: number | null
           created_at?: string
           current_quantity?: number

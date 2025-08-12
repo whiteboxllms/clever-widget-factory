@@ -624,6 +624,29 @@ export default function Inventory() {
           console.error('Error logging history:', historyError);
           // Don't fail the operation if history logging fails
         }
+
+        // If this is a quantity removal (usage), also log it to mission_inventory_usage for activity tracking
+        if (quantityOperation === 'remove') {
+          try {
+            const { error: usageError } = await supabase
+              .from('mission_inventory_usage')
+              .insert([{
+                mission_id: '00000000-0000-0000-0000-000000000000', // Use a special UUID for manual usage
+                part_id: quantityPart.id,
+                quantity_used: amount,
+                used_by: currentUser.id,
+                usage_description: quantityChange.reason || `Manual usage: ${amount} ${quantityPart.unit || 'pieces'} of ${quantityPart.name}`
+              }]);
+
+            if (usageError) {
+              console.error('Error logging usage to mission_inventory_usage:', usageError);
+              // Don't fail the operation if usage logging fails
+            }
+          } catch (usageError) {
+            console.error('Usage logging failed:', usageError);
+            // Continue with success flow even if usage logging fails
+          }
+        }
       } catch (historyError) {
         console.error('History logging failed:', historyError);
         // Continue with success flow even if history fails

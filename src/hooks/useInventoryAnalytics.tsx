@@ -237,9 +237,11 @@ export function useInventoryAnalytics() {
 
       historyData?.forEach(record => {
         const date = new Date(record.created_at).toLocaleDateString();
-        const userEmail = record.changed_by || "Unknown";
-        const userName = userMap[record.changed_by] || userEmail;
-        allUsersSet.add(userName);
+        const historyUserName = userMap[record.changed_by];
+        if (!historyUserName) {
+          throw new Error(`User mapping not found for user ID: ${record.changed_by}`);
+        }
+        allUsersSet.add(historyUserName);
         
         if (dailyActivityMap[date]) {
           if (record.change_type === "create") {
@@ -249,13 +251,13 @@ export function useInventoryAnalytics() {
           }
           
           // Track by person
-          if (!userActivityByPersonMap[date][userName]) {
-            userActivityByPersonMap[date][userName] = { created: 0, modified: 0, used: 0 };
+          if (!userActivityByPersonMap[date][historyUserName]) {
+            userActivityByPersonMap[date][historyUserName] = { created: 0, modified: 0, used: 0 };
           }
           if (record.change_type === "create") {
-            userActivityByPersonMap[date][userName].created++;
+            userActivityByPersonMap[date][historyUserName].created++;
           } else {
-            userActivityByPersonMap[date][userName].modified++;
+            userActivityByPersonMap[date][historyUserName].modified++;
           }
         }
 
@@ -264,8 +266,8 @@ export function useInventoryAnalytics() {
         detailedActivity.push({
           id: record.id,
           date,
-          user: userEmail,
-          userName,
+          user: record.changed_by,
+          userName: historyUserName,
           type: record.change_type === "create" ? "created" : "modified",
           partName: partInfo?.name || "Unknown Part",
           partDescription: partInfo?.description,
@@ -280,18 +282,20 @@ export function useInventoryAnalytics() {
 
       usageData?.forEach(record => {
         const date = new Date(record.created_at).toLocaleDateString();
-        const userId = record.used_by || "Unknown";
-        const userName = userMap[record.used_by] || userId;
-        allUsersSet.add(userName);
+        const usageUserName = userMap[record.used_by];
+        if (!usageUserName) {
+          throw new Error(`User mapping not found for user ID: ${record.used_by}`);
+        }
+        allUsersSet.add(usageUserName);
         
         if (dailyActivityMap[date]) {
           dailyActivityMap[date].used++;
           
           // Track by person
-          if (!userActivityByPersonMap[date][userName]) {
-            userActivityByPersonMap[date][userName] = { created: 0, modified: 0, used: 0 };
+          if (!userActivityByPersonMap[date][usageUserName]) {
+            userActivityByPersonMap[date][usageUserName] = { created: 0, modified: 0, used: 0 };
           }
-          userActivityByPersonMap[date][userName].used++;
+          userActivityByPersonMap[date][usageUserName].used++;
         }
 
         // Add to detailed activity
@@ -299,8 +303,8 @@ export function useInventoryAnalytics() {
         detailedActivity.push({
           id: record.id,
           date,
-          user: userId,
-          userName,
+          user: record.used_by,
+          userName: usageUserName,
           type: "used",
           partName: partInfo?.name || "Unknown Part",
           partDescription: partInfo?.description,
@@ -343,12 +347,15 @@ export function useInventoryAnalytics() {
       
       trendData?.forEach(record => {
         const date = new Date(record.created_at).toLocaleDateString();
-        const user = record.changed_by || "Unknown";
+        const trendUserName = userMap[record.changed_by];
+        if (!trendUserName) {
+          throw new Error(`User mapping not found for user ID: ${record.changed_by}`);
+        }
         
         if (!trendMap[date]) {
           trendMap[date] = {};
         }
-        trendMap[date][user] = (trendMap[date][user] || 0) + 1;
+        trendMap[date][trendUserName] = (trendMap[date][trendUserName] || 0) + 1;
       });
 
       const additionsTrend: AdditionsTrendData[] = [];

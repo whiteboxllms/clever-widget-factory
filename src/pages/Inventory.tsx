@@ -319,6 +319,10 @@ export default function Inventory() {
 
       // Log the creation to history
       try {
+        if (!user?.id) {
+          throw new Error('User must be authenticated to create inventory items');
+        }
+        
         const { error: historyError } = await supabase
           .from('parts_history')
           .insert([{
@@ -327,7 +331,7 @@ export default function Inventory() {
             old_quantity: null,
             new_quantity: formData.current_quantity,
             quantity_change: null,
-            changed_by: user?.id || 'system',
+            changed_by: user.id,
             change_reason: 'Item created'
           }]);
 
@@ -433,6 +437,10 @@ export default function Inventory() {
       if (error) throw error;
 
       // Log the update to history
+      if (!user?.id) {
+        throw new Error('User must be authenticated to update inventory items');
+      }
+      
       const { error: historyError } = await supabase
         .from('parts_history')
         .insert([{
@@ -441,7 +449,7 @@ export default function Inventory() {
           old_quantity: null,
           new_quantity: null,
           quantity_change: null,
-          changed_by: user?.id || 'system',
+          changed_by: user.id,
           change_reason: 'Item details updated'
         }]);
 
@@ -541,6 +549,10 @@ export default function Inventory() {
       if (error) throw error;
 
       // Log the change to history
+      if (!user?.id) {
+        throw new Error('User must be authenticated to modify inventory quantities');
+      }
+      
       const { error: historyError } = await supabase
         .from('parts_history')
         .insert([{
@@ -549,7 +561,7 @@ export default function Inventory() {
           old_quantity: quantityPart.current_quantity,
           new_quantity: newQuantity,
           quantity_change: quantityOperation === 'add' ? amount : -amount,
-          changed_by: user?.id || 'system',
+          changed_by: user.id,
           change_reason: quantityChange.reason || null
         }]);
 

@@ -113,10 +113,13 @@ const Audit = () => {
         
         if (auditInfo) {
           const auditorProfile = profilesData.find(p => p.user_id === auditInfo.audited_by);
+          if (!auditorProfile?.full_name) {
+            throw new Error(`Auditor profile not found for audit conducted by user ${auditInfo.audited_by}`);
+          }
           result.audit_info = {
             audited_by: auditInfo.audited_by,
             audited_at: auditInfo.audited_at,
-            auditor_name: auditorProfile?.full_name || 'Unknown User'
+            auditor_name: auditorProfile.full_name
           };
         }
         

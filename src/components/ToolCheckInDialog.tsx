@@ -108,7 +108,9 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
     const debugInfo = {
       appVersion: APP_VERSION,
       userId: user?.id,
-      userName: user?.user_metadata?.full_name || 'Unknown',
+      userName: user?.user_metadata?.full_name || (() => {
+        throw new Error('User full name is required for check-in');
+      })(),
       toolId: tool.id,
       toolName: tool.name,
       checkoutId: checkout.id,

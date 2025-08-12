@@ -112,7 +112,9 @@ const Missions = () => {
     resources_required: '',
     selected_resources: [] as SelectedResource[],
     all_materials_available: false,
-    qa_assigned_to: user?.id || '',
+    qa_assigned_to: user?.id || (() => {
+      throw new Error('User must be authenticated to create missions');
+    })(),
     // Default to current user
     tasks: [{
       title: '',
@@ -343,7 +345,9 @@ const Missions = () => {
       resources_required: '',
       selected_resources: [],
       all_materials_available: false,
-      qa_assigned_to: user?.id || '',
+      qa_assigned_to: user?.id || (() => {
+        throw new Error('User must be authenticated to create missions');
+      })(),
       // Default to current user
       tasks: template.defaultTasks.length > 0 ? template.defaultTasks.map((task: any) => ({
         title: task.title,
@@ -688,7 +692,9 @@ const Missions = () => {
       resources_required: '',
       selected_resources: [],
       all_materials_available: false,
-      qa_assigned_to: user?.id || '',
+      qa_assigned_to: user?.id || (() => {
+        throw new Error('User must be authenticated to create missions');
+      })(),
       // Default to current user
       tasks: [{
         title: '',

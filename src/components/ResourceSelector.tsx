@@ -239,13 +239,17 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
   };
 
   const markResourceAsUsed = (resource: SelectedResource) => {
+    if (!user?.email) {
+      throw new Error('User must be authenticated to mark resources as used');
+    }
+    
     const updated = selectedResources.map(r =>
       r.id === resource.id 
         ? { 
             ...r, 
             status: 'used' as const, 
             usedAt: new Date().toISOString(),
-            usedBy: user?.email || 'Unknown User'
+            usedBy: user.email
           }
         : r
     );
@@ -342,6 +346,10 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
       if (updateError) throw updateError;
 
       // Create a history record for the quantity change
+      if (!user?.id) {
+        throw new Error('User must be authenticated to use inventory resources');
+      }
+      
       const { error: historyError } = await supabase
         .from('parts_history')
         .insert({
@@ -350,7 +358,7 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
           old_quantity: partData?.current_quantity || 0,
           new_quantity: Math.max(0, newQuantity),
           quantity_change: -(resource.quantity || 1),
-          changed_by: user.id || 'system',
+          changed_by: user.id,
           change_reason: `Used for mission - ${resource.quantity || 1} ${resource.unit || 'pieces'} of ${resource.name}`
         });
 

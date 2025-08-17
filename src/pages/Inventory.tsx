@@ -886,12 +886,25 @@ export default function Inventory() {
 
       if (error) throw error;
 
+      // Immediately update local state to remove the deleted order
+      setPendingOrders(prevOrders => {
+        const newOrders = { ...prevOrders };
+        for (const partId in newOrders) {
+          newOrders[partId] = newOrders[partId].filter(order => order.id !== orderId);
+          // Remove the array if it's empty
+          if (newOrders[partId].length === 0) {
+            delete newOrders[partId];
+          }
+        }
+        return newOrders;
+      });
+
       toast({
         title: "Success",
         description: "Order deleted successfully",
       });
 
-      // Refresh both pending orders and parts data to update UI immediately
+      // Refresh data from server to ensure consistency
       await Promise.all([fetchPendingOrders(), fetchParts()]);
     } catch (error) {
       console.error('Error deleting order:', error);

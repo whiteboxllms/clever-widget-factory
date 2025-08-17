@@ -178,7 +178,7 @@ export function InventoryItemForm({
         </div>
 
         <div className="col-span-2">
-          <Label>Supplier</Label>
+          <Label>Supplier (optional)</Label>
           <Popover open={supplierOpen} onOpenChange={setSupplierOpen}>
             <PopoverTrigger asChild>
               <Button
@@ -336,24 +336,24 @@ export function InventoryItemForm({
 
         <div className="col-span-2">
           <div className="flex items-center gap-2 mb-2">
-            <Label htmlFor="cost_evidence_url">Cost Evidence URL</Label>
+            <Label htmlFor="cost_evidence_url">URLs</Label>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Info className="h-4 w-4 text-muted-foreground cursor-help" />
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Link to evidence of the cost per unit - should be a benchmark price</p>
+                  <p>Include where to purchase and any manuals related to the purchase (one per line)</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </div>
-          <Input
+          <Textarea
             id="cost_evidence_url"
-            type="url"
             value={formData.cost_evidence_url}
             onChange={(e) => updateFormData('cost_evidence_url', e.target.value)}
-            placeholder="https://example.com/product-price"
+            placeholder="https://example.com/product-page&#10;https://example.com/manual.pdf"
+            rows={3}
           />
         </div>
 

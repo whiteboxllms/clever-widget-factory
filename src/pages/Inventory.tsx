@@ -1142,31 +1142,40 @@ export default function Inventory() {
                        <Plus className="h-4 w-4 mr-1" />
                        Add
                      </Button>
-                     <Button
-                       variant="outline"
-                       size="sm"
-                       className="flex-[0.8]"
-                       onClick={() => {
-                         setOrderingPart(part);
-                         setShowOrderDialog(true);
-                       }}
-                     >
-                       <ShoppingCart className="h-4 w-4 mr-1" />
-                       Order
-                     </Button>
-                     <Button
-                       variant="outline"
-                       size="sm"
-                       className="flex-1"
-                       onClick={() => {
-                         setQuantityPart(part);
-                         setQuantityOperation('remove');
-                         setShowQuantityDialog(true);
-                       }}
-                     >
-                       <Package className="h-4 w-4 mr-1" />
-                       Use
-                     </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => {
+                          setQuantityPart(part);
+                          setQuantityOperation('remove');
+                          setShowQuantityDialog(true);
+                        }}
+                      >
+                        <Package className="h-4 w-4 mr-1" />
+                        Use
+                      </Button>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-12 px-2"
+                              onClick={() => {
+                                setOrderingPart(part);
+                                setShowOrderDialog(true);
+                              }}
+                            >
+                              <ShoppingCart className="w-4 h-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="flex items-center gap-2">
+                            <Info className="w-4 h-4" />
+                            <span>Document orders that have already been placed</span>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                    </div>
                 </div>
               </CardContent>

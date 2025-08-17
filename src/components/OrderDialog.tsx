@@ -217,16 +217,6 @@ export function OrderDialog({
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="notes">Additional Notes</Label>
-            <Textarea
-              id="notes"
-              value={formData.notes}
-              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-              placeholder="Any additional notes or comments"
-              rows={2}
-            />
-          </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>

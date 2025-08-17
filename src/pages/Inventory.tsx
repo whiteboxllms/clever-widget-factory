@@ -63,6 +63,7 @@ interface PendingOrder {
   order_details?: string;
   notes?: string;
   expected_delivery_date?: string;
+  estimated_cost?: number;
   status: string;
 }
 
@@ -890,7 +891,8 @@ export default function Inventory() {
         description: "Order deleted successfully",
       });
 
-      fetchPendingOrders();
+      // Refresh both pending orders and parts data to update UI immediately
+      await Promise.all([fetchPendingOrders(), fetchParts()]);
     } catch (error) {
       console.error('Error deleting order:', error);
       toast({

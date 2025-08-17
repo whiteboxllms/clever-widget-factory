@@ -777,16 +777,28 @@ export default function Inventory() {
     const status = getStockStatus(part);
     if (!status || status === 'good') return null;
 
+    const hasPendingOrders = pendingOrders[part.id] && pendingOrders[part.id].length > 0;
+    
     const variants = {
-      low: { variant: 'destructive', icon: AlertTriangle, text: 'Low Stock' },
-      medium: { variant: 'default', icon: TrendingDown, text: 'Running Low' }
+      low: { 
+        variant: hasPendingOrders ? 'outline' : 'destructive', 
+        icon: AlertTriangle, 
+        text: 'Low Stock',
+        opacity: hasPendingOrders ? 'opacity-60' : ''
+      },
+      medium: { 
+        variant: hasPendingOrders ? 'outline' : 'default', 
+        icon: TrendingDown, 
+        text: 'Running Low',
+        opacity: hasPendingOrders ? 'opacity-60' : ''
+      }
     } as const;
 
     const config = variants[status];
     const Icon = config.icon;
 
     return (
-      <Badge variant={config.variant as any} className="flex items-center gap-1">
+      <Badge variant={config.variant as any} className={`flex items-center gap-1 ${config.opacity}`}>
         <Icon className="h-3 w-3" />
         {config.text}
       </Badge>
@@ -1116,10 +1128,13 @@ export default function Inventory() {
 
                    {/* Show pending orders info */}
                    {pendingOrders[part.id] && pendingOrders[part.id].length > 0 && (
-                     <div className="bg-muted/50 p-2 rounded-md text-xs">
-                       <div className="font-medium text-foreground">Pending Orders:</div>
+                     <div className="bg-primary/10 border border-primary/20 p-3 rounded-md">
+                       <div className="font-semibold text-primary flex items-center gap-2 mb-2">
+                         <ShoppingCart className="h-4 w-4" />
+                         Pending Orders
+                       </div>
                        {pendingOrders[part.id].map(order => (
-                         <div key={order.id} className="text-muted-foreground">
+                         <div key={order.id} className="text-sm text-foreground font-medium">
                            • {order.quantity_ordered - order.quantity_received} {part.unit} 
                            {order.supplier_name && ` from ${order.supplier_name}`}
                            {order.expected_delivery_date && ` (${new Date(order.expected_delivery_date).toLocaleDateString()})`}

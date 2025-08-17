@@ -20,7 +20,6 @@ interface OrderDialogProps {
   onClose: () => void;
   partId: string;
   partName: string;
-  suppliers: Array<{ id: string; name: string }>;
   onOrderCreated: () => void;
 }
 
@@ -29,7 +28,6 @@ export function OrderDialog({
   onClose, 
   partId, 
   partName, 
-  suppliers, 
   onOrderCreated 
 }: OrderDialogProps) {
   const { user } = useAuth();
@@ -37,11 +35,9 @@ export function OrderDialog({
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     quantity: "",
-    supplierName: "",
-    supplierId: "",
     estimatedCost: "",
     orderDetails: "",
-    url: "",
+    urls: "",
     expectedDeliveryDate: undefined as Date | undefined,
   });
 
@@ -63,11 +59,8 @@ export function OrderDialog({
       const orderData = {
         part_id: partId,
         quantity_ordered: parseFloat(formData.quantity),
-        supplier_name: formData.supplierName || null,
-        supplier_id: formData.supplierId || null,
         estimated_cost: formData.estimatedCost ? parseFloat(formData.estimatedCost) : null,
         order_details: formData.orderDetails || null,
-        url: formData.url || null,
         expected_delivery_date: formData.expectedDeliveryDate?.toISOString().split('T')[0] || null,
         ordered_by: user.id,
         status: 'pending'
@@ -88,11 +81,9 @@ export function OrderDialog({
       // Reset form
       setFormData({
         quantity: "",
-        supplierName: "",
-        supplierId: "",
         estimatedCost: "",
         orderDetails: "",
-        url: "",
+        urls: "",
         expectedDeliveryDate: undefined,
       });
     } catch (error) {
@@ -106,14 +97,6 @@ export function OrderDialog({
     }
   };
 
-  const handleSupplierChange = (supplierId: string) => {
-    const supplier = suppliers.find(s => s.id === supplierId);
-    setFormData(prev => ({
-      ...prev,
-      supplierId,
-      supplierName: supplier?.name || ""
-    }));
-  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -134,33 +117,6 @@ export function OrderDialog({
               onChange={(e) => setFormData(prev => ({ ...prev, quantity: e.target.value }))}
               placeholder="Enter quantity"
               required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="supplier">Supplier</Label>
-            <Select value={formData.supplierId} onValueChange={handleSupplierChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select supplier (optional)" />
-              </SelectTrigger>
-              <SelectContent>
-                {suppliers.map((supplier) => (
-                  <SelectItem key={supplier.id} value={supplier.id}>
-                    {supplier.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="supplierName">Supplier Name (if not in list)</Label>
-            <Input
-              id="supplierName"
-              value={formData.supplierName}
-              onChange={(e) => setFormData(prev => ({ ...prev, supplierName: e.target.value }))}
-              placeholder="Enter supplier name"
-              disabled={!!formData.supplierId}
             />
           </div>
 
@@ -190,13 +146,13 @@ export function OrderDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="url">URL (optional)</Label>
-            <Input
-              id="url"
-              type="url"
-              value={formData.url}
-              onChange={(e) => setFormData(prev => ({ ...prev, url: e.target.value }))}
-              placeholder="Product or supplier URL"
+            <Label htmlFor="urls">URLs (optional)</Label>
+            <Textarea
+              id="urls"
+              value={formData.urls}
+              onChange={(e) => setFormData(prev => ({ ...prev, urls: e.target.value }))}
+              placeholder="Product or supplier URLs (one per line)"
+              rows={2}
             />
           </div>
 

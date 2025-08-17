@@ -1313,7 +1313,6 @@ export default function Inventory() {
               }}
               partId={orderingPart.id}
               partName={orderingPart.name}
-              suppliers={suppliers}
               onOrderCreated={() => {
                 fetchPendingOrders();
               }}

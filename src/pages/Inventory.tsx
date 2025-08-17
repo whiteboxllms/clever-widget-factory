@@ -270,6 +270,19 @@ export default function Inventory() {
                part.minimum_quantity > 0 && 
                part.current_quantity <= part.minimum_quantity;
       });
+      
+      // Sort to show unordered items first when filtering for low stock
+      filtered = filtered.sort((a, b) => {
+        const aHasOrders = pendingOrders[a.id] && pendingOrders[a.id].length > 0;
+        const bHasOrders = pendingOrders[b.id] && pendingOrders[b.id].length > 0;
+        
+        // If only one has orders, prioritize the one without orders
+        if (aHasOrders && !bHasOrders) return 1;
+        if (!aHasOrders && bHasOrders) return -1;
+        
+        // If both have same order status, sort by name
+        return a.name.localeCompare(b.name);
+      });
     }
 
     setFilteredParts(filtered);

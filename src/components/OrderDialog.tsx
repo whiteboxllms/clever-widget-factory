@@ -102,12 +102,12 @@ export function OrderDialog({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Order {partName}</DialogTitle>
+          <DialogTitle>{partName}</DialogTitle>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="quantity">Quantity to Order *</Label>
+            <Label htmlFor="quantity">Ordered *</Label>
             <Input
               id="quantity"
               type="number"

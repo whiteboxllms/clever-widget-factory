@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,12 +15,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
+interface PendingOrder {
+  id: string;
+  quantity_ordered: number;
+  quantity_received: number;
+  supplier_name?: string;
+  order_details?: string;
+  notes?: string;
+  expected_delivery_date?: string;
+  estimated_cost?: number;
+  status: string;
+}
+
 interface OrderDialogProps {
   isOpen: boolean;
   onClose: () => void;
   partId: string;
   partName: string;
   onOrderCreated: () => void;
+  editingOrder?: PendingOrder;
 }
 
 export function OrderDialog({ 
@@ -28,7 +41,8 @@ export function OrderDialog({
   onClose, 
   partId, 
   partName, 
-  onOrderCreated 
+  onOrderCreated,
+  editingOrder
 }: OrderDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -40,6 +54,28 @@ export function OrderDialog({
     urls: "",
     expectedDeliveryDate: undefined as Date | undefined,
   });
+
+  // Pre-populate form when editing
+  useEffect(() => {
+    if (editingOrder) {
+      setFormData({
+        quantity: editingOrder.quantity_ordered.toString(),
+        estimatedCost: editingOrder.estimated_cost?.toString() || "",
+        orderDetails: editingOrder.order_details || "",
+        urls: editingOrder.notes || "",
+        expectedDeliveryDate: editingOrder.expected_delivery_date ? new Date(editingOrder.expected_delivery_date) : undefined,
+      });
+    } else {
+      // Reset form when not editing
+      setFormData({
+        quantity: "",
+        estimatedCost: "",
+        orderDetails: "",
+        urls: "",
+        expectedDeliveryDate: undefined,
+      });
+    }
+  }, [editingOrder]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,35 +93,45 @@ export function OrderDialog({
 
     try {
       const orderData = {
-        part_id: partId,
         quantity_ordered: parseFloat(formData.quantity),
         estimated_cost: formData.estimatedCost ? parseFloat(formData.estimatedCost) : null,
         order_details: formData.orderDetails || null,
+        notes: formData.urls || null,
         expected_delivery_date: formData.expectedDeliveryDate?.toISOString().split('T')[0] || null,
-        ordered_by: user.id,
-        status: 'pending'
       };
 
-      const { error } = await supabase
-        .from('parts_orders')
-        .insert([orderData]);
+      if (editingOrder) {
+        // Update existing order
+        const { error } = await supabase
+          .from('parts_orders')
+          .update(orderData)
+          .eq('id', editingOrder.id);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      toast({
-        title: `Order created for ${partName}`,
-      });
+        toast({
+          title: `Order updated for ${partName}`,
+        });
+      } else {
+        // Create new order
+        const { error } = await supabase
+          .from('parts_orders')
+          .insert([{
+            ...orderData,
+            part_id: partId,
+            ordered_by: user.id,
+            status: 'pending'
+          }]);
+
+        if (error) throw error;
+
+        toast({
+          title: `Order created for ${partName}`,
+        });
+      }
+
       onOrderCreated();
       onClose();
-      
-      // Reset form
-      setFormData({
-        quantity: "",
-        estimatedCost: "",
-        orderDetails: "",
-        urls: "",
-        expectedDeliveryDate: undefined,
-      });
     } catch (error) {
       console.error('Error creating order:', error);
       toast({
@@ -102,7 +148,7 @@ export function OrderDialog({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>{partName}</DialogTitle>
+          <DialogTitle>{editingOrder ? 'Edit Order for' : 'Create Order for'} {partName}</DialogTitle>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -203,7 +249,10 @@ export function OrderDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Creating Order..." : "Create Order"}
+              {loading 
+                ? (editingOrder ? "Updating Order..." : "Creating Order...") 
+                : (editingOrder ? "Update Order" : "Create Order")
+              }
             </Button>
           </DialogFooter>
         </form>

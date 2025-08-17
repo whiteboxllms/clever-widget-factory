@@ -86,6 +86,9 @@ export default function Inventory() {
   const [quantityOperation, setQuantityOperation] = useState<'add' | 'remove'>('add');
   const [showOrderDialog, setShowOrderDialog] = useState(false);
   const [orderingPart, setOrderingPart] = useState<Part | null>(null);
+  const [showEditOrderDialog, setShowEditOrderDialog] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<PendingOrder | null>(null);
+  const [editingOrderPart, setEditingOrderPart] = useState<Part | null>(null);
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
   const navigate = useNavigate();
@@ -867,6 +870,37 @@ export default function Inventory() {
     setExpandedDescriptions(newExpanded);
   };
 
+  const handleEditOrder = (order: PendingOrder, part: Part) => {
+    setEditingOrder(order);
+    setEditingOrderPart(part);
+    setShowEditOrderDialog(true);
+  };
+
+  const handleDeleteOrder = async (orderId: string) => {
+    try {
+      const { error } = await supabase
+        .from('parts_orders')
+        .delete()
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Order deleted successfully",
+      });
+
+      fetchPendingOrders();
+    } catch (error) {
+      console.error('Error deleting order:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete order",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -1146,13 +1180,54 @@ export default function Inventory() {
                          <ShoppingCart className="h-4 w-4" />
                          Pending Orders
                        </div>
-                       {pendingOrders[part.id].map(order => (
-                         <div key={order.id} className="text-sm text-foreground font-medium">
-                           • {order.quantity_ordered - order.quantity_received} {part.unit} 
-                           {order.supplier_name && ` from ${order.supplier_name}`}
-                           {order.expected_delivery_date && ` (${new Date(order.expected_delivery_date).toLocaleDateString()})`}
-                         </div>
-                       ))}
+                        {pendingOrders[part.id].map(order => (
+                          <div key={order.id} className="flex items-center justify-between text-sm text-foreground font-medium">
+                            <div>
+                              • {order.quantity_ordered - order.quantity_received} {part.unit} 
+                              {order.supplier_name && ` from ${order.supplier_name}`}
+                              {order.expected_delivery_date && ` (${new Date(order.expected_delivery_date).toLocaleDateString()})`}
+                            </div>
+                            <div className="flex gap-1 ml-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 hover:bg-primary/20"
+                                onClick={() => handleEditOrder(order, part)}
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 hover:bg-destructive/20 hover:text-destructive"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete Order</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to delete this order for {order.quantity_ordered} {part.unit} of {part.name}?
+                                      This action cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDeleteOrder(order.id)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </div>
+                        ))}
                      </div>
                    )}
 
@@ -1344,6 +1419,24 @@ export default function Inventory() {
               onOrderCreated={() => {
                 fetchPendingOrders();
               }}
+            />
+          )}
+
+          {/* Edit Order Dialog */}
+          {editingOrderPart && editingOrder && (
+            <OrderDialog
+              isOpen={showEditOrderDialog}
+              onClose={() => {
+                setShowEditOrderDialog(false);
+                setEditingOrder(null);
+                setEditingOrderPart(null);
+              }}
+              partId={editingOrderPart.id}
+              partName={editingOrderPart.name}
+              onOrderCreated={() => {
+                fetchPendingOrders();
+              }}
+              editingOrder={editingOrder}
             />
           )}
         </div>

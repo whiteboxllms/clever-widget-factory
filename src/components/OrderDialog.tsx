@@ -7,7 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { CalendarIcon, Info } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,7 +41,7 @@ export function OrderDialog({
     supplierId: "",
     estimatedCost: "",
     orderDetails: "",
-    notes: "",
+    url: "",
     expectedDeliveryDate: undefined as Date | undefined,
   });
 
@@ -66,7 +67,7 @@ export function OrderDialog({
         supplier_id: formData.supplierId || null,
         estimated_cost: formData.estimatedCost ? parseFloat(formData.estimatedCost) : null,
         order_details: formData.orderDetails || null,
-        notes: formData.notes || null,
+        url: formData.url || null,
         expected_delivery_date: formData.expectedDeliveryDate?.toISOString().split('T')[0] || null,
         ordered_by: user.id,
         status: 'pending'
@@ -91,7 +92,7 @@ export function OrderDialog({
         supplierId: "",
         estimatedCost: "",
         orderDetails: "",
-        notes: "",
+        url: "",
         expectedDeliveryDate: undefined,
       });
     } catch (error) {
@@ -164,7 +165,19 @@ export function OrderDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="estimatedCost">Estimated Cost</Label>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="estimatedCost">Product Cost</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Product price only - do not include shipping costs</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             <Input
               id="estimatedCost"
               type="number"
@@ -172,7 +185,18 @@ export function OrderDialog({
               step="0.01"
               value={formData.estimatedCost}
               onChange={(e) => setFormData(prev => ({ ...prev, estimatedCost: e.target.value }))}
-              placeholder="Enter estimated cost"
+              placeholder="Enter product cost"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="url">URL (optional)</Label>
+            <Input
+              id="url"
+              type="url"
+              value={formData.url}
+              onChange={(e) => setFormData(prev => ({ ...prev, url: e.target.value }))}
+              placeholder="Product or supplier URL"
             />
           </div>
 

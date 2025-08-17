@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.3 (519615d)"
@@ -518,6 +518,7 @@ export type Database = {
           id: string
           new_quantity: number | null
           old_quantity: number | null
+          order_id: string | null
           part_id: string
           quantity_change: number | null
         }
@@ -530,6 +531,7 @@ export type Database = {
           id?: string
           new_quantity?: number | null
           old_quantity?: number | null
+          order_id?: string | null
           part_id: string
           quantity_change?: number | null
         }
@@ -542,6 +544,7 @@ export type Database = {
           id?: string
           new_quantity?: number | null
           old_quantity?: number | null
+          order_id?: string | null
           part_id?: string
           quantity_change?: number | null
         }
@@ -553,7 +556,68 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
           },
+          {
+            foreignKeyName: "parts_history_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "parts_orders"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      parts_orders: {
+        Row: {
+          created_at: string
+          estimated_cost: number | null
+          expected_delivery_date: string | null
+          id: string
+          notes: string | null
+          order_details: string | null
+          ordered_at: string
+          ordered_by: string
+          part_id: string
+          quantity_ordered: number
+          quantity_received: number
+          status: string
+          supplier_id: string | null
+          supplier_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          estimated_cost?: number | null
+          expected_delivery_date?: string | null
+          id?: string
+          notes?: string | null
+          order_details?: string | null
+          ordered_at?: string
+          ordered_by: string
+          part_id: string
+          quantity_ordered: number
+          quantity_received?: number
+          status?: string
+          supplier_id?: string | null
+          supplier_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          estimated_cost?: number | null
+          expected_delivery_date?: string | null
+          id?: string
+          notes?: string | null
+          order_details?: string | null
+          ordered_at?: string
+          ordered_by?: string
+          part_id?: string
+          quantity_ordered?: number
+          quantity_received?: number
+          status?: string
+          supplier_id?: string | null
+          supplier_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -793,8 +857,8 @@ export type Database = {
       get_user_display_names: {
         Args: Record<PropertyKey, never>
         Returns: {
-          user_id: string
           full_name: string
+          user_id: string
         }[]
       }
     }

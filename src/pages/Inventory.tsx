@@ -11,9 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Upload, UserPlus, Check, ChevronsUpDown, History, ArrowLeft, Info, BarChart3 } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Upload, UserPlus, Check, ChevronsUpDown, History, ArrowLeft, Info, BarChart3, ShoppingCart } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { InventoryHistoryDialog } from '@/components/InventoryHistoryDialog';
+import { OrderDialog } from '@/components/OrderDialog';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -54,11 +55,23 @@ interface Part {
   updated_at: string;
 }
 
+interface PendingOrder {
+  id: string;
+  quantity_ordered: number;
+  quantity_received: number;
+  supplier_name?: string;
+  order_details?: string;
+  notes?: string;
+  expected_delivery_date?: string;
+  status: string;
+}
+
 
 
 export default function Inventory() {
   const [parts, setParts] = useState<Part[]>([]);
   const [filteredParts, setFilteredParts] = useState<Part[]>([]);
+  const [pendingOrders, setPendingOrders] = useState<Record<string, PendingOrder[]>>({});
   
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,6 +84,8 @@ export default function Inventory() {
   const [showQuantityDialog, setShowQuantityDialog] = useState(false);
   const [quantityPart, setQuantityPart] = useState<Part | null>(null);
   const [quantityOperation, setQuantityOperation] = useState<'add' | 'remove'>('add');
+  const [showOrderDialog, setShowOrderDialog] = useState(false);
+  const [orderingPart, setOrderingPart] = useState<Part | null>(null);
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
   const navigate = useNavigate();
@@ -153,6 +168,7 @@ export default function Inventory() {
   useEffect(() => {
     fetchParts();
     fetchSuppliers();
+    fetchPendingOrders();
   }, []);
 
   useEffect(() => {
@@ -203,6 +219,31 @@ export default function Inventory() {
         description: "Failed to fetch suppliers",
         variant: "destructive",
       });
+    }
+  };
+
+  const fetchPendingOrders = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('parts_orders')
+        .select('*')
+        .in('status', ['pending', 'partially_received'])
+        .order('ordered_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Group orders by part_id
+      const ordersByPart: Record<string, PendingOrder[]> = {};
+      (data || []).forEach(order => {
+        if (!ordersByPart[order.part_id]) {
+          ordersByPart[order.part_id] = [];
+        }
+        ordersByPart[order.part_id].push(order);
+      });
+
+      setPendingOrders(ordersByPart);
+    } catch (error) {
+      console.error('Error fetching pending orders:', error);
     }
   };
 
@@ -387,7 +428,8 @@ export default function Inventory() {
             new_quantity: formData.current_quantity,
             quantity_change: null,
             changed_by: currentUser.id,
-            change_reason: 'Item created'
+            change_reason: 'Item created',
+            order_id: null
           }]);
 
         if (historyError) {
@@ -420,6 +462,7 @@ export default function Inventory() {
       setSelectedImage(null);
       setShowAddDialog(false);
       fetchParts();
+      fetchPendingOrders();
     } catch (error) {
       console.error('Error adding part - Full error details:', error);
       
@@ -612,6 +655,42 @@ export default function Inventory() {
 
       if (error) throw error;
 
+      // If adding quantity, try to fulfill pending orders automatically
+      let fulfilledOrderId = null;
+      if (quantityOperation === 'add' && pendingOrders[quantityPart.id]) {
+        const partOrders = pendingOrders[quantityPart.id];
+        let remainingQuantity = amount;
+
+        for (const order of partOrders) {
+          if (remainingQuantity <= 0) break;
+          
+          const neededQuantity = order.quantity_ordered - order.quantity_received;
+          const fulfillmentQuantity = Math.min(remainingQuantity, neededQuantity);
+          
+          if (fulfillmentQuantity > 0) {
+            const newReceivedQuantity = order.quantity_received + fulfillmentQuantity;
+            const newStatus = newReceivedQuantity >= order.quantity_ordered ? 'completed' : 'partially_received';
+            
+            try {
+              const { error: orderError } = await supabase
+                .from('parts_orders')
+                .update({
+                  quantity_received: newReceivedQuantity,
+                  status: newStatus
+                })
+                .eq('id', order.id);
+
+              if (!orderError) {
+                fulfilledOrderId = order.id;
+                remainingQuantity -= fulfillmentQuantity;
+              }
+            } catch (orderError) {
+              console.error('Error updating order:', orderError);
+            }
+          }
+        }
+      }
+
       // Log the change to history
       try {
         // Get the current authenticated user ID from the session
@@ -631,7 +710,8 @@ export default function Inventory() {
             new_quantity: newQuantity,
             quantity_change: quantityOperation === 'add' ? amount : -amount,
             changed_by: currentUser.id,
-            change_reason: quantityChange.reason || null
+            change_reason: quantityChange.reason || null,
+            order_id: fulfilledOrderId
           }]);
 
         if (historyError) {
@@ -668,13 +748,14 @@ export default function Inventory() {
 
       toast({
         title: "Success",
-        description: `Quantity ${quantityOperation === 'add' ? 'increased' : 'decreased'} successfully`,
+        description: `Quantity ${quantityOperation === 'add' ? 'increased' : 'decreased'} successfully${fulfilledOrderId ? ' and order fulfilled' : ''}`,
       });
 
       setShowQuantityDialog(false);
       setQuantityPart(null);
       setQuantityChange({ amount: '', reason: '' });
       fetchParts();
+      fetchPendingOrders();
     } catch (error) {
       console.error('Error updating quantity:', error);
       toast({
@@ -1033,34 +1114,60 @@ export default function Inventory() {
                     </div>
                   )}
 
-                  <div className="flex gap-2 pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => {
-                        setQuantityPart(part);
-                        setQuantityOperation('add');
-                        setShowQuantityDialog(true);
-                      }}
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Add
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => {
-                        setQuantityPart(part);
-                        setQuantityOperation('remove');
-                        setShowQuantityDialog(true);
-                      }}
-                    >
-                      <Package className="h-4 w-4 mr-1" />
-                      Use
-                    </Button>
-                  </div>
+                   {/* Show pending orders info */}
+                   {pendingOrders[part.id] && pendingOrders[part.id].length > 0 && (
+                     <div className="bg-muted/50 p-2 rounded-md text-xs">
+                       <div className="font-medium text-foreground">Pending Orders:</div>
+                       {pendingOrders[part.id].map(order => (
+                         <div key={order.id} className="text-muted-foreground">
+                           • {order.quantity_ordered - order.quantity_received} {part.unit} 
+                           {order.supplier_name && ` from ${order.supplier_name}`}
+                           {order.expected_delivery_date && ` (${new Date(order.expected_delivery_date).toLocaleDateString()})`}
+                         </div>
+                       ))}
+                     </div>
+                   )}
+
+                   <div className="flex gap-2 pt-2">
+                     <Button
+                       variant="outline"
+                       size="sm"
+                       className="flex-1"
+                       onClick={() => {
+                         setQuantityPart(part);
+                         setQuantityOperation('add');
+                         setShowQuantityDialog(true);
+                       }}
+                     >
+                       <Plus className="h-4 w-4 mr-1" />
+                       Add
+                     </Button>
+                     <Button
+                       variant="outline"
+                       size="sm"
+                       className="flex-[0.8]"
+                       onClick={() => {
+                         setOrderingPart(part);
+                         setShowOrderDialog(true);
+                       }}
+                     >
+                       <ShoppingCart className="h-4 w-4 mr-1" />
+                       Order
+                     </Button>
+                     <Button
+                       variant="outline"
+                       size="sm"
+                       className="flex-1"
+                       onClick={() => {
+                         setQuantityPart(part);
+                         setQuantityOperation('remove');
+                         setShowQuantityDialog(true);
+                       }}
+                     >
+                       <Package className="h-4 w-4 mr-1" />
+                       Use
+                     </Button>
+                   </div>
                 </div>
               </CardContent>
             </Card>
@@ -1123,18 +1230,32 @@ export default function Inventory() {
               <DialogTitle>
                 {quantityOperation === 'add' ? 'Add Quantity' : 'Use/Remove Quantity'}
               </DialogTitle>
-              <DialogDescription>
-                {quantityPart && (
-                  <>
-                    {quantityOperation === 'add' 
-                      ? `Add more ${quantityPart.name} to inventory`
-                      : `Record usage of ${quantityPart.name}`
-                    }
-                    <br />
-                    Current quantity: {quantityPart.current_quantity} {quantityPart.unit}
-                  </>
-                )}
-              </DialogDescription>
+               <DialogDescription>
+                 {quantityPart && (
+                   <>
+                     {quantityOperation === 'add' 
+                       ? `Add more ${quantityPart.name} to inventory`
+                       : `Record usage of ${quantityPart.name}`
+                     }
+                     <br />
+                     Current quantity: {quantityPart.current_quantity} {quantityPart.unit}
+                     
+                     {/* Show pending orders when adding quantity */}
+                     {quantityOperation === 'add' && pendingOrders[quantityPart.id] && pendingOrders[quantityPart.id].length > 0 && (
+                       <div className="mt-2 p-2 bg-muted/50 rounded-md text-xs">
+                         <div className="font-medium">Pending Orders:</div>
+                         {pendingOrders[quantityPart.id].map(order => (
+                           <div key={order.id} className="text-muted-foreground">
+                             • {order.quantity_ordered - order.quantity_received} {quantityPart.unit}
+                             {order.supplier_name && ` from ${order.supplier_name}`}
+                             {order.order_details && ` - ${order.order_details}`}
+                           </div>
+                         ))}
+                       </div>
+                     )}
+                   </>
+                 )}
+               </DialogDescription>
             </DialogHeader>
             
             <div className="space-y-4">
@@ -1171,7 +1292,24 @@ export default function Inventory() {
               </Button>
             </div>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+
+          {/* Order Dialog */}
+          {orderingPart && (
+            <OrderDialog
+              isOpen={showOrderDialog}
+              onClose={() => {
+                setShowOrderDialog(false);
+                setOrderingPart(null);
+              }}
+              partId={orderingPart.id}
+              partName={orderingPart.name}
+              suppliers={suppliers}
+              onOrderCreated={() => {
+                fetchPendingOrders();
+              }}
+            />
+          )}
         </div>
       </main>
     </div>

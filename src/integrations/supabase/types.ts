@@ -850,6 +850,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_role_update_permission: {
+        Args: { new_role: string; old_role: string; target_user_id: string }
+        Returns: boolean
+      }
       get_user_display_name: {
         Args: { target_user_id: string }
         Returns: string

@@ -76,10 +76,11 @@ export default function Inventory() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  // Handle URL parameters for edit mode and return navigation
+  // Handle URL parameters for edit mode, return navigation, and low stock filter
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const editPartId = urlParams.get('edit');
+    const showLowStock = urlParams.get('showLowStock');
     
     if (editPartId && parts.length > 0) {
       // Find and set the part for editing when edit parameter is present
@@ -92,6 +93,15 @@ export default function Inventory() {
         newUrl.searchParams.delete('edit');
         window.history.replaceState({}, '', newUrl.toString());
       }
+    }
+    
+    // Enable low stock filter if parameter is present
+    if (showLowStock === 'true') {
+      setShowLowInventoryOnly(true);
+      // Clear the URL parameter to avoid staying enabled on refresh
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('showLowStock');
+      window.history.replaceState({}, '', newUrl.toString());
     }
   }, [parts]);
 

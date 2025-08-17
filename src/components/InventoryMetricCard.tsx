@@ -9,9 +9,10 @@ interface InventoryMetricCardProps {
   variant: "default" | "warning" | "info" | "success";
   change?: number;
   changeLabel?: string;
+  onClick?: () => void;
 }
 
-export function InventoryMetricCard({ title, value, description, variant, change, changeLabel }: InventoryMetricCardProps) {
+export function InventoryMetricCard({ title, value, description, variant, change, changeLabel, onClick }: InventoryMetricCardProps) {
   const getVariantStyles = () => {
     switch (variant) {
       case "warning":
@@ -44,7 +45,10 @@ export function InventoryMetricCard({ title, value, description, variant, change
   const { icon: Icon, badgeVariant, iconColor } = getVariantStyles();
 
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card 
+      className={`hover:shadow-md transition-shadow ${onClick ? 'cursor-pointer hover:bg-accent' : ''}`}
+      onClick={onClick}
+    >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {title}

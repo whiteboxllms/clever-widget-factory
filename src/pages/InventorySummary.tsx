@@ -1,5 +1,5 @@
 import { ArrowLeft, BarChart3 } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useInventoryAnalytics } from "@/hooks/useInventoryAnalytics";
@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 export default function InventorySummary() {
   const { data, isLoading, error } = useInventoryAnalytics();
   const location = useLocation();
+  const navigate = useNavigate();
   const [initialDialogState, setInitialDialogState] = useState<{
     date: string;
     users: string[];
@@ -31,6 +32,10 @@ export default function InventorySummary() {
       });
     }
   }, [location.search]);
+
+  const handleLowStockClick = () => {
+    navigate('/inventory?showLowStock=true');
+  };
 
   if (error) {
     return (
@@ -93,6 +98,7 @@ export default function InventorySummary() {
                 value={data?.lowStockItems || 0}
                 description="Need restocking"
                 variant="warning"
+                onClick={handleLowStockClick}
               />
               <InventoryMetricCard
                 title="Recent Additions"

@@ -521,6 +521,8 @@ export type Database = {
           order_id: string | null
           part_id: string
           quantity_change: number | null
+          supplier_name: string | null
+          supplier_url: string | null
         }
         Insert: {
           change_reason?: string | null
@@ -534,6 +536,8 @@ export type Database = {
           order_id?: string | null
           part_id: string
           quantity_change?: number | null
+          supplier_name?: string | null
+          supplier_url?: string | null
         }
         Update: {
           change_reason?: string | null
@@ -547,6 +551,8 @@ export type Database = {
           order_id?: string | null
           part_id?: string
           quantity_change?: number | null
+          supplier_name?: string | null
+          supplier_url?: string | null
         }
         Relationships: [
           {

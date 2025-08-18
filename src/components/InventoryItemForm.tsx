@@ -6,22 +6,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Upload, UserPlus, Check, ChevronsUpDown, Info } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Upload, Info } from 'lucide-react';
 
-interface Supplier {
-  id: string;
-  name: string;
-  contact_info: any;
-  quality_rating: number;
-  notes: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
+// Supplier interface removed - supplier tracking moved to stock additions
 
 interface Part {
   id: string;
@@ -48,7 +36,6 @@ interface FormData {
   cost_per_unit: string;
   cost_evidence_url: string;
   unit: string;
-  supplier_id: string;
   storage_vicinity: string;
   storage_location: string;
 }
@@ -57,11 +44,9 @@ interface InventoryItemFormProps {
   initialData?: Partial<FormData>;
   selectedImage: File | null;
   setSelectedImage: (file: File | null) => void;
-  suppliers: Supplier[];
   isLoading: boolean;
   onSubmit: (data: FormData, useMinimumQuantity: boolean) => void;
   onCancel: () => void;
-  onAddSupplier: (supplierName?: string) => void;
   submitButtonText: string;
   editingPart?: Part | null;
 }
@@ -70,11 +55,9 @@ export function InventoryItemForm({
   initialData,
   selectedImage,
   setSelectedImage,
-  suppliers,
   isLoading,
   onSubmit,
   onCancel,
-  onAddSupplier,
   submitButtonText,
   editingPart
 }: InventoryItemFormProps) {
@@ -86,15 +69,12 @@ export function InventoryItemForm({
     cost_per_unit: '',
     cost_evidence_url: '',
     unit: 'pieces',
-    supplier_id: '',
     storage_vicinity: '',
     storage_location: '',
     ...initialData
   });
 
   const [useMinimumQuantity, setUseMinimumQuantity] = useState(false);
-  const [supplierOpen, setSupplierOpen] = useState(false);
-  const [supplierSearchQuery, setSupplierSearchQuery] = useState('');
 
   // Initialize form data when editing
   useEffect(() => {
@@ -107,7 +87,6 @@ export function InventoryItemForm({
         cost_per_unit: editingPart.cost_per_unit?.toString() || '',
         cost_evidence_url: '',
         unit: editingPart.unit || 'pieces',
-        supplier_id: editingPart.supplier_id || '',
         storage_vicinity: editingPart.storage_vicinity,
         storage_location: editingPart.storage_location || ''
       });
@@ -177,77 +156,7 @@ export function InventoryItemForm({
           )}
         </div>
 
-        <div className="col-span-2">
-          <Label>Supplier (optional)</Label>
-          <Popover open={supplierOpen} onOpenChange={setSupplierOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={supplierOpen}
-                className="w-full justify-between"
-              >
-                {formData.supplier_id
-                  ? suppliers.find((supplier) => supplier.id === formData.supplier_id)?.name
-                  : "Select supplier..."}
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-full p-0">
-              <Command>
-                <CommandInput 
-                  placeholder="Search supplier..." 
-                  value={supplierSearchQuery}
-                  onValueChange={setSupplierSearchQuery}
-                />
-                <CommandList>
-                  <CommandEmpty>
-                    <div className="flex flex-col items-center gap-2 py-4">
-                      <p className="text-sm text-muted-foreground">No supplier found.</p>
-                      {supplierSearchQuery.trim() && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            onAddSupplier(supplierSearchQuery.trim());
-                            setSupplierOpen(false);
-                            setSupplierSearchQuery('');
-                          }}
-                          className="flex items-center gap-1"
-                        >
-                          <UserPlus className="h-3 w-3" />
-                          Add "{supplierSearchQuery.trim()}" as new supplier
-                        </Button>
-                      )}
-                    </div>
-                  </CommandEmpty>
-                  <CommandGroup>
-                    {suppliers.map((supplier) => (
-                      <CommandItem
-                        key={supplier.id}
-                        value={supplier.name}
-                        onSelect={(currentValue) => {
-                          const selectedSupplier = suppliers.find(s => s.name.toLowerCase() === currentValue.toLowerCase());
-                          updateFormData('supplier_id', selectedSupplier?.id || '');
-                          setSupplierOpen(false);
-                          setSupplierSearchQuery('');
-                        }}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            formData.supplier_id === supplier.id ? "opacity-100" : "opacity-0"
-                          )}
-                        />
-                        {supplier.name}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-        </div>
+        {/* Supplier selection removed - supplier info will be captured during stock additions */}
 
         <div className="col-span-2">
           <div className="grid grid-cols-2 gap-4">

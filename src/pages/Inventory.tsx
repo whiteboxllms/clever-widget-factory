@@ -27,16 +27,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { InventoryItemForm } from '@/components/InventoryItemForm';
 
-interface Supplier {
-  id: string;
-  name: string;
-  contact_info: any;
-  quality_rating: number;
-  notes: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
+// Supplier interface removed - supplier tracking moved to stock additions
 
 interface Part {
   id: string;
@@ -74,7 +65,7 @@ export default function Inventory() {
   const [filteredParts, setFilteredParts] = useState<Part[]>([]);
   const [pendingOrders, setPendingOrders] = useState<Record<string, PendingOrder[]>>({});
   
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  // Suppliers state removed - tracking moved to stock additions
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showLowInventoryOnly, setShowLowInventoryOnly] = useState(false);
@@ -149,7 +140,7 @@ export default function Inventory() {
     minimum_quantity: 0,
     cost_per_unit: '',
     unit: 'pieces',
-    supplier_id: '',
+    // supplier_id removed - tracking moved to stock additions
     storage_vicinity: '',
     storage_location: ''
   });
@@ -157,21 +148,20 @@ export default function Inventory() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [editSelectedImage, setEditSelectedImage] = useState<File | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [showAddSupplierDialog, setShowAddSupplierDialog] = useState(false);
-  const [newSupplier, setNewSupplier] = useState('');
-  const [supplierOpen, setSupplierOpen] = useState(false);
-  const [editSupplierOpen, setEditSupplierOpen] = useState(false);
+  // Supplier dialog states removed - tracking moved to stock additions
   
   const [expandedDescriptions, setExpandedDescriptions] = useState<Set<string>>(new Set());
 
   const [quantityChange, setQuantityChange] = useState({
     amount: '',
-    reason: ''
+    reason: '',
+    supplierName: '',
+    supplierUrl: ''
   });
 
   useEffect(() => {
     fetchParts();
-    fetchSuppliers();
+    // fetchSuppliers() removed - tracking moved to stock additions
     fetchPendingOrders();
   }, []);
 
@@ -206,25 +196,7 @@ export default function Inventory() {
     }
   };
 
-  const fetchSuppliers = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('suppliers')
-        .select('*')
-        .eq('is_active', true)
-        .order('name');
-
-      if (error) throw error;
-      setSuppliers(data || []);
-    } catch (error) {
-      console.error('Error fetching suppliers:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch suppliers",
-        variant: "destructive",
-      });
-    }
-  };
+  // fetchSuppliers function removed - tracking moved to stock additions
 
   const fetchPendingOrders = async () => {
     try {
@@ -257,13 +229,9 @@ export default function Inventory() {
 
     if (searchTerm) {
       filtered = filtered.filter(part => {
-        const supplierName = part.supplier_id 
-          ? suppliers.find(s => s.id === part.supplier_id)?.name 
-          : part.supplier; // fallback to old supplier field
-        
+        // Supplier search removed - focusing on name and description only
         return part.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          part.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          supplierName?.toLowerCase().includes(searchTerm.toLowerCase());
+          part.description?.toLowerCase().includes(searchTerm.toLowerCase());
       });
     }
 
@@ -472,7 +440,7 @@ export default function Inventory() {
         minimum_quantity: 0,
         cost_per_unit: '',
         unit: 'pieces',
-        supplier_id: '',
+        // supplier_id removed - tracking moved to stock additions
         storage_vicinity: '',
         storage_location: ''
       });
@@ -538,7 +506,7 @@ export default function Inventory() {
         minimum_quantity: useMinimumQuantity ? formData.minimum_quantity : null,
         cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
         unit: formData.unit,
-        supplier_id: formData.supplier_id,
+        // supplier_id removed - tracking moved to stock additions
         storage_vicinity: formData.storage_vicinity,
         storage_location: formData.storage_location,
         image_url: imageUrl
@@ -728,7 +696,9 @@ export default function Inventory() {
             quantity_change: quantityOperation === 'add' ? amount : -amount,
             changed_by: currentUser.id,
             change_reason: quantityChange.reason || null,
-            order_id: fulfilledOrderId
+            order_id: fulfilledOrderId,
+            supplier_name: quantityOperation === 'add' ? (quantityChange.supplierName || null) : null,
+            supplier_url: quantityOperation === 'add' ? (quantityChange.supplierUrl || null) : null
           }]);
 
         if (historyError) {
@@ -770,7 +740,7 @@ export default function Inventory() {
 
       setShowQuantityDialog(false);
       setQuantityPart(null);
-      setQuantityChange({ amount: '', reason: '' });
+      setQuantityChange({ amount: '', reason: '', supplierName: '', supplierUrl: '' });
       fetchParts();
       fetchPendingOrders();
     } catch (error) {
@@ -822,44 +792,7 @@ export default function Inventory() {
     );
   };
 
-  const addSupplier = async () => {
-    if (!newSupplier.trim()) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('suppliers')
-        .insert([{ name: newSupplier.trim() }])
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Supplier added successfully",
-      });
-
-      setNewSupplier('');
-      setShowAddSupplierDialog(false);
-      
-      // First refresh suppliers, then auto-select
-      await fetchSuppliers();
-      
-      // Close both popovers to reset their state
-      setSupplierOpen(false);
-      setEditSupplierOpen(false);
-      
-      // Auto-select the new supplier
-      setNewPart({...newPart, supplier_id: data.id});
-    } catch (error) {
-      console.error('Error adding supplier:', error);
-      toast({
-        title: "Error",
-        description: "Failed to add supplier",
-        variant: "destructive",
-      });
-    }
-  };
+  // addSupplier function removed - tracking moved to stock additions
 
   const toggleDescription = (partId: string) => {
     const newExpanded = new Set(expandedDescriptions);
@@ -971,51 +904,15 @@ export default function Inventory() {
                 initialData={newPart}
                 selectedImage={selectedImage}
                 setSelectedImage={setSelectedImage}
-                suppliers={suppliers}
                 isLoading={uploadingImage}
                 onSubmit={addPart}
                 onCancel={() => setShowAddDialog(false)}
-                onAddSupplier={() => setShowAddSupplierDialog(true)}
                 submitButtonText="Add Item"
               />
             </DialogContent>
           </Dialog>
 
-          {/* Add Supplier Dialog */}
-          <Dialog open={showAddSupplierDialog} onOpenChange={setShowAddSupplierDialog}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Supplier</DialogTitle>
-                <DialogDescription>
-                  Add a new supplier option to the system
-                </DialogDescription>
-              </DialogHeader>
-              
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="newSupplier">Supplier Name</Label>
-                  <Input
-                    id="newSupplier"
-                    value={newSupplier}
-                    onChange={(e) => setNewSupplier(e.target.value)}
-                    placeholder="Enter supplier name"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-4">
-                <Button variant="outline" onClick={() => setShowAddSupplierDialog(false)}>
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={addSupplier}
-                  disabled={!newSupplier.trim()}
-                >
-                  Add Supplier
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          {/* Add Supplier Dialog removed - supplier tracking moved to stock additions */}
 
         {/* Consumables Section */}
         <div className="mb-8">
@@ -1038,7 +935,7 @@ export default function Inventory() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
-                  placeholder="Search inventory by name, description, or supplier..."
+                  placeholder="Search inventory by name or description..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -1329,7 +1226,6 @@ export default function Inventory() {
               <InventoryItemForm
                 selectedImage={editSelectedImage}
                 setSelectedImage={setEditSelectedImage}
-                suppliers={suppliers}
                 isLoading={uploadingImage}
                 onSubmit={updatePart}
                 onCancel={() => {
@@ -1342,7 +1238,7 @@ export default function Inventory() {
                     setShowEditDialog(false);
                   }
                 }}
-                onAddSupplier={() => setShowAddSupplierDialog(true)}
+                // onAddSupplier removed - supplier tracking moved to stock additions
                 submitButtonText="Update Inventory Item"
                 editingPart={editingPart}
               />
@@ -1408,6 +1304,30 @@ export default function Inventory() {
                   placeholder={quantityOperation === 'add' ? 'e.g., New purchase, returned items' : 'e.g., Used for project X, damaged items'}
                 />
               </div>
+
+              {quantityOperation === 'add' && (
+                <>
+                  <div>
+                    <Label htmlFor="supplier-name">Supplier Name (optional)</Label>
+                    <Input
+                      id="supplier-name"
+                      value={quantityChange.supplierName}
+                      onChange={(e) => setQuantityChange({...quantityChange, supplierName: e.target.value})}
+                      placeholder="Enter supplier name"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="supplier-url">Supplier URL (optional)</Label>
+                    <Input
+                      id="supplier-url"
+                      value={quantityChange.supplierUrl}
+                      onChange={(e) => setQuantityChange({...quantityChange, supplierUrl: e.target.value})}
+                      placeholder="https://example.com/product-page"
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-4">

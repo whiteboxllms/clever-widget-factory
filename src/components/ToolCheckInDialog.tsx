@@ -446,18 +446,6 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
               />
             </div>
 
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="returned_to_correct_location"
-                checked={form.returned_to_correct_location}
-                onChange={(e) => setForm(prev => ({ ...prev, returned_to_correct_location: e.target.checked }))}
-                className="rounded border-gray-300"
-              />
-              <Label htmlFor="returned_to_correct_location">
-                Tool was returned to its correct storage location: {tool.storage_vicinity}{tool.storage_location ? ` - ${tool.storage_location}` : ''}
-              </Label>
-            </div>
 
             <div className="flex gap-2 pt-4">
               <Button

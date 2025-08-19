@@ -14,7 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Search, Plus, Wrench, AlertTriangle, CheckCircle, Clock, User, Calendar, Upload, X, LogOut, Edit, ArrowLeft, Trash2 } from "lucide-react";
 import { compressImage, formatFileSize } from "@/lib/imageUtils";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
-import { TOOL_CONDITION_OPTIONS } from '@/lib/constants';
+
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ToolCheckoutDialog } from "@/components/ToolCheckoutDialog";
@@ -30,7 +30,6 @@ interface Tool {
   name: string;
   description?: string;
   category?: string;
-  condition: string;
   status: string;
   image_url?: string;
   storage_vicinity: string;
@@ -38,22 +37,23 @@ interface Tool {
   actual_location?: string;
   serial_number?: string;
   last_maintenance?: string;
-  
   manual_url?: string;
   known_issues?: string;
   stargazer_sop?: string;
   created_at: string;
   updated_at: string;
+  has_motor?: boolean;
+  last_audited_at?: string;
+  audit_status?: string;
 }
 
 interface NewToolForm {
   name: string;
   description: string;
   category: string;
-  condition: string;
   status: string;
   storage_vicinity: string;
-  storage_location: string | null;
+  storage_location: string;
   serial_number: string;
   image_file: File | null;
 }
@@ -81,24 +81,22 @@ interface CheckoutHistory {
   };
 }
 
-const getStatusVariant = (status: string, condition: string) => {
-  if (condition === 'not_functional' || status === 'unavailable' || status === 'unable_to_find') return 'destructive';
+const getStatusVariant = (status: string) => {
+  if (status === 'unavailable' || status === 'unable_to_find') return 'destructive';
   if (status === 'checked_out') return 'secondary';
-  if (condition === 'no_problems_observed') return 'default';
-  return 'outline';
+  return 'default';
 };
 
-const getStatusLabel = (status: string, condition: string) => {
-  if (condition === 'not_functional') return 'Not Functional';
+const getStatusLabel = (status: string) => {
   if (status === 'unavailable') return 'Unavailable';
   if (status === 'unable_to_find') return 'Unable to Find';
   if (status === 'checked_out') return 'Checked Out';
   return 'Available';
 };
 
-const getConditionIcon = (status: string, condition: string) => {
-  if (condition === 'not_functional' || status === 'unable_to_find') return AlertTriangle;
-  if (status === 'unavailable') return Clock;
+const getConditionIcon = (status: string) => {
+  if (status === 'unable_to_find' || status === 'unavailable') return AlertTriangle;
+  if (status === 'checked_out') return Clock;
   return CheckCircle;
 };
 
@@ -120,7 +118,6 @@ export default function Tools() {
     name: "",
     description: "",
     category: "",
-        condition: "no_problems_observed",
     status: "available",
     storage_vicinity: "",
     storage_location: "",
@@ -140,6 +137,8 @@ export default function Tools() {
   const [removeImageFiles, setRemoveImageFiles] = useState<File[]>([]);
   const [removeImagePreviews, setRemoveImagePreviews] = useState<string[]>([]);
   const [showRemovedItems, setShowRemovedItems] = useState(false);
+  const [showToolsWithIssues, setShowToolsWithIssues] = useState(false);
+  const [toolsWithIssues, setToolsWithIssues] = useState<Set<string>>(new Set());
   const [resolveIssue, setResolveIssue] = useState<any>(null);
   const [isResolveDialogOpen, setIsResolveDialogOpen] = useState(false);
   const navigate = useNavigate();
@@ -147,11 +146,47 @@ export default function Tools() {
   // Tool issues hook for the selected tool
   const { issues, isLoading: isLoadingIssues, fetchIssues } = useToolIssues(selectedTool?.id || null);
 
+  const fetchToolsWithIssues = async () => {
+    try {
+      const { data: issuesData, error } = await supabase
+        .from('tool_issues')
+        .select('tool_id')
+        .eq('status', 'active');
+
+      if (error) throw error;
+
+      const toolIdsWithIssues = new Set(issuesData?.map(issue => issue.tool_id) || []);
+      setToolsWithIssues(toolIdsWithIssues);
+    } catch (error) {
+      console.error('Error fetching tools with issues:', error);
+    }
+  };
+
   const fetchTools = async () => {
     try {
       let query = supabase
         .from('tools')
-        .select('*');
+        .select(`
+          id,
+          name,
+          description,
+          category,
+          status,
+          image_url,
+          storage_vicinity,
+          storage_location,
+          actual_location,
+          serial_number,
+          last_maintenance,
+          manual_url,
+          known_issues,
+          stargazer_sop,
+          created_at,
+          updated_at,
+          has_motor,
+          last_audited_at,
+          audit_status
+        `);
       
       if (!showRemovedItems) {
         query = query.neq('status', 'unable_to_find');
@@ -176,6 +211,11 @@ export default function Tools() {
           checkoutMap[checkout.tool_id] = { user_name: checkout.user_name };
         });
         setActiveCheckouts(checkoutMap);
+      }
+
+      // Fetch tools with issues when filtering is enabled
+      if (showToolsWithIssues) {
+        await fetchToolsWithIssues();
       }
     } catch (error) {
       console.error('Error fetching tools:', error);
@@ -269,6 +309,12 @@ export default function Tools() {
     fetchTools();
   }, [showRemovedItems]);
 
+  useEffect(() => {
+    if (showToolsWithIssues) {
+      fetchToolsWithIssues();
+    }
+  }, [showToolsWithIssues]);
+
   // Handle editing from URL parameter
   useEffect(() => {
     if (toolId && tools.length > 0) {
@@ -280,12 +326,20 @@ export default function Tools() {
     }
   }, [toolId, tools]);
 
-  const filteredTools = tools.filter(tool =>
-    tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tool.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tool.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tool.serial_number?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredTools = tools.filter(tool => {
+    // Search filter
+    const matchesSearch = tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      tool.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      tool.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      tool.serial_number?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    // Issues filter
+    const matchesIssuesFilter = !showToolsWithIssues || 
+      toolsWithIssues.has(tool.id) || 
+      (tool.known_issues && tool.known_issues.trim().length > 0);
+
+    return matchesSearch && matchesIssuesFilter;
+  });
 
   const handleToolClick = (tool: Tool) => {
     setSelectedTool(tool);
@@ -434,7 +488,7 @@ export default function Tools() {
           name: newTool.name,
           description: newTool.description || null,
           category: newTool.category || null,
-          condition: newTool.condition as any,
+          
           status: newTool.status as any,
           storage_vicinity: newTool.storage_vicinity,
           storage_location: newTool.storage_location || null,
@@ -454,7 +508,7 @@ export default function Tools() {
         name: "",
         description: "",
         category: "",
-        condition: "no_problems_observed",
+        
         status: "available",
         storage_vicinity: "",
         storage_location: "",
@@ -484,7 +538,6 @@ export default function Tools() {
       name: "",
       description: "",
       category: "",
-      condition: "no_problems_observed",
       status: "available",
       storage_vicinity: "",
       storage_location: "",
@@ -528,7 +581,7 @@ export default function Tools() {
         name: editTool.name,
         description: editTool.description || null,
         category: editTool.category || null,
-        condition: editTool.condition as any,
+        
         status: editTool.status as any,
         storage_vicinity: editTool.storage_vicinity,
         storage_location: editTool.storage_location || null,
@@ -730,18 +783,30 @@ export default function Tools() {
                   className="pl-10 w-80"
                 />
               </div>
-              {isAdmin && (
+              <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2">
                   <Switch
-                    id="show-removed"
-                    checked={showRemovedItems}
-                    onCheckedChange={setShowRemovedItems}
+                    id="show-issues"
+                    checked={showToolsWithIssues}
+                    onCheckedChange={setShowToolsWithIssues}
                   />
-                  <Label htmlFor="show-removed" className="text-sm text-muted-foreground">
-                    Show removed items
+                  <Label htmlFor="show-issues" className="text-sm text-muted-foreground">
+                    Show tools with issues
                   </Label>
                 </div>
-              )}
+                {isAdmin && (
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="show-removed"
+                      checked={showRemovedItems}
+                      onCheckedChange={setShowRemovedItems}
+                    />
+                    <Label htmlFor="show-removed" className="text-sm text-muted-foreground">
+                      Show removed items
+                    </Label>
+                  </div>
+                )}
+              </div>
             </div>
             <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
               setIsAddDialogOpen(open);
@@ -826,8 +891,8 @@ export default function Tools() {
                     />
                   </div>
 
-                  {/* Category and Condition */}
-                  <div className="grid grid-cols-2 gap-4">
+                  {/* Category */}
+                  <div className="space-y-2">
                     <div className="space-y-2">
                       <Label htmlFor="category">Category</Label>
                       <Select value={newTool.category} onValueChange={(value) => setNewTool(prev => ({ ...prev, category: value }))}>
@@ -841,24 +906,6 @@ export default function Tools() {
                           <SelectItem value="Hand Tools">Hand Tools</SelectItem>
                           <SelectItem value="Recreation">Recreation</SelectItem>
                         </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Condition</Label>
-                      <Select 
-                        value={newTool.condition} 
-                        onValueChange={(value) => setNewTool(prev => ({ ...prev, condition: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                          <SelectContent>
-                            {TOOL_CONDITION_OPTIONS.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
                       </Select>
                     </div>
                   </div>
@@ -942,7 +989,7 @@ export default function Tools() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredTools.map((tool) => {
-            const StatusIcon = getConditionIcon(tool.status, tool.condition);
+            const StatusIcon = getConditionIcon(tool.status);
             return (
               <Dialog key={tool.id}>
                 <DialogTrigger asChild>
@@ -974,9 +1021,9 @@ export default function Tools() {
                             Serial: {tool.serial_number}
                           </p>
                         )}
-                        <Badge variant={getStatusVariant(tool.status, tool.condition)}>
+                        <Badge variant={getStatusVariant(tool.status)}>
                           <StatusIcon className="mr-1 h-3 w-3" />
-                          {getStatusLabel(tool.status, tool.condition)}
+                          {getStatusLabel(tool.status)}
                         </Badge>
                       </div>
                       
@@ -1014,7 +1061,7 @@ export default function Tools() {
                               setCheckoutTool(tool);
                               setIsCheckoutDialogOpen(true);
                             }}
-                            disabled={!!activeCheckouts[tool.id] || tool.status !== 'available' || tool.condition === 'not_functional'}
+                            disabled={!!activeCheckouts[tool.id] || tool.status !== 'available'}
                           >
                             <LogOut className="mr-2 h-3 w-3" />
                             Checkout
@@ -1065,8 +1112,8 @@ export default function Tools() {
                       <div>
                         <h2 className="text-xl">{tool.name}</h2>
                         <div className="flex items-center gap-2">
-                          <Badge variant={getStatusVariant(tool.status, tool.condition)}>
-                            {getStatusLabel(tool.status, tool.condition)}
+                          <Badge variant={getStatusVariant(tool.status)}>
+                            {getStatusLabel(tool.status)}
                           </Badge>
                           {tool.status === 'checked_out' && currentCheckout && (
                             <span className="text-sm text-muted-foreground">
@@ -1093,7 +1140,7 @@ export default function Tools() {
                           <div className="space-y-2 text-sm">
                             <div><strong>Category:</strong> {tool.category || 'Not specified'}</div>
                             <div><strong>Serial Number:</strong> {tool.serial_number || 'Not specified'}</div>
-                            <div><strong>Condition:</strong> {tool.condition}</div>
+                            
                             <div><strong>Status:</strong> {tool.status}</div>
                           </div>
                         </div>
@@ -1414,22 +1461,6 @@ export default function Tools() {
                         <SelectItem value="Hand Tools">Hand Tools</SelectItem>
                         <SelectItem value="Recreation">Recreation</SelectItem>
                       </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Condition</Label>
-                    <Select 
-                      value={editTool.condition} 
-                      onValueChange={(value) => setEditTool(prev => prev ? { ...prev, condition: value } : null)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                       <SelectContent>
-                          <SelectItem value="no_problems_observed">No problems detected</SelectItem>
-                          <SelectItem value="functional_but_not_efficient">Functional but inefficient</SelectItem>
-                         <SelectItem value="not_functional">Not functional</SelectItem>
-                       </SelectContent>
                     </Select>
                   </div>
                 </div>

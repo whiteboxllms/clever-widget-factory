@@ -18,6 +18,9 @@ import { TOOL_CONDITION_OPTIONS } from '@/lib/constants';
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ToolCheckoutDialog } from "@/components/ToolCheckoutDialog";
+import { useToolIssues } from "@/hooks/useToolIssues";
+import { IssueCard } from "@/components/IssueCard";
+import { IssueResolutionDialog } from "@/components/IssueResolutionDialog";
 
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -136,7 +139,12 @@ export default function Tools() {
   const [removeImageFiles, setRemoveImageFiles] = useState<File[]>([]);
   const [removeImagePreviews, setRemoveImagePreviews] = useState<string[]>([]);
   const [showRemovedItems, setShowRemovedItems] = useState(false);
+  const [resolveIssue, setResolveIssue] = useState<any>(null);
+  const [isResolveDialogOpen, setIsResolveDialogOpen] = useState(false);
   const navigate = useNavigate();
+
+  // Tool issues hook for the selected tool
+  const { issues, isLoading: isLoadingIssues, fetchIssues } = useToolIssues(selectedTool?.id || null);
 
   const fetchTools = async () => {
     try {
@@ -282,6 +290,65 @@ export default function Tools() {
     setSelectedTool(tool);
     fetchToolHistory(tool.id);
     setCurrentCheckout(null); // Reset current checkout state
+  };
+
+  // Function to migrate check-in reported issues to tool_issues table
+  const migrateCheckinIssuesToToolIssues = async (toolId: string) => {
+    try {
+      // Find all check-ins with reported issues for this tool
+      const { data: checkinsWithIssues, error: checkinsError } = await supabase
+        .from('checkins')
+        .select('*')
+        .eq('tool_id', toolId)
+        .not('problems_reported', 'is', null)
+        .not('problems_reported', 'eq', '');
+
+      if (checkinsError) throw checkinsError;
+
+      for (const checkin of checkinsWithIssues || []) {
+        if (checkin.problems_reported) {
+          // Check if this issue already exists in tool_issues
+          const { data: existingIssue } = await supabase
+            .from('tool_issues')
+            .select('id')
+            .eq('tool_id', toolId)
+            .eq('description', checkin.problems_reported.trim())
+            .single();
+
+          if (!existingIssue) {
+            // Create new tool issue from check-in report
+            await supabase
+              .from('tool_issues')
+              .insert({
+                tool_id: toolId,
+                description: checkin.problems_reported.trim(),
+                issue_type: 'efficiency', // Default type for migrated issues
+                blocks_checkout: false,
+                reported_by: checkin.user_name, // Use user_name since that's what we have
+                reported_at: checkin.checkin_date,
+                related_checkout_id: checkin.checkout_id
+              });
+          }
+        }
+      }
+      
+      // Refresh issues list
+      fetchIssues();
+    } catch (error) {
+      console.error('Error migrating check-in issues:', error);
+    }
+  };
+
+  // Auto-migrate issues when tool is selected
+  useEffect(() => {
+    if (selectedTool) {
+      migrateCheckinIssuesToToolIssues(selectedTool.id);
+    }
+  }, [selectedTool]);
+
+  const handleResolveIssue = (issue: any) => {
+    setResolveIssue(issue);
+    setIsResolveDialogOpen(true);
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1042,25 +1109,49 @@ export default function Tools() {
                       </div>
                     </TabsContent>
 
-                    <TabsContent value="issues" className="space-y-4">
-                      <div>
-                        <h4 className="font-medium mb-2">Known Issues</h4>
-                        {tool.known_issues ? (
-                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                            <div className="flex items-start gap-2">
-                              <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                              <div className="text-sm text-amber-800">
-                                <p className="whitespace-pre-wrap">{tool.known_issues}</p>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">
-                            No known issues reported for this tool yet.
-                          </p>
-                        )}
-                      </div>
-                    </TabsContent>
+                     <TabsContent value="issues" className="space-y-4">
+                       <div>
+                         <h4 className="font-medium mb-4">Known Issues</h4>
+                         
+                         {/* Active Issues from tool_issues table */}
+                         {isLoadingIssues ? (
+                           <div className="text-sm text-muted-foreground">Loading issues...</div>
+                         ) : issues.length > 0 ? (
+                           <div className="space-y-3 mb-6">
+                             <h5 className="text-sm font-medium text-muted-foreground">Active Issues</h5>
+                             {issues.map((issue) => (
+                               <IssueCard
+                                 key={issue.id}
+                                 issue={issue}
+                                 onResolve={handleResolveIssue}
+                                 onRefresh={fetchIssues}
+                               />
+                             ))}
+                           </div>
+                         ) : null}
+
+                         {/* Legacy known_issues field (for backwards compatibility) */}
+                         {tool.known_issues && (
+                           <div className="space-y-3">
+                             <h5 className="text-sm font-medium text-muted-foreground">Legacy Notes</h5>
+                             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                               <div className="flex items-start gap-2">
+                                 <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                                 <div className="text-sm text-amber-800">
+                                   <p className="whitespace-pre-wrap">{tool.known_issues}</p>
+                                 </div>
+                               </div>
+                             </div>
+                           </div>
+                         )}
+
+                         {!isLoadingIssues && issues.length === 0 && !tool.known_issues && (
+                           <p className="text-sm text-muted-foreground">
+                             No known issues reported for this tool yet.
+                           </p>
+                         )}
+                       </div>
+                     </TabsContent>
 
                     <TabsContent value="history" className="space-y-4">
                       <div>
@@ -1211,6 +1302,18 @@ export default function Tools() {
           open={isCheckoutDialogOpen}
           onOpenChange={setIsCheckoutDialogOpen}
           onSuccess={fetchTools}
+        />
+
+        {/* Issue Resolution Dialog */}
+        <IssueResolutionDialog
+          issue={resolveIssue}
+          open={isResolveDialogOpen}
+          onOpenChange={setIsResolveDialogOpen}
+          onSuccess={() => {
+            fetchIssues();
+            setIsResolveDialogOpen(false);
+            setResolveIssue(null);
+          }}
         />
 
         {/* Edit Tool Dialog */}

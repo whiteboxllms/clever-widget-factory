@@ -15,19 +15,25 @@ export const TOOL_CONDITION_OPTIONS = [
   { value: 'not_functional' as const, label: 'Not functional' }
 ] as const;
 
-// Tool condition utility functions
-export const getConditionColor = (condition: Database['public']['Enums']['tool_condition']) => {
-  switch (condition) {
-    case 'no_problems_observed': return 'bg-green-100 text-green-800';
-    case 'functional_but_not_efficient': return 'bg-yellow-100 text-yellow-800';
-    case 'not_functional': return 'bg-red-100 text-red-800';
+// Tool status utility functions
+export const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'available': return 'bg-green-100 text-green-800';
+    case 'checked_out': return 'bg-yellow-100 text-yellow-800';
+    case 'unavailable': return 'bg-red-100 text-red-800';
+    case 'unable_to_find': return 'bg-gray-100 text-gray-800';
     default: return 'bg-gray-100 text-gray-800';
   }
 };
 
-export const getConditionLabel = (condition: Database['public']['Enums']['tool_condition']) => {
-  const option = TOOL_CONDITION_OPTIONS.find(opt => opt.value === condition);
-  return option?.label || condition;
+export const getStatusLabel = (status: string) => {
+  switch (status) {
+    case 'available': return 'Available';
+    case 'checked_out': return 'Checked Out';
+    case 'unavailable': return 'Unavailable';
+    case 'unable_to_find': return 'Unable to Find';
+    default: return status;
+  }
 };
 
 // Default done definition for missions and tasks

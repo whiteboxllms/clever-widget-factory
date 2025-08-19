@@ -14,7 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useImageUpload } from '@/hooks/useImageUpload';
 import { showErrorToast } from '@/components/ErrorToast';
 import { useEnhancedToast } from '@/hooks/useEnhancedToast';
-import { TOOL_CONDITION_OPTIONS } from '@/lib/constants';
+
 
 interface Tool {
   id: string;
@@ -22,7 +22,6 @@ interface Tool {
   description: string;
   storage_vicinity: string;
   storage_location: string;
-  condition: string;
   status: string;
   serial_number?: string;
   category?: string;
@@ -138,7 +137,7 @@ const AuditTool = () => {
       const toolUpdates: any = {
         last_audited_at: new Date().toISOString(),
         audit_status: 'audited',
-        condition: formData.conditionFound === 'missing' ? tool.condition : formData.conditionFound,
+        condition: formData.conditionFound === 'missing' ? 'no_problems_observed' : formData.conditionFound,
       };
 
       // If marked as missing, update tool status
@@ -268,8 +267,8 @@ const AuditTool = () => {
                   <p className="font-mono text-lg">{tool.serial_number || 'No serial number'}</p>
                 </div>
                 <div>
-                  <Label className="font-semibold">Current Condition</Label>
-                  <p className="capitalize">{tool.condition}</p>
+                  <Label className="font-semibold">Status</Label>
+                  <p className="capitalize">{tool.status}</p>
                 </div>
                 <div>
                   <Label className="font-semibold">Category</Label>
@@ -397,11 +396,9 @@ const AuditTool = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {TOOL_CONDITION_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="no_problems_observed">No problems detected</SelectItem>
+                    <SelectItem value="functional_but_not_efficient">Functional but inefficient</SelectItem>
+                    <SelectItem value="not_functional">Not functional</SelectItem>
                     <SelectItem value="missing">Missing</SelectItem>
                   </SelectContent>
                 </Select>

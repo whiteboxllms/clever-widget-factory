@@ -135,10 +135,9 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
       .select(`
         *,
         tools (
-          id,
-          name,
-          status,
-          condition
+           id,
+           name,
+           status
         )
       `)
       .eq('is_returned', false)
@@ -150,7 +149,7 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
     }
 
     const toolsWithUsers = data?.map(checkout => ({
-      ...checkout.tools,
+      ...(checkout.tools || {}),
       checkout_id: checkout.id,
       checked_out_to: checkout.user_name,
       checkout_date: checkout.checkout_date
@@ -689,7 +688,7 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
                             </div>
                           )}
                           <div className="text-sm text-muted-foreground">
-                            Status: {tool.status} • Condition: {tool.condition}
+                            Status: {tool.status}
                             {tool.category && ` • ${tool.category}`}
                           </div>
                         </div>

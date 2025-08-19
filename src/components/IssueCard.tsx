@@ -14,6 +14,9 @@ interface ToolIssue {
   reported_at: string;
   reported_by: string;
   blocks_checkout?: boolean;
+  is_misuse?: boolean;
+  damage_assessment?: string;
+  responsibility_assigned?: boolean;
 }
 
 interface IssueCardProps {
@@ -116,11 +119,21 @@ export function IssueCard({ issue, onResolve, onRefresh }: IssueCardProps) {
                   OFFLINE
                 </Badge>
               )}
+              {issue.is_misuse && (
+                <Badge variant="secondary" className="text-xs">
+                  MISUSE
+                </Badge>
+              )}
               <span className="text-xs text-muted-foreground">
                 {new Date(issue.reported_at).toLocaleDateString()}
               </span>
             </div>
             <p className="text-sm break-words">{issue.description}</p>
+            {issue.damage_assessment && (
+              <p className="text-sm text-orange-600 mt-1">
+                <strong>Damage:</strong> {issue.damage_assessment}
+              </p>
+            )}
           </div>
           
           <div className="flex gap-1 flex-shrink-0">

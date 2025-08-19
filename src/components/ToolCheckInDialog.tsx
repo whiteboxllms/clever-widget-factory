@@ -65,6 +65,8 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
   const [isResolutionDialogOpen, setIsResolutionDialogOpen] = useState(false);
   const [newIssueType, setNewIssueType] = useState<'safety' | 'efficiency' | 'cosmetic' | 'maintenance'>('efficiency');
   const [blocksCheckout, setBlocksCheckout] = useState(false);
+  const [isMisuse, setIsMisuse] = useState(false);
+  const [damageAssessment, setDamageAssessment] = useState('');
   
   // Use the new issues hook
   const { issues, isLoading: isLoadingIssues, fetchIssues, createIssuesFromText } = useToolIssues(tool?.id || null);
@@ -197,43 +199,14 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
 
       // Create structured issues from new issues text with selected severity
       if (form.tool_issues.trim()) {
-        const issueDescriptions = form.tool_issues
-          .split('\n')
-          .map(line => line.trim())
-          .filter(line => line.length > 0);
-
-        for (const description of issueDescriptions) {
-          const user = await supabase.auth.getUser();
-          if (user.data.user) {
-            await supabase
-              .from('tool_issues')
-              .insert({
-                tool_id: tool.id,
-                description: description.trim(),
-                issue_type: newIssueType,
-                blocks_checkout: blocksCheckout,
-                reported_by: user.data.user.id
-              });
-
-            // Create history record
-            await supabase
-              .from('tool_issue_history')
-              .insert({
-                issue_id: (await supabase
-                  .from('tool_issues')
-                  .select('id')
-                  .eq('tool_id', tool.id)
-                  .eq('description', description.trim())
-                  .order('created_at', { ascending: false })
-                  .limit(1)
-                  .single()).data?.id,
-                old_status: null,
-                new_status: 'active',
-                changed_by: user.data.user.id,
-                notes: 'Issue reported during check-in'
-              });
-          }
-        }
+        await createIssuesFromText(
+          form.tool_issues,
+          newIssueType,
+          blocksCheckout,
+          isMisuse,
+          checkout.id,
+          damageAssessment
+        );
       }
 
       // Update tool status - determine based on active issues
@@ -404,14 +377,40 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
                       Mark tool as offline until repaired
                     </Label>
                   </div>
-                </div>
-                <Textarea
-                  id="tool_issues"
-                  value={form.tool_issues}
-                  onChange={(e) => setForm(prev => ({ ...prev, tool_issues: e.target.value }))}
-                  placeholder="Describe any new problems, damage, or malfunctions discovered during use. Put each issue on a separate line."
-                  rows={3}
-                />
+                   <div className="flex items-center space-x-2">
+                     <input
+                       type="checkbox"
+                       id="is_misuse"
+                       checked={isMisuse}
+                       onChange={(e) => setIsMisuse(e.target.checked)}
+                       className="rounded border-gray-300"
+                     />
+                     <Label htmlFor="is_misuse" className="text-sm">
+                       Mark as potential misuse/damage
+                     </Label>
+                   </div>
+                 </div>
+                 
+                 {isMisuse && (
+                   <div>
+                     <Label htmlFor="damage_assessment">Damage Assessment</Label>
+                     <Textarea
+                       id="damage_assessment"
+                       value={damageAssessment}
+                       onChange={(e) => setDamageAssessment(e.target.value)}
+                       placeholder="Describe the extent of damage and how it affects tool functionality (e.g., '20% of bristles bent, reduced cleaning effectiveness')"
+                       rows={2}
+                     />
+                   </div>
+                 )}
+                 
+                 <Textarea
+                   id="tool_issues"
+                   value={form.tool_issues}
+                   onChange={(e) => setForm(prev => ({ ...prev, tool_issues: e.target.value }))}
+                   placeholder="Describe any new problems, damage, or malfunctions discovered during use. Put each issue on a separate line."
+                   rows={3}
+                 />
               </div>
             </div>
 

@@ -822,15 +822,19 @@ export type Database = {
         Row: {
           blocks_checkout: boolean
           created_at: string
+          damage_assessment: string | null
           description: string
           id: string
+          is_misuse: boolean
           issue_type: string
+          related_checkout_id: string | null
           reported_at: string
           reported_by: string
           resolution_notes: string | null
           resolution_photo_urls: string[] | null
           resolved_at: string | null
           resolved_by: string | null
+          responsibility_assigned: boolean
           root_cause: string | null
           status: string
           tool_id: string
@@ -839,15 +843,19 @@ export type Database = {
         Insert: {
           blocks_checkout?: boolean
           created_at?: string
+          damage_assessment?: string | null
           description: string
           id?: string
+          is_misuse?: boolean
           issue_type?: string
+          related_checkout_id?: string | null
           reported_at?: string
           reported_by: string
           resolution_notes?: string | null
           resolution_photo_urls?: string[] | null
           resolved_at?: string | null
           resolved_by?: string | null
+          responsibility_assigned?: boolean
           root_cause?: string | null
           status?: string
           tool_id: string
@@ -856,21 +864,33 @@ export type Database = {
         Update: {
           blocks_checkout?: boolean
           created_at?: string
+          damage_assessment?: string | null
           description?: string
           id?: string
+          is_misuse?: boolean
           issue_type?: string
+          related_checkout_id?: string | null
           reported_at?: string
           reported_by?: string
           resolution_notes?: string | null
           resolution_photo_urls?: string[] | null
           resolved_at?: string | null
           resolved_by?: string | null
+          responsibility_assigned?: boolean
           root_cause?: string | null
           status?: string
           tool_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tool_issues_related_checkout_id_fkey"
+            columns: ["related_checkout_id"]
+            isOneToOne: false
+            referencedRelation: "checkouts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tools: {
         Row: {

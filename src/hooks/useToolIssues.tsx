@@ -16,6 +16,10 @@ interface ToolIssue {
   resolution_notes?: string;
   resolution_photo_urls?: string[];
   blocks_checkout?: boolean;
+  is_misuse?: boolean;
+  related_checkout_id?: string;
+  damage_assessment?: string;
+  responsibility_assigned?: boolean;
 }
 
 export function useToolIssues(toolId: string | null) {
@@ -52,7 +56,14 @@ export function useToolIssues(toolId: string | null) {
     }
   };
 
-  const createIssue = async (description: string, issueType: ToolIssue['issue_type'] = 'efficiency', blocksCheckout: boolean = false) => {
+  const createIssue = async (
+    description: string, 
+    issueType: ToolIssue['issue_type'] = 'efficiency', 
+    blocksCheckout: boolean = false,
+    isMisuse: boolean = false,
+    checkoutId?: string,
+    damageAssessment?: string
+  ) => {
     if (!toolId) return null;
 
     try {
@@ -66,6 +77,9 @@ export function useToolIssues(toolId: string | null) {
           description: description.trim(),
           issue_type: issueType,
           blocks_checkout: blocksCheckout,
+          is_misuse: isMisuse,
+          related_checkout_id: checkoutId,
+          damage_assessment: damageAssessment,
           reported_by: user.data.user.id
         })
         .select()
@@ -103,7 +117,14 @@ export function useToolIssues(toolId: string | null) {
     }
   };
 
-  const createIssuesFromText = async (issuesText: string, issueType: ToolIssue['issue_type'] = 'efficiency', blocksCheckout: boolean = false) => {
+  const createIssuesFromText = async (
+    issuesText: string, 
+    issueType: ToolIssue['issue_type'] = 'efficiency', 
+    blocksCheckout: boolean = false,
+    isMisuse: boolean = false,
+    checkoutId?: string,
+    damageAssessment?: string
+  ) => {
     if (!issuesText.trim() || !toolId) return;
 
     // Split text by lines and create individual issues
@@ -113,7 +134,7 @@ export function useToolIssues(toolId: string | null) {
       .filter(line => line.length > 0);
 
     for (const description of issueDescriptions) {
-      await createIssue(description, issueType, blocksCheckout);
+      await createIssue(description, issueType, blocksCheckout, isMisuse, checkoutId, damageAssessment);
     }
   };
 

@@ -77,12 +77,16 @@ export const ToolsContainer = () => {
     }
   }, [toolId, tools]);
 
-  // Auto-migrate issues when tool is selected
+  // Track migrated tools to prevent repeated migrations
+  const [migratedTools, setMigratedTools] = useState<Set<string>>(new Set());
+
+  // Auto-migrate issues when tool is selected (only once per session)
   useEffect(() => {
-    if (selectedTool) {
+    if (selectedTool && !migratedTools.has(selectedTool.id)) {
       toolsService.migrateCheckinIssuesToToolIssues(selectedTool.id, fetchIssues);
+      setMigratedTools(prev => new Set([...prev, selectedTool.id]));
     }
-  }, [selectedTool]);
+  }, [selectedTool, migratedTools]);
 
   const handleToolClick = (tool) => {
     setSelectedTool(tool);

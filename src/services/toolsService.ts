@@ -45,7 +45,7 @@ export const toolsService = {
             .from('tool_issues')
             .select('id')
             .eq('tool_id', toolId)
-            .or(`description.eq.${checkin.problems_reported.trim()},description.eq.${formattedDescription}`)
+            .or(`description.eq."${checkin.problems_reported.trim()}",description.eq."${formattedDescription}"`)
             .maybeSingle();
 
           if (!existingIssue) {

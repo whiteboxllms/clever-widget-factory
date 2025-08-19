@@ -1,15 +1,17 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { LogOut, Edit, Trash2, Wrench } from "lucide-react";
+import { LogOut, Edit, Trash2, Wrench, LogIn } from "lucide-react";
 import { Tool } from "@/hooks/tools/useToolsData";
 import { ToolStatusBadge } from "./ToolStatusBadge";
+import { useNavigate } from "react-router-dom";
 
 interface ToolCardProps {
   tool: Tool;
-  activeCheckout?: { user_name: string };
+  activeCheckout?: { user_name: string, user_id: string };
   hasIssues?: boolean;
   canEditTools: boolean;
   isLeadership: boolean;
+  currentUserId?: string;
   onToolClick: (tool: Tool) => void;
   onCheckoutClick: (tool: Tool) => void;
   onEditClick: (tool: Tool) => void;
@@ -22,11 +24,13 @@ export const ToolCard = ({
   hasIssues,
   canEditTools,
   isLeadership,
+  currentUserId,
   onToolClick,
   onCheckoutClick,
   onEditClick,
   onRemoveClick
-}: ToolCardProps) => {
+ }: ToolCardProps) => {
+  const navigate = useNavigate();
   return (
     <Card 
       className="cursor-pointer hover:shadow-md transition-shadow"
@@ -91,6 +95,19 @@ export const ToolCard = ({
             >
               <LogOut className="h-4 w-4 mr-1" />
               Checkout
+            </Button>
+          )}
+
+          {activeCheckout && activeCheckout.user_id === currentUserId && (
+            <Button
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate('/checkin');
+              }}
+            >
+              <LogIn className="h-4 w-4 mr-1" />
+              Check In
             </Button>
           )}
           

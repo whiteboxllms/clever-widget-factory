@@ -27,7 +27,7 @@ export interface Tool {
 export const useToolsData = (showRemovedItems: boolean = false) => {
   const [tools, setTools] = useState<Tool[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeCheckouts, setActiveCheckouts] = useState<{[key: string]: {user_name: string}}>({});
+  const [activeCheckouts, setActiveCheckouts] = useState<{[key: string]: {user_name: string, user_id: string}}>({});
   const { toast } = useToast();
 
   const fetchTools = async () => {
@@ -68,15 +68,15 @@ export const useToolsData = (showRemovedItems: boolean = false) => {
       // Fetch active checkouts for all tools
       const { data: checkoutsData, error: checkoutsError } = await supabase
         .from('checkouts')
-        .select('tool_id, user_name')
+        .select('tool_id, user_name, user_id')
         .eq('is_returned', false);
 
       if (checkoutsError) {
         console.error('Error fetching active checkouts:', checkoutsError);
       } else {
-        const checkoutMap: {[key: string]: {user_name: string}} = {};
+        const checkoutMap: {[key: string]: {user_name: string, user_id: string}} = {};
         checkoutsData?.forEach(checkout => {
-          checkoutMap[checkout.tool_id] = { user_name: checkout.user_name };
+          checkoutMap[checkout.tool_id] = { user_name: checkout.user_name, user_id: checkout.user_id };
         });
         setActiveCheckouts(checkoutMap);
       }

@@ -21,7 +21,7 @@ import { IssueResolutionDialog } from "@/components/IssueResolutionDialog";
 export const ToolsContainer = () => {
   const { toolId } = useParams();
   const navigate = useNavigate();
-  const { canEditTools, isLeadership } = useAuth();
+  const { user, canEditTools, isLeadership } = useAuth();
   
   // State management
   const [selectedTool, setSelectedTool] = useState(null);
@@ -176,6 +176,7 @@ export const ToolsContainer = () => {
               toolsWithIssues={toolsWithIssues}
               canEditTools={canEditTools}
               isLeadership={isLeadership}
+              currentUserId={user?.id}
               onToolClick={handleToolClick}
               onCheckoutClick={handleCheckoutClick}
               onEditClick={handleEditClick}

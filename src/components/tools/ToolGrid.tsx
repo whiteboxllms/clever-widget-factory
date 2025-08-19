@@ -3,10 +3,11 @@ import { ToolCard } from "./ToolCard";
 
 interface ToolGridProps {
   tools: Tool[];
-  activeCheckouts: {[key: string]: {user_name: string}};
+  activeCheckouts: {[key: string]: {user_name: string, user_id: string}};
   toolsWithIssues: Set<string>;
   canEditTools: boolean;
   isLeadership: boolean;
+  currentUserId?: string;
   onToolClick: (tool: Tool) => void;
   onCheckoutClick: (tool: Tool) => void;
   onEditClick: (tool: Tool) => void;
@@ -19,6 +20,7 @@ export const ToolGrid = ({
   toolsWithIssues,
   canEditTools,
   isLeadership,
+  currentUserId,
   onToolClick,
   onCheckoutClick,
   onEditClick,
@@ -42,6 +44,7 @@ export const ToolGrid = ({
           hasIssues={toolsWithIssues.has(tool.id) || (tool.known_issues && tool.known_issues.trim().length > 0)}
           canEditTools={canEditTools}
           isLeadership={isLeadership}
+          currentUserId={currentUserId}
           onToolClick={onToolClick}
           onCheckoutClick={onCheckoutClick}
           onEditClick={onEditClick}

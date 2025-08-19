@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Package, Calendar, User, AlertTriangle, CheckCircle2, ExternalLink, X } from 'lucide-react';
+import { ArrowLeft, Package, Calendar, User, AlertTriangle, CheckCircle2, ExternalLink, X, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -28,8 +29,7 @@ type CheckInForm = {
   tool_issues: string;
   notes: string;
   returned_to_correct_location: boolean;
-  sop_best_practices: string;
-  what_did_you_do: string;
+  reflection: string;
   hours_used: string;
 };
 
@@ -56,8 +56,7 @@ export default function CheckIn() {
     tool_issues: '',
     notes: '',
     returned_to_correct_location: true,
-    sop_best_practices: '',
-    what_did_you_do: '',
+    reflection: '',
     hours_used: ''
   });
   const [resolvedIssues, setResolvedIssues] = useState<IssueResolution[]>([]);
@@ -142,6 +141,18 @@ export default function CheckIn() {
     console.log('Selected checkout:', selectedCheckout.id);
     console.log('Form data:', form);
 
+    // Validate required fields
+    if (!form.condition_after || !form.reflection) {
+      console.error('Missing required fields:', { condition_after: !form.condition_after, reflection: !form.reflection });
+      
+      toast({
+        title: "Missing Required Fields",
+        description: "Please fill in all required fields marked with an asterisk (*)",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     setUploadingImages(true);
     try {
@@ -186,8 +197,8 @@ export default function CheckIn() {
         location_found: selectedCheckout.tools.storage_vicinity + (selectedCheckout.tools.storage_location ? ` - ${selectedCheckout.tools.storage_location}` : ''),
         notes: form.notes || null,
         returned_to_correct_location: form.returned_to_correct_location,
-        sop_best_practices: form.sop_best_practices,
-        what_did_you_do: form.what_did_you_do,
+        sop_best_practices: form.reflection,
+        what_did_you_do: form.reflection,
         after_image_urls: imageUrls,
       };
 
@@ -254,8 +265,7 @@ export default function CheckIn() {
         tool_issues: '',
         notes: '',
         returned_to_correct_location: true,
-        sop_best_practices: '',
-        what_did_you_do: '',
+        reflection: '',
         hours_used: ''
       });
       setResolvedIssues([]);
@@ -535,33 +545,23 @@ export default function CheckIn() {
                           </DialogDescription>
                         </DialogHeader>
 
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="condition_after">Tool Condition After Use *</Label>
-                            <Select value={form.condition_after} onValueChange={(value) => setForm(prev => ({ ...prev, condition_after: value }))}>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select condition" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {TOOL_CONDITION_OPTIONS.map((option) => (
-                                  <SelectItem key={option.value} value={option.value}>
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          <div>
-                            <Label htmlFor="tool_issues">Tool Issues encountered not seen previously (add to known issues)</Label>
-                            <Textarea
-                              id="tool_issues"
-                              value={form.tool_issues}
-                              onChange={(e) => setForm(prev => ({ ...prev, tool_issues: e.target.value }))}
-                              placeholder="Report any new problems, damage, or malfunctions that will be added to the tool's known issues"
-                              rows={3}
-                            />
-                          </div>
+                         <TooltipProvider>
+                           <div className="space-y-4">
+                             <div>
+                               <Label htmlFor="condition_after">Tool Condition After Use *</Label>
+                               <Select value={form.condition_after} onValueChange={(value) => setForm(prev => ({ ...prev, condition_after: value }))}>
+                                 <SelectTrigger>
+                                   <SelectValue placeholder="Select condition" />
+                                 </SelectTrigger>
+                                 <SelectContent>
+                                   {TOOL_CONDITION_OPTIONS.map((option) => (
+                                     <SelectItem key={option.value} value={option.value}>
+                                       {option.label}
+                                     </SelectItem>
+                                   ))}
+                                 </SelectContent>
+                               </Select>
+                             </div>
 
                           {checkout.tools.has_motor && (
                             <div>
@@ -578,80 +578,84 @@ export default function CheckIn() {
                             </div>
                           )}
 
-          <div>
-            <Label htmlFor="sop_best_practices">What is the SOP / best practices in this situation? *</Label>
-            <div className="flex gap-2">
-              <Textarea
-                id="sop_best_practices"
-                value={form.sop_best_practices}
-                onChange={(e) => setForm(prev => ({ ...prev, sop_best_practices: e.target.value }))}
-                placeholder="Describe the standard operating procedures or best practices for this tool/situation"
-                rows={3}
-                className="flex-1"
-              />
-              {checkout.tools.manual_url && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.open(checkout.tools.manual_url, '_blank')}
-                  className="flex items-center gap-1"
-                >
-                  SOP
-                  <ExternalLink className="h-3 w-3" />
-                </Button>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <Label htmlFor="what_did_you_do">What did you do and why? *</Label>
-            <Textarea
-              id="what_did_you_do"
-              value={form.what_did_you_do}
-              onChange={(e) => setForm(prev => ({ ...prev, what_did_you_do: e.target.value }))}
-              placeholder="Describe what actions you took while using the tool and your reasoning"
-              rows={3}
-            />
-          </div>
-
-                           {/* Known Issues Management */}
-                           {checkout.tools.known_issues && (
-                             <div>
-                               <Label>Current Known Issues</Label>
-                               <div className="space-y-2 mt-2 p-3 bg-muted rounded-md">
-                                 {getKnownIssues(checkout.tools.known_issues)
-                                   .filter(issue => !resolvedIssues.some(r => r.issue === issue))
-                                   .map((issue, index) => (
-                                   <div key={index} className="flex items-center justify-between p-2 bg-background rounded border">
-                                     <span className="text-sm">{issue}</span>
-                                     <Button
-                                       type="button"
-                                       variant="outline"
-                                       size="sm"
-                                       onClick={() => handleRemoveIssue(issue)}
-                                       className="text-red-600 hover:text-red-700"
-                                     >
-                                       <X className="h-4 w-4" />
-                                       Mark as Resolved
-                                     </Button>
-                                   </div>
-                                 ))}
-                                 {resolvedIssues.length > 0 && (
-                                   <div className="mt-3">
-                                     <p className="text-sm font-medium text-green-700 mb-2">Issues marked for resolution:</p>
-                                     {resolvedIssues.map((resolution, index) => (
-                                       <div key={index} className="text-sm p-2 bg-green-50 rounded border border-green-200">
-                                         <strong>{resolution.issue}</strong> - Will be removed after check-in
-                                       </div>
-                                     ))}
-                                   </div>
-                                 )}
+                             {checkout.tools.known_issues && (
+                               <div>
+                                 <Label>Current Known Issues</Label>
+                                 <div className="space-y-2 mt-2 p-3 bg-muted rounded-md">
+                                   {getKnownIssues(checkout.tools.known_issues)
+                                     .filter(issue => !resolvedIssues.some(r => r.issue === issue))
+                                     .map((issue, index) => (
+                                     <div key={index} className="flex items-center justify-between p-2 bg-background rounded border">
+                                       <span className="text-sm">{issue}</span>
+                                       <Button
+                                         type="button"
+                                         variant="outline"
+                                         size="sm"
+                                         onClick={() => handleRemoveIssue(issue)}
+                                         className="text-red-600 hover:text-red-700"
+                                       >
+                                         <X className="h-4 w-4" />
+                                         Mark as Resolved
+                                       </Button>
+                                     </div>
+                                   ))}
+                                   {resolvedIssues.length > 0 && (
+                                     <div className="mt-3">
+                                       <p className="text-sm font-medium text-green-700 mb-2">Issues marked for resolution:</p>
+                                       {resolvedIssues.map((resolution, index) => (
+                                         <div key={index} className="text-sm p-2 bg-green-50 rounded border border-green-200">
+                                           <strong>{resolution.issue}</strong> - Will be removed after check-in
+                                         </div>
+                                       ))}
+                                     </div>
+                                   )}
+                                 </div>
                                </div>
-                             </div>
-                           )}
+                             )}
 
-                           {/* Issue Resolution Dialog */}
+                             <div>
+                               <div className="flex items-center gap-2 mb-2">
+                                 <Label htmlFor="tool_issues">New Issues</Label>
+                                 <Tooltip>
+                                   <TooltipTrigger asChild>
+                                     <Info className="h-4 w-4 text-muted-foreground" />
+                                   </TooltipTrigger>
+                                   <TooltipContent>
+                                     <p>These issues will be added to known issues</p>
+                                   </TooltipContent>
+                                 </Tooltip>
+                               </div>
+                               <Textarea
+                                 id="tool_issues"
+                                 value={form.tool_issues}
+                                 onChange={(e) => setForm(prev => ({ ...prev, tool_issues: e.target.value }))}
+                                 placeholder="Report any new problems, damage, or malfunctions that will be added to the tool's known issues"
+                                 rows={3}
+                               />
+                             </div>
+
+                             <div>
+                               <div className="flex items-center gap-2 mb-2">
+                                 <Label htmlFor="reflection">Reflect on how you used this tool and the degree to which it aligns with Stargazer Farm values *</Label>
+                                 <Tooltip>
+                                   <TooltipTrigger asChild>
+                                     <Info className="h-4 w-4 text-muted-foreground" />
+                                   </TooltipTrigger>
+                                   <TooltipContent>
+                                     <p>Stargazer Farm values Quality, Efficiency, Safety, Transparency, Teamwork</p>
+                                   </TooltipContent>
+                                 </Tooltip>
+                               </div>
+                               <Textarea
+                                 id="reflection"
+                                 value={form.reflection}
+                                 onChange={(e) => setForm(prev => ({ ...prev, reflection: e.target.value }))}
+                                 placeholder="Reflect on your tool usage and how it aligns with our farm values"
+                                 rows={3}
+                               />
+                              </div>
+
+                            {/* Issue Resolution Dialog */}
                            {showIssueResolution && (
                              <Dialog open={!!showIssueResolution} onOpenChange={() => setShowIssueResolution(null)}>
                                <DialogContent className="max-w-lg">
@@ -786,14 +790,15 @@ export default function CheckIn() {
                            <div className="flex gap-2 pt-4">
                              <Button
                                onClick={handleCheckIn}
-                               disabled={isSubmitting || !form.condition_after || !form.sop_best_practices || !form.what_did_you_do || uploadingImages}
+                               disabled={isSubmitting || !form.condition_after || !form.reflection || uploadingImages}
                                className="flex-1"
                              >
                                {uploadingImages ? "Uploading Images..." : isSubmitting ? "Checking In..." : "Complete Check In"}
                              </Button>
                            </div>
-                        </div>
-                      </DialogContent>
+                           </div>
+                         </TooltipProvider>
+                       </DialogContent>
                     </Dialog>
                   </CardContent>
                 </Card>

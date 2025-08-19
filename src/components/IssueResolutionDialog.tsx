@@ -11,9 +11,10 @@ import { Loader2, X } from "lucide-react";
 interface ToolIssue {
   id: string;
   description: string;
-  severity: 'safety' | 'efficiency' | 'cosmetic' | 'maintenance';
+  issue_type: 'safety' | 'efficiency' | 'cosmetic' | 'maintenance';
   reported_at: string;
   reported_by: string;
+  blocks_checkout?: boolean;
 }
 
 interface IssueResolutionDialogProps {

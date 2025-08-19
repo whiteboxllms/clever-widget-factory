@@ -1,7 +1,7 @@
 import { Database } from '@/integrations/supabase/types';
 
-// Issue severity options - centralized for consistency across the app  
-export const ISSUE_SEVERITY_OPTIONS = [
+// Issue type options - centralized for consistency across the app  
+export const ISSUE_TYPE_OPTIONS = [
   { value: 'safety' as const, label: 'Safety' },
   { value: 'efficiency' as const, label: 'Efficiency' },
   { value: 'cosmetic' as const, label: 'Cosmetic' },

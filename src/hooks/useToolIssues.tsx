@@ -6,7 +6,7 @@ interface ToolIssue {
   id: string;
   tool_id: string;
   description: string;
-  severity: 'safety' | 'efficiency' | 'cosmetic' | 'maintenance';
+  issue_type: 'safety' | 'efficiency' | 'cosmetic' | 'maintenance';
   status: 'active' | 'resolved' | 'removed';
   reported_by: string;
   reported_at: string;
@@ -15,6 +15,7 @@ interface ToolIssue {
   root_cause?: string;
   resolution_notes?: string;
   resolution_photo_urls?: string[];
+  blocks_checkout?: boolean;
 }
 
 export function useToolIssues(toolId: string | null) {
@@ -51,7 +52,7 @@ export function useToolIssues(toolId: string | null) {
     }
   };
 
-  const createIssue = async (description: string, severity: ToolIssue['severity'] = 'efficiency') => {
+  const createIssue = async (description: string, issueType: ToolIssue['issue_type'] = 'efficiency', blocksCheckout: boolean = false) => {
     if (!toolId) return null;
 
     try {
@@ -63,7 +64,8 @@ export function useToolIssues(toolId: string | null) {
         .insert({
           tool_id: toolId,
           description: description.trim(),
-          severity,
+          issue_type: issueType,
+          blocks_checkout: blocksCheckout,
           reported_by: user.data.user.id
         })
         .select()
@@ -101,7 +103,7 @@ export function useToolIssues(toolId: string | null) {
     }
   };
 
-  const createIssuesFromText = async (issuesText: string) => {
+  const createIssuesFromText = async (issuesText: string, issueType: ToolIssue['issue_type'] = 'efficiency', blocksCheckout: boolean = false) => {
     if (!issuesText.trim() || !toolId) return;
 
     // Split text by lines and create individual issues
@@ -111,7 +113,7 @@ export function useToolIssues(toolId: string | null) {
       .filter(line => line.length > 0);
 
     for (const description of issueDescriptions) {
-      await createIssue(description);
+      await createIssue(description, issueType, blocksCheckout);
     }
   };
 

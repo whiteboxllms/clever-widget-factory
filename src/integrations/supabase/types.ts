@@ -820,9 +820,11 @@ export type Database = {
       }
       tool_issues: {
         Row: {
+          blocks_checkout: boolean
           created_at: string
           description: string
           id: string
+          issue_type: string
           reported_at: string
           reported_by: string
           resolution_notes: string | null
@@ -830,15 +832,16 @@ export type Database = {
           resolved_at: string | null
           resolved_by: string | null
           root_cause: string | null
-          severity: string
           status: string
           tool_id: string
           updated_at: string
         }
         Insert: {
+          blocks_checkout?: boolean
           created_at?: string
           description: string
           id?: string
+          issue_type?: string
           reported_at?: string
           reported_by: string
           resolution_notes?: string | null
@@ -846,15 +849,16 @@ export type Database = {
           resolved_at?: string | null
           resolved_by?: string | null
           root_cause?: string | null
-          severity?: string
           status?: string
           tool_id: string
           updated_at?: string
         }
         Update: {
+          blocks_checkout?: boolean
           created_at?: string
           description?: string
           id?: string
+          issue_type?: string
           reported_at?: string
           reported_by?: string
           resolution_notes?: string | null
@@ -862,7 +866,6 @@ export type Database = {
           resolved_at?: string | null
           resolved_by?: string | null
           root_cause?: string | null
-          severity?: string
           status?: string
           tool_id?: string
           updated_at?: string

@@ -63,7 +63,8 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
   const [showValidation, setShowValidation] = useState(false);
   const [selectedIssueForResolution, setSelectedIssueForResolution] = useState<any>(null);
   const [isResolutionDialogOpen, setIsResolutionDialogOpen] = useState(false);
-  const [newIssueSeverity, setNewIssueSeverity] = useState<'safety' | 'efficiency' | 'cosmetic' | 'maintenance'>('efficiency');
+  const [newIssueType, setNewIssueType] = useState<'safety' | 'efficiency' | 'cosmetic' | 'maintenance'>('efficiency');
+  const [blocksCheckout, setBlocksCheckout] = useState(false);
   
   // Use the new issues hook
   const { issues, isLoading: isLoadingIssues, fetchIssues, createIssuesFromText } = useToolIssues(tool?.id || null);
@@ -209,7 +210,8 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
               .insert({
                 tool_id: tool.id,
                 description: description.trim(),
-                severity: newIssueSeverity,
+                issue_type: newIssueType,
+                blocks_checkout: blocksCheckout,
                 reported_by: user.data.user.id
               });
 
@@ -236,13 +238,14 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
 
       // Update tool status - determine based on active issues
       const hasActiveIssues = issues.some(issue => issue.status === 'active');
-      const hasSafetyIssues = issues.some(issue => issue.status === 'active' && issue.severity === 'safety');
+      const hasBlockingIssues = issues.some(issue => issue.status === 'active' && issue.blocks_checkout);
+      const hasSafetyIssues = issues.some(issue => issue.status === 'active' && issue.issue_type === 'safety');
       
       const { error: toolError } = await supabase
         .from('tools')
         .update({ 
           condition: hasActiveIssues ? (hasSafetyIssues ? 'not_functional' : 'functional_but_not_efficient') : 'no_problems_observed',
-          status: hasSafetyIssues ? 'unavailable' : 'available',
+          status: hasBlockingIssues ? 'unavailable' : 'available',
           actual_location: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : '')
         })
         .eq('id', tool.id);
@@ -377,17 +380,31 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
                 </Tooltip>
               </div>
               <div className="space-y-2">
-                <Select value={newIssueSeverity} onValueChange={(value: any) => setNewIssueSeverity(value)}>
-                  <SelectTrigger className="w-fit">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="safety">🚨 Safety</SelectItem>
-                    <SelectItem value="efficiency">⚙️ Efficiency</SelectItem>
-                    <SelectItem value="cosmetic">✨ Cosmetic</SelectItem>
-                    <SelectItem value="maintenance">🔧 Maintenance</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select value={newIssueType} onValueChange={(value: any) => setNewIssueType(value)}>
+                    <SelectTrigger className="w-fit">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="safety">🚨 Safety</SelectItem>
+                      <SelectItem value="efficiency">⚙️ Efficiency</SelectItem>
+                      <SelectItem value="cosmetic">✨ Cosmetic</SelectItem>
+                      <SelectItem value="maintenance">🔧 Maintenance</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="blocks_checkout"
+                      checked={blocksCheckout}
+                      onChange={(e) => setBlocksCheckout(e.target.checked)}
+                      className="rounded border-gray-300"
+                    />
+                    <Label htmlFor="blocks_checkout" className="text-sm">
+                      Mark tool as offline until repaired
+                    </Label>
+                  </div>
+                </div>
                 <Textarea
                   id="tool_issues"
                   value={form.tool_issues}

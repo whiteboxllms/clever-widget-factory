@@ -9,10 +9,11 @@ import { toast } from "@/hooks/use-toast";
 interface ToolIssue {
   id: string;
   description: string;
-  severity: 'safety' | 'efficiency' | 'cosmetic' | 'maintenance';
+  issue_type: 'safety' | 'efficiency' | 'cosmetic' | 'maintenance';
   status: 'active' | 'resolved' | 'removed';
   reported_at: string;
   reported_by: string;
+  blocks_checkout?: boolean;
 }
 
 interface IssueCardProps {
@@ -24,8 +25,8 @@ interface IssueCardProps {
 export function IssueCard({ issue, onResolve, onRefresh }: IssueCardProps) {
   const [isRemoving, setIsRemoving] = useState(false);
 
-  const getSeverityIcon = (severity: string) => {
-    switch (severity) {
+  const getIssueTypeIcon = (issueType: string) => {
+    switch (issueType) {
       case 'safety':
         return <AlertTriangle className="h-4 w-4 text-destructive" />;
       case 'efficiency':
@@ -39,8 +40,8 @@ export function IssueCard({ issue, onResolve, onRefresh }: IssueCardProps) {
     }
   };
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
+  const getIssueTypeColor = (issueType: string) => {
+    switch (issueType) {
       case 'safety':
         return 'destructive';
       case 'efficiency':
@@ -106,10 +107,15 @@ export function IssueCard({ issue, onResolve, onRefresh }: IssueCardProps) {
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              {getSeverityIcon(issue.severity)}
-              <Badge variant={getSeverityColor(issue.severity) as any} className="text-xs">
-                {issue.severity}
+              {getIssueTypeIcon(issue.issue_type)}
+              <Badge variant={getIssueTypeColor(issue.issue_type) as any} className="text-xs">
+                {issue.issue_type}
               </Badge>
+              {issue.blocks_checkout && (
+                <Badge variant="destructive" className="text-xs">
+                  OFFLINE
+                </Badge>
+              )}
               <span className="text-xs text-muted-foreground">
                 {new Date(issue.reported_at).toLocaleDateString()}
               </span>

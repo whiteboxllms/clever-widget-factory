@@ -338,10 +338,12 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
 
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <Label htmlFor="reflection">Reflect on the degree to which your use of this tool aligned with Stargazer Values *</Label>
+                <Label htmlFor="reflection">Reflect on your tool usage and how it aligns with our farm values *</Label>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Info className="h-4 w-4 text-muted-foreground" />
+                    <button type="button" className="touch-manipulation">
+                      <Info className="h-4 w-4 text-muted-foreground" />
+                    </button>
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>Stargazer Farm values Quality, Efficiency, Safety, Transparency, Teamwork.</p>

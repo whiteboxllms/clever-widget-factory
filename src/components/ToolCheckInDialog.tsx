@@ -10,9 +10,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_VERSION, getBrowserInfo } from '@/lib/version';
 import { Tables, Database } from '@/integrations/supabase/types';
-import { ExternalLink, Info } from 'lucide-react';
+import { ExternalLink, Info, AlertTriangle, Plus } from 'lucide-react';
 import { TOOL_CONDITION_OPTIONS } from '@/lib/constants';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useToolIssues } from '@/hooks/useToolIssues';
+import { IssueCard } from '@/components/IssueCard';
+import { IssueResolutionDialog } from '@/components/IssueResolutionDialog';
 
 
 type Tool = Tables<'tools'>;
@@ -60,6 +63,12 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
     updated_known_issues: ''
   });
   const [showValidation, setShowValidation] = useState(false);
+  const [selectedIssueForResolution, setSelectedIssueForResolution] = useState<any>(null);
+  const [isResolutionDialogOpen, setIsResolutionDialogOpen] = useState(false);
+  const [newIssueSeverity, setNewIssueSeverity] = useState<'safety' | 'functional' | 'cosmetic' | 'maintenance'>('functional');
+  
+  // Use the new issues hook
+  const { issues, isLoading: isLoadingIssues, fetchIssues, createIssuesFromText } = useToolIssues(tool?.id || null);
 
   useEffect(() => {
     if (tool && open) {
@@ -189,22 +198,53 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
 
       if (updateError) throw updateError;
 
-      // Combine updated known issues with new issues
-      let finalKnownIssues = form.updated_known_issues || '';
-      if (form.tool_issues) {
-        finalKnownIssues = finalKnownIssues 
-          ? `${finalKnownIssues}\n\n${form.tool_issues}`
-          : form.tool_issues;
+      // Create structured issues from new issues text with selected severity
+      if (form.tool_issues.trim()) {
+        const issueDescriptions = form.tool_issues
+          .split('\n')
+          .map(line => line.trim())
+          .filter(line => line.length > 0);
+
+        for (const description of issueDescriptions) {
+          const user = await supabase.auth.getUser();
+          if (user.data.user) {
+            await supabase
+              .from('tool_issues')
+              .insert({
+                tool_id: tool.id,
+                description: description.trim(),
+                severity: newIssueSeverity,
+                reported_by: user.data.user.id
+              });
+
+            // Create history record
+            await supabase
+              .from('tool_issue_history')
+              .insert({
+                issue_id: (await supabase
+                  .from('tool_issues')
+                  .select('id')
+                  .eq('tool_id', tool.id)
+                  .eq('description', description.trim())
+                  .order('created_at', { ascending: false })
+                  .limit(1)
+                  .single()).data?.id,
+                old_status: null,
+                new_status: 'active',
+                changed_by: user.data.user.id,
+                notes: 'Issue reported during check-in'
+              });
+          }
+        }
       }
 
-      // Update tool status, condition, and known issues
+      // Update tool status and condition
       const { error: toolError } = await supabase
         .from('tools')
         .update({ 
           condition: form.condition_after as Database['public']['Enums']['tool_condition'],
           status: form.condition_after === 'not_functional' ? 'unavailable' : 'available',
-          actual_location: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : ''),
-          known_issues: finalKnownIssues || null
+          actual_location: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : '')
         })
         .eq('id', tool.id);
 
@@ -303,10 +343,12 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
               </Select>
             </div>
 
-            {tool.known_issues && (
+            {/* Current Active Issues */}
+            {issues.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <Label htmlFor="updated_known_issues">Current Known Issues</Label>
+                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                  <Label>Current Active Issues ({issues.length})</Label>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button type="button" className="touch-manipulation">
@@ -314,41 +356,62 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
                       </button>
                     </TooltipTrigger>
                     <TooltipContent side="right" align="center" className="max-w-xs">
-                      <p>Edit or remove existing known issues for this tool</p>
+                      <p>Mark issues as resolved with photo evidence and root cause analysis, or remove if incorrectly reported</p>
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <Textarea
-                  id="updated_known_issues"
-                  value={form.updated_known_issues}
-                  onChange={(e) => setForm(prev => ({ ...prev, updated_known_issues: e.target.value }))}
-                  placeholder="Edit or remove known issues..."
-                  rows={3}
-                />
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {issues.map((issue) => (
+                    <IssueCard
+                      key={issue.id}
+                      issue={issue}
+                      onResolve={(issue) => {
+                        setSelectedIssueForResolution(issue);
+                        setIsResolutionDialogOpen(true);
+                      }}
+                      onRefresh={fetchIssues}
+                    />
+                  ))}
+                </div>
               </div>
             )}
 
+            {/* New Issues Section */}
             <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <Label htmlFor="tool_issues">New Issues</Label>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button type="button" className="touch-manipulation">
-                        <Info className="h-4 w-4 text-muted-foreground" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" align="center" className="max-w-xs">
-                      <p>These issues will be added to known issues</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-              <Textarea
-                id="tool_issues"
-                value={form.tool_issues}
-                onChange={(e) => setForm(prev => ({ ...prev, tool_issues: e.target.value }))}
-                placeholder="Report any new problems, damage, or malfunctions that will be added to the tool's known issues"
-                rows={3}
-              />
+              <div className="flex items-center gap-2 mb-2">
+                <Plus className="h-4 w-4 text-green-600" />
+                <Label htmlFor="tool_issues">Report New Issues</Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="touch-manipulation">
+                      <Info className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" align="center" className="max-w-xs">
+                    <p>Report new problems discovered during use. Each line will become a separate tracked issue.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <div className="space-y-2">
+                <Select value={newIssueSeverity} onValueChange={(value: any) => setNewIssueSeverity(value)}>
+                  <SelectTrigger className="w-fit">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="safety">🚨 Safety</SelectItem>
+                    <SelectItem value="functional">⚙️ Functional</SelectItem>
+                    <SelectItem value="cosmetic">✨ Cosmetic</SelectItem>
+                    <SelectItem value="maintenance">🔧 Maintenance</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Textarea
+                  id="tool_issues"
+                  value={form.tool_issues}
+                  onChange={(e) => setForm(prev => ({ ...prev, tool_issues: e.target.value }))}
+                  placeholder="Describe any new problems, damage, or malfunctions discovered during use. Put each issue on a separate line."
+                  rows={3}
+                />
+              </div>
             </div>
 
             {tool.has_motor && (
@@ -427,6 +490,17 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
           </div>
         </TooltipProvider>
       </DialogContent>
+      
+      {/* Issue Resolution Dialog */}
+      <IssueResolutionDialog
+        issue={selectedIssueForResolution}
+        open={isResolutionDialogOpen}
+        onOpenChange={setIsResolutionDialogOpen}
+        onSuccess={() => {
+          fetchIssues();
+          setSelectedIssueForResolution(null);
+        }}
+      />
     </Dialog>
   );
 }

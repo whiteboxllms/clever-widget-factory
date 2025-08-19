@@ -785,6 +785,90 @@ export type Database = {
           },
         ]
       }
+      tool_issue_history: {
+        Row: {
+          changed_at: string
+          changed_by: string
+          created_at: string
+          id: string
+          issue_id: string
+          new_status: string
+          notes: string | null
+          old_status: string | null
+        }
+        Insert: {
+          changed_at?: string
+          changed_by: string
+          created_at?: string
+          id?: string
+          issue_id: string
+          new_status: string
+          notes?: string | null
+          old_status?: string | null
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string
+          created_at?: string
+          id?: string
+          issue_id?: string
+          new_status?: string
+          notes?: string | null
+          old_status?: string | null
+        }
+        Relationships: []
+      }
+      tool_issues: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          reported_at: string
+          reported_by: string
+          resolution_notes: string | null
+          resolution_photo_urls: string[] | null
+          resolved_at: string | null
+          resolved_by: string | null
+          root_cause: string | null
+          severity: string
+          status: string
+          tool_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          reported_at?: string
+          reported_by: string
+          resolution_notes?: string | null
+          resolution_photo_urls?: string[] | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          root_cause?: string | null
+          severity?: string
+          status?: string
+          tool_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          reported_at?: string
+          reported_by?: string
+          resolution_notes?: string | null
+          resolution_photo_urls?: string[] | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          root_cause?: string | null
+          severity?: string
+          status?: string
+          tool_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tools: {
         Row: {
           actual_location: string | null

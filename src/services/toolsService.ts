@@ -38,12 +38,14 @@ export const toolsService = {
 
       for (const checkin of checkinsWithIssues || []) {
         if (checkin.problems_reported) {
-          // Check if this issue already exists in tool_issues
+          // Check if this issue already exists in tool_issues using the raw problem text or formatted description
+          const formattedDescription = `[Reported by ${checkin.user_name} during check-in]: ${checkin.problems_reported.trim()}`;
+          
           const { data: existingIssue } = await supabase
             .from('tool_issues')
             .select('id')
             .eq('tool_id', toolId)
-            .eq('description', checkin.problems_reported.trim())
+            .or(`description.eq.${checkin.problems_reported.trim()},description.eq.${formattedDescription}`)
             .maybeSingle();
 
           if (!existingIssue) {
@@ -52,7 +54,7 @@ export const toolsService = {
               .from('tool_issues')
               .insert({
                 tool_id: toolId,
-                description: `[Reported by ${checkin.user_name} during check-in]: ${checkin.problems_reported.trim()}`,
+                description: formattedDescription,
                 issue_type: 'efficiency',
                 blocks_checkout: false,
                 reported_by: user.id,

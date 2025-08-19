@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { APP_VERSION, getBrowserInfo } from '@/lib/version';
 import { Tables, Database } from '@/integrations/supabase/types';
 import { ExternalLink, Info, AlertTriangle, Plus } from 'lucide-react';
-
+import { TOOL_CONDITION_OPTIONS } from '@/lib/constants';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToolIssues } from '@/hooks/useToolIssues';
 import { IssueCard } from '@/components/IssueCard';
@@ -32,6 +32,7 @@ type CheckoutWithTool = {
 type CheckInForm = {
   tool_issues: string;
   notes: string;
+  returned_to_correct_location: boolean;
   reflection: string;
   hours_used: string;
   checkin_reason: string;
@@ -53,6 +54,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
   const [form, setForm] = useState<CheckInForm>({
     tool_issues: '',
     notes: '',
+    returned_to_correct_location: true,
     reflection: '',
     hours_used: '',
     checkin_reason: '',
@@ -75,6 +77,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
       setForm({
         tool_issues: '',
         notes: '',
+        returned_to_correct_location: true,
         reflection: '',
         hours_used: '',
         checkin_reason: '',
@@ -162,8 +165,11 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         checkout_id: checkout.id,
         tool_id: checkout.tool_id,
         user_name: user?.user_metadata?.full_name || 'Unknown User',
+        condition_after: 'no_problems_observed',
         problems_reported: form.tool_issues || null,
+        location_found: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : ''),
         notes: form.notes || null,
+        returned_to_correct_location: form.returned_to_correct_location,
         sop_best_practices: form.reflection,
         what_did_you_do: form.reflection,
         checkin_reason: form.checkin_reason || null,
@@ -204,11 +210,14 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
       }
 
       // Update tool status - determine based on active issues
+      const hasActiveIssues = issues.some(issue => issue.status === 'active');
       const hasBlockingIssues = issues.some(issue => issue.status === 'active' && issue.blocks_checkout);
+      const hasSafetyIssues = issues.some(issue => issue.status === 'active' && issue.issue_type === 'safety');
       
       const { error: toolError } = await supabase
         .from('tools')
         .update({ 
+          condition: hasActiveIssues ? (hasSafetyIssues ? 'not_functional' : 'functional_but_not_efficient') : 'no_problems_observed',
           status: hasBlockingIssues ? 'unavailable' : 'available',
           actual_location: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : '')
         })
@@ -446,6 +455,18 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
               />
             </div>
 
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="returned_to_correct_location"
+                checked={form.returned_to_correct_location}
+                onChange={(e) => setForm(prev => ({ ...prev, returned_to_correct_location: e.target.checked }))}
+                className="rounded border-gray-300"
+              />
+              <Label htmlFor="returned_to_correct_location">
+                Tool was returned to its correct storage location: {tool.storage_vicinity}{tool.storage_location ? ` - ${tool.storage_location}` : ''}
+              </Label>
+            </div>
 
             <div className="flex gap-2 pt-4">
               <Button

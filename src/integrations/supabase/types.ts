@@ -20,11 +20,14 @@ export type Database = {
           checkin_date: string
           checkin_reason: string | null
           checkout_id: string | null
+          condition_after: Database["public"]["Enums"]["tool_condition"]
           created_at: string
           hours_used: number | null
           id: string
+          location_found: string | null
           notes: string | null
           problems_reported: string | null
+          returned_to_correct_location: boolean
           sop_best_practices: string
           tool_id: string
           user_name: string
@@ -35,11 +38,14 @@ export type Database = {
           checkin_date?: string
           checkin_reason?: string | null
           checkout_id?: string | null
+          condition_after: Database["public"]["Enums"]["tool_condition"]
           created_at?: string
           hours_used?: number | null
           id?: string
+          location_found?: string | null
           notes?: string | null
           problems_reported?: string | null
+          returned_to_correct_location?: boolean
           sop_best_practices?: string
           tool_id: string
           user_name: string
@@ -50,11 +56,14 @@ export type Database = {
           checkin_date?: string
           checkin_reason?: string | null
           checkout_id?: string | null
+          condition_after?: Database["public"]["Enums"]["tool_condition"]
           created_at?: string
           hours_used?: number | null
           id?: string
+          location_found?: string | null
           notes?: string | null
           problems_reported?: string | null
+          returned_to_correct_location?: boolean
           sop_best_practices?: string
           tool_id?: string
           user_name?: string
@@ -714,8 +723,11 @@ export type Database = {
           audit_comments: string | null
           audited_at: string
           audited_by: string
+          condition_found: string
           created_at: string
           flagged_for_maintenance: boolean
+          found_in_location: boolean
+          found_in_vicinity: boolean
           id: string
           last_user_identified: string | null
           photo_urls: string[] | null
@@ -725,8 +737,11 @@ export type Database = {
           audit_comments?: string | null
           audited_at?: string
           audited_by: string
+          condition_found: string
           created_at?: string
           flagged_for_maintenance?: boolean
+          found_in_location: boolean
+          found_in_vicinity: boolean
           id?: string
           last_user_identified?: string | null
           photo_urls?: string[] | null
@@ -736,8 +751,11 @@ export type Database = {
           audit_comments?: string | null
           audited_at?: string
           audited_by?: string
+          condition_found?: string
           created_at?: string
           flagged_for_maintenance?: boolean
+          found_in_location?: boolean
+          found_in_vicinity?: boolean
           id?: string
           last_user_identified?: string | null
           photo_urls?: string[] | null
@@ -882,6 +900,7 @@ export type Database = {
           actual_location: string | null
           audit_status: string | null
           category: string | null
+          condition: Database["public"]["Enums"]["tool_condition"]
           created_at: string
           description: string | null
           has_motor: boolean
@@ -903,6 +922,7 @@ export type Database = {
           actual_location?: string | null
           audit_status?: string | null
           category?: string | null
+          condition?: Database["public"]["Enums"]["tool_condition"]
           created_at?: string
           description?: string | null
           has_motor?: boolean
@@ -924,6 +944,7 @@ export type Database = {
           actual_location?: string | null
           audit_status?: string | null
           category?: string | null
+          condition?: Database["public"]["Enums"]["tool_condition"]
           created_at?: string
           description?: string | null
           has_motor?: boolean
@@ -965,6 +986,10 @@ export type Database = {
       }
     }
     Enums: {
+      tool_condition:
+        | "no_problems_observed"
+        | "functional_but_not_efficient"
+        | "not_functional"
       tool_status:
         | "available"
         | "checked_out"
@@ -1097,6 +1122,11 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      tool_condition: [
+        "no_problems_observed",
+        "functional_but_not_efficient",
+        "not_functional",
+      ],
       tool_status: [
         "available",
         "checked_out",

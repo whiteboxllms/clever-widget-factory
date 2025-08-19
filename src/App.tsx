@@ -48,11 +48,6 @@ function AppContent() {
           <Tools />
         </ProtectedRoute>
       } />
-      <Route path="/tools/:toolId" element={
-        <ProtectedRoute>
-          <Tools />
-        </ProtectedRoute>
-      } />
       <Route path="/tools/:toolId/edit" element={
         <ProtectedRoute>
           <Tools />

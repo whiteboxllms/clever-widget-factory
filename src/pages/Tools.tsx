@@ -21,6 +21,7 @@ import { ToolCheckoutDialog } from "@/components/ToolCheckoutDialog";
 import { useToolIssues } from "@/hooks/useToolIssues";
 import { IssueCard } from "@/components/IssueCard";
 import { IssueResolutionDialog } from "@/components/IssueResolutionDialog";
+import { ToolIssuesSummary } from "@/components/ToolIssuesSummary";
 
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -971,9 +972,15 @@ export default function Tools() {
                         </Badge>
                       </div>
                       
-                      <p className="text-sm text-muted-foreground mb-3">
-                        Location: {tool.actual_location || (tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : ''))}
-                      </p>
+                       <p className="text-sm text-muted-foreground mb-3">
+                         Location: {tool.actual_location || (tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : ''))}
+                       </p>
+                       
+                       {/* Known Issues Summary */}
+                       <ToolIssuesSummary 
+                         toolId={tool.id}
+                         knownIssues={tool.known_issues}
+                       />
                       
                       {/* Action Buttons */}
                       <div className="space-y-2">

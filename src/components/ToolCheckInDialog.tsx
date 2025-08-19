@@ -338,7 +338,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
 
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <Label htmlFor="reflection">Reflect on your tool usage and how it aligns with our farm values *</Label>
+                <Label htmlFor="reflection">Reflect *</Label>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button type="button" className="touch-manipulation">
@@ -346,7 +346,8 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
                     </button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Stargazer Farm values Quality, Efficiency, Safety, Transparency, Teamwork.</p>
+                    <p>Reflect on your tool usage and how it aligns with our farm values.</p>
+                    <p className="mt-1 text-xs">Stargazer Farm values Quality, Efficiency, Safety, Transparency, Teamwork.</p>
                   </TooltipContent>
                 </Tooltip>
               </div>

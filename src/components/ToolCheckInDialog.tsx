@@ -30,7 +30,6 @@ type CheckoutWithTool = {
 };
 
 type CheckInForm = {
-  condition_after: Database['public']['Enums']['tool_condition'] | '';
   tool_issues: string;
   notes: string;
   returned_to_correct_location: boolean;
@@ -53,7 +52,6 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkout, setCheckout] = useState<CheckoutWithTool | null>(null);
   const [form, setForm] = useState<CheckInForm>({
-    condition_after: '',
     tool_issues: '',
     notes: '',
     returned_to_correct_location: true,
@@ -75,7 +73,6 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
       fetchCheckout();
       // Reset form and initialize known issues
       setForm({
-    condition_after: 'no_problems_observed',
         tool_issues: '',
         notes: '',
         returned_to_correct_location: true,
@@ -140,12 +137,11 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
     
     // Check required fields
     const isCheckingInForSomeoneElse = user?.id !== checkout?.user_id;
-    if (!form.condition_after || !form.reflection || (isCheckingInForSomeoneElse && !form.checkin_reason)) {
+    if (!form.reflection || (isCheckingInForSomeoneElse && !form.checkin_reason)) {
       const validationError = {
         ...debugInfo,
         error: 'Missing required fields',
         missingFields: {
-          condition_after: !form.condition_after,
           reflection: !form.reflection,
           checkin_reason: isCheckingInForSomeoneElse ? !form.checkin_reason : false
         }
@@ -167,7 +163,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         checkout_id: checkout.id,
         tool_id: checkout.tool_id,
         user_name: checkout.user_name,
-        condition_after: form.condition_after as any,
+        condition_after: 'no_problems_observed',
         problems_reported: form.tool_issues || null,
         location_found: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : ''),
         notes: form.notes || null,
@@ -238,12 +234,15 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         }
       }
 
-      // Update tool status and condition
+      // Update tool status - determine based on active issues
+      const hasActiveIssues = issues.some(issue => issue.status === 'active');
+      const hasSafetyIssues = issues.some(issue => issue.status === 'active' && issue.severity === 'safety');
+      
       const { error: toolError } = await supabase
         .from('tools')
         .update({ 
-          condition: form.condition_after as Database['public']['Enums']['tool_condition'],
-          status: form.condition_after === 'not_functional' ? 'unavailable' : 'available',
+          condition: hasActiveIssues ? (hasSafetyIssues ? 'not_functional' : 'functional_but_not_efficient') : 'no_problems_observed',
+          status: hasSafetyIssues ? 'unavailable' : 'available',
           actual_location: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : '')
         })
         .eq('id', tool.id);
@@ -272,7 +271,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
           errorDetails = "You don't have permission to check in this tool. Please ensure you're logged in and have the necessary access rights.";
         } else if (errorDetails.includes('null value') || errorDetails.includes('not-null constraint')) {
           errorMessage = "Missing required information";
-          errorDetails = "Please fill in all required fields: Tool Condition and SOP Deviation level are mandatory.";
+          errorDetails = "Please fill in the reflection field as it's mandatory for check-in.";
         } else if (errorDetails.includes('foreign key')) {
           errorMessage = "Data reference error";
           errorDetails = "There's an issue with the checkout record. Please try refreshing the page and checking in again.";
@@ -327,21 +326,6 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
               </div>
             )}
 
-            <div>
-              <Label htmlFor="condition_after">Tool Condition After Use *</Label>
-              <Select value={form.condition_after} onValueChange={(value: Database['public']['Enums']['tool_condition']) => setForm(prev => ({ ...prev, condition_after: value }))}>
-                <SelectTrigger className={showValidation && !form.condition_after ? "border-red-500" : ""}>
-                  <SelectValue placeholder="Select condition" />
-                </SelectTrigger>
-                <SelectContent>
-                  {TOOL_CONDITION_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
 
             {/* Current Active Issues */}
             {issues.length > 0 && (

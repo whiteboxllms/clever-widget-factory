@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const userRole = profile?.role;
             setIsAdmin(userRole === 'admin');
             setIsContributor(userRole === 'contributor');
-            setCanEditTools(userRole === 'admin' || userRole === 'contributor');
+            setCanEditTools(userRole === 'admin' || userRole === 'contributor' || userRole === 'leadership');
           }, 0);
         } else {
           setIsAdmin(false);
@@ -73,7 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const userRole = profile?.role;
         setIsAdmin(userRole === 'admin');
         setIsContributor(userRole === 'contributor');
-        setCanEditTools(userRole === 'admin' || userRole === 'contributor');
+        setCanEditTools(userRole === 'admin' || userRole === 'contributor' || userRole === 'leadership');
       } else {
         setIsAdmin(false);
         setIsContributor(false);

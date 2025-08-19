@@ -481,7 +481,14 @@ export default function CheckIn() {
                 <Card key={checkout.id} className={`cursor-pointer transition-all hover:shadow-lg ${isOverdue ? 'border-orange-300' : ''}`}>
                   <CardHeader>
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">{checkout.tools.name}</CardTitle>
+                      <CardTitle className="text-lg">
+                        {checkout.tools.name}
+                        {checkout.tools.serial_number && (
+                          <span className="text-sm font-normal text-muted-foreground ml-2">
+                            {checkout.tools.serial_number}
+                          </span>
+                        )}
+                      </CardTitle>
                       {isOverdue && <AlertTriangle className="h-5 w-5 text-orange-500" />}
                     </div>
                     <CardDescription className="space-y-2">

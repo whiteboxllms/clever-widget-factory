@@ -66,14 +66,14 @@ interface CheckoutHistory {
   checkin?: {
     id: string;
     checkin_date: string;
-    condition_after: string;
     problems_reported?: string;
     notes?: string;
-    returned_to_correct_location: boolean;
     user_name?: string;
     hours_used?: number;
-    location_found?: string;
     after_image_urls?: string[];
+    sop_best_practices?: string;
+    what_did_you_do?: string;
+    checkin_reason?: string;
   };
 }
 
@@ -190,14 +190,14 @@ export default function Tools() {
           checkins(
             id,
             checkin_date,
-            condition_after,
             problems_reported,
             notes,
-            returned_to_correct_location,
             user_name,
             hours_used,
-            location_found,
-            after_image_urls
+            after_image_urls,
+            sop_best_practices,
+            what_did_you_do,
+            checkin_reason
           )
         `)
         .eq('tool_id', toolId)
@@ -1083,23 +1083,23 @@ export default function Tools() {
                                     </div>
                                     <div className="text-sm space-y-1">
                                       <div><strong>User:</strong> {checkout.user_name}</div>
-                                      <div><strong>Condition after use:</strong> 
-                                        <Badge variant={checkout.checkin?.condition_after === 'not_functional' ? 'destructive' : 'default'} className="ml-2">
-                                          {checkout.checkin?.condition_after}
-                                        </Badge>
-                                      </div>
-                                      <div><strong>Returned to correct location:</strong> {checkout.checkin?.returned_to_correct_location ? 'Yes' : 'No'}</div>
                                       {checkout.checkin?.hours_used && (
                                         <div><strong>Hours used:</strong> {checkout.checkin.hours_used}</div>
                                       )}
-                                      {checkout.checkin?.location_found && (
-                                        <div><strong>Found at:</strong> {checkout.checkin.location_found}</div>
+                                      {checkout.checkin?.what_did_you_do && (
+                                        <div><strong>What was done:</strong> {checkout.checkin.what_did_you_do}</div>
+                                      )}
+                                      {checkout.checkin?.sop_best_practices && (
+                                        <div><strong>SOP Best Practices:</strong> {checkout.checkin.sop_best_practices}</div>
                                       )}
                                       {checkout.checkin?.problems_reported && (
                                         <div className="text-destructive"><strong>Issues reported:</strong> {checkout.checkin.problems_reported}</div>
                                       )}
                                       {checkout.checkin?.notes && (
                                         <div><strong>Notes:</strong> {checkout.checkin.notes}</div>
+                                      )}
+                                      {checkout.checkin?.checkin_reason && (
+                                        <div><strong>Checkin Reason:</strong> {checkout.checkin.checkin_reason}</div>
                                       )}
                                     </div>
                                   </Card>
@@ -1144,23 +1144,23 @@ export default function Tools() {
                                         </div>
                                          <div className="text-sm space-y-1">
                                            <div><strong>Returned by:</strong> {checkout.checkin.user_name || checkout.user_name}</div>
-                                           <div><strong>Condition after use:</strong> 
-                                             <Badge variant={checkout.checkin.condition_after === 'not_functional' ? 'destructive' : 'default'} className="ml-2">
-                                               {checkout.checkin.condition_after}
-                                             </Badge>
-                                           </div>
-                                           <div><strong>Returned to correct location:</strong> {checkout.checkin.returned_to_correct_location ? 'Yes' : 'No'}</div>
                                            {checkout.checkin.hours_used && (
                                              <div><strong>Hours used:</strong> {checkout.checkin.hours_used}</div>
                                            )}
-                                           {checkout.checkin.location_found && (
-                                             <div><strong>Found at:</strong> {checkout.checkin.location_found}</div>
+                                           {checkout.checkin.what_did_you_do && (
+                                             <div><strong>What was done:</strong> {checkout.checkin.what_did_you_do}</div>
+                                           )}
+                                           {checkout.checkin.sop_best_practices && (
+                                             <div><strong>SOP Best Practices:</strong> {checkout.checkin.sop_best_practices}</div>
                                            )}
                                            {checkout.checkin.problems_reported && (
                                              <div className="text-destructive"><strong>Issues reported:</strong> {checkout.checkin.problems_reported}</div>
                                            )}
                                            {checkout.checkin.notes && (
                                              <div><strong>Return notes:</strong> {checkout.checkin.notes}</div>
+                                           )}
+                                           {checkout.checkin.checkin_reason && (
+                                             <div><strong>Checkin Reason:</strong> {checkout.checkin.checkin_reason}</div>
                                            )}
                                          </div>
                                       </Card>

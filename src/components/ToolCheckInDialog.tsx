@@ -10,8 +10,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_VERSION, getBrowserInfo } from '@/lib/version';
 import { Tables, Database } from '@/integrations/supabase/types';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Info } from 'lucide-react';
 import { TOOL_CONDITION_OPTIONS } from '@/lib/constants';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 type Tool = Tables<'tools'>;
@@ -29,8 +30,7 @@ type CheckInForm = {
   tool_issues: string;
   notes: string;
   returned_to_correct_location: boolean;
-  sop_best_practices: string;
-  what_did_you_do: string;
+  reflection: string;
   hours_used: string;
 };
 
@@ -51,8 +51,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
     tool_issues: '',
     notes: '',
     returned_to_correct_location: true,
-    sop_best_practices: '',
-    what_did_you_do: '',
+    reflection: '',
     hours_used: ''
   });
   const [showValidation, setShowValidation] = useState(false);
@@ -66,8 +65,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         tool_issues: '',
         notes: '',
         returned_to_correct_location: true,
-        sop_best_practices: '',
-        what_did_you_do: '',
+        reflection: '',
         hours_used: ''
       });
     }
@@ -125,14 +123,13 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
     setShowValidation(true);
     
     // Check required fields
-    if (!form.condition_after || !form.sop_best_practices || !form.what_did_you_do) {
+    if (!form.condition_after || !form.reflection) {
       const validationError = {
         ...debugInfo,
         error: 'Missing required fields',
         missingFields: {
           condition_after: !form.condition_after,
-          sop_best_practices: !form.sop_best_practices,
-          what_did_you_do: !form.what_did_you_do
+          reflection: !form.reflection
         }
       };
       console.error('=== CHECK-IN VALIDATION ERROR ===', validationError);
@@ -157,8 +154,8 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         location_found: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : ''),
         notes: form.notes || null,
         returned_to_correct_location: form.returned_to_correct_location,
-        sop_best_practices: form.sop_best_practices,
-        what_did_you_do: form.what_did_you_do,
+        sop_best_practices: form.reflection,
+        what_did_you_do: form.reflection,
       };
 
       console.log('Checkin data:', checkinData);
@@ -252,121 +249,126 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
           </div>
         )}
 
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="condition_after">Tool Condition After Use *</Label>
-            <Select value={form.condition_after} onValueChange={(value: Database['public']['Enums']['tool_condition']) => setForm(prev => ({ ...prev, condition_after: value }))}>
-              <SelectTrigger className={showValidation && !form.condition_after ? "border-red-500" : ""}>
-                <SelectValue placeholder="Select condition" />
-              </SelectTrigger>
-              <SelectContent>
-                {TOOL_CONDITION_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label htmlFor="tool_issues">Tool Issues encountered not seen previously (add to known issues)</Label>
-            <Textarea
-              id="tool_issues"
-              value={form.tool_issues}
-              onChange={(e) => setForm(prev => ({ ...prev, tool_issues: e.target.value }))}
-              placeholder="Report any new problems, damage, or malfunctions that will be added to the tool's known issues"
-              rows={3}
-            />
-          </div>
-
-          {tool.has_motor && (
+        <TooltipProvider>
+          <div className="space-y-4">
             <div>
-              <Label htmlFor="hours_used">Hours Used</Label>
-              <Input
-                id="hours_used"
-                type="number"
-                step="0.1"
-                min="0"
-                value={form.hours_used}
-                onChange={(e) => setForm(prev => ({ ...prev, hours_used: e.target.value }))}
-                placeholder="Enter hours used (e.g., 2.5)"
-              />
+              <Label htmlFor="condition_after">Tool Condition After Use *</Label>
+              <Select value={form.condition_after} onValueChange={(value: Database['public']['Enums']['tool_condition']) => setForm(prev => ({ ...prev, condition_after: value }))}>
+                <SelectTrigger className={showValidation && !form.condition_after ? "border-red-500" : ""}>
+                  <SelectValue placeholder="Select condition" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TOOL_CONDITION_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          )}
 
-          <div>
-            <Label htmlFor="sop_best_practices">What is the SOP / best practices in this situation? *</Label>
-            <div className="flex gap-2">
+            {tool.known_issues && (
+              <div>
+                <Label>Current Known Issues</Label>
+                <div className="p-3 bg-muted rounded-lg text-sm">
+                  {tool.known_issues}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Label htmlFor="tool_issues">New Issues</Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>These issues will be added to known issues</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <Textarea
-                id="sop_best_practices"
-                value={form.sop_best_practices}
-                onChange={(e) => setForm(prev => ({ ...prev, sop_best_practices: e.target.value }))}
-                placeholder="Describe the standard operating procedures or best practices that should be followed"
-                rows={2}
-                className={`flex-1 ${showValidation && !form.sop_best_practices ? "border-red-500" : ""}`}
+                id="tool_issues"
+                value={form.tool_issues}
+                onChange={(e) => setForm(prev => ({ ...prev, tool_issues: e.target.value }))}
+                placeholder="Report any new problems, damage, or malfunctions that will be added to the tool's known issues"
+                rows={3}
               />
-              {tool.manual_url && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.open(tool.manual_url, '_blank')}
-                  className="flex items-center gap-1 self-start"
-                >
-                  SOP
-                  <ExternalLink className="h-3 w-3" />
-                </Button>
-              )}
+            </div>
+
+            {tool.has_motor && (
+              <div>
+                <Label htmlFor="hours_used">Hours Used</Label>
+                <Input
+                  id="hours_used"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={form.hours_used}
+                  onChange={(e) => setForm(prev => ({ ...prev, hours_used: e.target.value }))}
+                  placeholder="Enter hours used (e.g., 2.5)"
+                />
+              </div>
+            )}
+
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Label htmlFor="reflection">Reflect on how you used this tool and the degree to which it aligns with Stargazer Farm values *</Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Stargazer Farm values Quality, Efficiency, Safety, Transparency, Teamwork</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <Textarea
+                id="reflection"
+                value={form.reflection}
+                onChange={(e) => setForm(prev => ({ ...prev, reflection: e.target.value }))}
+                placeholder="Reflect on your tool usage and how it aligns with our farm values"
+                rows={3}
+                className={showValidation && !form.reflection ? "border-red-500" : ""}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="notes">Notes</Label>
+              <Textarea
+                id="notes"
+                value={form.notes}
+                onChange={(e) => setForm(prev => ({ ...prev, notes: e.target.value }))}
+                placeholder="Any additional comments, observations, or notes about sub-optimal operation"
+                rows={3}
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="returned_to_correct_location"
+                checked={form.returned_to_correct_location}
+                onChange={(e) => setForm(prev => ({ ...prev, returned_to_correct_location: e.target.checked }))}
+                className="rounded border-gray-300"
+              />
+              <Label htmlFor="returned_to_correct_location">
+                Tool was returned to its correct storage location: {tool.storage_vicinity}{tool.storage_location ? ` - ${tool.storage_location}` : ''}
+              </Label>
+            </div>
+
+            <div className="flex gap-2 pt-4">
+              <Button
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="flex-1"
+              >
+                {isSubmitting ? "Checking In..." : "Complete Check In"}
+              </Button>
             </div>
           </div>
-
-          <div>
-            <Label htmlFor="what_did_you_do">What did you do and why? *</Label>
-            <Textarea
-              id="what_did_you_do"
-              value={form.what_did_you_do}
-              onChange={(e) => setForm(prev => ({ ...prev, what_did_you_do: e.target.value }))}
-              placeholder="Describe what actions you took and your reasoning"
-              rows={2}
-              className={showValidation && !form.what_did_you_do ? "border-red-500" : ""}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea
-              id="notes"
-              value={form.notes}
-              onChange={(e) => setForm(prev => ({ ...prev, notes: e.target.value }))}
-              placeholder="Any additional comments, observations, or notes about sub-optimal operation"
-              rows={3}
-            />
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              id="returned_to_correct_location"
-              checked={form.returned_to_correct_location}
-              onChange={(e) => setForm(prev => ({ ...prev, returned_to_correct_location: e.target.checked }))}
-              className="rounded border-gray-300"
-            />
-            <Label htmlFor="returned_to_correct_location">
-              Tool was returned to its correct storage location: {tool.storage_vicinity}{tool.storage_location ? ` - ${tool.storage_location}` : ''}
-            </Label>
-          </div>
-
-          <div className="flex gap-2 pt-4">
-            <Button
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-              className="flex-1"
-            >
-              {isSubmitting ? "Checking In..." : "Complete Check In"}
-            </Button>
-          </div>
-        </div>
+        </TooltipProvider>
       </DialogContent>
     </Dialog>
   );

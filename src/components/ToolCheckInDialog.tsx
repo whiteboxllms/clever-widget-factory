@@ -20,6 +20,7 @@ type Tool = Tables<'tools'>;
 type CheckoutWithTool = {
   id: string;
   tool_id: string;
+  user_id: string;
   user_name: string;
   checkout_date: string;
   tools: Tool;
@@ -32,6 +33,7 @@ type CheckInForm = {
   returned_to_correct_location: boolean;
   reflection: string;
   hours_used: string;
+  checkin_reason: string;
 };
 
 interface ToolCheckInDialogProps {
@@ -52,7 +54,8 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
     notes: '',
     returned_to_correct_location: true,
     reflection: '',
-    hours_used: ''
+    hours_used: '',
+    checkin_reason: ''
   });
   const [showValidation, setShowValidation] = useState(false);
 
@@ -66,7 +69,8 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         notes: '',
         returned_to_correct_location: true,
         reflection: '',
-        hours_used: ''
+        hours_used: '',
+        checkin_reason: ''
       });
     }
   }, [tool, open]);
@@ -123,13 +127,15 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
     setShowValidation(true);
     
     // Check required fields
-    if (!form.condition_after || !form.reflection) {
+    const isCheckingInForSomeoneElse = user?.id !== checkout?.user_id;
+    if (!form.condition_after || !form.reflection || (isCheckingInForSomeoneElse && !form.checkin_reason)) {
       const validationError = {
         ...debugInfo,
         error: 'Missing required fields',
         missingFields: {
           condition_after: !form.condition_after,
-          reflection: !form.reflection
+          reflection: !form.reflection,
+          checkin_reason: isCheckingInForSomeoneElse ? !form.checkin_reason : false
         }
       };
       console.error('=== CHECK-IN VALIDATION ERROR ===', validationError);
@@ -156,6 +162,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         returned_to_correct_location: form.returned_to_correct_location,
         sop_best_practices: form.reflection,
         what_did_you_do: form.reflection,
+        checkin_reason: form.checkin_reason || null,
       };
 
       console.log('Checkin data:', checkinData);
@@ -251,6 +258,23 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
 
         <TooltipProvider>
           <div className="space-y-4">
+            {/* Check-in Reason - Only show when checking in for someone else */}
+            {user?.id !== checkout?.user_id && (
+              <div>
+                <Label htmlFor="checkin_reason">Reason for checking in this tool *</Label>
+                <Select value={form.checkin_reason} onValueChange={(value) => setForm(prev => ({ ...prev, checkin_reason: value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select reason" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cleanup">Cleanup</SelectItem>
+                    <SelectItem value={`requested_by_${checkout?.user_name}`}>Requested by {checkout?.user_name}</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div>
               <Label htmlFor="condition_after">Tool Condition After Use *</Label>
               <Select value={form.condition_after} onValueChange={(value: Database['public']['Enums']['tool_condition']) => setForm(prev => ({ ...prev, condition_after: value }))}>

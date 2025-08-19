@@ -345,9 +345,9 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
                       <Info className="h-4 w-4 text-muted-foreground" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent>
+                  <TooltipContent side="top" align="center">
                     <p>Reflect on your tool usage and how it aligns with our farm values.</p>
-                    <p className="mt-1 text-xs">Stargazer Farm values Quality, Efficiency, Safety, Transparency, Teamwork.</p>
+                    <p className="mt-1 text-xs">Stargazer Farm values Growth Mindset, Quality, Efficiency, Safety, Transparency, Teamwork.</p>
                   </TooltipContent>
                 </Tooltip>
               </div>

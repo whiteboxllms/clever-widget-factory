@@ -137,8 +137,7 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
         tools (
           id,
           name,
-          status,
-          condition
+          status
         )
       `)
       .eq('is_returned', false)
@@ -584,8 +583,8 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant={tool.condition === 'no_problems_observed' ? 'default' : 'destructive'}>
-                    {tool.condition}
+                  <Badge variant="default">
+                    {tool.status}
                   </Badge>
                   <Badge variant="secondary">Available for mission</Badge>
                 </div>
@@ -689,7 +688,7 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
                             </div>
                           )}
                           <div className="text-sm text-muted-foreground">
-                            Status: {tool.status} • Condition: {tool.condition}
+                            Status: {tool.status}
                             {tool.category && ` • ${tool.category}`}
                           </div>
                         </div>

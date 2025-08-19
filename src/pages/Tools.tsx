@@ -14,7 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Search, Plus, Wrench, AlertTriangle, CheckCircle, Clock, User, Calendar, Upload, X, LogOut, Edit, ArrowLeft, Trash2 } from "lucide-react";
 import { compressImage, formatFileSize } from "@/lib/imageUtils";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
-import { TOOL_CONDITION_OPTIONS } from '@/lib/constants';
+
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ToolCheckoutDialog } from "@/components/ToolCheckoutDialog";
@@ -26,7 +26,6 @@ interface Tool {
   name: string;
   description?: string;
   category?: string;
-  condition: string;
   status: string;
   image_url?: string;
   storage_vicinity: string;
@@ -46,7 +45,6 @@ interface NewToolForm {
   name: string;
   description: string;
   category: string;
-  condition: string;
   status: string;
   storage_vicinity: string;
   storage_location: string | null;
@@ -66,34 +64,29 @@ interface CheckoutHistory {
   checkin?: {
     id: string;
     checkin_date: string;
-    condition_after: string;
     problems_reported?: string;
     notes?: string;
-    returned_to_correct_location: boolean;
     user_name?: string;
     hours_used?: number;
-    location_found?: string;
     after_image_urls?: string[];
   };
 }
 
-const getStatusVariant = (status: string, condition: string) => {
-  if (condition === 'not_functional' || status === 'unavailable' || status === 'unable_to_find') return 'destructive';
+const getStatusVariant = (status: string) => {
+  if (status === 'unavailable' || status === 'unable_to_find') return 'destructive';
   if (status === 'checked_out') return 'secondary';
-  if (condition === 'no_problems_observed') return 'default';
-  return 'outline';
+  return 'default';
 };
 
-const getStatusLabel = (status: string, condition: string) => {
-  if (condition === 'not_functional') return 'Not Functional';
+const getStatusLabel = (status: string) => {
   if (status === 'unavailable') return 'Unavailable';
   if (status === 'unable_to_find') return 'Unable to Find';
   if (status === 'checked_out') return 'Checked Out';
   return 'Available';
 };
 
-const getConditionIcon = (status: string, condition: string) => {
-  if (condition === 'not_functional' || status === 'unable_to_find') return AlertTriangle;
+const getStatusIcon = (status: string) => {
+  if (status === 'unable_to_find' || status === 'unavailable') return AlertTriangle;
   if (status === 'unavailable') return Clock;
   return CheckCircle;
 };
@@ -116,7 +109,6 @@ export default function Tools() {
     name: "",
     description: "",
     category: "",
-        condition: "no_problems_observed",
     status: "available",
     storage_vicinity: "",
     storage_location: "",
@@ -190,13 +182,10 @@ export default function Tools() {
           checkins(
             id,
             checkin_date,
-            condition_after,
             problems_reported,
             notes,
-            returned_to_correct_location,
             user_name,
             hours_used,
-            location_found,
             after_image_urls
           )
         `)
@@ -358,7 +347,6 @@ export default function Tools() {
           name: newTool.name,
           description: newTool.description || null,
           category: newTool.category || null,
-          condition: newTool.condition as any,
           status: newTool.status as any,
           storage_vicinity: newTool.storage_vicinity,
           storage_location: newTool.storage_location || null,
@@ -378,7 +366,6 @@ export default function Tools() {
         name: "",
         description: "",
         category: "",
-        condition: "no_problems_observed",
         status: "available",
         storage_vicinity: "",
         storage_location: "",
@@ -408,7 +395,6 @@ export default function Tools() {
       name: "",
       description: "",
       category: "",
-      condition: "no_problems_observed",
       status: "available",
       storage_vicinity: "",
       storage_location: "",
@@ -452,7 +438,6 @@ export default function Tools() {
         name: editTool.name,
         description: editTool.description || null,
         category: editTool.category || null,
-        condition: editTool.condition as any,
         status: editTool.status as any,
         storage_vicinity: editTool.storage_vicinity,
         storage_location: editTool.storage_location || null,
@@ -767,24 +752,6 @@ export default function Tools() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Condition</Label>
-                      <Select 
-                        value={newTool.condition} 
-                        onValueChange={(value) => setNewTool(prev => ({ ...prev, condition: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                          <SelectContent>
-                            {TOOL_CONDITION_OPTIONS.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                      </Select>
-                    </div>
                   </div>
 
                   {/* Status and Location */}
@@ -866,7 +833,7 @@ export default function Tools() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredTools.map((tool) => {
-            const StatusIcon = getConditionIcon(tool.status, tool.condition);
+            const StatusIcon = getStatusIcon(tool.status);
             return (
               <Dialog key={tool.id}>
                 <DialogTrigger asChild>
@@ -898,9 +865,9 @@ export default function Tools() {
                             Serial: {tool.serial_number}
                           </p>
                         )}
-                        <Badge variant={getStatusVariant(tool.status, tool.condition)}>
+                        <Badge variant={getStatusVariant(tool.status)}>
                           <StatusIcon className="mr-1 h-3 w-3" />
-                          {getStatusLabel(tool.status, tool.condition)}
+                          {getStatusLabel(tool.status)}
                         </Badge>
                       </div>
                       
@@ -983,8 +950,8 @@ export default function Tools() {
                       <div>
                         <h2 className="text-xl">{tool.name}</h2>
                         <div className="flex items-center gap-2">
-                          <Badge variant={getStatusVariant(tool.status, tool.condition)}>
-                            {getStatusLabel(tool.status, tool.condition)}
+                            <Badge variant={getStatusVariant(tool.status)}>
+                              {getStatusLabel(tool.status)}
                           </Badge>
                           {tool.status === 'checked_out' && currentCheckout && (
                             <span className="text-sm text-muted-foreground">
@@ -1083,17 +1050,8 @@ export default function Tools() {
                                     </div>
                                     <div className="text-sm space-y-1">
                                       <div><strong>User:</strong> {checkout.user_name}</div>
-                                      <div><strong>Condition after use:</strong> 
-                                        <Badge variant={checkout.checkin?.condition_after === 'not_functional' ? 'destructive' : 'default'} className="ml-2">
-                                          {checkout.checkin?.condition_after}
-                                        </Badge>
-                                      </div>
-                                      <div><strong>Returned to correct location:</strong> {checkout.checkin?.returned_to_correct_location ? 'Yes' : 'No'}</div>
                                       {checkout.checkin?.hours_used && (
                                         <div><strong>Hours used:</strong> {checkout.checkin.hours_used}</div>
-                                      )}
-                                      {checkout.checkin?.location_found && (
-                                        <div><strong>Found at:</strong> {checkout.checkin.location_found}</div>
                                       )}
                                       {checkout.checkin?.problems_reported && (
                                         <div className="text-destructive"><strong>Issues reported:</strong> {checkout.checkin.problems_reported}</div>
@@ -1298,18 +1256,6 @@ export default function Tools() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Condition</Label>
-                    <Select 
-                      value={editTool.condition} 
-                      onValueChange={(value) => setEditTool(prev => prev ? { ...prev, condition: value } : null)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                       <SelectContent>
-                          <SelectItem value="no_problems_observed">No problems detected</SelectItem>
-                          <SelectItem value="functional_but_not_efficient">Functional but inefficient</SelectItem>
                          <SelectItem value="not_functional">Not functional</SelectItem>
                        </SelectContent>
                     </Select>

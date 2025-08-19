@@ -14,7 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useImageUpload } from '@/hooks/useImageUpload';
 import { showErrorToast } from '@/components/ErrorToast';
 import { useEnhancedToast } from '@/hooks/useEnhancedToast';
-import { TOOL_CONDITION_OPTIONS } from '@/lib/constants';
+
 
 interface Tool {
   id: string;
@@ -22,16 +22,12 @@ interface Tool {
   description: string;
   storage_vicinity: string;
   storage_location: string;
-  condition: string;
   status: string;
   serial_number?: string;
   category?: string;
 }
 
 interface AuditFormData {
-  foundInVicinity: boolean;
-  foundInLocation: boolean;
-  conditionFound: 'no_problems_observed' | 'functional_but_not_efficient' | 'not_functional' | 'missing';
   auditComments: string;
   photoUrls: string[];
   flaggedForMaintenance: boolean;
@@ -47,9 +43,6 @@ const AuditTool = () => {
   const { uploadImages, isUploading } = useImageUpload();
 
   const [formData, setFormData] = useState<AuditFormData>({
-    foundInVicinity: true,
-    foundInLocation: true,
-    conditionFound: 'no_problems_observed',
     auditComments: '',
     photoUrls: [],
     flaggedForMaintenance: false,
@@ -119,9 +112,6 @@ const AuditTool = () => {
       const auditData = {
         tool_id: toolId,
         audited_by: user.id,
-        found_in_vicinity: formData.foundInVicinity,
-        found_in_location: formData.foundInLocation,
-        condition_found: formData.conditionFound,
         audit_comments: formData.auditComments,
         photo_urls: uploadedUrls,
         flagged_for_maintenance: formData.flaggedForMaintenance,
@@ -134,17 +124,11 @@ const AuditTool = () => {
 
       if (auditError) throw auditError;
 
-      // Update tool's last_audited_at, audit_status, and condition
+      // Update tool's last_audited_at and audit_status
       const toolUpdates: any = {
         last_audited_at: new Date().toISOString(),
         audit_status: 'audited',
-        condition: formData.conditionFound === 'missing' ? tool.condition : formData.conditionFound,
       };
-
-      // If marked as missing, update tool status
-      if (formData.conditionFound === 'missing') {
-        toolUpdates.status = 'missing';
-      }
 
       const { error: toolError } = await supabase
         .from('tools')
@@ -268,10 +252,6 @@ const AuditTool = () => {
                   <p className="font-mono text-lg">{tool.serial_number || 'No serial number'}</p>
                 </div>
                 <div>
-                  <Label className="font-semibold">Current Condition</Label>
-                  <p className="capitalize">{tool.condition}</p>
-                </div>
-                <div>
                   <Label className="font-semibold">Category</Label>
                   <p>{tool.category || 'Uncategorized'}</p>
                 </div>
@@ -345,67 +325,6 @@ const AuditTool = () => {
                 </div>
               </div>
 
-              {/* Location Verification */}
-              <div className="space-y-4">
-                <Label className="text-base font-semibold">Location Verification</Label>
-                
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="found-vicinity">Found in expected Storage Vicinity?</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Is the tool in {tool.storage_vicinity}?
-                    </p>
-                  </div>
-                  <Switch
-                    id="found-vicinity"
-                    checked={formData.foundInVicinity}
-                    onCheckedChange={(checked) => 
-                      setFormData(prev => ({ ...prev, foundInVicinity: checked }))
-                    }
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="found-location">Found in expected Storage Location?</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Is the tool in {tool.storage_location || 'the expected location'}?
-                    </p>
-                  </div>
-                  <Switch
-                    id="found-location"
-                    checked={formData.foundInLocation}
-                    onCheckedChange={(checked) => 
-                      setFormData(prev => ({ ...prev, foundInLocation: checked }))
-                    }
-                  />
-                </div>
-              </div>
-
-              {/* Condition Assessment */}
-              <div className="space-y-2">
-                <Label htmlFor="condition" className="text-base font-semibold">
-                  Condition
-                </Label>
-                <Select 
-                  value={formData.conditionFound} 
-                  onValueChange={(value: any) => 
-                    setFormData(prev => ({ ...prev, conditionFound: value }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TOOL_CONDITION_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="missing">Missing</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
 
               {/* Tool Tested Toggle */}
               <div className="flex items-center justify-between">
@@ -471,20 +390,6 @@ const AuditTool = () => {
                   <Edit className="h-4 w-4" />
                   Edit Tool Details
                 </Button>
-                
-                {formData.conditionFound === 'missing' && (
-                  <Button
-                    variant="outline"
-                    className="flex items-center gap-2 text-orange-600 border-orange-200"
-                    onClick={() => {
-                      // This would mark the tool as missing in the database
-                      setFormData(prev => ({ ...prev, conditionFound: 'missing' }));
-                    }}
-                  >
-                    <AlertTriangle className="h-4 w-4" />
-                    Mark as Missing
-                  </Button>
-                )}
 
                 {formData.flaggedForMaintenance && (
                   <Button

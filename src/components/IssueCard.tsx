@@ -9,7 +9,7 @@ import { toast } from "@/hooks/use-toast";
 interface ToolIssue {
   id: string;
   description: string;
-  severity: 'safety' | 'functional' | 'cosmetic' | 'maintenance';
+  severity: 'safety' | 'efficiency' | 'cosmetic' | 'maintenance';
   status: 'active' | 'resolved' | 'removed';
   reported_at: string;
   reported_by: string;
@@ -28,7 +28,7 @@ export function IssueCard({ issue, onResolve, onRefresh }: IssueCardProps) {
     switch (severity) {
       case 'safety':
         return <AlertTriangle className="h-4 w-4 text-destructive" />;
-      case 'functional':
+      case 'efficiency':
         return <AlertTriangle className="h-4 w-4 text-orange-500" />;
       case 'cosmetic':
         return <Clock className="h-4 w-4 text-blue-500" />;
@@ -43,7 +43,7 @@ export function IssueCard({ issue, onResolve, onRefresh }: IssueCardProps) {
     switch (severity) {
       case 'safety':
         return 'destructive';
-      case 'functional':
+      case 'efficiency':
         return 'default';
       case 'cosmetic':
         return 'secondary';

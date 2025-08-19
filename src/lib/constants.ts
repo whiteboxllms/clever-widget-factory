@@ -1,6 +1,14 @@
 import { Database } from '@/integrations/supabase/types';
 
-// Tool condition options - centralized for consistency across the app
+// Issue severity options - centralized for consistency across the app  
+export const ISSUE_SEVERITY_OPTIONS = [
+  { value: 'safety' as const, label: 'Safety' },
+  { value: 'efficiency' as const, label: 'Efficiency' },
+  { value: 'cosmetic' as const, label: 'Cosmetic' },
+  { value: 'maintenance' as const, label: 'Maintenance' }
+] as const;
+
+// Tool condition options - simplified binary system
 export const TOOL_CONDITION_OPTIONS = [
   { value: 'no_problems_observed' as const, label: 'No problems detected' },
   { value: 'functional_but_not_efficient' as const, label: 'Functional but not efficient' },

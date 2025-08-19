@@ -11,7 +11,7 @@ import { Loader2, X } from "lucide-react";
 interface ToolIssue {
   id: string;
   description: string;
-  severity: string;
+  severity: 'safety' | 'efficiency' | 'cosmetic' | 'maintenance';
   reported_at: string;
   reported_by: string;
 }

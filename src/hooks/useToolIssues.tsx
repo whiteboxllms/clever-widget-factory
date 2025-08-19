@@ -6,7 +6,7 @@ interface ToolIssue {
   id: string;
   tool_id: string;
   description: string;
-  severity: 'safety' | 'functional' | 'cosmetic' | 'maintenance';
+  severity: 'safety' | 'efficiency' | 'cosmetic' | 'maintenance';
   status: 'active' | 'resolved' | 'removed';
   reported_by: string;
   reported_at: string;
@@ -51,7 +51,7 @@ export function useToolIssues(toolId: string | null) {
     }
   };
 
-  const createIssue = async (description: string, severity: ToolIssue['severity'] = 'functional') => {
+  const createIssue = async (description: string, severity: ToolIssue['severity'] = 'efficiency') => {
     if (!toolId) return null;
 
     try {

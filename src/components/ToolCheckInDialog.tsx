@@ -65,7 +65,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
   const [showValidation, setShowValidation] = useState(false);
   const [selectedIssueForResolution, setSelectedIssueForResolution] = useState<any>(null);
   const [isResolutionDialogOpen, setIsResolutionDialogOpen] = useState(false);
-  const [newIssueSeverity, setNewIssueSeverity] = useState<'safety' | 'functional' | 'cosmetic' | 'maintenance'>('functional');
+  const [newIssueSeverity, setNewIssueSeverity] = useState<'safety' | 'efficiency' | 'cosmetic' | 'maintenance'>('efficiency');
   
   // Use the new issues hook
   const { issues, isLoading: isLoadingIssues, fetchIssues, createIssuesFromText } = useToolIssues(tool?.id || null);
@@ -75,7 +75,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
       fetchCheckout();
       // Reset form and initialize known issues
       setForm({
-        condition_after: '',
+    condition_after: 'no_problems_observed',
         tool_issues: '',
         notes: '',
         returned_to_correct_location: true,
@@ -399,7 +399,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="safety">🚨 Safety</SelectItem>
-                    <SelectItem value="functional">⚙️ Functional</SelectItem>
+                    <SelectItem value="efficiency">⚙️ Efficiency</SelectItem>
                     <SelectItem value="cosmetic">✨ Cosmetic</SelectItem>
                     <SelectItem value="maintenance">🔧 Maintenance</SelectItem>
                   </SelectContent>

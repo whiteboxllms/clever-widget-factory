@@ -164,7 +164,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
       const checkinData: any = {
         checkout_id: checkout.id,
         tool_id: checkout.tool_id,
-        user_name: checkout.user_name,
+        user_name: user?.user_metadata?.full_name || 'Unknown User',
         condition_after: 'no_problems_observed',
         problems_reported: form.tool_issues || null,
         location_found: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : ''),

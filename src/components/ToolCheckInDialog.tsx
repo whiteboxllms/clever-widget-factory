@@ -34,6 +34,7 @@ type CheckInForm = {
   reflection: string;
   hours_used: string;
   checkin_reason: string;
+  updated_known_issues: string;
 };
 
 interface ToolCheckInDialogProps {
@@ -55,14 +56,15 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
     returned_to_correct_location: true,
     reflection: '',
     hours_used: '',
-    checkin_reason: ''
+    checkin_reason: '',
+    updated_known_issues: ''
   });
   const [showValidation, setShowValidation] = useState(false);
 
   useEffect(() => {
     if (tool && open) {
       fetchCheckout();
-      // Reset form
+      // Reset form and initialize known issues
       setForm({
         condition_after: '',
         tool_issues: '',
@@ -70,7 +72,8 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         returned_to_correct_location: true,
         reflection: '',
         hours_used: '',
-        checkin_reason: ''
+        checkin_reason: '',
+        updated_known_issues: tool.known_issues || ''
       });
     }
   }, [tool, open]);
@@ -186,13 +189,22 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
 
       if (updateError) throw updateError;
 
-      // Update tool status and condition
+      // Combine updated known issues with new issues
+      let finalKnownIssues = form.updated_known_issues || '';
+      if (form.tool_issues) {
+        finalKnownIssues = finalKnownIssues 
+          ? `${finalKnownIssues}\n\n${form.tool_issues}`
+          : form.tool_issues;
+      }
+
+      // Update tool status, condition, and known issues
       const { error: toolError } = await supabase
         .from('tools')
         .update({ 
           condition: form.condition_after as Database['public']['Enums']['tool_condition'],
           status: form.condition_after === 'not_functional' ? 'unavailable' : 'available',
-          actual_location: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : '')
+          actual_location: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : ''),
+          known_issues: finalKnownIssues || null
         })
         .eq('id', tool.id);
 
@@ -293,25 +305,43 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
 
             {tool.known_issues && (
               <div>
-                <Label>Current Known Issues</Label>
-                <div className="p-3 bg-muted rounded-lg text-sm">
-                  {tool.known_issues}
+                <div className="flex items-center gap-2 mb-2">
+                  <Label htmlFor="updated_known_issues">Current Known Issues</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" className="touch-manipulation">
+                        <Info className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" align="center" className="max-w-xs">
+                      <p>Edit or remove existing known issues for this tool</p>
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
+                <Textarea
+                  id="updated_known_issues"
+                  value={form.updated_known_issues}
+                  onChange={(e) => setForm(prev => ({ ...prev, updated_known_issues: e.target.value }))}
+                  placeholder="Edit or remove known issues..."
+                  rows={3}
+                />
               </div>
             )}
 
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Label htmlFor="tool_issues">New Issues</Label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className="h-4 w-4 text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>These issues will be added to known issues</p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Label htmlFor="tool_issues">New Issues</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" className="touch-manipulation">
+                        <Info className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" align="center" className="max-w-xs">
+                      <p>These issues will be added to known issues</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
               <Textarea
                 id="tool_issues"
                 value={form.tool_issues}

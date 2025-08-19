@@ -296,6 +296,10 @@ export default function Tools() {
   // Function to migrate check-in reported issues to tool_issues table
   const migrateCheckinIssuesToToolIssues = async (toolId: string) => {
     try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
       // Find all check-ins with reported issues for this tool
       const { data: checkinsWithIssues, error: checkinsError } = await supabase
         .from('checkins')
@@ -314,27 +318,31 @@ export default function Tools() {
             .select('id')
             .eq('tool_id', toolId)
             .eq('description', checkin.problems_reported.trim())
-            .single();
+            .maybeSingle();
 
           if (!existingIssue) {
             // Create new tool issue from check-in report
-            await supabase
+            // Use current user as reporter since we can't impersonate other users due to RLS
+            const { error: insertError } = await supabase
               .from('tool_issues')
               .insert({
                 tool_id: toolId,
-                description: checkin.problems_reported.trim(),
+                description: `[Reported by ${checkin.user_name} during check-in]: ${checkin.problems_reported.trim()}`,
                 issue_type: 'efficiency', // Default type for migrated issues
                 blocks_checkout: false,
-                reported_by: checkin.user_name, // Use user_name since that's what we have
-                reported_at: checkin.checkin_date,
+                reported_by: user.id, // Use current user due to RLS constraints
                 related_checkout_id: checkin.checkout_id
               });
+
+            if (insertError) {
+              console.error('Error migrating issue:', insertError);
+            }
           }
         }
       }
       
       // Refresh issues list
-      fetchIssues();
+      await fetchIssues();
     } catch (error) {
       console.error('Error migrating check-in issues:', error);
     }

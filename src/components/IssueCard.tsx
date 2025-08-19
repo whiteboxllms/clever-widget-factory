@@ -17,6 +17,7 @@ interface ToolIssue {
   is_misuse?: boolean;
   damage_assessment?: string;
   responsibility_assigned?: boolean;
+  resolution_photo_urls?: string[];
 }
 
 interface IssueCardProps {
@@ -133,6 +134,22 @@ export function IssueCard({ issue, onResolve, onRefresh }: IssueCardProps) {
               <p className="text-sm text-orange-600 mt-1">
                 <strong>Damage:</strong> {issue.damage_assessment}
               </p>
+            )}
+            {issue.resolution_photo_urls && issue.resolution_photo_urls.length > 0 && (
+              <div className="mt-2">
+                <p className="text-xs text-muted-foreground mb-1">Resolution Photos:</p>
+                <div className="flex gap-1 flex-wrap">
+                  {issue.resolution_photo_urls.map((url, index) => (
+                    <img
+                      key={index}
+                      src={url}
+                      alt={`Resolution photo ${index + 1}`}
+                      className="h-12 w-12 object-cover rounded border border-border cursor-pointer hover:opacity-80 transition-opacity"
+                      onClick={() => window.open(url, '_blank')}
+                    />
+                  ))}
+                </div>
+              </div>
             )}
           </div>
           

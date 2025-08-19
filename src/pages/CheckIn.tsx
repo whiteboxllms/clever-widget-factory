@@ -522,7 +522,14 @@ export default function CheckIn() {
                       
                       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
-                          <DialogTitle>Check In: {checkout.tools.name}</DialogTitle>
+                          <DialogTitle>
+                            Check In: {checkout.tools.name}
+                            {checkout.tools.serial_number && (
+                              <span className="text-sm font-normal text-muted-foreground ml-2">
+                                {checkout.tools.serial_number}
+                              </span>
+                            )}
+                          </DialogTitle>
                           <DialogDescription>
                             Checked out by {checkout.user_name} on {new Date(checkout.checkout_date).toLocaleDateString()}
                           </DialogDescription>

@@ -65,8 +65,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
   const [isResolutionDialogOpen, setIsResolutionDialogOpen] = useState(false);
   const [newIssueType, setNewIssueType] = useState<'safety' | 'efficiency' | 'cosmetic' | 'maintenance'>('efficiency');
   const [blocksCheckout, setBlocksCheckout] = useState(false);
-  const [isMisuse, setIsMisuse] = useState(false);
-  const [damageAssessment, setDamageAssessment] = useState('');
+  const [efficiencyLossPercentage, setEfficiencyLossPercentage] = useState<number | undefined>();
   
   // Use the new issues hook
   const { issues, isLoading: isLoadingIssues, fetchIssues, createIssuesFromText } = useToolIssues(tool?.id || null);
@@ -203,9 +202,10 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
           form.tool_issues,
           newIssueType,
           blocksCheckout,
-          isMisuse,
+          false, // isMisuse - removed as requested
           checkout.id,
-          damageAssessment
+          undefined, // damageAssessment - not used for general issues
+          efficiencyLossPercentage
         );
       }
 
@@ -377,29 +377,19 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
                       Mark tool as offline until repaired
                     </Label>
                   </div>
-                   <div className="flex items-center space-x-2">
-                     <input
-                       type="checkbox"
-                       id="is_misuse"
-                       checked={isMisuse}
-                       onChange={(e) => setIsMisuse(e.target.checked)}
-                       className="rounded border-gray-300"
-                     />
-                     <Label htmlFor="is_misuse" className="text-sm">
-                       Mark as potential misuse/damage
-                     </Label>
-                   </div>
                  </div>
                  
-                 {isMisuse && (
+                 {newIssueType === 'efficiency' && (
                    <div>
-                     <Label htmlFor="damage_assessment">Damage Assessment</Label>
-                     <Textarea
-                       id="damage_assessment"
-                       value={damageAssessment}
-                       onChange={(e) => setDamageAssessment(e.target.value)}
-                       placeholder="Describe the extent of damage and how it affects tool functionality (e.g., '20% of bristles bent, reduced cleaning effectiveness')"
-                       rows={2}
+                     <Label htmlFor="efficiency_loss">Estimated Efficiency Loss (%)</Label>
+                     <Input
+                       id="efficiency_loss"
+                       type="number"
+                       min="0"
+                       max="100"
+                       value={efficiencyLossPercentage || ''}
+                       onChange={(e) => setEfficiencyLossPercentage(e.target.value ? parseInt(e.target.value) : undefined)}
+                       placeholder="Enter percentage (e.g., 20 for 20% loss)"
                      />
                    </div>
                  )}

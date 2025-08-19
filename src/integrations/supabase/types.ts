@@ -824,6 +824,7 @@ export type Database = {
           created_at: string
           damage_assessment: string | null
           description: string
+          efficiency_loss_percentage: number | null
           id: string
           is_misuse: boolean
           issue_type: string
@@ -845,6 +846,7 @@ export type Database = {
           created_at?: string
           damage_assessment?: string | null
           description: string
+          efficiency_loss_percentage?: number | null
           id?: string
           is_misuse?: boolean
           issue_type?: string
@@ -866,6 +868,7 @@ export type Database = {
           created_at?: string
           damage_assessment?: string | null
           description?: string
+          efficiency_loss_percentage?: number | null
           id?: string
           is_misuse?: boolean
           issue_type?: string

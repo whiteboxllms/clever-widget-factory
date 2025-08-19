@@ -20,6 +20,7 @@ interface ToolIssue {
   related_checkout_id?: string;
   damage_assessment?: string;
   responsibility_assigned?: boolean;
+  efficiency_loss_percentage?: number;
 }
 
 export function useToolIssues(toolId: string | null) {
@@ -62,7 +63,8 @@ export function useToolIssues(toolId: string | null) {
     blocksCheckout: boolean = false,
     isMisuse: boolean = false,
     checkoutId?: string,
-    damageAssessment?: string
+    damageAssessment?: string,
+    efficiencyLossPercentage?: number
   ) => {
     if (!toolId) return null;
 
@@ -80,6 +82,7 @@ export function useToolIssues(toolId: string | null) {
           is_misuse: isMisuse,
           related_checkout_id: checkoutId,
           damage_assessment: damageAssessment,
+          efficiency_loss_percentage: efficiencyLossPercentage,
           reported_by: user.data.user.id
         })
         .select()
@@ -123,7 +126,8 @@ export function useToolIssues(toolId: string | null) {
     blocksCheckout: boolean = false,
     isMisuse: boolean = false,
     checkoutId?: string,
-    damageAssessment?: string
+    damageAssessment?: string,
+    efficiencyLossPercentage?: number
   ) => {
     if (!issuesText.trim() || !toolId) return;
 
@@ -134,7 +138,7 @@ export function useToolIssues(toolId: string | null) {
       .filter(line => line.length > 0);
 
     for (const description of issueDescriptions) {
-      await createIssue(description, issueType, blocksCheckout, isMisuse, checkoutId, damageAssessment);
+      await createIssue(description, issueType, blocksCheckout, isMisuse, checkoutId, damageAssessment, efficiencyLossPercentage);
     }
   };
 

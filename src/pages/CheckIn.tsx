@@ -1,75 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Package, Calendar, User, AlertTriangle, CheckCircle2, ExternalLink, X, Info } from 'lucide-react';
+import { ArrowLeft, Package, Calendar, User, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Tables } from '@/integrations/supabase/types';
-import { compressImageDetailed } from '@/lib/enhancedImageUtils';
-import { useEnhancedToast } from '@/hooks/useEnhancedToast';
-import { useImageUpload } from '@/hooks/useImageUpload';
-import { TOOL_CONDITION_OPTIONS } from '@/lib/constants';
+import { ToolCheckInDialog } from '@/components/ToolCheckInDialog';
 
 type CheckoutWithTool = Tables<'checkouts'> & {
   tools: Tables<'tools'>;
 };
 
-type CheckInForm = {
-  condition_after: string;
-  tool_issues: string;
-  notes: string;
-  returned_to_correct_location: boolean;
-  reflection: string;
-  hours_used: string;
-  checkin_reason: string;
-};
-
-type IssueResolution = {
-  issue: string;
-  rootCause: string;
-  bestPractice: string;
-  actionTaken: string;
-};
-
 export default function CheckIn() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const enhancedToast = useEnhancedToast();
-  const { uploadImages } = useImageUpload();
   const { user } = useAuth();
   const [checkouts, setCheckouts] = useState<CheckoutWithTool[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAllCheckouts, setShowAllCheckouts] = useState(false);
-  const [selectedCheckout, setSelectedCheckout] = useState<CheckoutWithTool | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [form, setForm] = useState<CheckInForm>({
-    condition_after: '',
-    tool_issues: '',
-    notes: '',
-    returned_to_correct_location: true,
-    reflection: '',
-    hours_used: '',
-    checkin_reason: ''
-  });
-  const [resolvedIssues, setResolvedIssues] = useState<IssueResolution[]>([]);
-  const [showIssueResolution, setShowIssueResolution] = useState<string | null>(null);
-  const [issueResolutionForm, setIssueResolutionForm] = useState({
-    rootCause: '',
-    bestPractice: '',
-    actionTaken: ''
-  });
-  const [uploadedImages, setUploadedImages] = useState<File[]>([]);
-  const [uploadingImages, setUploadingImages] = useState(false);
+  const [selectedTool, setSelectedTool] = useState<Tables<'tools'> | null>(null);
+  const [showCheckInDialog, setShowCheckInDialog] = useState(false);
 
   useEffect(() => {
     fetchCheckouts();
@@ -135,253 +90,15 @@ export default function CheckIn() {
     }
   };
 
-  const handleCheckIn = async () => {
-    if (!selectedCheckout) return;
+  const handleCheckInClick = (checkout: CheckoutWithTool) => {
+    setSelectedTool(checkout.tools);
+    setShowCheckInDialog(true);
+  };
 
-    console.log('=== STARTING TOOL CHECK-IN ===');
-    console.log('Network status:', navigator.onLine ? 'Online' : 'Offline');
-    console.log('Selected checkout:', selectedCheckout.id);
-    console.log('Form data:', form);
-
-    // Validate required fields
-    const isCheckingInForSomeoneElse = user?.id !== selectedCheckout.user_id;
-    if (!form.condition_after || !form.reflection || (isCheckingInForSomeoneElse && !form.checkin_reason)) {
-      console.error('Missing required fields:', { 
-        condition_after: !form.condition_after, 
-        reflection: !form.reflection,
-        checkin_reason: isCheckingInForSomeoneElse ? !form.checkin_reason : false
-      });
-      
-      toast({
-        title: "Missing Required Fields",
-        description: "Please fill in all required fields marked with an asterisk (*)",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-    setUploadingImages(true);
-    try {
-      // Upload images to storage if any
-      let imageUrls: string[] = [];
-      if (uploadedImages.length > 0) {
-        console.log('=== STARTING IMAGE UPLOAD ===');
-        console.log('Images to upload:', uploadedImages.length);
-        
-        try {
-          const results = await uploadImages(uploadedImages, {
-            bucket: 'tool-images',
-            generateFileName: (file, index) => {
-              const fileExt = file.name.split('.').pop() || 'jpg';
-              return `checkin_${selectedCheckout.tool_id}_${selectedCheckout.id}_${Date.now()}_${index}.${fileExt}`;
-            },
-            onProgress: (stage, progress, details) => {
-              console.log(`Compression stage: ${stage} (${progress}%) - ${details}`);
-            }
-          });
-          
-          // Extract URLs from results
-          imageUrls = Array.isArray(results) 
-            ? results.map(r => r.url)
-            : [results.url];
-            
-          console.log('=== ALL IMAGES UPLOADED SUCCESSFULLY ===');
-          console.log('Final image URLs:', imageUrls);
-        } catch (error) {
-          console.error('Image upload failed:', error);
-          throw error;
-        }
-      }
-
-      // Create checkin record
-      const checkinData: any = {
-        checkout_id: selectedCheckout.id,
-        tool_id: selectedCheckout.tool_id,
-        user_name: selectedCheckout.user_name,
-        condition_after: form.condition_after as any,
-        problems_reported: form.tool_issues || null,
-        location_found: selectedCheckout.tools.storage_vicinity + (selectedCheckout.tools.storage_location ? ` - ${selectedCheckout.tools.storage_location}` : ''),
-        notes: form.notes || null,
-        returned_to_correct_location: form.returned_to_correct_location,
-        sop_best_practices: form.reflection,
-        what_did_you_do: form.reflection,
-        checkin_reason: form.checkin_reason || null,
-        after_image_urls: imageUrls,
-      };
-
-      console.log('CheckIn - Form data:', form);
-      console.log('CheckIn - Checkin data to insert:', checkinData);
-
-      // Add hours used if tool has motor and hours were provided
-      if (selectedCheckout.tools.has_motor && form.hours_used) {
-        checkinData.hours_used = parseFloat(form.hours_used);
-        console.log('Added motor hours:', checkinData.hours_used);
-      }
-
-      const { error: checkinError } = await supabase
-        .from('checkins')
-        .insert(checkinData);
-
-      if (checkinError) throw checkinError;
-
-      // Update checkout as returned
-      const { error: checkoutError } = await supabase
-        .from('checkouts')
-        .update({ is_returned: true })
-        .eq('id', selectedCheckout.id);
-
-      if (checkoutError) throw checkoutError;
-
-      // Update tool status, condition, and remove resolved issues
-      let updatedKnownIssues = selectedCheckout.tools.known_issues;
-      if (resolvedIssues.length > 0) {
-        // Remove resolved issues from known_issues
-        const resolvedIssueTexts = resolvedIssues.map(r => r.issue);
-        const currentIssues = updatedKnownIssues ? updatedKnownIssues.split('\n').filter(issue => issue.trim()) : [];
-        const remainingIssues = currentIssues.filter(issue => !resolvedIssueTexts.some(resolved => issue.includes(resolved)));
-        updatedKnownIssues = remainingIssues.length > 0 ? remainingIssues.join('\n') : null;
-        
-        // Add resolution notes to checkin notes
-        const resolutionNotes = resolvedIssues.map(r => 
-          `ISSUE RESOLVED: ${r.issue}\nRoot Cause: ${r.rootCause}\nBest Practice: ${r.bestPractice}\nAction Taken: ${r.actionTaken}`
-        ).join('\n\n');
-        
-        checkinData.notes = checkinData.notes ? `${checkinData.notes}\n\n${resolutionNotes}` : resolutionNotes;
-      }
-
-      const { error: toolError } = await supabase
-        .from('tools')
-        .update({ 
-          condition: form.condition_after as any,
-          status: form.condition_after === 'not_functional' ? 'unavailable' : 'available',
-          actual_location: selectedCheckout.tools.storage_vicinity + (selectedCheckout.tools.storage_location ? ` - ${selectedCheckout.tools.storage_location}` : ''),
-          known_issues: updatedKnownIssues
-        })
-        .eq('id', selectedCheckout.tool_id);
-
-      if (toolError) throw toolError;
-
-      toast({
-        title: "Tool checked in successfully",
-        description: `${selectedCheckout.tools.name} has been checked in`,
-      });
-
-      // Reset form and close dialog
-      setForm({
-        condition_after: '',
-        tool_issues: '',
-        notes: '',
-        returned_to_correct_location: true,
-        reflection: '',
-        hours_used: '',
-        checkin_reason: ''
-      });
-      setResolvedIssues([]);
-      setShowIssueResolution(null);
-      setIssueResolutionForm({
-        rootCause: '',
-        bestPractice: '',
-        actionTaken: ''
-      });
-      setUploadedImages([]);
-      setSelectedCheckout(null);
-      
-      // Refresh checkouts
-      fetchCheckouts();
-
-    } catch (error) {
-      console.error('=== TOOL CHECK-IN ERROR ===');
-      console.error('Error object:', error);
-      console.error('Error type:', typeof error);
-      console.error('Error constructor:', error?.constructor?.name);
-      console.error('Network status:', navigator.onLine ? 'Online' : 'Offline');
-      console.error('User agent:', navigator.userAgent);
-      console.error('Platform info:', {
-        platform: navigator.platform,
-        language: navigator.language,
-        cookieEnabled: navigator.cookieEnabled,
-        deviceMemory: (navigator as any).deviceMemory,
-        connection: (navigator as any).connection?.effectiveType
-      });
-      
-      let errorMessage = "Failed to check in tool";
-      let errorDetails = "";
-      let statusCode = "Unknown";
-      
-      if (error && typeof error === 'object' && 'message' in error) {
-        errorDetails = String(error.message);
-        console.log('Detailed error message:', errorDetails);
-        
-        // Extract status code if available
-        if ('status' in error) {
-          statusCode = String(error.status);
-        } else if ('code' in error) {
-          statusCode = String(error.code);
-        } else if (errorDetails.includes('status')) {
-          const statusMatch = errorDetails.match(/status[:\s]*(\d+)/i);
-          if (statusMatch) statusCode = statusMatch[1];
-        }
-        
-        // Enhanced mobile-specific error handling
-        const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        
-        if (errorDetails.includes('fetch')) {
-          errorMessage = isMobile ? "Network Error (Mobile)" : "Network Error";
-          errorDetails = `Connection failed. Status: ${statusCode}. ${isMobile ? 'Try switching between WiFi/cellular data. ' : ''}Check your internet connection and try again.`;
-        } else if (errorDetails.includes('violates row-level security')) {
-          errorMessage = "Permission Denied";
-          errorDetails = `Access forbidden (Status: ${statusCode}). You don't have permission to check in this tool. ${isMobile ? 'Try refreshing the app or logging out and back in. ' : ''}Contact support if this persists.`;
-        } else if (errorDetails.includes('null value') || errorDetails.includes('not-null constraint')) {
-          errorMessage = "Missing Information";
-          errorDetails = `Required fields missing (Status: ${statusCode}). Please fill in: Tool Condition, SOP Best Practices, and What Did You Do.`;
-        } else if (errorDetails.includes('foreign key')) {
-          errorMessage = "Data Reference Error";
-          errorDetails = `Database constraint violation (Status: ${statusCode}). There's an issue with the checkout record. ${isMobile ? 'Try force-closing and reopening the app. ' : 'Try refreshing the page.'} If problem persists, contact support.`;
-        } else if (errorDetails.includes('duplicate key')) {
-          errorMessage = "Already Checked In";
-          errorDetails = `Duplicate entry (Status: ${statusCode}). This tool may have already been checked in. ${isMobile ? 'Pull down to refresh the screen. ' : 'Refresh the page to see current status.'}`;
-        } else if (errorDetails.includes('timeout') || errorDetails.includes('ETIMEDOUT')) {
-          errorMessage = isMobile ? "Request Timeout (Mobile)" : "Request Timeout";
-          errorDetails = `Server not responding (Status: ${statusCode}). ${isMobile ? 'Check signal strength and try again. ' : ''}The request took too long to complete.`;
-        } else if (errorDetails.includes('ENOTFOUND') || errorDetails.includes('DNS')) {
-          errorMessage = "Connection Error";
-          errorDetails = `Cannot reach server (Status: ${statusCode}). ${isMobile ? 'Check your internet connection and DNS settings. ' : ''}Try again in a moment.`;
-        } else if (statusCode === '401') {
-          errorMessage = "Authentication Error";
-          errorDetails = `Session expired (Status: ${statusCode}). Please log out and log back in to refresh your session.`;
-        } else if (statusCode === '403') {
-          errorMessage = "Access Forbidden";
-          errorDetails = `Permission denied (Status: ${statusCode}). You don't have the required permissions for this action.`;
-        } else if (statusCode === '429') {
-          errorMessage = "Rate Limited";
-          errorDetails = `Too many requests (Status: ${statusCode}). Please wait a moment before trying again.`;
-        } else if (statusCode === '500' || statusCode === '502' || statusCode === '503') {
-          errorMessage = "Server Error";
-          errorDetails = `Internal server error (Status: ${statusCode}). This is a temporary issue. Please try again in a few minutes.`;
-        } else {
-          errorDetails = `Error details: ${errorDetails} (Status: ${statusCode})${isMobile ? '. Device: Mobile' : ''}`;
-        }
-      } else {
-        errorDetails = `Unknown error occurred (Status: ${statusCode}). ${navigator.onLine ? 'Connected to internet' : 'No internet connection'}.`;
-      }
-      
-      // Log comprehensive error info for debugging
-      console.error('=== FINAL ERROR DETAILS ===');
-      console.error('Message:', errorMessage);
-      console.error('Details:', errorDetails);
-      console.error('Status Code:', statusCode);
-      console.error('Is Mobile:', /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
-      
-      toast({
-        title: errorMessage,
-        description: errorDetails || "An unexpected error occurred. Please check that all required fields are filled and try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-      setUploadingImages(false);
-    }
+  const handleCheckInSuccess = () => {
+    setSelectedTool(null);
+    setShowCheckInDialog(false);
+    fetchCheckouts();
   };
 
   const getStatusColor = (condition: string) => {
@@ -396,45 +113,6 @@ export default function CheckIn() {
   const getDaysOut = (checkoutDate: string) => {
     const days = Math.floor((new Date().getTime() - new Date(checkoutDate).getTime()) / (1000 * 60 * 60 * 24));
     return days;
-  };
-
-  const handleRemoveIssue = (issue: string) => {
-    setShowIssueResolution(issue);
-  };
-
-  const confirmIssueResolution = () => {
-    if (!showIssueResolution) return;
-    
-    const newResolution: IssueResolution = {
-      issue: showIssueResolution,
-      rootCause: issueResolutionForm.rootCause,
-      bestPractice: issueResolutionForm.bestPractice,
-      actionTaken: issueResolutionForm.actionTaken
-    };
-    
-    setResolvedIssues(prev => [...prev, newResolution]);
-    setShowIssueResolution(null);
-    setIssueResolutionForm({
-      rootCause: '',
-      bestPractice: '',
-      actionTaken: ''
-    });
-  };
-
-  const getKnownIssues = (knownIssues: string | null) => {
-    if (!knownIssues) return [];
-    return knownIssues.split('\n').filter(issue => issue.trim());
-  };
-
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    if (files.length > 0) {
-      setUploadedImages(prev => [...prev, ...files]);
-    }
-  };
-
-  const removeImage = (index: number) => {
-    setUploadedImages(prev => prev.filter((_, i) => i !== index));
   };
 
   if (loading) {
@@ -527,311 +205,25 @@ export default function CheckIn() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button 
-                          className="w-full" 
-                          onClick={() => {
-                            setSelectedCheckout(checkout);
-                          }}
-                        >
-                          Check In Tool
-                        </Button>
-                      </DialogTrigger>
-                      
-                      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                          <DialogTitle>
-                            Check In: {checkout.tools.name}
-                            {checkout.tools.serial_number && (
-                              <span className="text-sm font-normal text-muted-foreground ml-2">
-                                {checkout.tools.serial_number}
-                              </span>
-                            )}
-                          </DialogTitle>
-                          <DialogDescription>
-                            Checked out by {checkout.user_name} on {new Date(checkout.checkout_date).toLocaleDateString()}
-                          </DialogDescription>
-                        </DialogHeader>
-
-                         <TooltipProvider>
-                           <div className="space-y-4">
-                             {/* Check-in Reason - Only show when checking in for someone else */}
-                             {user?.id !== checkout.user_id && (
-                               <div>
-                                 <Label htmlFor="checkin_reason">Reason for checking in this tool *</Label>
-                                 <Select value={form.checkin_reason} onValueChange={(value) => setForm(prev => ({ ...prev, checkin_reason: value }))}>
-                                   <SelectTrigger>
-                                     <SelectValue placeholder="Select reason" />
-                                   </SelectTrigger>
-                                   <SelectContent>
-                                     <SelectItem value="cleanup">Cleanup</SelectItem>
-                                     <SelectItem value={`requested_by_${checkout.user_name}`}>Requested by {checkout.user_name}</SelectItem>
-                                     <SelectItem value="other">Other</SelectItem>
-                                   </SelectContent>
-                                 </Select>
-                               </div>
-                             )}
-
-                             <div>
-                               <Label htmlFor="condition_after">Tool Condition After Use *</Label>
-                               <Select value={form.condition_after} onValueChange={(value) => setForm(prev => ({ ...prev, condition_after: value }))}>
-                                 <SelectTrigger>
-                                   <SelectValue placeholder="Select condition" />
-                                 </SelectTrigger>
-                                 <SelectContent>
-                                   {TOOL_CONDITION_OPTIONS.map((option) => (
-                                     <SelectItem key={option.value} value={option.value}>
-                                       {option.label}
-                                     </SelectItem>
-                                   ))}
-                                 </SelectContent>
-                               </Select>
-                             </div>
-
-                          {checkout.tools.has_motor && (
-                            <div>
-                              <Label htmlFor="hours_used">Hours Used</Label>
-                              <Input
-                                id="hours_used"
-                                type="number"
-                                step="0.1"
-                                min="0"
-                                value={form.hours_used}
-                                onChange={(e) => setForm(prev => ({ ...prev, hours_used: e.target.value }))}
-                                placeholder="Enter hours used (e.g., 2.5)"
-                              />
-                            </div>
-                          )}
-
-                             {checkout.tools.known_issues && (
-                               <div>
-                                 <Label>Current Known Issues</Label>
-                                 <div className="space-y-2 mt-2 p-3 bg-muted rounded-md">
-                                   {getKnownIssues(checkout.tools.known_issues)
-                                     .filter(issue => !resolvedIssues.some(r => r.issue === issue))
-                                     .map((issue, index) => (
-                                     <div key={index} className="flex items-center justify-between p-2 bg-background rounded border">
-                                       <span className="text-sm">{issue}</span>
-                                       <Button
-                                         type="button"
-                                         variant="outline"
-                                         size="sm"
-                                         onClick={() => handleRemoveIssue(issue)}
-                                         className="text-red-600 hover:text-red-700"
-                                       >
-                                         <X className="h-4 w-4" />
-                                         Mark as Resolved
-                                       </Button>
-                                     </div>
-                                   ))}
-                                   {resolvedIssues.length > 0 && (
-                                     <div className="mt-3">
-                                       <p className="text-sm font-medium text-green-700 mb-2">Issues marked for resolution:</p>
-                                       {resolvedIssues.map((resolution, index) => (
-                                         <div key={index} className="text-sm p-2 bg-green-50 rounded border border-green-200">
-                                           <strong>{resolution.issue}</strong> - Will be removed after check-in
-                                         </div>
-                                       ))}
-                                     </div>
-                                   )}
-                                 </div>
-                               </div>
-                             )}
-
-                             <div>
-                               <div className="flex items-center gap-2 mb-2">
-                                 <Label htmlFor="tool_issues">New Issues</Label>
-                                 <Tooltip>
-                                   <TooltipTrigger asChild>
-                                     <Info className="h-4 w-4 text-muted-foreground" />
-                                   </TooltipTrigger>
-                                   <TooltipContent>
-                                     <p>These issues will be added to known issues</p>
-                                   </TooltipContent>
-                                 </Tooltip>
-                               </div>
-                               <Textarea
-                                 id="tool_issues"
-                                 value={form.tool_issues}
-                                 onChange={(e) => setForm(prev => ({ ...prev, tool_issues: e.target.value }))}
-                                 placeholder="Report any new problems, damage, or malfunctions that will be added to the tool's known issues"
-                                 rows={3}
-                               />
-                             </div>
-
-                             <div>
-                               <div className="flex items-center gap-2 mb-2">
-                                 <Label htmlFor="reflection">Reflect on how you used this tool and the degree to which it aligns with Stargazer Farm values *</Label>
-                                 <Tooltip>
-                                   <TooltipTrigger asChild>
-                                     <Info className="h-4 w-4 text-muted-foreground" />
-                                   </TooltipTrigger>
-                                   <TooltipContent>
-                                     <p>Stargazer Farm values Quality, Efficiency, Safety, Transparency, Teamwork</p>
-                                   </TooltipContent>
-                                 </Tooltip>
-                               </div>
-                               <Textarea
-                                 id="reflection"
-                                 value={form.reflection}
-                                 onChange={(e) => setForm(prev => ({ ...prev, reflection: e.target.value }))}
-                                 placeholder="Reflect on your tool usage and how it aligns with our farm values"
-                                 rows={3}
-                               />
-                              </div>
-
-                            {/* Issue Resolution Dialog */}
-                           {showIssueResolution && (
-                             <Dialog open={!!showIssueResolution} onOpenChange={() => setShowIssueResolution(null)}>
-                               <DialogContent className="max-w-lg">
-                                 <DialogHeader>
-                                   <DialogTitle>Issue Resolution Documentation</DialogTitle>
-                                   <DialogDescription>
-                                     Document the resolution of: "{showIssueResolution}"
-                                   </DialogDescription>
-                                 </DialogHeader>
-                                 <div className="space-y-4">
-                                   <div>
-                                     <Label htmlFor="rootCause">Root Cause *</Label>
-                                     <Textarea
-                                       id="rootCause"
-                                       value={issueResolutionForm.rootCause}
-                                       onChange={(e) => setIssueResolutionForm(prev => ({ ...prev, rootCause: e.target.value }))}
-                                       placeholder="What was the underlying cause of this issue?"
-                                       rows={3}
-                                     />
-                                   </div>
-                                   <div>
-                                     <Label htmlFor="bestPractice">Best Practice *</Label>
-                                     <Textarea
-                                       id="bestPractice"
-                                       value={issueResolutionForm.bestPractice}
-                                       onChange={(e) => setIssueResolutionForm(prev => ({ ...prev, bestPractice: e.target.value }))}
-                                       placeholder="What is the recommended best practice to prevent this issue?"
-                                       rows={3}
-                                     />
-                                   </div>
-                                   <div>
-                                     <Label htmlFor="actionTaken">Action Taken *</Label>
-                                     <Textarea
-                                       id="actionTaken"
-                                       value={issueResolutionForm.actionTaken}
-                                       onChange={(e) => setIssueResolutionForm(prev => ({ ...prev, actionTaken: e.target.value }))}
-                                       placeholder="What specific action did you take to resolve this issue?"
-                                       rows={3}
-                                     />
-                                   </div>
-                                   <div className="flex gap-2 pt-4">
-                                     <Button
-                                       variant="outline"
-                                       onClick={() => setShowIssueResolution(null)}
-                                       className="flex-1"
-                                     >
-                                       Cancel
-                                     </Button>
-                                     <Button
-                                       onClick={confirmIssueResolution}
-                                       disabled={!issueResolutionForm.rootCause || !issueResolutionForm.bestPractice || !issueResolutionForm.actionTaken}
-                                       className="flex-1"
-                                     >
-                                       Confirm Resolution
-                                     </Button>
-                                   </div>
-                                 </div>
-                               </DialogContent>
-                             </Dialog>
-                           )}
-
-                           {/* Image Upload Section */}
-                           <div>
-                             <Label htmlFor="images">Attach Images (Optional)</Label>
-                             <Input
-                               id="images"
-                               type="file"
-                               accept="image/*"
-                               multiple
-                               onChange={handleImageUpload}
-                               className="mt-2"
-                             />
-                             <p className="text-sm text-muted-foreground mt-1">
-                               Upload multiple images showing the tool's condition after use
-                             </p>
-                             
-                             {/* Image Preview */}
-                             {uploadedImages.length > 0 && (
-                               <div className="mt-3">
-                                 <p className="text-sm font-medium mb-2">Selected Images ({uploadedImages.length}):</p>
-                                 <div className="grid grid-cols-2 gap-2">
-                                   {uploadedImages.map((file, index) => (
-                                     <div key={index} className="relative group">
-                                       <img
-                                         src={URL.createObjectURL(file)}
-                                         alt={`Upload ${index + 1}`}
-                                         className="w-full h-20 object-cover rounded border"
-                                       />
-                                       <Button
-                                         type="button"
-                                         variant="destructive"
-                                         size="sm"
-                                         className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                                         onClick={() => removeImage(index)}
-                                       >
-                                         <X className="h-3 w-3" />
-                                       </Button>
-                                       <p className="text-xs text-center mt-1 truncate px-1">
-                                         {file.name}
-                                       </p>
-                                     </div>
-                                   ))}
-                                 </div>
-                               </div>
-                             )}
-                           </div>
-
-                           <div>
-                             <Label htmlFor="notes">Notes</Label>
-                            <Textarea
-                              id="notes"
-                              value={form.notes}
-                              onChange={(e) => setForm(prev => ({ ...prev, notes: e.target.value }))}
-                              placeholder="Any additional comments, observations, or notes about sub-optimal operation"
-                              rows={3}
-                            />
-                          </div>
-
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              id="returned_to_correct_location"
-                              checked={form.returned_to_correct_location}
-                              onChange={(e) => setForm(prev => ({ ...prev, returned_to_correct_location: e.target.checked }))}
-                              className="rounded border-gray-300"
-                            />
-                            <Label htmlFor="returned_to_correct_location">
-                              Tool was returned to its correct storage location: {checkout.tools.storage_vicinity}{checkout.tools.storage_location ? ` - ${checkout.tools.storage_location}` : ''}
-                            </Label>
-                          </div>
-
-                           <div className="flex gap-2 pt-4">
-                             <Button
-                               onClick={handleCheckIn}
-                               disabled={isSubmitting || !form.condition_after || !form.reflection || (user?.id !== checkout.user_id && !form.checkin_reason) || uploadingImages}
-                               className="flex-1"
-                             >
-                               {uploadingImages ? "Uploading Images..." : isSubmitting ? "Checking In..." : "Complete Check In"}
-                             </Button>
-                           </div>
-                           </div>
-                         </TooltipProvider>
-                       </DialogContent>
-                    </Dialog>
+                    <Button 
+                      className="w-full" 
+                      onClick={() => handleCheckInClick(checkout)}
+                    >
+                      Check In Tool
+                    </Button>
                   </CardContent>
                 </Card>
               );
             })}
           </div>
         )}
+
+        <ToolCheckInDialog 
+          tool={selectedTool}
+          open={showCheckInDialog}
+          onOpenChange={setShowCheckInDialog}
+          onSuccess={handleCheckInSuccess}
+        />
       </main>
     </div>
   );

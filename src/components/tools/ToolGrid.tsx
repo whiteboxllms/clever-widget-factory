@@ -6,6 +6,7 @@ interface ToolGridProps {
   activeCheckouts: {[key: string]: {user_name: string}};
   toolsWithIssues: Set<string>;
   canEditTools: boolean;
+  isLeadership: boolean;
   onToolClick: (tool: Tool) => void;
   onCheckoutClick: (tool: Tool) => void;
   onEditClick: (tool: Tool) => void;
@@ -17,6 +18,7 @@ export const ToolGrid = ({
   activeCheckouts,
   toolsWithIssues,
   canEditTools,
+  isLeadership,
   onToolClick,
   onCheckoutClick,
   onEditClick,
@@ -39,6 +41,7 @@ export const ToolGrid = ({
           activeCheckout={activeCheckouts[tool.id]}
           hasIssues={toolsWithIssues.has(tool.id) || (tool.known_issues && tool.known_issues.trim().length > 0)}
           canEditTools={canEditTools}
+          isLeadership={isLeadership}
           onToolClick={onToolClick}
           onCheckoutClick={onCheckoutClick}
           onEditClick={onEditClick}

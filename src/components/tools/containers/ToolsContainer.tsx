@@ -21,7 +21,7 @@ import { IssueResolutionDialog } from "@/components/IssueResolutionDialog";
 export const ToolsContainer = () => {
   const { toolId } = useParams();
   const navigate = useNavigate();
-  const { canEditTools } = useAuth();
+  const { canEditTools, isLeadership } = useAuth();
   
   // State management
   const [selectedTool, setSelectedTool] = useState(null);
@@ -170,16 +170,17 @@ export const ToolsContainer = () => {
         onShowRemovedItemsChange={setShowRemovedItems}
       />
 
-      <ToolGrid
-        tools={filteredTools}
-        activeCheckouts={activeCheckouts}
-        toolsWithIssues={toolsWithIssues}
-        canEditTools={canEditTools}
-        onToolClick={handleToolClick}
-        onCheckoutClick={handleCheckoutClick}
-        onEditClick={handleEditClick}
-        onRemoveClick={handleRemoveClick}
-      />
+            <ToolGrid
+              tools={filteredTools}
+              activeCheckouts={activeCheckouts}
+              toolsWithIssues={toolsWithIssues}
+              canEditTools={canEditTools}
+              isLeadership={isLeadership}
+              onToolClick={handleToolClick}
+              onCheckoutClick={handleCheckoutClick}
+              onEditClick={handleEditClick}
+              onRemoveClick={handleRemoveClick}
+            />
 
       <AddToolForm
         isOpen={isAddDialogOpen}

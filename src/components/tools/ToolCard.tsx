@@ -9,6 +9,7 @@ interface ToolCardProps {
   activeCheckout?: { user_name: string };
   hasIssues?: boolean;
   canEditTools: boolean;
+  isLeadership: boolean;
   onToolClick: (tool: Tool) => void;
   onCheckoutClick: (tool: Tool) => void;
   onEditClick: (tool: Tool) => void;
@@ -20,6 +21,7 @@ export const ToolCard = ({
   activeCheckout,
   hasIssues,
   canEditTools,
+  isLeadership,
   onToolClick,
   onCheckoutClick,
   onEditClick,
@@ -106,17 +108,20 @@ export const ToolCard = ({
                 Edit
               </Button>
               
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemoveClick(tool);
-                }}
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                Remove
-              </Button>
+              {isLeadership && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemoveClick(tool);
+                  }}
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Remove
+                </Button>
+              )}
             </>
           )}
         </div>

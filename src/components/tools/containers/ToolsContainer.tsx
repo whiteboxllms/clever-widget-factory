@@ -7,12 +7,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToolsData } from "@/hooks/tools/useToolsData";
 import { useToolFilters } from "@/hooks/tools/useToolFilters";
 import { useToolHistory } from "@/hooks/tools/useToolHistory";
+import { useToolsWithIssues } from "@/hooks/tools/useToolsWithIssues";
 import { useToolIssues } from "@/hooks/useToolIssues";
 import { toolsService } from "@/services/toolsService";
 import { ToolFilters } from "../ToolFilters";
 import { ToolGrid } from "../ToolGrid";
 import { ToolDetails } from "../ToolDetails";
 import { AddToolForm } from "../forms/AddToolForm";
+import { EditToolForm } from "../forms/EditToolForm";
 import { ToolCheckoutDialog } from "@/components/ToolCheckoutDialog";
 import { IssueResolutionDialog } from "@/components/IssueResolutionDialog";
 
@@ -24,8 +26,9 @@ export const ToolsContainer = () => {
   // State management
   const [selectedTool, setSelectedTool] = useState(null);
   const [showRemovedItems, setShowRemovedItems] = useState(false);
-  const [toolsWithIssues, setToolsWithIssues] = useState(new Set());
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editTool, setEditTool] = useState(null);
   const [checkoutTool, setCheckoutTool] = useState(null);
   const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false);
   const [resolveIssue, setResolveIssue] = useState(null);
@@ -33,7 +36,8 @@ export const ToolsContainer = () => {
   const [storageVicinities, setStorageVicinities] = useState([]);
 
   // Custom hooks
-  const { tools, loading, activeCheckouts, fetchTools, createTool } = useToolsData(showRemovedItems);
+  const { tools, loading, activeCheckouts, fetchTools, createTool, updateTool } = useToolsData(showRemovedItems);
+  const { toolsWithIssues, fetchToolsWithIssues } = useToolsWithIssues();
   const { filteredTools, searchTerm, setSearchTerm, showToolsWithIssues, setShowToolsWithIssues } = useToolFilters(tools, toolsWithIssues);
   const { toolHistory, currentCheckout, fetchToolHistory } = useToolHistory();
   const { issues, fetchIssues } = useToolIssues(selectedTool?.id || null);
@@ -58,11 +62,7 @@ export const ToolsContainer = () => {
   // Fetch tools with issues when filter is enabled
   useEffect(() => {
     if (showToolsWithIssues) {
-      const fetchIssuesData = async () => {
-        const issuesSet = await toolsService.fetchToolsWithIssues();
-        setToolsWithIssues(issuesSet);
-      };
-      fetchIssuesData();
+      fetchToolsWithIssues();
     }
   }, [showToolsWithIssues]);
 
@@ -71,10 +71,18 @@ export const ToolsContainer = () => {
     if (toolId && tools.length > 0) {
       const toolToEdit = tools.find(tool => tool.id === toolId);
       if (toolToEdit) {
-        handleToolClick(toolToEdit);
+        setEditTool(toolToEdit);
+        setIsEditDialogOpen(true);
       }
     }
   }, [toolId, tools]);
+
+  // Auto-migrate issues when tool is selected
+  useEffect(() => {
+    if (selectedTool) {
+      toolsService.migrateCheckinIssuesToToolIssues(selectedTool.id, fetchIssues);
+    }
+  }, [selectedTool]);
 
   const handleToolClick = (tool) => {
     setSelectedTool(tool);
@@ -92,7 +100,8 @@ export const ToolsContainer = () => {
   };
 
   const handleEditClick = (tool) => {
-    navigate(`/tools/${tool.id}`);
+    setEditTool(tool);
+    setIsEditDialogOpen(true);
   };
 
   const handleRemoveClick = (tool) => {
@@ -110,12 +119,10 @@ export const ToolsContainer = () => {
     await fetchTools();
   };
 
-  // Auto-migrate issues when tool is selected
-  useEffect(() => {
-    if (selectedTool) {
-      toolsService.migrateCheckinIssuesToToolIssues(selectedTool.id, fetchIssues);
-    }
-  }, [selectedTool]);
+  const handleUpdateTool = async (toolId: string, updates: any) => {
+    await updateTool(toolId, updates);
+    await fetchTools();
+  };
 
   if (loading) {
     return <div className="text-center py-8">Loading tools...</div>;
@@ -135,14 +142,13 @@ export const ToolsContainer = () => {
         
         <IssueResolutionDialog
           issue={resolveIssue}
-          isOpen={isResolveDialogOpen}
-          onClose={() => {
-            setIsResolveDialogOpen(false);
-            setResolveIssue(null);
-          }}
-          onResolved={() => {
+          open={isResolveDialogOpen}
+          onOpenChange={setIsResolveDialogOpen}
+          onSuccess={() => {
             fetchIssues();
             fetchTools();
+            setIsResolveDialogOpen(false);
+            setResolveIssue(null);
           }}
         />
       </>
@@ -188,14 +194,23 @@ export const ToolsContainer = () => {
         storageVicinities={storageVicinities}
       />
 
+      <EditToolForm
+        tool={editTool}
+        isOpen={isEditDialogOpen}
+        onClose={() => {
+          setIsEditDialogOpen(false);
+          setEditTool(null);
+          navigate('/tools');
+        }}
+        onSubmit={handleUpdateTool}
+        storageVicinities={storageVicinities}
+      />
+
       <ToolCheckoutDialog
         tool={checkoutTool}
-        isOpen={isCheckoutDialogOpen}
-        onClose={() => {
-          setIsCheckoutDialogOpen(false);
-          setCheckoutTool(null);
-        }}
-        onCheckoutComplete={() => {
+        open={isCheckoutDialogOpen}
+        onOpenChange={setIsCheckoutDialogOpen}
+        onSuccess={() => {
           fetchTools();
           setIsCheckoutDialogOpen(false);
           setCheckoutTool(null);

@@ -133,19 +133,21 @@ export const ToolDetails = ({
             </TabsContent>
 
             <TabsContent value="issues" className="space-y-4">
-              <ToolIssuesSummary 
-                issues={issues}
-                onResolveIssue={onResolveIssue}
-              />
-              
               <div className="space-y-4">
                 {issues.map((issue) => (
                   <IssueCard
                     key={issue.id}
                     issue={issue}
                     onResolve={() => onResolveIssue(issue)}
+                    onRefresh={() => {}}
                   />
                 ))}
+                
+                {issues.length === 0 && (
+                  <p className="text-center text-muted-foreground py-8">
+                    No active issues reported.
+                  </p>
+                )}
               </div>
             </TabsContent>
 

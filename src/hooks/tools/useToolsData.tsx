@@ -120,13 +120,17 @@ export const useToolsData = (showRemovedItems: boolean = false) => {
 
   const createTool = async (toolData: any) => {
     try {
+      console.log('Creating tool with data:', toolData);
       const { data, error } = await supabase
         .from('tools')
         .insert(toolData)
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
 
       // Add to local state
       setTools(prev => [...prev, data]);
@@ -136,7 +140,7 @@ export const useToolsData = (showRemovedItems: boolean = false) => {
       console.error('Error creating tool:', error);
       toast({
         title: "Error",
-        description: "Failed to create tool",
+        description: `Failed to create tool: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive"
       });
       return null;

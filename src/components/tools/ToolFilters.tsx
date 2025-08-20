@@ -37,7 +37,7 @@ export const ToolFilters = ({
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
         <div className="flex items-center space-x-2">
           <Switch id="show-checked-out" checked={showMyCheckedOut} onCheckedChange={onShowMyCheckedOutChange} />
-          <Label htmlFor="show-checked-out" className="text-sm">My checked out assets</Label>
+          <Label htmlFor="show-checked-out" className="text-sm">Checked out by me</Label>
         </div>
         
         <div className="flex items-center space-x-2">

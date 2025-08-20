@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, X } from "lucide-react";
-import { imageService } from "@/services/imageService";
+import { useImageUpload } from "@/hooks/useImageUpload";
 import { useToast } from "@/hooks/use-toast";
 import { TOOL_CATEGORY_OPTIONS } from "@/lib/constants";
 
@@ -43,6 +43,7 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, storageVicinities, init
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const { uploadImages, isUploading } = useImageUpload();
 
   // Update the name field when initialName changes
   useEffect(() => {
@@ -66,7 +67,18 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, storageVicinities, init
     try {
       let imageUrl = null;
       if (newTool.image_file) {
-        imageUrl = await imageService.uploadImage(newTool.image_file);
+        const result = await uploadImages(newTool.image_file, {
+          bucket: 'tool-images',
+          maxSizeMB: 0.5,
+          maxWidthOrHeight: 1920,
+          generateFileName: (file) => `${Date.now()}-${file.name}`
+        });
+        
+        if (Array.isArray(result)) {
+          imageUrl = result[0].url;
+        } else {
+          imageUrl = result.url;
+        }
       }
 
       const toolData = {
@@ -263,8 +275,8 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, storageVicinities, init
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || !newTool.name.trim()}>
-              {isSubmitting ? "Adding..." : "Add Tool"}
+            <Button type="submit" disabled={isSubmitting || isUploading || !newTool.name.trim()}>
+              {isSubmitting || isUploading ? "Adding..." : "Add Tool"}
             </Button>
           </div>
         </form>

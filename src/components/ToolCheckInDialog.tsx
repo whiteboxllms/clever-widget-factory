@@ -10,12 +10,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_VERSION, getBrowserInfo } from '@/lib/version';
 import { Tables, Database } from '@/integrations/supabase/types';
-import { ExternalLink, Info, AlertTriangle, Plus } from 'lucide-react';
+import { ExternalLink, Info, AlertTriangle, Plus, Camera, X } from 'lucide-react';
 import { TOOL_CONDITION_OPTIONS } from '@/lib/constants';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToolIssues } from '@/hooks/useToolIssues';
 import { IssueCard } from '@/components/IssueCard';
 import { IssueResolutionDialog } from '@/components/IssueResolutionDialog';
+import { useImageUpload } from '@/hooks/useImageUpload';
 
 
 type Tool = Tables<'tools'>;
@@ -49,6 +50,7 @@ interface ToolCheckInDialogProps {
 export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolCheckInDialogProps) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { uploadImages, isUploading: isUploadingImages } = useImageUpload();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkout, setCheckout] = useState<CheckoutWithTool | null>(null);
   const [form, setForm] = useState<CheckInForm>({
@@ -66,6 +68,9 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
   const [newIssueType, setNewIssueType] = useState<'safety' | 'efficiency' | 'cosmetic' | 'maintenance'>('efficiency');
   const [blocksCheckout, setBlocksCheckout] = useState(false);
   const [efficiencyLossPercentage, setEfficiencyLossPercentage] = useState<number | undefined>();
+  const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
+  const [uploadedPhotoUrls, setUploadedPhotoUrls] = useState<string[]>([]);
+  const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
   
   // Use the new issues hook
   const { issues, isLoading: isLoadingIssues, fetchIssues, createIssuesFromText } = useToolIssues(tool?.id || null);
@@ -83,6 +88,10 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         checkin_reason: '',
         updated_known_issues: tool.known_issues || ''
       });
+      // Reset photo state
+      setSelectedPhotos([]);
+      setUploadedPhotoUrls([]);
+      setPhotoUploadError(null);
     }
   }, [tool, open]);
 
@@ -110,6 +119,51 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         variant: "destructive",
       });
     }
+  };
+
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+
+    setPhotoUploadError(null);
+    
+    try {
+      const uploadResults = await uploadImages(files, {
+        bucket: 'checkin-photos',
+        maxSizeMB: 0.8,
+        maxWidthOrHeight: 1920,
+        generateFileName: (file, index) => {
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const toolName = tool?.name.replace(/[^a-zA-Z0-9]/g, '-') || 'tool';
+          const suffix = index ? `-${index}` : '';
+          return `checkin-${toolName}-${timestamp}${suffix}-${file.name}`;
+        }
+      });
+
+      const results = Array.isArray(uploadResults) ? uploadResults : [uploadResults];
+      const newUrls = results.map(result => result.url);
+      
+      setUploadedPhotoUrls(prev => [...prev, ...newUrls]);
+      setSelectedPhotos(prev => [...prev, ...files]);
+
+      toast({
+        title: "Photos uploaded successfully",
+        description: `${files.length} photo${files.length > 1 ? 's' : ''} uploaded`,
+      });
+    } catch (error) {
+      console.error('Photo upload failed:', error);
+      setPhotoUploadError(error instanceof Error ? error.message : 'Failed to upload photos');
+      toast({
+        title: "Photo upload failed",
+        description: error instanceof Error ? error.message : 'Failed to upload photos',
+        variant: "destructive",
+      });
+    }
+  };
+
+  const removePhoto = (index: number) => {
+    setUploadedPhotoUrls(prev => prev.filter((_, i) => i !== index));
+    setSelectedPhotos(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -180,6 +234,11 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
       // Add hours used if tool has motor and hours were provided
       if (tool.has_motor && form.hours_used) {
         checkinData.hours_used = parseFloat(form.hours_used);
+      }
+
+      // Add photo URLs to checkin data if any were uploaded
+      if (uploadedPhotoUrls.length > 0) {
+        checkinData.after_image_urls = uploadedPhotoUrls;
       }
 
       const { error: checkinError } = await supabase
@@ -468,10 +527,87 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
               </Label>
             </div>
 
+            {/* Photo Upload Section */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Camera className="h-4 w-4 text-blue-600" />
+                <Label>Add Photos (Optional)</Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="touch-manipulation">
+                      <Info className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" align="center" className="max-w-xs">
+                    <p>Upload photos showing the tool's condition after use. Photos are automatically compressed for optimal storage.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              
+              <div className="space-y-3">
+                <div>
+                  <input
+                    type="file"
+                    id="checkin-photos"
+                    multiple
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                    disabled={isUploadingImages}
+                  />
+                  <label
+                    htmlFor="checkin-photos"
+                    className={`
+                      inline-flex items-center justify-center gap-2 px-4 py-2 border border-dashed border-muted-foreground/50 rounded-lg 
+                      cursor-pointer hover:border-primary hover:bg-muted/50 transition-colors
+                      ${isUploadingImages ? 'opacity-50 cursor-not-allowed' : ''}
+                    `}
+                  >
+                    <Camera className="h-4 w-4" />
+                    {isUploadingImages ? 'Uploading...' : 'Add Photos'}
+                  </label>
+                </div>
+
+                {photoUploadError && (
+                  <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">
+                    {photoUploadError}
+                  </div>
+                )}
+
+                {/* Photo Previews */}
+                {uploadedPhotoUrls.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {uploadedPhotoUrls.map((url, index) => (
+                      <div key={index} className="relative group">
+                        <img
+                          src={url}
+                          alt={`Check-in photo ${index + 1}`}
+                          className="w-full h-20 object-cover rounded border"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removePhoto(index)}
+                          className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {uploadedPhotoUrls.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {uploadedPhotoUrls.length} photo{uploadedPhotoUrls.length > 1 ? 's' : ''} will be attached to this check-in
+                  </p>
+                )}
+              </div>
+            </div>
+
             <div className="flex gap-2 pt-4">
               <Button
                 onClick={handleSubmit}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isUploadingImages}
                 className="flex-1"
               >
                 {isSubmitting ? "Checking In..." : "Complete Check In"}

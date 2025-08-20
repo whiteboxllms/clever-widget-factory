@@ -151,7 +151,7 @@ export const ToolsContainer = () => {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row gap-4 sm:justify-between sm:items-center">
         <div className="flex items-center gap-4">
           <Button 
             variant="ghost" 
@@ -162,10 +162,14 @@ export const ToolsContainer = () => {
             <ArrowLeft className="h-4 w-4" />
             Back to Dashboard
           </Button>
-          <h1 className="text-3xl font-bold">Manage Tools</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Manage Tools</h1>
         </div>
         {canEditTools && (
-          <Button onClick={() => setIsAddDialogOpen(true)}>
+          <Button 
+            onClick={() => setIsAddDialogOpen(true)}
+            disabled={!searchTerm.trim()}
+            className="w-full sm:w-auto"
+          >
             <Plus className="h-4 w-4 mr-2" />
             Add Tool
           </Button>

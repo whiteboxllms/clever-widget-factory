@@ -103,7 +103,7 @@ export const ToolCard = ({
               size="sm"
               onClick={(e) => {
                 e.stopPropagation();
-                navigate('/checkin');
+                navigate(`/checkin?toolId=${tool.id}`);
               }}
             >
               <LogIn className="h-4 w-4 mr-1" />

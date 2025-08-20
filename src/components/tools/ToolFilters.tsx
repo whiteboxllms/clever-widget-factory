@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -31,8 +31,17 @@ export const ToolFilters = ({
           placeholder="Search tools..."
           value={searchTerm}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-10"
+          className="pl-10 pr-10"
         />
+        {searchTerm && (
+          <button
+            onClick={() => onSearchChange("")}
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            type="button"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
       
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">

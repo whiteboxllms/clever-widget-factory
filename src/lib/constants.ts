@@ -42,7 +42,8 @@ export const TOOL_CATEGORY_OPTIONS = [
   { value: 'Electric Tool', label: 'Electric Tool' },
   { value: 'Combustion Engine', label: 'Combustion Engine' },
   { value: 'Vehicle', label: 'Vehicle' },
-  { value: 'Recreation', label: 'Recreation' }
+  { value: 'Recreation', label: 'Recreation' },
+  { value: 'Container', label: 'Container' }
 ] as const;
 
 // Default done definition for missions and tasks

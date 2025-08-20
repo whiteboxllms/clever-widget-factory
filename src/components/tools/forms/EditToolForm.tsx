@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, X } from "lucide-react";
 import { Tool } from "@/hooks/tools/useToolsData";
-import { imageService } from "@/services/imageService";
+import { useImageUpload } from "@/hooks/useImageUpload";
 import { useToast } from "@/hooks/use-toast";
 import { TOOL_CATEGORY_OPTIONS } from "@/lib/constants";
 
@@ -33,6 +33,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, storageVicinitie
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const { uploadImages, isUploading } = useImageUpload();
 
   // Update form data when tool changes
   useEffect(() => {
@@ -69,7 +70,18 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, storageVicinitie
     try {
       let imageUrl = tool.image_url;
       if (editData.image_file) {
-        imageUrl = await imageService.uploadImage(editData.image_file);
+        const result = await uploadImages(editData.image_file, {
+          bucket: 'tool-images',
+          maxSizeMB: 0.5,
+          maxWidthOrHeight: 1920,
+          generateFileName: (file) => `${Date.now()}-${file.name}`
+        });
+        
+        if (Array.isArray(result)) {
+          imageUrl = result[0].url;
+        } else {
+          imageUrl = result.url;
+        }
       }
 
       const updateData = {

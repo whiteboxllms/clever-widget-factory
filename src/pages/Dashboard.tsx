@@ -30,8 +30,8 @@ export default function Dashboard() {
 
   const menuItems = [
     {
-      title: "Check In Tool",
-      description: "Return a tool and report condition",
+      title: "Check In Asset",
+      description: "Return an asset and report condition",
       icon: CheckCircle,
       path: "/checkin",
       color: "bg-green-500"
@@ -44,8 +44,8 @@ export default function Dashboard() {
       color: "bg-orange-500"
     },
     {
-      title: "Tools",
-      description: "View and manage tools",
+      title: "Assets",
+      description: "View and manage assets",
       icon: Wrench,
       path: "/tools",
       color: "bg-red-500"
@@ -59,7 +59,7 @@ export default function Dashboard() {
     },
     {
       title: "Audit",
-      description: "Verify tool and inventory locations",
+      description: "Verify asset and inventory locations",
       icon: ClipboardList,
       path: "/audit",
       color: "bg-purple-500"
@@ -72,7 +72,7 @@ export default function Dashboard() {
       <header className="border-b bg-card">
         <div className="flex items-center justify-between p-4">
           <div>
-            <h1 className="text-2xl font-bold">Farm Tool Tracker</h1>
+            <h1 className="text-2xl font-bold">Farm Asset Tracker</h1>
             <p className="text-muted-foreground">Welcome back, {user?.user_metadata?.full_name || user?.email}</p>
           </div>
           <div className="flex items-center gap-4">

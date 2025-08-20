@@ -171,7 +171,7 @@ export const ToolsContainer = () => {
             <ArrowLeft className="h-4 w-4" />
             Back to Dashboard
           </Button>
-          <h1 className="text-2xl sm:text-3xl font-bold">Manage Assets</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Manage Assets <span className="text-muted-foreground">({tools.length})</span></h1>
         </div>
 
         <ToolFilters

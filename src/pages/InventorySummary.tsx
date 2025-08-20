@@ -45,10 +45,10 @@ export default function InventorySummary() {
             <Link to="/inventory">
               <Button variant="outline" size="sm">
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Inventory
+                Back to Stock
               </Button>
             </Link>
-            <h1 className="text-2xl font-bold text-foreground">Inventory Summary</h1>
+            <h1 className="text-2xl font-bold text-foreground">Stock Summary</h1>
           </div>
           <Card>
             <CardContent className="p-6">
@@ -68,11 +68,11 @@ export default function InventorySummary() {
           <Link to="/inventory">
             <Button variant="outline" size="sm">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Inventory
+              Back to Stock
             </Button>
           </Link>
           <BarChart3 className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold text-foreground">Inventory Summary</h1>
+          <h1 className="text-2xl font-bold text-foreground">Stock Summary</h1>
         </div>
 
         {/* Metrics Cards */}
@@ -143,7 +143,7 @@ export default function InventorySummary() {
         {/* Additions Trend Chart */}
         <Card>
           <CardHeader>
-            <CardTitle>Inventory Additions Trend (Last 14 Days)</CardTitle>
+            <CardTitle>Stock Additions Trend (Last 14 Days)</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (

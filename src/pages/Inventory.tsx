@@ -398,7 +398,7 @@ export default function Inventory() {
         
         if (!currentUser?.id) {
           console.error('No authenticated user found for history logging');
-          throw new Error('User must be authenticated to create inventory items');
+          throw new Error('User must be authenticated to create stock items');
         }
         
         console.log('Creating history entry with user ID:', currentUser.id);
@@ -430,7 +430,7 @@ export default function Inventory() {
 
       toast({
         title: "Success",
-        description: "Inventory item added successfully",
+        description: "Stock item added successfully",
       });
 
       setNewPart({
@@ -526,7 +526,7 @@ export default function Inventory() {
         
         if (!currentUser?.id) {
           console.error('No authenticated user found for history logging');
-          throw new Error('User must be authenticated to update inventory items');
+          throw new Error('User must be authenticated to update stock items');
         }
         
         const { error: historyError } = await supabase
@@ -683,7 +683,7 @@ export default function Inventory() {
         
         if (!currentUser?.id) {
           console.error('No authenticated user found for history logging');
-          throw new Error('User must be authenticated to modify inventory quantities');
+          throw new Error('User must be authenticated to modify stock quantities');
         }
         
         const { error: historyError } = await supabase
@@ -854,7 +854,7 @@ export default function Inventory() {
       <div className="min-h-screen flex items-center justify-center bg-background">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Loading inventory...</p>
+            <p className="text-muted-foreground">Loading stock...</p>
           </div>
       </div>
     );
@@ -882,8 +882,8 @@ export default function Inventory() {
             })()}
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">Manage Inventory</h1>
-            <p className="text-muted-foreground">Manage inventory items</p>
+            <h1 className="text-2xl font-bold">Manage Stock</h1>
+            <p className="text-muted-foreground">Manage stock items</p>
           </div>
         </div>
       </header>
@@ -894,9 +894,9 @@ export default function Inventory() {
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Add New Inventory Item</DialogTitle>
+                <DialogTitle>Add New Stock Item</DialogTitle>
                 <DialogDescription>
-                  Add a new inventory item to your system
+                  Add a new stock item to your system
                 </DialogDescription>
               </DialogHeader>
               
@@ -917,7 +917,7 @@ export default function Inventory() {
         {/* Consumables Section */}
         <div className="mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-            <h2 className="text-2xl font-bold text-foreground">Inventory Items</h2>
+            <h2 className="text-2xl font-bold text-foreground">Stock Items</h2>
             <Button
               variant="outline"
               size="sm"
@@ -935,7 +935,7 @@ export default function Inventory() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
-                  placeholder="Search inventory by name or description..."
+                  placeholder="Search stock by name or description..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -954,7 +954,7 @@ export default function Inventory() {
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p className="max-w-xs">Search for item in inventory and add to existing inventory before adding as a new item</p>
+                      <p className="max-w-xs">Search for item in stock and add to existing stock before adding as a new item</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -974,11 +974,11 @@ export default function Inventory() {
             
             <div className="flex items-center space-x-2">
               <Switch
-                id="low-inventory-filter"
+                id="low-stock-filter"
                 checked={showLowInventoryOnly}
                 onCheckedChange={setShowLowInventoryOnly}
               />
-              <Label htmlFor="low-inventory-filter" className="text-sm font-medium">
+              <Label htmlFor="low-stock-filter" className="text-sm font-medium">
                 Show low stock items
               </Label>
             </div>
@@ -1017,7 +1017,7 @@ export default function Inventory() {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Consumable</AlertDialogTitle>
+                          <AlertDialogTitle>Delete Stock Item</AlertDialogTitle>
                           <AlertDialogDescription>
                             Are you sure you want to delete "{part.name}"? This action cannot be undone.
                           </AlertDialogDescription>
@@ -1205,7 +1205,7 @@ export default function Inventory() {
               <p className="text-muted-foreground">
                 {searchTerm 
                   ? 'Try adjusting your search criteria'
-                  : 'Add your first inventory item to get started'
+                  : 'Add your first stock item to get started'
                 }
               </p>
             </div>
@@ -1216,9 +1216,9 @@ export default function Inventory() {
         <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Edit Inventory Item</DialogTitle>
+              <DialogTitle>Edit Stock Item</DialogTitle>
               <DialogDescription>
-                Update inventory item information
+                Update stock item information
               </DialogDescription>
             </DialogHeader>
             
@@ -1239,7 +1239,7 @@ export default function Inventory() {
                   }
                 }}
                 // onAddSupplier removed - supplier tracking moved to stock additions
-                submitButtonText="Update Inventory Item"
+                submitButtonText="Update Stock Item"
                 editingPart={editingPart}
               />
             )}
@@ -1257,7 +1257,7 @@ export default function Inventory() {
                  {quantityPart && (
                    <>
                      {quantityOperation === 'add' 
-                       ? `Add more ${quantityPart.name} to inventory`
+                       ? `Add more ${quantityPart.name} to stock`
                        : `Record usage of ${quantityPart.name}`
                      }
                      <br />
@@ -1335,7 +1335,7 @@ export default function Inventory() {
                 Cancel
               </Button>
               <Button onClick={updateQuantity} disabled={!quantityChange.amount}>
-                {quantityOperation === 'add' ? 'Add to' : 'Remove from'} Inventory
+                {quantityOperation === 'add' ? 'Add to' : 'Remove from'} Stock
               </Button>
             </div>
           </DialogContent>

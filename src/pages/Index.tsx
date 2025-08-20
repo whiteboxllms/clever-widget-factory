@@ -10,7 +10,7 @@ const Index = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-3xl font-bold">Farm Asset Tracker</CardTitle>
-          <p className="text-muted-foreground">Manage your farm assets and inventory efficiently</p>
+          <p className="text-muted-foreground">Manage your farm assets and stock efficiently</p>
         </CardHeader>
         <CardContent className="space-y-4">
           <Button 
@@ -34,7 +34,7 @@ const Index = () => {
             className="w-full"
             size="lg"
           >
-            Manage Inventory
+            Manage Stock
           </Button>
         </CardContent>
       </Card>

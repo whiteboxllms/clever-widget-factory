@@ -37,8 +37,8 @@ export default function Dashboard() {
       color: "bg-green-500"
     },
     {
-      title: "Inventory",
-      description: "View and manage inventory",
+      title: "Stock",
+      description: "View and manage stock",
       icon: Package,
       path: "/inventory",
       color: "bg-orange-500"
@@ -59,7 +59,7 @@ export default function Dashboard() {
     },
     {
       title: "Audit",
-      description: "Verify asset and inventory locations",
+      description: "Verify asset and stock locations",
       icon: ClipboardList,
       path: "/audit",
       color: "bg-purple-500"

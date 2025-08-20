@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,11 +26,12 @@ interface AddToolFormProps {
   onClose: () => void;
   onSubmit: (toolData: any) => Promise<void>;
   storageVicinities: Array<{ id: string; name: string }>;
+  initialName?: string;
 }
 
-export const AddToolForm = ({ isOpen, onClose, onSubmit, storageVicinities }: AddToolFormProps) => {
+export const AddToolForm = ({ isOpen, onClose, onSubmit, storageVicinities, initialName = "" }: AddToolFormProps) => {
   const [newTool, setNewTool] = useState<NewToolForm>({
-    name: "",
+    name: initialName,
     description: "",
     category: "",
     status: "available",
@@ -42,6 +43,11 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, storageVicinities }: Ad
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+
+  // Update the name field when initialName changes
+  useEffect(() => {
+    setNewTool(prev => ({ ...prev, name: initialName }));
+  }, [initialName]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -78,7 +84,7 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, storageVicinities }: Ad
 
       // Reset form
       setNewTool({
-        name: "",
+        name: initialName,
         description: "",
         category: "",
         status: "available",

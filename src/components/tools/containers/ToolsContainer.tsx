@@ -188,6 +188,7 @@ export const ToolsContainer = () => {
         onClose={() => setIsAddDialogOpen(false)}
         onSubmit={handleAddTool}
         storageVicinities={storageVicinities}
+        initialName={searchTerm}
       />
 
       <EditToolForm

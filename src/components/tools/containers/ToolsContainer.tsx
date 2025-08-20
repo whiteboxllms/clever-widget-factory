@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToolsData } from "@/hooks/tools/useToolsData";
@@ -150,31 +151,41 @@ export const ToolsContainer = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4 sm:justify-between sm:items-center">
-        <div className="flex items-center gap-4">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => navigate('/dashboard')}
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Dashboard
-          </Button>
-          <h1 className="text-2xl sm:text-3xl font-bold">Manage Tools</h1>
+    <TooltipProvider>
+      <div className="p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row gap-4 sm:justify-between sm:items-center">
+          <div className="flex items-center gap-4">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate('/dashboard')}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Dashboard
+            </Button>
+            <h1 className="text-2xl sm:text-3xl font-bold">Manage Tools</h1>
+          </div>
+          {canEditTools && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  onClick={() => setIsAddDialogOpen(true)}
+                  disabled={!searchTerm.trim()}
+                  className="w-full sm:w-auto"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Tool
+                </Button>
+              </TooltipTrigger>
+              {!searchTerm.trim() && (
+                <TooltipContent>
+                  <p>Search for a tool first to avoid duplicates</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          )}
         </div>
-        {canEditTools && (
-          <Button 
-            onClick={() => setIsAddDialogOpen(true)}
-            disabled={!searchTerm.trim()}
-            className="w-full sm:w-auto"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Tool
-          </Button>
-        )}
-      </div>
 
       <ToolFilters
         searchTerm={searchTerm}
@@ -228,6 +239,7 @@ export const ToolsContainer = () => {
           setCheckoutTool(null);
         }}
       />
-    </div>
+      </div>
+    </TooltipProvider>
   );
 };

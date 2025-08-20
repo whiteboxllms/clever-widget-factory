@@ -153,26 +153,36 @@ export const ToolsContainer = () => {
   return (
     <TooltipProvider>
       <div className="p-6 space-y-6">
-        <div className="flex flex-col sm:flex-row gap-4 sm:justify-between sm:items-center">
-          <div className="flex items-center gap-4">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => navigate('/dashboard')}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Dashboard
-            </Button>
-            <h1 className="text-2xl sm:text-3xl font-bold">Manage Tools</h1>
-          </div>
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => navigate('/dashboard')}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Dashboard
+          </Button>
+          <h1 className="text-2xl sm:text-3xl font-bold">Manage Tools</h1>
+        </div>
+
+        <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+          <ToolFilters
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            showToolsWithIssues={showToolsWithIssues}
+            onShowToolsWithIssuesChange={setShowToolsWithIssues}
+            showRemovedItems={showRemovedItems}
+            onShowRemovedItemsChange={setShowRemovedItems}
+          />
+          
           {canEditTools && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button 
                   onClick={() => setIsAddDialogOpen(true)}
                   disabled={!searchTerm.trim()}
-                  className="w-full sm:w-auto"
+                  className="w-full lg:w-auto flex-shrink-0"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Add Tool
@@ -186,15 +196,6 @@ export const ToolsContainer = () => {
             </Tooltip>
           )}
         </div>
-
-      <ToolFilters
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        showToolsWithIssues={showToolsWithIssues}
-        onShowToolsWithIssuesChange={setShowToolsWithIssues}
-        showRemovedItems={showRemovedItems}
-        onShowRemovedItemsChange={setShowRemovedItems}
-      />
 
             <ToolGrid
               tools={filteredTools}

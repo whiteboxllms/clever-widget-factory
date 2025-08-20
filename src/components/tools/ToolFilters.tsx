@@ -2,6 +2,7 @@ import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { ReactNode } from "react";
 
 interface ToolFiltersProps {
   searchTerm: string;
@@ -10,6 +11,7 @@ interface ToolFiltersProps {
   onShowToolsWithIssuesChange: (value: boolean) => void;
   showRemovedItems: boolean;
   onShowRemovedItemsChange: (value: boolean) => void;
+  actionButton?: ReactNode;
 }
 
 export const ToolFilters = ({
@@ -18,7 +20,8 @@ export const ToolFilters = ({
   showToolsWithIssues,
   onShowToolsWithIssuesChange,
   showRemovedItems,
-  onShowRemovedItemsChange
+  onShowRemovedItemsChange,
+  actionButton
 }: ToolFiltersProps) => {
   return (
     <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-6">
@@ -32,7 +35,7 @@ export const ToolFilters = ({
         />
       </div>
       
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
         <div className="flex items-center space-x-2">
           <Switch
             id="show-issues"
@@ -54,6 +57,8 @@ export const ToolFilters = ({
             Show removed items
           </Label>
         </div>
+        
+        {actionButton}
       </div>
     </div>
   );

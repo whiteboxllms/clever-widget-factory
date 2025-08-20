@@ -166,23 +166,20 @@ export const ToolsContainer = () => {
           <h1 className="text-2xl sm:text-3xl font-bold">Manage Tools</h1>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-          <ToolFilters
-            searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
-            showToolsWithIssues={showToolsWithIssues}
-            onShowToolsWithIssuesChange={setShowToolsWithIssues}
-            showRemovedItems={showRemovedItems}
-            onShowRemovedItemsChange={setShowRemovedItems}
-          />
-          
-          {canEditTools && (
+        <ToolFilters
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          showToolsWithIssues={showToolsWithIssues}
+          onShowToolsWithIssuesChange={setShowToolsWithIssues}
+          showRemovedItems={showRemovedItems}
+          onShowRemovedItemsChange={setShowRemovedItems}
+          actionButton={canEditTools && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button 
                   onClick={() => setIsAddDialogOpen(true)}
                   disabled={!searchTerm.trim()}
-                  className="w-full lg:w-auto flex-shrink-0"
+                  className="w-full sm:w-auto flex-shrink-0"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Add Tool
@@ -195,7 +192,7 @@ export const ToolsContainer = () => {
               )}
             </Tooltip>
           )}
-        </div>
+        />
 
             <ToolGrid
               tools={filteredTools}

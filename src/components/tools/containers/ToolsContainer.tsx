@@ -39,7 +39,7 @@ export const ToolsContainer = () => {
   // Custom hooks
   const { tools, loading, activeCheckouts, fetchTools, createTool, updateTool } = useToolsData(showRemovedItems);
   const { toolsWithIssues, fetchToolsWithIssues } = useToolsWithIssues();
-  const { filteredTools, searchTerm, setSearchTerm, showToolsWithIssues, setShowToolsWithIssues } = useToolFilters(tools, toolsWithIssues);
+  const { filteredTools, searchTerm, setSearchTerm, showMyCheckedOut, setShowMyCheckedOut, showToolsWithIssues, setShowToolsWithIssues } = useToolFilters(tools, toolsWithIssues, activeCheckouts, user?.id || null);
   const { toolHistory, currentCheckout, fetchToolHistory } = useToolHistory();
   const { issues, fetchIssues } = useToolIssues(selectedTool?.id || null);
 
@@ -169,6 +169,8 @@ export const ToolsContainer = () => {
         <ToolFilters
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
+          showMyCheckedOut={showMyCheckedOut}
+          onShowMyCheckedOutChange={setShowMyCheckedOut}
           showToolsWithIssues={showToolsWithIssues}
           onShowToolsWithIssuesChange={setShowToolsWithIssues}
           showRemovedItems={showRemovedItems}

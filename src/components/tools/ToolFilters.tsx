@@ -6,6 +6,8 @@ import { ReactNode } from "react";
 interface ToolFiltersProps {
   searchTerm: string;
   onSearchChange: (value: string) => void;
+  showMyCheckedOut: boolean;
+  onShowMyCheckedOutChange: (value: boolean) => void;
   showToolsWithIssues: boolean;
   onShowToolsWithIssuesChange: (value: boolean) => void;
   showRemovedItems: boolean;
@@ -15,6 +17,8 @@ interface ToolFiltersProps {
 export const ToolFilters = ({
   searchTerm,
   onSearchChange,
+  showMyCheckedOut,
+  onShowMyCheckedOutChange,
   showToolsWithIssues,
   onShowToolsWithIssuesChange,
   showRemovedItems,
@@ -31,6 +35,11 @@ export const ToolFilters = ({
       </div>
       
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+        <div className="flex items-center space-x-2">
+          <Switch id="show-checked-out" checked={showMyCheckedOut} onCheckedChange={onShowMyCheckedOutChange} />
+          <Label htmlFor="show-checked-out" className="text-sm">My checked out assets</Label>
+        </div>
+        
         <div className="flex items-center space-x-2">
           <Switch id="show-issues" checked={showToolsWithIssues} onCheckedChange={onShowToolsWithIssuesChange} />
           <Label htmlFor="show-issues" className="text-sm">Show assets with issues</Label>

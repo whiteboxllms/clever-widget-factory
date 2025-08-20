@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Upload, X } from "lucide-react";
 import { imageService } from "@/services/imageService";
 import { useToast } from "@/hooks/use-toast";
+import { TOOL_CATEGORY_OPTIONS } from "@/lib/constants";
 
 interface NewToolForm {
   name: string;
@@ -136,11 +137,21 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, storageVicinities }: Ad
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="category">Category</Label>
-              <Input
-                id="category"
+              <Select
                 value={newTool.category}
-                onChange={(e) => setNewTool(prev => ({ ...prev, category: e.target.value }))}
-              />
+                onValueChange={(value) => setNewTool(prev => ({ ...prev, category: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TOOL_CATEGORY_OPTIONS.map((category) => (
+                    <SelectItem key={category.value} value={category.value}>
+                      {category.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>

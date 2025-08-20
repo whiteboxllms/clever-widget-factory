@@ -219,11 +219,8 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         checkout_id: checkout.id,
         tool_id: checkout.tool_id,
         user_name: user?.user_metadata?.full_name || 'Unknown User',
-        condition_after: 'no_problems_observed',
         problems_reported: form.tool_issues || null,
-        location_found: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : ''),
         notes: form.notes || null,
-        returned_to_correct_location: form.returned_to_correct_location,
         sop_best_practices: form.reflection,
         what_did_you_do: form.reflection,
         checkin_reason: form.checkin_reason || null,
@@ -273,10 +270,10 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
       const hasBlockingIssues = issues.some(issue => issue.status === 'active' && issue.blocks_checkout);
       const hasSafetyIssues = issues.some(issue => issue.status === 'active' && issue.issue_type === 'safety');
       
+      // Update tool status based on active issues
       const { error: toolError } = await supabase
         .from('tools')
         .update({ 
-          condition: hasActiveIssues ? (hasSafetyIssues ? 'not_functional' : 'functional_but_not_efficient') : 'no_problems_observed',
           status: hasBlockingIssues ? 'unavailable' : 'available',
           actual_location: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : '')
         })

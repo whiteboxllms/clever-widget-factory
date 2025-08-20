@@ -17,6 +17,7 @@ import { ToolDetails } from "../ToolDetails";
 import { AddToolForm } from "../forms/AddToolForm";
 import { EditToolForm } from "../forms/EditToolForm";
 import { ToolCheckoutDialog } from "@/components/ToolCheckoutDialog";
+import { ToolCheckInDialog } from "@/components/ToolCheckInDialog";
 import { IssueResolutionDialog } from "@/components/IssueResolutionDialog";
 
 export const ToolsContainer = () => {
@@ -32,6 +33,8 @@ export const ToolsContainer = () => {
   const [editTool, setEditTool] = useState(null);
   const [checkoutTool, setCheckoutTool] = useState(null);
   const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false);
+  const [isCheckinDialogOpen, setIsCheckinDialogOpen] = useState(false);
+  const [checkinTool, setCheckinTool] = useState(null);
   const [resolveIssue, setResolveIssue] = useState(null);
   const [isResolveDialogOpen, setIsResolveDialogOpen] = useState(false);
   const [storageVicinities, setStorageVicinities] = useState([]);
@@ -92,6 +95,11 @@ export const ToolsContainer = () => {
   const handleCheckoutClick = (tool) => {
     setCheckoutTool(tool);
     setIsCheckoutDialogOpen(true);
+  };
+
+  const handleCheckinClick = (tool) => {
+    setCheckinTool(tool);
+    setIsCheckinDialogOpen(true);
   };
 
   const handleEditClick = (tool) => {
@@ -205,6 +213,7 @@ export const ToolsContainer = () => {
               currentUserId={user?.id}
               onToolClick={handleToolClick}
               onCheckoutClick={handleCheckoutClick}
+              onCheckinClick={handleCheckinClick}
               onEditClick={handleEditClick}
               onRemoveClick={handleRemoveClick}
             />
@@ -237,6 +246,17 @@ export const ToolsContainer = () => {
           fetchTools();
           setIsCheckoutDialogOpen(false);
           setCheckoutTool(null);
+        }}
+      />
+
+      <ToolCheckInDialog
+        tool={checkinTool}
+        open={isCheckinDialogOpen}
+        onOpenChange={setIsCheckinDialogOpen}
+        onSuccess={() => {
+          setIsCheckinDialogOpen(false);
+          setCheckinTool(null);
+          fetchTools();
         }}
       />
       </div>

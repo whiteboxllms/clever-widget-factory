@@ -14,6 +14,7 @@ interface ToolCardProps {
   currentUserId?: string;
   onToolClick: (tool: Tool) => void;
   onCheckoutClick: (tool: Tool) => void;
+  onCheckinClick: (tool: Tool) => void;
   onEditClick: (tool: Tool) => void;
   onRemoveClick: (tool: Tool) => void;
 }
@@ -27,6 +28,7 @@ export const ToolCard = ({
   currentUserId,
   onToolClick,
   onCheckoutClick,
+  onCheckinClick,
   onEditClick,
   onRemoveClick
  }: ToolCardProps) => {
@@ -103,7 +105,7 @@ export const ToolCard = ({
               size="sm"
               onClick={(e) => {
                 e.stopPropagation();
-                navigate(`/checkin?toolId=${tool.id}`);
+                onCheckinClick(tool);
               }}
             >
               <LogIn className="h-4 w-4 mr-1" />

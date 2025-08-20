@@ -10,6 +10,7 @@ interface ToolGridProps {
   currentUserId?: string;
   onToolClick: (tool: Tool) => void;
   onCheckoutClick: (tool: Tool) => void;
+  onCheckinClick: (tool: Tool) => void;
   onEditClick: (tool: Tool) => void;
   onRemoveClick: (tool: Tool) => void;
 }
@@ -23,6 +24,7 @@ export const ToolGrid = ({
   currentUserId,
   onToolClick,
   onCheckoutClick,
+  onCheckinClick,
   onEditClick,
   onRemoveClick
 }: ToolGridProps) => {
@@ -47,6 +49,7 @@ export const ToolGrid = ({
           currentUserId={currentUserId}
           onToolClick={onToolClick}
           onCheckoutClick={onCheckoutClick}
+          onCheckinClick={onCheckinClick}
           onEditClick={onEditClick}
           onRemoveClick={onRemoveClick}
         />

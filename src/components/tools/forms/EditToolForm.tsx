@@ -7,6 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, X } from "lucide-react";
 import { Tool } from "@/hooks/tools/useToolsData";
+import { imageService } from "@/services/imageService";
+import { useToast } from "@/hooks/use-toast";
+import { TOOL_CATEGORY_OPTIONS } from "@/lib/constants";
 
 interface EditToolFormProps {
   tool: Tool | null;
@@ -21,13 +24,15 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, storageVicinitie
     name: tool?.name || "",
     description: tool?.description || "",
     category: tool?.category || "",
+    status: tool?.status || "available",
     storage_vicinity: tool?.storage_vicinity || "",
     storage_location: tool?.storage_location || "",
     serial_number: tool?.serial_number || "",
-    known_issues: tool?.known_issues || "",
-    stargazer_sop: tool?.stargazer_sop || "",
+    image_file: null as File | null,
   });
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
 
   // Update form data when tool changes
   useEffect(() => {
@@ -36,14 +41,25 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, storageVicinitie
         name: tool.name || "",
         description: tool.description || "",
         category: tool.category || "",
+        status: tool.status || "available",
         storage_vicinity: tool.storage_vicinity || "",
         storage_location: tool.storage_location || "",
         serial_number: tool.serial_number || "",
-        known_issues: tool.known_issues || "",
-        stargazer_sop: tool.stargazer_sop || "",
+        image_file: null,
       });
+      setImagePreview(null);
     }
   }, [tool]);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setEditData(prev => ({ ...prev, image_file: file }));
+      const reader = new FileReader();
+      reader.onload = () => setImagePreview(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,10 +67,36 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, storageVicinitie
     
     setIsSubmitting(true);
     try {
-      await onSubmit(tool.id, editData);
+      let imageUrl = tool.image_url;
+      if (editData.image_file) {
+        imageUrl = await imageService.uploadImage(editData.image_file);
+      }
+
+      const updateData = {
+        name: editData.name,
+        description: editData.description || null,
+        category: editData.category || null,
+        status: editData.status,
+        storage_vicinity: editData.storage_vicinity,
+        storage_location: editData.storage_location || null,
+        serial_number: editData.serial_number || null,
+        image_url: imageUrl
+      };
+
+      await onSubmit(tool.id, updateData);
       onClose();
+
+      toast({
+        title: "Success",
+        description: "Tool updated successfully"
+      });
     } catch (error) {
       console.error('Error updating tool:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update tool",
+        variant: "destructive"
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -93,11 +135,21 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, storageVicinitie
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="edit-category">Category</Label>
-              <Input
-                id="edit-category"
+              <Select
                 value={editData.category}
-                onChange={(e) => setEditData(prev => ({ ...prev, category: e.target.value }))}
-              />
+                onValueChange={(value) => setEditData(prev => ({ ...prev, category: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TOOL_CATEGORY_OPTIONS.map((category) => (
+                    <SelectItem key={category.value} value={category.value}>
+                      {category.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
@@ -141,25 +193,64 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, storageVicinitie
           </div>
 
           <div>
-            <Label htmlFor="edit-known-issues">Known Issues</Label>
-            <Textarea
-              id="edit-known-issues"
-              value={editData.known_issues}
-              onChange={(e) => setEditData(prev => ({ ...prev, known_issues: e.target.value }))}
-              rows={3}
-              placeholder="Describe any known issues with this tool"
-            />
+            <Label htmlFor="edit-status">Status</Label>
+            <Select
+              value={editData.status}
+              onValueChange={(value) => setEditData(prev => ({ ...prev, status: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="available">Available</SelectItem>
+                <SelectItem value="unavailable">Unavailable</SelectItem>
+                <SelectItem value="unable_to_find">Unable to Find</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
-            <Label htmlFor="edit-stargazer-sop">Stargazer SOP</Label>
-            <Textarea
-              id="edit-stargazer-sop"
-              value={editData.stargazer_sop}
-              onChange={(e) => setEditData(prev => ({ ...prev, stargazer_sop: e.target.value }))}
-              rows={4}
-              placeholder="Standard Operating Procedures for this tool"
-            />
+            <Label>Tool Image</Label>
+            <div className="mt-2">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="hidden"
+                id="edit-image-upload"
+              />
+              <label
+                htmlFor="edit-image-upload"
+                className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Choose Image
+              </label>
+            </div>
+            
+            {(imagePreview || tool?.image_url) && (
+              <div className="mt-4 relative">
+                <img
+                  src={imagePreview || tool?.image_url}
+                  alt="Tool preview"
+                  className="w-32 h-32 object-cover rounded-md border"
+                />
+                {imagePreview && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                    onClick={() => {
+                      setImagePreview(null);
+                      setEditData(prev => ({ ...prev, image_file: null }));
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-4">

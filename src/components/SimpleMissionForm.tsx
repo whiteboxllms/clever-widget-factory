@@ -96,6 +96,39 @@ export function SimpleMissionForm({
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [problemPhotos, setProblemPhotos] = useState<Array<{id: string; file_url: string; file_name: string}>>([]);
 
+  // Helper function to reload tasks from database
+  const loadTasksFromDatabase = async () => {
+    if (!missionId) return;
+    
+    try {
+      const { data: tasksData, error } = await supabase
+        .from('mission_tasks')
+        .select('*')
+        .eq('mission_id', missionId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      const updatedTasks = tasksData?.map(task => ({
+        id: task.id,
+        title: task.title,
+        plan: task.plan || '',
+        observations: task.observations || '',
+        assigned_to: task.assigned_to,
+        status: task.status,
+        mission_id: task.mission_id,
+        estimated_completion_date: task.estimated_duration ? new Date(task.estimated_duration) : undefined,
+        actual_duration: task.actual_duration || '',
+        required_tools: task.required_tools || [],
+        phase: (task.phase as 'planning' | 'execution' | 'verification' | 'documentation') || 'execution'
+      })) || [];
+
+      setFormData(prev => ({ ...prev, tasks: updatedTasks }));
+    } catch (error) {
+      console.error('Error loading tasks:', error);
+    }
+  };
+
   // Load existing problem photos when editing
   useEffect(() => {
     if (isEditing && missionId) {
@@ -149,7 +182,10 @@ export function SimpleMissionForm({
   };
 
   const handleCreateTask = () => {
-    // TaskDetailEditor handles creation directly
+    // Reload task list from database to reflect new task
+    if (isEditing && missionId) {
+      loadTasksFromDatabase();
+    }
     setCreatingNewTask(false);
     setTaskDialogOpen(false);
   };
@@ -183,7 +219,10 @@ export function SimpleMissionForm({
   };
 
   const handleEditTask = () => {
-    // Just close the editor - TaskDetailEditor handles saving directly
+    // Reload task list from database to reflect changes
+    if (isEditing && missionId) {
+      loadTasksFromDatabase();
+    }
     setEditingTaskIndex(null);
     setTaskDialogOpen(false);
   };

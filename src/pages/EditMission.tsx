@@ -23,10 +23,13 @@ interface Mission {
 }
 
 interface Task {
+  id?: string; // Include optional id field
   title: string;
   plan?: string;
   observations?: string;
   assigned_to: string | null;
+  status?: string;
+  mission_id?: string;
   estimated_completion_date?: Date;
   actual_duration?: string;
   required_tools?: string[];
@@ -146,10 +149,13 @@ export default function EditMission() {
         all_materials_available: missionData.all_materials_available || false,
         qa_assigned_to: missionData.qa_assigned_to || '',
         tasks: tasksData?.map(task => ({
+          id: task.id, // Include the task ID for proper edit detection
           title: task.title,
           plan: task.plan || '',
           observations: task.observations || '',
           assigned_to: task.assigned_to,
+          status: task.status,
+          mission_id: task.mission_id,
           estimated_completion_date: task.estimated_duration ? new Date(task.estimated_duration) : undefined,
           actual_duration: task.actual_duration || '',
           required_tools: task.required_tools || [],

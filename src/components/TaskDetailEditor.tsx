@@ -129,8 +129,8 @@ export function TaskDetailEditor({
         phase: editData.phase || 'execution'
       };
 
-      if (isCreating) {
-        // Creating new task
+      if (isCreating || !task.id || task.id.startsWith('temp-')) {
+        // Creating new task or task doesn't have real database ID yet
         const { error } = await supabase
           .from('mission_tasks')
           .insert({

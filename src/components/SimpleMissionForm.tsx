@@ -21,10 +21,12 @@ import { getStandardTasksForTemplate } from "@/lib/standardTaskBlocks";
 import { TaskDetailEditor } from './TaskDetailEditor';
 
 interface Task {
+  id?: string; // Add optional id field
   title: string;
   plan?: string;
   observations?: string;
   assigned_to: string | null;
+  status?: string; // Add optional status field
   estimated_completion_date?: Date;
   required_tools?: string[];
   required_stock?: { part_id: string; quantity: number; part_name: string; }[];
@@ -555,12 +557,12 @@ export function SimpleMissionForm({
             <div className="mb-4">
               <TaskDetailEditor
                 task={{
-                  id: `temp-${editingTaskIndex}`,
+                  id: formData.tasks[editingTaskIndex].id || `temp-${editingTaskIndex}`, // Use real ID if it exists
                   title: formData.tasks[editingTaskIndex].title,
                   plan: formData.tasks[editingTaskIndex].plan,
                   observations: formData.tasks[editingTaskIndex].observations,
                   assigned_to: formData.tasks[editingTaskIndex].assigned_to,
-                  status: 'not_started',
+                  status: formData.tasks[editingTaskIndex].status || 'not_started',
                   mission_id: missionId || '',
                   estimated_completion_date: formData.tasks[editingTaskIndex].estimated_completion_date,
                   required_tools: formData.tasks[editingTaskIndex].required_tools,

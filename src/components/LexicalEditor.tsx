@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
@@ -7,12 +7,12 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin';
 import { ListPlugin } from '@lexical/react/LexicalListPlugin';
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
+import { AutoLinkPlugin } from '@lexical/react/LexicalAutoLinkPlugin';
 import { $generateHtmlFromNodes } from '@lexical/html';
-import { $generateNodesFromDOM } from '@lexical/html';
 import { HeadingNode, QuoteNode } from '@lexical/rich-text';
 import { ListItemNode, ListNode } from '@lexical/list';
 import { AutoLinkNode, LinkNode } from '@lexical/link';
-import { $getRoot, EditorState, LexicalEditor as LexicalEditorType, $getSelection } from 'lexical';
+import { $getRoot, EditorState, LexicalEditor as LexicalEditorType } from 'lexical';
 import { cn } from '@/lib/utils';
 import { Bold, Italic, List, ListOrdered, Link } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -126,43 +126,24 @@ function ToolbarPlugin({ isEditing = true }: ToolbarProps) {
   );
 }
 
-interface AutoLinkPluginProps {}
+// URL regex for auto-linking
+const URL_MATCHER = /((https?:\/\/(www\.)?)|(www\.))[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)/;
 
-function AutoLinkPlugin({}: AutoLinkPluginProps) {
-  const [editor] = useLexicalComposerContext();
-
-  useEffect(() => {
-    const removeListener = editor.registerUpdateListener(({ editorState }) => {
-      editorState.read(() => {
-        const root = $getRoot();
-        const text = root.getTextContent();
-        
-        // Simple URL regex
-        const urlRegex = /(https?:\/\/[^\s]+)/g;
-        const matches = text.match(urlRegex);
-        
-        if (matches) {
-          editor.update(() => {
-            const selection = $getSelection();
-            const rootNode = $getRoot();
-            const textContent = rootNode.getTextContent();
-            
-            matches.forEach(url => {
-              if (!textContent.includes(url)) return;
-              
-              // This is a simplified implementation
-              // In a production app, you'd want more sophisticated URL detection
-            });
-          });
-        }
-      });
-    });
-
-    return removeListener;
-  }, [editor]);
-
-  return null;
-}
+const MATCHERS = [
+  (text: string) => {
+    const match = URL_MATCHER.exec(text);
+    if (match === null) {
+      return null;
+    }
+    const fullMatch = match[0];
+    return {
+      index: match.index,
+      length: fullMatch.length,
+      text: fullMatch,
+      url: fullMatch.startsWith('http') ? fullMatch : `https://${fullMatch}`,
+    };
+  },
+];
 
 interface LexicalEditorProps {
   value: string;
@@ -198,7 +179,7 @@ export function LexicalEditor({
     ],
   };
 
-  const handleChange = useCallback((editorState: EditorState, editor: any) => {
+  const handleChange = useCallback((editorState: EditorState, editor: LexicalEditorType) => {
     editorState.read(() => {
       const html = $generateHtmlFromNodes(editor);
       onChange(html);
@@ -214,7 +195,7 @@ export function LexicalEditor({
   }, [onBlur]);
 
   return (
-    <div className={cn("border border-input rounded-md overflow-hidden", className)}>
+    <div className={cn("border border-input rounded-md overflow-hidden bg-background", className)}>
       <LexicalComposer initialConfig={initialConfig}>
         <ToolbarPlugin isEditing={!readOnly} />
         <div className="relative">
@@ -238,7 +219,7 @@ export function LexicalEditor({
           <HistoryPlugin />
           <LinkPlugin />
           <ListPlugin />
-          <AutoLinkPlugin />
+          <AutoLinkPlugin matchers={MATCHERS} />
         </div>
       </LexicalComposer>
     </div>

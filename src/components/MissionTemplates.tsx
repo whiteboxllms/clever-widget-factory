@@ -140,11 +140,6 @@ const templates: MissionTemplate[] = [
     color: 'bg-mission-construction',
     defaultTasks: [
       {
-        title: 'Collaborate with AI on SOP best practices and ideas',
-        description: 'Work with AI to optimize construction methodology',
-        plan: 'Consult AI for construction best practices and safety improvements'
-      },
-      {
         title: 'Plan & Design',
         description: 'Create detailed construction plans',
         plan: 'Draft blueprints and create materials list'

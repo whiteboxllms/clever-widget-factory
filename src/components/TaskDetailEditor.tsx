@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { 
   Save, 
   X, 
@@ -19,6 +27,7 @@ import {
   Trash2 
 } from 'lucide-react';
 import { LexicalEditor } from './LexicalEditor';
+import { cn } from "@/lib/utils";
 
 interface Profile {
   id: string;
@@ -35,7 +44,7 @@ interface Task {
   assigned_to: string | null;
   status: string;
   mission_id: string;
-  estimated_duration?: string;
+  estimated_completion_date?: Date;
   
   required_tools?: string[];
   phase?: 'planning' | 'execution' | 'verification' | 'documentation';
@@ -68,7 +77,7 @@ export function TaskDetailEditor({
     plan: task.plan || '',
     observations: task.observations || '',
     assigned_to: task.assigned_to,
-    estimated_duration: task.estimated_duration || '',
+    estimated_completion_date: task.estimated_completion_date,
     required_tools: task.required_tools || [],
     phase: task.phase || (task.title.toLowerCase().includes('plan') ? 'planning' : 'execution')
   });
@@ -82,7 +91,7 @@ export function TaskDetailEditor({
       plan: task.plan || '',
       observations: task.observations || '',
       assigned_to: task.assigned_to,
-      estimated_duration: task.estimated_duration || '',
+      estimated_completion_date: task.estimated_completion_date,
       required_tools: task.required_tools || [],
       phase: task.phase || (task.title.toLowerCase().includes('plan') ? 'planning' : 'execution')
     };
@@ -126,13 +135,33 @@ export function TaskDetailEditor({
           </CardTitle>
           <div className="flex items-center gap-2">
             {selectedPhase && (
-              <Badge 
-                variant="secondary" 
-                className={`${selectedPhase.color} text-white`}
-              >
-                <selectedPhase.icon className="w-3 h-3 mr-1" />
-                {selectedPhase.label}
-              </Badge>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className={`${selectedPhase.color} text-white hover:opacity-80 h-auto p-1 px-2`}
+                  >
+                    <selectedPhase.icon className="w-3 h-3 mr-1" />
+                    {selectedPhase.label}
+                    <ChevronDown className="w-3 h-3 ml-1" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-48 p-1" align="end">
+                  {PHASE_OPTIONS.map(option => (
+                    <Button
+                      key={option.value}
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start gap-2"
+                      onClick={() => setEditData(prev => ({ ...prev, phase: option.value as any }))}
+                    >
+                      <option.icon className="w-4 h-4" />
+                      {option.label}
+                    </Button>
+                  ))}
+                </PopoverContent>
+              </Popover>
             )}
           </div>
         </div>
@@ -207,17 +236,37 @@ export function TaskDetailEditor({
           </div>
 
           <div>
-            <Label htmlFor="estimated_duration">
+            <Label htmlFor="estimated_completion_date">
               <Clock className="w-4 h-4 inline mr-1" />
               Expected Completion Date
             </Label>
-            <Input
-              id="estimated_duration"
-              value={editData.estimated_duration || ''}
-              onChange={(e) => setEditData(prev => ({ ...prev, estimated_duration: e.target.value }))}
-              placeholder="e.g., 2024-12-25, Next Tuesday"
-              className="mt-1"
-            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal mt-1",
+                    !editData.estimated_completion_date && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {editData.estimated_completion_date ? (
+                    format(editData.estimated_completion_date, "PPP")
+                  ) : (
+                    <span>Pick a date</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={editData.estimated_completion_date}
+                  onSelect={(date) => setEditData(prev => ({ ...prev, estimated_completion_date: date }))}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
 

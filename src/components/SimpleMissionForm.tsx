@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +24,7 @@ interface Task {
   plan?: string;
   observations?: string;
   assigned_to: string | null;
-  estimated_duration?: string;
+  estimated_completion_date?: Date;
   required_tools?: string[];
   phase?: 'planning' | 'execution' | 'verification' | 'documentation';
 }
@@ -138,7 +139,7 @@ export function SimpleMissionForm({
       plan: taskData.plan || '',
       observations: taskData.observations || '',
       assigned_to: taskData.assigned_to || null,
-      estimated_duration: taskData.estimated_duration || '',
+      estimated_completion_date: taskData.estimated_completion_date,
       
       required_tools: taskData.required_tools || [],
       phase: taskData.phase || 'execution'
@@ -161,7 +162,7 @@ export function SimpleMissionForm({
         plan: task.description,
         observations: '',
         assigned_to: null,
-        estimated_duration: task.estimated_duration || '',
+        estimated_completion_date: task.estimated_completion_date,
         
         required_tools: task.required_tools || [],
         phase: task.phase
@@ -526,7 +527,7 @@ export function SimpleMissionForm({
                   assigned_to: null,
                   status: 'not_started',
                   mission_id: '',
-        estimated_duration: '',
+        estimated_completion_date: undefined,
         required_tools: [],
                   phase: 'execution'
                 }}
@@ -550,7 +551,7 @@ export function SimpleMissionForm({
                   assigned_to: formData.tasks[editingTaskIndex].assigned_to,
                   status: 'not_started',
                   mission_id: '',
-                  estimated_duration: formData.tasks[editingTaskIndex].estimated_duration,
+                  estimated_completion_date: formData.tasks[editingTaskIndex].estimated_completion_date,
                   
                   required_tools: formData.tasks[editingTaskIndex].required_tools,
                   phase: formData.tasks[editingTaskIndex].phase
@@ -599,7 +600,7 @@ export function SimpleMissionForm({
                       }
                     </div>
                     <div>
-                      <span className="font-medium">Duration:</span> {task.estimated_duration || 'Not set'}
+                      <span className="font-medium">Due:</span> {task.estimated_completion_date ? format(task.estimated_completion_date, "PPP") : 'Not set'}
                     </div>
                     <div>
                       <span className="font-medium">Tools:</span> {task.required_tools?.length || 0} tools

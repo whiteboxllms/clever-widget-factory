@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
-import { DEFAULT_DONE_DEFINITION } from "@/lib/constants";
+
 import { useTempPhotoStorage } from "@/hooks/useTempPhotoStorage";
 
 interface Task {
@@ -45,7 +45,6 @@ interface SimpleMissionFormProps {
   formData: {
     title: string;
     problem_statement: string;
-    done_definition: string;
     selected_resources: SelectedResource[];
     all_materials_available: boolean;
     qa_assigned_to: string;
@@ -389,16 +388,6 @@ export function SimpleMissionForm({
           )}
         </div>
         
-        <div>
-          <Label htmlFor="done_definition">Done Definition *</Label>
-          <Textarea
-            id="done_definition"
-            value={formData.done_definition || DEFAULT_DONE_DEFINITION}
-            onChange={(e) => setFormData(prev => ({ ...prev, done_definition: e.target.value }))}
-            placeholder="Describe what success looks like for this mission"
-            rows={3}
-          />
-        </div>
 
         {/* QA Assignment - Required Field */}
         <div>

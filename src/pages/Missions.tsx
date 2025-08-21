@@ -14,7 +14,7 @@ import { MissionTemplates } from '@/components/MissionTemplates';
 import { SimpleMissionForm } from '@/components/SimpleMissionForm';
 import { MissionTaskList } from '@/components/MissionTaskList';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { DEFAULT_DONE_DEFINITION } from '@/lib/constants';
+
 import { withAuth, checkUserRole as checkUserRoleAuth } from '@/lib/authUtils';
 interface Mission {
   id: string;
@@ -108,7 +108,6 @@ const Missions = () => {
   const [formData, setFormData] = useState({
     title: '',
     problem_statement: '',
-    done_definition: DEFAULT_DONE_DEFINITION,
     resources_required: '',
     selected_resources: [] as SelectedResource[],
     all_materials_available: false,
@@ -341,7 +340,6 @@ const Missions = () => {
     setFormData({
       title: '',
       problem_statement: '',
-      done_definition: DEFAULT_DONE_DEFINITION,
       resources_required: '',
       selected_resources: [],
       all_materials_available: false,
@@ -363,7 +361,7 @@ const Missions = () => {
     });
   };
   const handleCreateMission = async () => {
-    if (!user || !formData.title.trim() || !formData.problem_statement.trim() || !formData.done_definition.trim() || !formData.qa_assigned_to) {
+    if (!user || !formData.title.trim() || !formData.problem_statement.trim() || !formData.qa_assigned_to) {
       toast({
         title: "Error",
         description: "Please fill in all required fields including QA assignment",
@@ -392,7 +390,7 @@ const Missions = () => {
         } = await supabase.from('missions').insert({
           title: formData.title,
           problem_statement: formData.problem_statement,
-          plan: formData.done_definition,
+          plan: '',
           resources_required: formData.selected_resources.length > 0 ? formData.selected_resources.map(r => {
             const quantity = r.quantity || 1;
             const unit = r.unit || (r.type === 'part' ? 'pieces' : '');
@@ -478,7 +476,7 @@ const Missions = () => {
     }
   };
   const handleEditMission = async () => {
-    if (!user || !editingMission || !formData.title.trim() || !formData.problem_statement.trim() || !formData.done_definition.trim() || !formData.qa_assigned_to) {
+    if (!user || !editingMission || !formData.title.trim() || !formData.problem_statement.trim() || !formData.qa_assigned_to) {
       toast({
         title: "Error",
         description: "Please fill in all required fields including QA assignment",
@@ -504,7 +502,7 @@ const Missions = () => {
       } = await supabase.from('missions').update({
         title: formData.title,
         problem_statement: formData.problem_statement,
-        plan: formData.done_definition,
+        plan: '',
         resources_required: formData.selected_resources.length > 0 ? formData.selected_resources.map(r => {
           const quantity = r.quantity || 1;
           const unit = r.unit || (r.type === 'part' ? 'pieces' : '');
@@ -665,7 +663,6 @@ const Missions = () => {
     setFormData({
       title: mission.title,
       problem_statement: mission.problem_statement,
-      done_definition: mission.plan,
       resources_required: mission.resources_required || '',
       selected_resources: parsedResources,
       all_materials_available: mission.all_materials_available,
@@ -688,7 +685,6 @@ const Missions = () => {
     setFormData({
       title: '',
       problem_statement: '',
-      done_definition: DEFAULT_DONE_DEFINITION,
       resources_required: '',
       selected_resources: [],
       all_materials_available: false,

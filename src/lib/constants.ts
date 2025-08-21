@@ -46,5 +46,5 @@ export const TOOL_CATEGORY_OPTIONS = [
   { value: 'Container', label: 'Container' }
 ] as const;
 
-// Default done definition for missions and tasks
+// Default done definition for tasks only
 export const DEFAULT_DONE_DEFINITION = "The task is complete when the images show the full solution, work follows Stargazer SOP, reflects best practices and professionalism, and any problems encountered are documented.";

@@ -16,6 +16,7 @@ import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 
 import { useTempPhotoStorage } from "@/hooks/useTempPhotoStorage";
 import { getStandardTasksForTemplate } from "@/lib/standardTaskBlocks";
+import { TaskDetailEditor } from './TaskDetailEditor';
 
 interface Task {
   title: string;
@@ -86,6 +87,7 @@ export function SimpleMissionForm({
   const tempPhotoStorage = useTempPhotoStorage();
   const [showTasks, setShowTasks] = useState(true);
   const [editingTaskIndex, setEditingTaskIndex] = useState<number | null>(null);
+  const [creatingNewTask, setCreatingNewTask] = useState(false);
   const [problemPhotos, setProblemPhotos] = useState<Array<{id: string; file_url: string; file_name: string}>>([]);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -128,20 +130,25 @@ export function SimpleMissionForm({
   };
 
   const addTask = () => {
+    setCreatingNewTask(true);
+  };
+
+  const handleCreateTask = (taskData: Partial<Task>) => {
+    const newTask: Task = {
+      title: taskData.title || '',
+      plan: taskData.plan || '',
+      observations: taskData.observations || '',
+      assigned_to: taskData.assigned_to || null,
+      estimated_duration: taskData.estimated_duration || '',
+      actual_duration: taskData.actual_duration || '',
+      required_tools: taskData.required_tools || [],
+      phase: taskData.phase || 'execution'
+    };
     setFormData(prev => ({
       ...prev,
-      tasks: [...prev.tasks, { 
-        title: '', 
-        plan: '', 
-        observations: '', 
-        assigned_to: null,
-        estimated_duration: '',
-        actual_duration: '',
-        required_tools: [],
-        phase: 'execution'
-      }]
+      tasks: [...prev.tasks, newTask]
     }));
-    setEditingTaskIndex(formData.tasks.length);
+    setCreatingNewTask(false);
   };
 
   const loadStandardTasks = () => {
@@ -168,6 +175,23 @@ export function SimpleMissionForm({
       ...prev,
       tasks: prev.tasks.map((task, i) => 
         i === index ? taskData : task
+      )
+    }));
+    setEditingTaskIndex(null);
+  };
+
+  const handleEditTask = (taskData: Partial<Task>) => {
+    if (editingTaskIndex === null) return;
+    
+    const updatedTask: Task = {
+      ...formData.tasks[editingTaskIndex],
+      ...taskData
+    };
+    
+    setFormData(prev => ({
+      ...prev,
+      tasks: prev.tasks.map((task, i) => 
+        i === editingTaskIndex ? updatedTask : task
       )
     }));
     setEditingTaskIndex(null);
@@ -491,6 +515,55 @@ export function SimpleMissionForm({
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-4 mt-4">
+          {/* Task Creation Modal */}
+          {creatingNewTask && (
+            <div className="mb-4">
+              <TaskDetailEditor
+                task={{
+                  id: '',
+                  title: '',
+                  plan: '',
+                  observations: '',
+                  assigned_to: null,
+                  status: 'not_started',
+                  mission_id: '',
+                  estimated_duration: '',
+                  actual_duration: '',
+                  required_tools: [],
+                  phase: 'execution'
+                }}
+                profiles={profiles}
+                onSave={handleCreateTask}
+                onCancel={() => setCreatingNewTask(false)}
+                isCreating={true}
+              />
+            </div>
+          )}
+
+          {/* Task Edit Modal */}
+          {editingTaskIndex !== null && (
+            <div className="mb-4">
+              <TaskDetailEditor
+                task={{
+                  id: `temp-${editingTaskIndex}`,
+                  title: formData.tasks[editingTaskIndex].title,
+                  plan: formData.tasks[editingTaskIndex].plan,
+                  observations: formData.tasks[editingTaskIndex].observations,
+                  assigned_to: formData.tasks[editingTaskIndex].assigned_to,
+                  status: 'not_started',
+                  mission_id: '',
+                  estimated_duration: formData.tasks[editingTaskIndex].estimated_duration,
+                  actual_duration: formData.tasks[editingTaskIndex].actual_duration,
+                  required_tools: formData.tasks[editingTaskIndex].required_tools,
+                  phase: formData.tasks[editingTaskIndex].phase
+                }}
+                profiles={profiles}
+                onSave={handleEditTask}
+                onCancel={() => setEditingTaskIndex(null)}
+              />
+            </div>
+          )}
+          
           <div className="flex justify-between items-center">
             <p className="text-sm text-muted-foreground">
               Break down your mission into specific tasks (optional)
@@ -509,70 +582,70 @@ export function SimpleMissionForm({
           </div>
           
           {formData.tasks.map((task, index) => (
-            <div key={index}>
-              {editingTaskIndex === index ? (
-                <TaskCard
-                  task={{
-                    id: `temp-${index}`,
-                    title: task.title,
-                    plan: task.plan,
-                    observations: task.observations,
-                    assigned_to: task.assigned_to,
-                    status: 'not_started',
-                    mission_id: '',
-                    estimated_duration: task.estimated_duration,
-                    actual_duration: task.actual_duration,
-                    required_tools: task.required_tools,
-                    phase: task.phase
-                  }}
-                  profiles={profiles}
-                  onUpdate={() => {}}
-                  isEditing={true}
-                  onSave={(taskData) => updateTask(index, taskData)}
-                  onCancel={() => setEditingTaskIndex(null)}
-                  tempPhotoStorage={tempPhotoStorage}
-                />
-              ) : (
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex-1">
+            <div key={index} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="px-2 py-1 bg-muted rounded text-xs font-medium capitalize">
+                      {task.phase || 'execution'}
+                    </div>
                     <h4 className="font-medium">{task.title || `Task ${index + 1}`}</h4>
-                    {task.plan && (
-                      <p className="text-sm text-muted-foreground mt-1">{task.plan}</p>
-                    )}
-                    {task.assigned_to && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Assigned to: {profiles.find(p => p.user_id === task.assigned_to)?.full_name || 'Unknown'}
-                      </p>
-                    )}
-                    {/* Show temp photo count */}
-                    {tempPhotoStorage.getTempPhotosForTask(`temp-${index}`).length > 0 && (
-                      <p className="text-xs text-blue-600 mt-1">
-                        📸 {tempPhotoStorage.getTempPhotosForTask(`temp-${index}`).length} photo(s) attached
-                      </p>
-                    )}
                   </div>
-                  <div className="flex gap-2">
+                  
+                  <div className="grid grid-cols-3 gap-4 text-sm text-muted-foreground">
+                    <div>
+                      <span className="font-medium">Assigned:</span> {
+                        task.assigned_to 
+                          ? profiles.find(p => p.user_id === task.assigned_to)?.full_name || 'Unknown'
+                          : 'Unassigned'
+                      }
+                    </div>
+                    <div>
+                      <span className="font-medium">Duration:</span> {task.estimated_duration || 'Not set'}
+                    </div>
+                    <div>
+                      <span className="font-medium">Tools:</span> {task.required_tools?.length || 0} tools
+                    </div>
+                  </div>
+
+                  {task.plan && (
+                    <div className="mt-2">
+                      <p className="text-sm text-muted-foreground font-medium">Plan:</p>
+                      <div 
+                        className="text-sm prose prose-sm max-w-none line-clamp-2"
+                        dangerouslySetInnerHTML={{ __html: task.plan }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Show temp photo count */}
+                  {tempPhotoStorage.getTempPhotosForTask(`temp-${index}`).length > 0 && (
+                    <p className="text-xs text-blue-600 mt-2">
+                      📸 {tempPhotoStorage.getTempPhotosForTask(`temp-${index}`).length} photo(s) attached
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setEditingTaskIndex(index)}
+                  >
+                    Edit
+                  </Button>
+                  {formData.tasks.length > 1 && (
                     <Button 
                       type="button" 
                       variant="ghost" 
                       size="sm" 
-                      onClick={() => setEditingTaskIndex(index)}
+                      onClick={() => removeTask(index)}
                     >
-                      Edit
+                      Remove
                     </Button>
-                    {formData.tasks.length > 1 && (
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => removeTask(index)}
-                      >
-                        Remove
-                      </Button>
-                    )}
-                  </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           ))}
         </CollapsibleContent>

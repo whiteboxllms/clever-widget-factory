@@ -233,8 +233,8 @@ export default function EditMission() {
 
       console.log('Auto-saving task data:', taskData);
 
-      // Convert date to ISO string for database storage
-      const estimatedDuration = taskData.estimated_completion_date ? 
+      // Convert date to ISO string for database storage - fix field name mismatch
+      const estimatedCompletionDate = taskData.estimated_completion_date ? 
         taskData.estimated_completion_date.toISOString() : null;
 
       // Get existing task or create new one
@@ -253,7 +253,7 @@ export default function EditMission() {
             plan: taskData.plan || null,
             observations: taskData.observations || null,
             assigned_to: taskData.assigned_to || null,
-            estimated_duration: estimatedDuration,
+            estimated_duration: estimatedCompletionDate,
             required_tools: taskData.required_tools || [],
             phase: taskData.phase || 'execution'
           })
@@ -284,7 +284,7 @@ export default function EditMission() {
             observations: taskData.observations || null,
             assigned_to: taskData.assigned_to || null,
             status: 'not_started',
-            estimated_duration: estimatedDuration,
+            estimated_duration: estimatedCompletionDate,
             required_tools: taskData.required_tools || [],
             phase: taskData.phase || 'execution'
           });

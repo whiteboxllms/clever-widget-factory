@@ -85,6 +85,7 @@ export function TaskDetailEditor({
 
   const [newTool, setNewTool] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const originalData = {
@@ -102,11 +103,22 @@ export function TaskDetailEditor({
     setHasChanges(hasChanged);
   }, [editData, task]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editData.title?.trim()) {
       return;
     }
-    onSave(editData);
+    
+    setIsSaving(true);
+    console.log('TaskDetailEditor - Saving task data:', editData);
+    
+    try {
+      await onSave(editData);
+      console.log('TaskDetailEditor - Save completed successfully');
+    } catch (error) {
+      console.error('TaskDetailEditor - Save failed:', error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const addTool = () => {
@@ -373,10 +385,10 @@ export function TaskDetailEditor({
           </Button>
           <Button 
             onClick={handleSave}
-            disabled={!editData.title?.trim() || !hasChanges}
+            disabled={!editData.title?.trim() || !hasChanges || isSaving}
           >
             <Save className="w-4 h-4 mr-1" />
-            {isCreating ? 'Create Task' : 'Save Changes'}
+            {isSaving ? 'Saving...' : (isCreating ? 'Create Task' : 'Save Changes')}
           </Button>
         </div>
       </CardContent>

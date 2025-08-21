@@ -196,13 +196,17 @@ export function SimpleMissionForm({
     setEditingTaskIndex(null);
   };
 
-  const handleEditTask = (taskData: Partial<Task>) => {
+  const handleEditTask = async (taskData: Partial<Task>) => {
     if (editingTaskIndex === null) return;
+    
+    console.log('SimpleMissionForm - handleEditTask called with:', taskData);
     
     const updatedTask: Task = {
       ...formData.tasks[editingTaskIndex],
       ...taskData
     };
+    
+    console.log('SimpleMissionForm - Updated task:', updatedTask);
     
     // Update the form data which will trigger auto-save in parent
     setFormData(prev => ({
@@ -211,13 +215,19 @@ export function SimpleMissionForm({
         i === editingTaskIndex ? updatedTask : task
       )
     }));
+    
+    // Wait a small amount to ensure the setFormData has triggered
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     setEditingTaskIndex(null);
     
     // Show success toast
     toast({
       title: "Task updated",
-      description: `"${taskData.title}" has been updated successfully.`
+      description: `"${taskData.title || 'Task'}" has been updated successfully.`
     });
+    
+    console.log('SimpleMissionForm - Task edit completed, editor minimized');
   };
 
   const removeTask = async (index: number) => {

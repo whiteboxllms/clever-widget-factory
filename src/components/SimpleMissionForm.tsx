@@ -355,14 +355,31 @@ export function SimpleMissionForm({
     const photo = problemPhotos.find(p => p.id === photoId);
     if (!photo) return;
 
-    // If editing mode and photo exists in database, delete it
-    if (isEditing && missionId && !photo.id.toString().startsWith('temp-') && !photo.id.toString().match(/^\d+$/)) {
+    // If editing mode, try to delete from database (UUID format indicates it's a saved photo)
+    if (isEditing && missionId) {
       try {
-        // Delete from storage
-        await supabase.storage.from('mission-attachments').remove([photo.file_url]);
+        console.log('Attempting to delete photo:', { photoId, photoUrl: photo.file_url });
         
-        // Delete from database
-        await supabase.from('mission_attachments').delete().eq('id', photo.id);
+        // Delete from database first
+        const { error: dbError } = await supabase
+          .from('mission_attachments')
+          .delete()
+          .eq('id', photo.id);
+        
+        if (dbError) {
+          console.error('Database deletion error:', dbError);
+          throw dbError;
+        }
+        
+        // Delete from storage
+        const { error: storageError } = await supabase.storage
+          .from('mission-attachments')
+          .remove([photo.file_url]);
+        
+        if (storageError) {
+          console.error('Storage deletion error:', storageError);
+          // Don't throw - storage deletion failure shouldn't block the operation
+        }
         
         toast({
           title: "Photo removed",
@@ -372,11 +389,17 @@ export function SimpleMissionForm({
         console.error('Failed to remove photo:', error);
         toast({
           title: "Error",
-          description: "Failed to remove photo",
+          description: "Failed to remove photo from database",
           variant: "destructive"
         });
         return;
       }
+    } else {
+      // For non-editing mode or temp photos, just show local removal
+      toast({
+        title: "Photo removed",
+        description: "Photo has been removed."
+      });
     }
 
     // Remove from local state

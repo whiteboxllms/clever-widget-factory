@@ -194,119 +194,49 @@ export default function EditMission() {
     setIsContributorOrLeadership(contributorOrLeadership);
   };
 
-  const handleAutoSaveMission = async (updatedFormData: any) => {
-    if (!user || !mission || !updatedFormData.title?.trim() || !updatedFormData.problem_statement?.trim() || !updatedFormData.qa_assigned_to) {
-      return;
+  // Save mission data explicitly
+  const handleSaveMission = async (data: any) => {
+    if (!user || !mission) {
+      throw new Error('Cannot save mission: user not authenticated or mission not loaded');
     }
-
+    
+    // Check permissions
+    const canEdit = mission.created_by === user.id || isContributorOrLeadership;
+    if (!canEdit) {
+      throw new Error('You do not have permission to edit this mission');
+    }
+    
     try {
-      // Check if user has permission to edit this mission
-      const canEdit = mission.created_by === user.id || isContributorOrLeadership;
-      if (!canEdit) return;
-
-      // Update mission
-      await supabase
+      console.log('Saving mission data:', data);
+      const { error } = await supabase
         .from('missions')
         .update({
-          title: updatedFormData.title,
-          problem_statement: updatedFormData.problem_statement,
-          resources_required: updatedFormData.selected_resources && updatedFormData.selected_resources.length > 0 ? 
-            JSON.stringify(updatedFormData.selected_resources) : 
+          title: data.title,
+          problem_statement: data.problem_statement,
+          resources_required: data.selected_resources && data.selected_resources.length > 0 ? 
+            JSON.stringify(data.selected_resources) : 
             null,
-          all_materials_available: updatedFormData.all_materials_available,
-          qa_assigned_to: updatedFormData.qa_assigned_to || null
+          all_materials_available: data.all_materials_available,
+          qa_assigned_to: data.qa_assigned_to || null,
+          updated_at: new Date().toISOString()
         })
         .eq('id', mission.id);
 
+      if (error) throw error;
+      console.log('Mission save successful');
+      
+      toast({
+        title: "Mission Updated",
+        description: "Mission details have been saved successfully."
+      });
     } catch (error) {
-      console.error('Error auto-saving mission:', error);
-    }
-  };
-
-  const handleAutoSaveTask = async (taskIndex: number, taskData: any) => {
-    if (!user || !mission || !taskData?.title?.trim()) return;
-
-    try {
-      // Check if user has permission to edit this mission
-      const canEdit = mission.created_by === user.id || isContributorOrLeadership;
-      if (!canEdit) return;
-
-      console.log('Auto-saving task data:', taskData);
-
-      // Convert date to ISO string for database storage - fix field name mismatch
-      const estimatedCompletionDate = taskData.estimated_completion_date ? 
-        taskData.estimated_completion_date.toISOString() : null;
-
-      // Get existing task or create new one
-      const { data: existingTasks } = await supabase
-        .from('mission_tasks')
-        .select('*')
-        .eq('mission_id', mission.id)
-        .order('created_at', { ascending: true });
-
-      if (existingTasks && existingTasks[taskIndex]) {
-        // Update existing task
-        const { error } = await supabase
-          .from('mission_tasks')
-          .update({
-            title: taskData.title,
-            plan: taskData.plan || null,
-            observations: taskData.observations || null,
-            assigned_to: taskData.assigned_to || null,
-            estimated_duration: estimatedCompletionDate,
-            required_tools: taskData.required_tools || [],
-            phase: taskData.phase || 'execution'
-          })
-          .eq('id', existingTasks[taskIndex].id);
-        
-        if (error) {
-          console.error('Error updating task:', error);
-          toast({
-            title: "Error",
-            description: "Failed to save task changes",
-            variant: "destructive"
-          });
-        } else {
-          console.log('Task updated successfully');
-          toast({
-            title: "Saved",
-            description: "Task plan saved successfully"
-          });
-        }
-      } else {
-        // Create new task
-        const { error } = await supabase
-          .from('mission_tasks')
-          .insert({
-            mission_id: mission.id,
-            title: taskData.title,
-            plan: taskData.plan || null,
-            observations: taskData.observations || null,
-            assigned_to: taskData.assigned_to || null,
-            status: 'not_started',
-            estimated_duration: estimatedCompletionDate,
-            required_tools: taskData.required_tools || [],
-            phase: taskData.phase || 'execution'
-          });
-        
-        if (error) {
-          console.error('Error creating task:', error);
-          toast({
-            title: "Error", 
-            description: "Failed to create task",
-            variant: "destructive"
-          });
-        } else {
-          console.log('Task created successfully');
-          toast({
-            title: "Created",
-            description: "Task created successfully"
-          });
-        }
-      }
-
-    } catch (error) {
-      console.error('Error auto-saving task:', error);
+      console.error('Mission save failed:', error);
+      toast({
+        title: "Save Failed",
+        description: error.message || "Failed to save mission. Please try again.",
+        variant: "destructive"
+      });
+      throw error;
     }
   };
 
@@ -384,40 +314,9 @@ export default function EditMission() {
       <main className="max-w-4xl mx-auto p-6">
         <SimpleMissionForm 
           formData={formData} 
-          setFormData={(newFormData) => {
-            setFormData(newFormData);
-            // Auto-save mission data when basic info changes
-            if (newFormData.title !== formData.title || 
-                newFormData.problem_statement !== formData.problem_statement ||
-                newFormData.qa_assigned_to !== formData.qa_assigned_to ||
-                newFormData.all_materials_available !== formData.all_materials_available ||
-                JSON.stringify(newFormData.selected_resources) !== JSON.stringify(formData.selected_resources)) {
-              handleAutoSaveMission(newFormData);
-            }
-            // Handle task changes - additions, updates, and deletions
-            const oldTasks = formData.tasks || [];
-            const newTasks = newFormData.tasks || [];
-            
-            if (JSON.stringify(newTasks) !== JSON.stringify(oldTasks)) {
-              console.log('Tasks changed, triggering auto-save');
-              // Check for deletions (old tasks that are not in new tasks)
-              if (newTasks.length < oldTasks.length) {
-                // Tasks were removed - the component handles database deletion
-                // No additional action needed here since removeTask handles it
-              } else {
-                // Handle additions and updates
-                newTasks.forEach((task, index) => {
-                  const oldTask = oldTasks[index];
-                  if (!oldTask || JSON.stringify(task) !== JSON.stringify(oldTask)) {
-                    console.log(`Auto-saving task ${index}:`, task);
-                    handleAutoSaveTask(index, task);
-                  }
-                });
-              }
-            }
-          }} 
+          setFormData={setFormData}
           profiles={profiles} 
-          onSubmit={() => Promise.resolve()} 
+          onSubmit={() => handleSaveMission(formData)} 
           onCancel={handleCancel} 
           isEditing={true} 
           selectedTemplate={selectedTemplate} 

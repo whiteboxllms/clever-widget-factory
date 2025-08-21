@@ -553,11 +553,11 @@ export function SimpleMissionForm({
           )}
 
           {/* Task Edit Modal */}
-          {editingTaskIndex !== null && (
+          {editingTaskIndex !== null && formData.tasks && formData.tasks[editingTaskIndex] && (
             <div className="mb-4">
               <TaskDetailEditor
                 task={{
-                  id: formData.tasks[editingTaskIndex].id || `temp-${editingTaskIndex}`, // Use real ID if it exists
+                  id: formData.tasks[editingTaskIndex].id || `temp-${editingTaskIndex}`,
                   title: formData.tasks[editingTaskIndex].title,
                   plan: formData.tasks[editingTaskIndex].plan,
                   observations: formData.tasks[editingTaskIndex].observations,
@@ -670,9 +670,16 @@ export function SimpleMissionForm({
       {/* Actions */}
       <div className="flex justify-end space-x-2 pt-4 border-t">
         <Button variant="outline" onClick={onCancel}>
-          Back to Missions
+          {isEditing ? 'Back to Missions' : 'Cancel'}
         </Button>
-        {!isEditing && (
+        {isEditing ? (
+          <Button 
+            onClick={onSubmit}
+            variant="default"
+          >
+            Save Mission
+          </Button>
+        ) : (
           <Button 
             onClick={handleSubmit}
             className={selectedTemplate ? `${selectedTemplate.color} hover:opacity-90` : ''}

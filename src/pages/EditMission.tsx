@@ -194,93 +194,85 @@ export default function EditMission() {
     setIsContributorOrLeadership(contributorOrLeadership);
   };
 
-  const handleEditMission = async () => {
-    if (!user || !mission || !formData.title.trim() || !formData.problem_statement.trim() || !formData.qa_assigned_to) {
-      toast({
-        title: "Error",
-        description: "Please fill in all required fields including QA assignment",
-        variant: "destructive"
-      });
+  const handleAutoSaveMission = async (updatedFormData: any) => {
+    if (!user || !mission || !updatedFormData.title.trim() || !updatedFormData.problem_statement.trim() || !updatedFormData.qa_assigned_to) {
       return;
     }
 
     try {
       // Check if user has permission to edit this mission
       const canEdit = mission.created_by === user.id || isContributorOrLeadership;
-      if (!canEdit) {
-        toast({
-          title: "Permission Error",
-          description: "You don't have permission to edit this mission",
-          variant: "destructive"
-        });
-        return;
-      }
+      if (!canEdit) return;
 
       // Update mission
-      const { error: missionError } = await supabase
+      await supabase
         .from('missions')
         .update({
-          title: formData.title,
-          problem_statement: formData.problem_statement,
-          resources_required: formData.selected_resources.length > 0 ? 
-            JSON.stringify(formData.selected_resources) : 
-            formData.selected_resources.map(r => r.name).join(', '),
-          all_materials_available: formData.all_materials_available,
-          qa_assigned_to: formData.qa_assigned_to || null
+          title: updatedFormData.title,
+          problem_statement: updatedFormData.problem_statement,
+          resources_required: updatedFormData.selected_resources.length > 0 ? 
+            JSON.stringify(updatedFormData.selected_resources) : 
+            updatedFormData.selected_resources.map(r => r.name).join(', '),
+          all_materials_available: updatedFormData.all_materials_available,
+          qa_assigned_to: updatedFormData.qa_assigned_to || null
         })
         .eq('id', mission.id);
 
-      if (missionError) throw missionError;
+    } catch (error) {
+      console.error('Error auto-saving mission:', error);
+    }
+  };
 
-      // Update tasks
-      if (formData.tasks.length > 0) {
-        // Delete existing tasks
-        const { error: deleteError } = await supabase
-          .from('mission_tasks')
-          .delete()
-          .eq('mission_id', mission.id);
-        
-        if (deleteError) {
-          console.error('Error deleting existing tasks:', deleteError);
-        }
+  const handleAutoSaveTask = async (taskIndex: number, taskData: any) => {
+    if (!user || !mission) return;
 
-        // Create new tasks
-        const tasksToCreate = formData.tasks.filter(task => task.title.trim());
-        const { data: tasksData, error: tasksError } = await supabase
+    try {
+      // Check if user has permission to edit this mission
+      const canEdit = mission.created_by === user.id || isContributorOrLeadership;
+      if (!canEdit) return;
+
+      // Get existing task or create new one
+      const { data: existingTasks } = await supabase
+        .from('mission_tasks')
+        .select('*')
+        .eq('mission_id', mission.id)
+        .order('created_at', { ascending: true });
+
+      if (existingTasks && existingTasks[taskIndex]) {
+        // Update existing task
+        await supabase
           .from('mission_tasks')
-          .insert(tasksToCreate.map(task => ({
+          .update({
+            title: taskData.title,
+            plan: taskData.plan || null,
+            observations: taskData.observations || null,
+            assigned_to: taskData.assigned_to,
+            estimated_duration: taskData.estimated_completion_date?.toISOString() || null,
+            required_tools: taskData.required_tools || [],
+            required_stock: taskData.required_stock || [],
+            phase: taskData.phase || 'execution'
+          })
+          .eq('id', existingTasks[taskIndex].id);
+      } else if (taskData.title.trim()) {
+        // Create new task
+        await supabase
+          .from('mission_tasks')
+          .insert({
             mission_id: mission.id,
-            title: task.title,
-            plan: task.plan || null,
-            observations: task.observations || null,
-            assigned_to: task.assigned_to,
+            title: taskData.title,
+            plan: taskData.plan || null,
+            observations: taskData.observations || null,
+            assigned_to: taskData.assigned_to,
             status: 'not_started',
-            estimated_duration: task.estimated_duration || null,
-            actual_duration: task.actual_duration || null,
-            required_tools: task.required_tools || [],
-            phase: task.phase || 'execution'
-          })))
-          .select();
-
-        if (tasksError) {
-          console.error('Error creating tasks:', tasksError);
-          throw tasksError;
-        }
+            estimated_duration: taskData.estimated_completion_date?.toISOString() || null,
+            required_tools: taskData.required_tools || [],
+            required_stock: taskData.required_stock || [],
+            phase: taskData.phase || 'execution'
+          });
       }
 
-      toast({
-        title: "Success",
-        description: "Mission updated successfully!"
-      });
-      
-      navigate('/missions');
     } catch (error) {
-      console.error('Error updating mission:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update mission. Please try again.",
-        variant: "destructive"
-      });
+      console.error('Error auto-saving task:', error);
     }
   };
 
@@ -358,9 +350,27 @@ export default function EditMission() {
       <main className="max-w-4xl mx-auto p-6">
         <SimpleMissionForm 
           formData={formData} 
-          setFormData={setFormData} 
+          setFormData={(newFormData) => {
+            setFormData(newFormData);
+            // Auto-save mission data when basic info changes
+            if (newFormData.title !== formData.title || 
+                newFormData.problem_statement !== formData.problem_statement ||
+                newFormData.qa_assigned_to !== formData.qa_assigned_to ||
+                newFormData.all_materials_available !== formData.all_materials_available ||
+                JSON.stringify(newFormData.selected_resources) !== JSON.stringify(formData.selected_resources)) {
+              handleAutoSaveMission(newFormData);
+            }
+            // Auto-save task changes
+            if (JSON.stringify(newFormData.tasks) !== JSON.stringify(formData.tasks)) {
+              newFormData.tasks.forEach((task, index) => {
+                if (JSON.stringify(task) !== JSON.stringify(formData.tasks[index])) {
+                  handleAutoSaveTask(index, task);
+                }
+              });
+            }
+          }} 
           profiles={profiles} 
-          onSubmit={handleEditMission} 
+          onSubmit={() => Promise.resolve()} 
           onCancel={handleCancel} 
           isEditing={true} 
           selectedTemplate={selectedTemplate} 

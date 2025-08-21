@@ -655,14 +655,16 @@ export function SimpleMissionForm({
       {/* Actions */}
       <div className="flex justify-end space-x-2 pt-4 border-t">
         <Button variant="outline" onClick={onCancel}>
-          Cancel
+          Back to Missions
         </Button>
-        <Button 
-          onClick={handleSubmit}
-          className={selectedTemplate && !isEditing ? `${selectedTemplate.color} hover:opacity-90` : ''}
-        >
-          {isEditing ? 'Update Mission' : 'Create Mission'}
-        </Button>
+        {!isEditing && (
+          <Button 
+            onClick={handleSubmit}
+            className={selectedTemplate ? `${selectedTemplate.color} hover:opacity-90` : ''}
+          >
+            Create Mission
+          </Button>
+        )}
       </div>
     </div>
   );

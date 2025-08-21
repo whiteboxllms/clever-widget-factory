@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
@@ -8,11 +8,11 @@ import { ListPlugin } from '@lexical/react/LexicalListPlugin';
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
-import { $generateHtmlFromNodes } from '@lexical/html';
+import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html';
 import { HeadingNode, QuoteNode } from '@lexical/rich-text';
 import { ListItemNode, ListNode } from '@lexical/list';
 import { AutoLinkNode, LinkNode } from '@lexical/link';
-import { $getRoot, EditorState, LexicalEditor as LexicalEditorType } from 'lexical';
+import { $getRoot, EditorState, LexicalEditor as LexicalEditorType, $insertNodes } from 'lexical';
 import { cn } from '@/lib/utils';
 import { Bold, Italic, List, ListOrdered, Link } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -136,6 +136,29 @@ function AutoLinkPlugin() {
   return null;
 }
 
+// Plugin to load initial HTML content into the editor
+function LoadInitialContentPlugin({ initialHtml }: { initialHtml?: string }) {
+  const [editor] = useLexicalComposerContext();
+
+  useEffect(() => {
+    if (initialHtml && initialHtml.trim()) {
+      editor.update(() => {
+        // Clear existing content
+        const root = $getRoot();
+        root.clear();
+        
+        // Parse HTML and insert nodes
+        const parser = new DOMParser();
+        const dom = parser.parseFromString(initialHtml, 'text/html');
+        const nodes = $generateNodesFromDOM(editor, dom);
+        root.append(...nodes);
+      });
+    }
+  }, [editor, initialHtml]);
+
+  return null;
+}
+
 interface LexicalEditorProps {
   value: string;
   onChange: (value: string) => void;
@@ -211,6 +234,7 @@ export function LexicalEditor({
           <LinkPlugin />
           <ListPlugin />
           <AutoLinkPlugin />
+          <LoadInitialContentPlugin initialHtml={value} />
         </div>
       </LexicalComposer>
     </div>

@@ -21,7 +21,6 @@ interface Mission {
   mission_number: number;
   title: string;
   problem_statement: string;
-  plan: string;
   resources_required: string;
   all_materials_available: boolean;
   status: string;

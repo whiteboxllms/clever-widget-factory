@@ -4,6 +4,7 @@ export interface StandardTask {
   phase: 'planning' | 'execution' | 'verification' | 'documentation';
   estimated_completion_date?: Date;
   required_tools?: string[];
+  required_stock?: { part_id: string; quantity: number; part_name: string; }[];
   status: 'not_started' | 'in_progress' | 'completed';
 }
 

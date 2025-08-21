@@ -45,8 +45,8 @@ interface Task {
   status: string;
   mission_id: string;
   estimated_completion_date?: Date;
-  
   required_tools?: string[];
+  required_stock?: { part_id: string; quantity: number; part_name: string; }[];
   phase?: 'planning' | 'execution' | 'verification' | 'documentation';
 }
 
@@ -79,6 +79,7 @@ export function TaskDetailEditor({
     assigned_to: task.assigned_to,
     estimated_completion_date: task.estimated_completion_date,
     required_tools: task.required_tools || [],
+    required_stock: task.required_stock || [],
     phase: task.phase || (task.title.toLowerCase().includes('plan') ? 'planning' : 'execution')
   });
 
@@ -93,6 +94,7 @@ export function TaskDetailEditor({
       assigned_to: task.assigned_to,
       estimated_completion_date: task.estimated_completion_date,
       required_tools: task.required_tools || [],
+      required_stock: task.required_stock || [],
       phase: task.phase || (task.title.toLowerCase().includes('plan') ? 'planning' : 'execution')
     };
 
@@ -190,28 +192,6 @@ export function TaskDetailEditor({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="phase">Phase</Label>
-              <Select 
-                value={editData.phase} 
-                onValueChange={(value) => setEditData(prev => ({ ...prev, phase: value as any }))}
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PHASE_OPTIONS.map(option => (
-                    <SelectItem key={option.value} value={option.value}>
-                      <div className="flex items-center gap-2">
-                        <option.icon className="w-4 h-4" />
-                        {option.label}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
               <Label htmlFor="assigned_to">Assigned To</Label>
               <Select 
                 value={editData.assigned_to || 'unassigned'} 
@@ -233,78 +213,121 @@ export function TaskDetailEditor({
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
-          <div>
-            <Label htmlFor="estimated_completion_date">
-              <Clock className="w-4 h-4 inline mr-1" />
-              Expected Completion Date
-            </Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal mt-1",
-                    !editData.estimated_completion_date && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {editData.estimated_completion_date ? (
-                    format(editData.estimated_completion_date, "PPP")
-                  ) : (
-                    <span>Pick a date</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={editData.estimated_completion_date}
-                  onSelect={(date) => setEditData(prev => ({ ...prev, estimated_completion_date: date }))}
-                  initialFocus
-                  className={cn("p-3 pointer-events-auto")}
-                />
-              </PopoverContent>
-            </Popover>
+            <div>
+              <Label htmlFor="estimated_completion_date">
+                <Clock className="w-4 h-4 inline mr-1" />
+                Expected Completion Date
+              </Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal mt-1",
+                      !editData.estimated_completion_date && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {editData.estimated_completion_date ? (
+                      format(editData.estimated_completion_date, "PPP")
+                    ) : (
+                      <span>Pick a date</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={editData.estimated_completion_date}
+                    onSelect={(date) => setEditData(prev => ({ ...prev, estimated_completion_date: date }))}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
         </div>
 
-        {/* Required Tools */}
-        <div>
-          <Label className="flex items-center gap-1 mb-2">
-            <Wrench className="w-4 h-4" />
-            Required Tools
-          </Label>
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <Input
-                value={newTool}
-                onChange={(e) => setNewTool(e.target.value)}
-                placeholder="Add a tool..."
-                onKeyPress={(e) => e.key === 'Enter' && addTool()}
-              />
-              <Button onClick={addTool} size="sm" variant="outline">
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
-            {editData.required_tools && editData.required_tools.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {editData.required_tools.map((tool, index) => (
-                  <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                    {tool}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-auto p-0 ml-1"
-                      onClick={() => removeTool(tool)}
-                    >
-                      <X className="w-3 h-3" />
-                    </Button>
-                  </Badge>
-                ))}
+        {/* Required Assets */}
+        <div className="grid grid-cols-2 gap-6">
+          {/* Required Assets */}
+          <div>
+            <Label className="flex items-center gap-1 mb-2">
+              <Wrench className="w-4 h-4" />
+              Required Assets
+            </Label>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  value={newTool}
+                  onChange={(e) => setNewTool(e.target.value)}
+                  placeholder="Add an asset..."
+                  onKeyPress={(e) => e.key === 'Enter' && addTool()}
+                />
+                <Button onClick={addTool} size="sm" variant="outline">
+                  <Plus className="w-4 h-4" />
+                </Button>
               </div>
-            )}
+              {editData.required_tools && editData.required_tools.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {editData.required_tools.map((tool, index) => (
+                    <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                      {tool}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-auto p-0 ml-1"
+                        onClick={() => removeTool(tool)}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Required Stock */}
+          <div>
+            <Label className="flex items-center gap-1 mb-2">
+              <Wrench className="w-4 h-4" />
+              Required Stock
+            </Label>
+            <div className="space-y-2">
+              <Button 
+                onClick={() => {/* TODO: Open stock selector */}} 
+                size="sm" 
+                variant="outline"
+                className="w-full"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Stock
+              </Button>
+              {editData.required_stock && editData.required_stock.length > 0 && (
+                <div className="space-y-2">
+                  {editData.required_stock.map((stock, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 border rounded">
+                      <span className="text-sm">{stock.part_name} (Qty: {stock.quantity})</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditData(prev => ({
+                            ...prev,
+                            required_stock: prev.required_stock?.filter((_, i) => i !== index) || []
+                          }));
+                        }}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

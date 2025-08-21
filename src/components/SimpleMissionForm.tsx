@@ -26,6 +26,7 @@ interface Task {
   assigned_to: string | null;
   estimated_completion_date?: Date;
   required_tools?: string[];
+  required_stock?: { part_id: string; quantity: number; part_name: string; }[];
   phase?: 'planning' | 'execution' | 'verification' | 'documentation';
 }
 
@@ -527,8 +528,9 @@ export function SimpleMissionForm({
                   assigned_to: null,
                   status: 'not_started',
                   mission_id: '',
-        estimated_completion_date: undefined,
-        required_tools: [],
+                  estimated_completion_date: undefined,
+                  required_tools: [],
+                  required_stock: [],
                   phase: 'execution'
                 }}
                 profiles={profiles}
@@ -552,8 +554,8 @@ export function SimpleMissionForm({
                   status: 'not_started',
                   mission_id: '',
                   estimated_completion_date: formData.tasks[editingTaskIndex].estimated_completion_date,
-                  
                   required_tools: formData.tasks[editingTaskIndex].required_tools,
+                  required_stock: formData.tasks[editingTaskIndex].required_stock,
                   phase: formData.tasks[editingTaskIndex].phase
                 }}
                 profiles={profiles}

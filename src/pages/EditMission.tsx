@@ -395,16 +395,19 @@ export default function EditMission() {
               handleAutoSaveMission(newFormData);
             }
             // Handle task changes - additions, updates, and deletions
-            if (JSON.stringify(newFormData.tasks) !== JSON.stringify(formData.tasks)) {
+            const oldTasks = formData.tasks || [];
+            const newTasks = newFormData.tasks || [];
+            
+            if (JSON.stringify(newTasks) !== JSON.stringify(oldTasks)) {
               console.log('Tasks changed, triggering auto-save');
               // Check for deletions (old tasks that are not in new tasks)
-              if (newFormData.tasks.length < formData.tasks.length) {
+              if (newTasks.length < oldTasks.length) {
                 // Tasks were removed - the component handles database deletion
                 // No additional action needed here since removeTask handles it
               } else {
                 // Handle additions and updates
-                newFormData.tasks.forEach((task, index) => {
-                  const oldTask = formData.tasks[index];
+                newTasks.forEach((task, index) => {
+                  const oldTask = oldTasks[index];
                   if (!oldTask || JSON.stringify(task) !== JSON.stringify(oldTask)) {
                     console.log(`Auto-saving task ${index}:`, task);
                     handleAutoSaveTask(index, task);

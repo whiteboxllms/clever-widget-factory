@@ -362,6 +362,7 @@ export default function EditMission() {
             }
             // Handle task changes - additions, updates, and deletions
             if (JSON.stringify(newFormData.tasks) !== JSON.stringify(formData.tasks)) {
+              console.log('Tasks changed, triggering auto-save');
               // Check for deletions (old tasks that are not in new tasks)
               if (newFormData.tasks.length < formData.tasks.length) {
                 // Tasks were removed - the component handles database deletion
@@ -369,7 +370,9 @@ export default function EditMission() {
               } else {
                 // Handle additions and updates
                 newFormData.tasks.forEach((task, index) => {
-                  if (JSON.stringify(task) !== JSON.stringify(formData.tasks[index])) {
+                  const oldTask = formData.tasks[index];
+                  if (!oldTask || JSON.stringify(task) !== JSON.stringify(oldTask)) {
+                    console.log(`Auto-saving task ${index}:`, task);
                     handleAutoSaveTask(index, task);
                   }
                 });

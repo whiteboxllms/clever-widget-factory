@@ -205,6 +205,7 @@ export function SimpleMissionForm({
       ...taskData
     };
     
+    // Update the form data which will trigger auto-save in parent
     setFormData(prev => ({
       ...prev,
       tasks: prev.tasks.map((task, i) => 

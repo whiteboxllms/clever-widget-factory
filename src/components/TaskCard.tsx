@@ -14,8 +14,7 @@ import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { DEFAULT_DONE_DEFINITION } from "@/lib/constants";
 import { useTempPhotoStorage, type TempPhoto } from "@/hooks/useTempPhotoStorage";
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+import { LexicalEditor } from './LexicalEditor';
 
 interface Profile {
   id: string;
@@ -777,26 +776,19 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                   )}
                 </div>
                 {task.status !== 'completed' ? (
-                  <ReactQuill
+                  <LexicalEditor
                     value={editData.plan}
                     onChange={handlePlanChange}
                     onFocus={handlePlanFocus}
                     onBlur={handlePlanBlur}
                     placeholder="What is the plan for this task? (Auto-saves when you click away or press Ctrl+S)"
                     className="mt-1"
-                    modules={{
-                      toolbar: [
-                        ['bold', 'italic'],
-                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                        ['clean']
-                      ]
-                    }}
-                    formats={['bold', 'italic', 'list', 'bullet']}
                   />
                 ) : (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {task.plan || 'No plan provided'}
-                  </p>
+                  <div 
+                    className="text-sm text-muted-foreground mt-1"
+                    dangerouslySetInnerHTML={{ __html: task.plan || 'No plan provided' }}
+                  />
                 )}
               </div>
             
@@ -816,26 +808,19 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                   )}
                 </div>
                 {task.status !== 'completed' ? (
-                  <ReactQuill
+                  <LexicalEditor
                     value={editData.observations}
                     onChange={handleImplementationChange}
                     onFocus={handleImplementationFocus}
                     onBlur={handleImplementationBlur}
                     placeholder="Add implementation notes, findings, or details... (Auto-saves when you click away or press Ctrl+S)"
                     className="mt-1"
-                    modules={{
-                      toolbar: [
-                        ['bold', 'italic'],
-                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                        ['clean']
-                      ]
-                    }}
-                    formats={['bold', 'italic', 'list', 'bullet']}
                   />
                 ) : (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {task.observations || 'No implementation notes provided'}
-                  </p>
+                  <div 
+                    className="text-sm text-muted-foreground mt-1"
+                    dangerouslySetInnerHTML={{ __html: task.observations || 'No implementation notes provided' }}
+                  />
                 )}
               </div>
 

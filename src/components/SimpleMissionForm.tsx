@@ -18,7 +18,7 @@ import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 
 import { useTempPhotoStorage } from "@/hooks/useTempPhotoStorage";
 import { getStandardTasksForTemplate } from "@/lib/standardTaskBlocks";
-import { TaskDetailEditor } from './TaskDetailEditor';
+import { TaskEditDialog } from './TaskEditDialog';
 
 interface Task {
   id?: string; // Add optional id field
@@ -93,6 +93,7 @@ export function SimpleMissionForm({
   const [showTasks, setShowTasks] = useState(true);
   const [editingTaskIndex, setEditingTaskIndex] = useState<number | null>(null);
   const [creatingNewTask, setCreatingNewTask] = useState(false);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [problemPhotos, setProblemPhotos] = useState<Array<{id: string; file_url: string; file_name: string}>>([]);
 
   // Load existing problem photos when editing
@@ -144,11 +145,13 @@ export function SimpleMissionForm({
 
   const addTask = () => {
     setCreatingNewTask(true);
+    setTaskDialogOpen(true);
   };
 
   const handleCreateTask = () => {
     // TaskDetailEditor handles creation directly
     setCreatingNewTask(false);
+    setTaskDialogOpen(false);
   };
 
   const loadStandardTasks = () => {
@@ -182,6 +185,7 @@ export function SimpleMissionForm({
   const handleEditTask = () => {
     // Just close the editor - TaskDetailEditor handles saving directly
     setEditingTaskIndex(null);
+    setTaskDialogOpen(false);
   };
 
   const removeTask = async (index: number) => {
@@ -528,53 +532,75 @@ export function SimpleMissionForm({
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-4 mt-4">
           {/* Task Creation Modal */}
-          {creatingNewTask && (
-            <div className="mb-4">
-              <TaskDetailEditor
-                task={{
-                  id: '',
-                  title: '',
-                  plan: '',
-                  observations: '',
-                  assigned_to: null,
-                  status: 'not_started',
-                  mission_id: missionId || '',
-                  estimated_completion_date: undefined,
-                  required_tools: [],
-                  required_stock: [],
-                  phase: 'execution'
-                }}
-                profiles={profiles}
-                onSave={handleCreateTask}
-                onCancel={() => setCreatingNewTask(false)}
-                isCreating={true}
-              />
-            </div>
-          )}
+          <TaskEditDialog
+            open={taskDialogOpen && creatingNewTask}
+            onOpenChange={(open) => {
+              setTaskDialogOpen(open);
+              if (!open) setCreatingNewTask(false);
+            }}
+            task={{
+              id: '',
+              title: '',
+              plan: '',
+              observations: '',
+              assigned_to: null,
+              status: 'not_started',
+              mission_id: missionId || '',
+              estimated_completion_date: undefined,
+              required_tools: [],
+              required_stock: [],
+              phase: 'execution'
+            }}
+            profiles={profiles}
+            onSave={handleCreateTask}
+            onCancel={() => {
+              setCreatingNewTask(false);
+              setTaskDialogOpen(false);
+            }}
+            isCreating={true}
+            missionId={missionId}
+          />
 
           {/* Task Edit Modal */}
-          {editingTaskIndex !== null && formData.tasks && formData.tasks[editingTaskIndex] && (
-            <div className="mb-4">
-              <TaskDetailEditor
-                task={{
-                  id: formData.tasks[editingTaskIndex].id || `temp-${editingTaskIndex}`,
-                  title: formData.tasks[editingTaskIndex].title,
-                  plan: formData.tasks[editingTaskIndex].plan,
-                  observations: formData.tasks[editingTaskIndex].observations,
-                  assigned_to: formData.tasks[editingTaskIndex].assigned_to,
-                  status: formData.tasks[editingTaskIndex].status || 'not_started',
-                  mission_id: missionId || '',
-                  estimated_completion_date: formData.tasks[editingTaskIndex].estimated_completion_date,
-                  required_tools: formData.tasks[editingTaskIndex].required_tools,
-                  required_stock: formData.tasks[editingTaskIndex].required_stock,
-                  phase: formData.tasks[editingTaskIndex].phase
-                }}
-                profiles={profiles}
-                onSave={handleEditTask}
-                onCancel={() => setEditingTaskIndex(null)}
-              />
-            </div>
-          )}
+          <TaskEditDialog
+            open={taskDialogOpen && editingTaskIndex !== null && formData.tasks && formData.tasks[editingTaskIndex] !== undefined}
+            onOpenChange={(open) => {
+              setTaskDialogOpen(open);
+              if (!open) setEditingTaskIndex(null);
+            }}
+            task={editingTaskIndex !== null && formData.tasks && formData.tasks[editingTaskIndex] ? {
+              id: formData.tasks[editingTaskIndex].id || `temp-${editingTaskIndex}`,
+              title: formData.tasks[editingTaskIndex].title,
+              plan: formData.tasks[editingTaskIndex].plan,
+              observations: formData.tasks[editingTaskIndex].observations,
+              assigned_to: formData.tasks[editingTaskIndex].assigned_to,
+              status: formData.tasks[editingTaskIndex].status || 'not_started',
+              mission_id: missionId || '',
+              estimated_completion_date: formData.tasks[editingTaskIndex].estimated_completion_date,
+              required_tools: formData.tasks[editingTaskIndex].required_tools,
+              required_stock: formData.tasks[editingTaskIndex].required_stock,
+              phase: formData.tasks[editingTaskIndex].phase
+            } : {
+              id: '',
+              title: '',
+              plan: '',
+              observations: '',
+              assigned_to: null,
+              status: 'not_started',
+              mission_id: missionId || '',
+              estimated_completion_date: undefined,
+              required_tools: [],
+              required_stock: [],
+              phase: 'execution'
+            }}
+            profiles={profiles}
+            onSave={handleEditTask}
+            onCancel={() => {
+              setEditingTaskIndex(null);
+              setTaskDialogOpen(false);
+            }}
+            missionId={missionId}
+          />
           
           <div className="flex justify-between items-center">
             <p className="text-sm text-muted-foreground">
@@ -646,7 +672,10 @@ export function SimpleMissionForm({
                     type="button" 
                     variant="ghost" 
                     size="sm" 
-                    onClick={() => setEditingTaskIndex(index)}
+                    onClick={() => {
+                      setEditingTaskIndex(index);
+                      setTaskDialogOpen(true);
+                    }}
                   >
                     Edit
                   </Button>

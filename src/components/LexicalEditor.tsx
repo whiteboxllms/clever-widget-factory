@@ -73,11 +73,8 @@ function ToolbarPlugin({ isEditing = true }: ToolbarProps) {
   }, [editor]);
 
   if (!isEditing) {
-    console.log('Toolbar hidden - readOnly mode');
     return null;
   }
-
-  console.log('Rendering Lexical Toolbar');
 
   return (
     <div className="flex items-center gap-1 p-2 border-b border-border bg-muted/30">
@@ -158,7 +155,6 @@ export function LexicalEditor({
   className,
   readOnly = false
 }: LexicalEditorProps) {
-  console.log('Lexical Editor props:', { value, readOnly, placeholder });
   const initialConfig = {
     namespace: 'TaskEditor',
     theme,
@@ -175,10 +171,8 @@ export function LexicalEditor({
   };
 
   const handleChange = useCallback((editorState: EditorState, editor: LexicalEditorType) => {
-    console.log('Lexical content changed');
     editorState.read(() => {
       const html = $generateHtmlFromNodes(editor);
-      console.log('Generated HTML:', html);
       onChange(html);
     });
   }, [onChange]);

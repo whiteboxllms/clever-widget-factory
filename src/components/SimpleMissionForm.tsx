@@ -113,6 +113,8 @@ export function SimpleMissionForm({
     if (!missionId) return;
     
     try {
+      console.log('Loading photos for mission:', missionId);
+      
       const { data: attachments, error } = await supabase
         .from('mission_attachments')
         .select('id, file_url, file_name')
@@ -120,13 +122,20 @@ export function SimpleMissionForm({
         .eq('attachment_type', 'evidence')
         .is('task_id', null); // Problem photos don't have task_id
       
+      console.log('Photo query result:', { attachments, error });
+      
       if (error) throw error;
       
-      if (attachments) {
+      if (attachments && attachments.length > 0) {
+        console.log('Setting problem photos:', attachments);
         setProblemPhotos(attachments);
+      } else {
+        console.log('No problem photos found for mission');
+        setProblemPhotos([]);
       }
     } catch (error) {
       console.error('Failed to load existing problem photos:', error);
+      setProblemPhotos([]);
     }
   };
 
@@ -502,6 +511,13 @@ export function SimpleMissionForm({
                     src={`${supabase.storage.from('mission-evidence').getPublicUrl(photo.file_url).data.publicUrl}`}
                     alt={photo.file_name}
                     className="w-full h-24 object-cover rounded-md border"
+                    onError={(e) => {
+                      console.log('Failed to load image from mission-evidence, trying mission-attachments bucket');
+                      const target = e.target as HTMLImageElement;
+                      const fallbackUrl = supabase.storage.from('mission-attachments').getPublicUrl(photo.file_url).data.publicUrl;
+                      console.log('Trying fallback URL:', fallbackUrl);
+                      target.src = fallbackUrl;
+                    }}
                   />
                   <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-md flex items-center justify-center">
                     <Image className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />

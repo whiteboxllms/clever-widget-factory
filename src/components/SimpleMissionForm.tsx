@@ -141,7 +141,7 @@ export function SimpleMissionForm({
       observations: taskData.observations || '',
       assigned_to: taskData.assigned_to || null,
       estimated_completion_date: taskData.estimated_completion_date,
-      
+      required_stock: taskData.required_stock || [],
       required_tools: taskData.required_tools || [],
       phase: taskData.phase || 'execution'
     };
@@ -150,6 +150,12 @@ export function SimpleMissionForm({
       tasks: [...prev.tasks, newTask]
     }));
     setCreatingNewTask(false);
+    
+    // Show success toast
+    toast({
+      title: "Task created",
+      description: `"${taskData.title}" has been added to the mission.`
+    });
   };
 
   const loadStandardTasks = () => {
@@ -196,6 +202,12 @@ export function SimpleMissionForm({
       )
     }));
     setEditingTaskIndex(null);
+    
+    // Show success toast
+    toast({
+      title: "Task updated",
+      description: `"${taskData.title}" has been updated successfully.`
+    });
   };
 
   const removeTask = (index: number) => {

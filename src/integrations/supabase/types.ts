@@ -252,46 +252,58 @@ export type Database = {
       }
       mission_tasks: {
         Row: {
+          actual_duration: string | null
           assigned_to: string | null
           completed_at: string | null
           created_at: string
           description: string | null
+          estimated_duration: string | null
           evidence_description: string | null
           id: string
           mission_id: string
           observations: string | null
+          phase: string
           plan: string | null
           qa_approved_at: string | null
+          required_tools: string[] | null
           status: string
           title: string
           updated_at: string
         }
         Insert: {
+          actual_duration?: string | null
           assigned_to?: string | null
           completed_at?: string | null
           created_at?: string
           description?: string | null
+          estimated_duration?: string | null
           evidence_description?: string | null
           id?: string
           mission_id: string
           observations?: string | null
+          phase?: string
           plan?: string | null
           qa_approved_at?: string | null
+          required_tools?: string[] | null
           status?: string
           title: string
           updated_at?: string
         }
         Update: {
+          actual_duration?: string | null
           assigned_to?: string | null
           completed_at?: string | null
           created_at?: string
           description?: string | null
+          estimated_duration?: string | null
           evidence_description?: string | null
           id?: string
           mission_id?: string
           observations?: string | null
+          phase?: string
           plan?: string | null
           qa_approved_at?: string | null
+          required_tools?: string[] | null
           status?: string
           title?: string
           updated_at?: string

@@ -38,6 +38,10 @@ interface TaskCardProps {
     assigned_to: string;
     status: string;
     mission_id: string;
+    estimated_duration?: string;
+    actual_duration?: string;
+    required_tools?: string[];
+    phase?: 'planning' | 'execution' | 'verification' | 'documentation';
   };
   profiles: Profile[];
   onUpdate: () => void;

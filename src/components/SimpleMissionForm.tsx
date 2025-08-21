@@ -15,12 +15,17 @@ import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 
 import { useTempPhotoStorage } from "@/hooks/useTempPhotoStorage";
+import { getStandardTasksForTemplate } from "@/lib/standardTaskBlocks";
 
 interface Task {
   title: string;
   plan?: string;
   observations?: string;
   assigned_to: string | null;
+  estimated_duration?: string;
+  actual_duration?: string;
+  required_tools?: string[];
+  phase?: 'planning' | 'execution' | 'verification' | 'documentation';
 }
 
 interface Profile {
@@ -125,9 +130,37 @@ export function SimpleMissionForm({
   const addTask = () => {
     setFormData(prev => ({
       ...prev,
-      tasks: [...prev.tasks, { title: '', plan: '', observations: '', assigned_to: null }]
+      tasks: [...prev.tasks, { 
+        title: '', 
+        plan: '', 
+        observations: '', 
+        assigned_to: null,
+        estimated_duration: '',
+        actual_duration: '',
+        required_tools: [],
+        phase: 'execution'
+      }]
     }));
     setEditingTaskIndex(formData.tasks.length);
+  };
+
+  const loadStandardTasks = () => {
+    const templateId = selectedTemplate?.id || 'default';
+    const standardTasks = getStandardTasksForTemplate(templateId);
+    
+    setFormData(prev => ({
+      ...prev,
+      tasks: standardTasks.map(task => ({
+        title: task.title,
+        plan: task.description,
+        observations: '',
+        assigned_to: null,
+        estimated_duration: task.estimated_duration || '',
+        actual_duration: '',
+        required_tools: task.required_tools || [],
+        phase: task.phase
+      }))
+    }));
   };
 
   const updateTask = (index: number, taskData: Task) => {
@@ -462,10 +495,17 @@ export function SimpleMissionForm({
             <p className="text-sm text-muted-foreground">
               Break down your mission into specific tasks (optional)
             </p>
-            <Button type="button" variant="outline" size="sm" onClick={addTask}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Task
-            </Button>
+            <div className="flex gap-2">
+              {selectedTemplate && formData.tasks.length === 0 && (
+                <Button type="button" variant="outline" size="sm" onClick={loadStandardTasks}>
+                  Load Standard Tasks
+                </Button>
+              )}
+              <Button type="button" variant="outline" size="sm" onClick={addTask}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Task
+              </Button>
+            </div>
           </div>
           
           {formData.tasks.map((task, index) => (
@@ -479,7 +519,11 @@ export function SimpleMissionForm({
                     observations: task.observations,
                     assigned_to: task.assigned_to,
                     status: 'not_started',
-                    mission_id: ''
+                    mission_id: '',
+                    estimated_duration: task.estimated_duration,
+                    actual_duration: task.actual_duration,
+                    required_tools: task.required_tools,
+                    phase: task.phase
                   }}
                   profiles={profiles}
                   onUpdate={() => {}}

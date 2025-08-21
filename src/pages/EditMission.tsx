@@ -27,6 +27,10 @@ interface Task {
   plan?: string;
   observations?: string;
   assigned_to: string | null;
+  estimated_duration?: string;
+  actual_duration?: string;
+  required_tools?: string[];
+  phase?: 'planning' | 'execution' | 'verification' | 'documentation';
 }
 
 interface Profile {
@@ -145,7 +149,11 @@ export default function EditMission() {
           title: task.title,
           plan: task.plan || '',
           observations: task.observations || '',
-          assigned_to: task.assigned_to
+          assigned_to: task.assigned_to,
+          estimated_duration: task.estimated_duration || '',
+          actual_duration: task.actual_duration || '',
+          required_tools: task.required_tools || [],
+          phase: (task.phase as 'planning' | 'execution' | 'verification' | 'documentation') || 'execution'
         })) || []
       });
 
@@ -246,7 +254,11 @@ export default function EditMission() {
             plan: task.plan || null,
             observations: task.observations || null,
             assigned_to: task.assigned_to,
-            status: 'pending'
+            status: 'not_started',
+            estimated_duration: task.estimated_duration || null,
+            actual_duration: task.actual_duration || null,
+            required_tools: task.required_tools || [],
+            phase: task.phase || 'execution'
           })))
           .select();
 

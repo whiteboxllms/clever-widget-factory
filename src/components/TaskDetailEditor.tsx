@@ -44,7 +44,7 @@ interface Task {
   assigned_to: string | null;
   status: string;
   mission_id: string;
-  estimated_completion_date?: Date;
+  estimated_duration?: string;
   required_tools?: string[];
   required_stock?: { part_id: string; quantity: number; part_name: string; }[];
   phase?: 'planning' | 'execution' | 'verification' | 'documentation';
@@ -77,7 +77,7 @@ export function TaskDetailEditor({
     plan: task.plan || '',
     observations: task.observations || '',
     assigned_to: task.assigned_to,
-    estimated_completion_date: task.estimated_completion_date,
+    estimated_duration: task.estimated_duration,
     required_tools: task.required_tools || [],
     required_stock: task.required_stock || [],
     phase: task.phase || (task.title.toLowerCase().includes('plan') ? 'planning' : 'execution')
@@ -92,7 +92,7 @@ export function TaskDetailEditor({
       plan: task.plan || '',
       observations: task.observations || '',
       assigned_to: task.assigned_to,
-      estimated_completion_date: task.estimated_completion_date,
+      estimated_duration: task.estimated_duration,
       required_tools: task.required_tools || [],
       required_stock: task.required_stock || [],
       phase: task.phase || (task.title.toLowerCase().includes('plan') ? 'planning' : 'execution')
@@ -215,37 +215,17 @@ export function TaskDetailEditor({
             </div>
 
             <div>
-              <Label htmlFor="estimated_completion_date">
+              <Label htmlFor="estimated_duration">
                 <Clock className="w-4 h-4 inline mr-1" />
-                Expected Completion Date
+                Estimated Duration
               </Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal mt-1",
-                      !editData.estimated_completion_date && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {editData.estimated_completion_date ? (
-                      format(editData.estimated_completion_date, "PPP")
-                    ) : (
-                      <span>Pick a date</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={editData.estimated_completion_date}
-                    onSelect={(date) => setEditData(prev => ({ ...prev, estimated_completion_date: date }))}
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
+              <Input
+                id="estimated_duration"
+                value={editData.estimated_duration || ''}
+                onChange={(e) => setEditData(prev => ({ ...prev, estimated_duration: e.target.value }))}
+                placeholder="e.g., 2 hours, 1 day, 30 minutes"
+                className="mt-1"
+              />
             </div>
           </div>
         </div>

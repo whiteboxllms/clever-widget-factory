@@ -257,8 +257,17 @@ export default function EditMission() {
         
         if (error) {
           console.error('Error updating task:', error);
+          toast({
+            title: "Error",
+            description: "Failed to save task changes",
+            variant: "destructive"
+          });
         } else {
           console.log('Task updated successfully');
+          toast({
+            title: "Saved",
+            description: "Task changes saved successfully"
+          });
         }
       } else {
         // Create new task
@@ -278,8 +287,17 @@ export default function EditMission() {
         
         if (error) {
           console.error('Error creating task:', error);
+          toast({
+            title: "Error", 
+            description: "Failed to create task",
+            variant: "destructive"
+          });
         } else {
           console.log('Task created successfully');
+          toast({
+            title: "Created",
+            description: "Task created successfully"
+          });
         }
       }
 

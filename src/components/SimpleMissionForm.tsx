@@ -24,7 +24,6 @@ interface Task {
   observations?: string;
   assigned_to: string | null;
   estimated_duration?: string;
-  actual_duration?: string;
   required_tools?: string[];
   phase?: 'planning' | 'execution' | 'verification' | 'documentation';
 }
@@ -140,7 +139,7 @@ export function SimpleMissionForm({
       observations: taskData.observations || '',
       assigned_to: taskData.assigned_to || null,
       estimated_duration: taskData.estimated_duration || '',
-      actual_duration: taskData.actual_duration || '',
+      
       required_tools: taskData.required_tools || [],
       phase: taskData.phase || 'execution'
     };
@@ -163,7 +162,7 @@ export function SimpleMissionForm({
         observations: '',
         assigned_to: null,
         estimated_duration: task.estimated_duration || '',
-        actual_duration: '',
+        
         required_tools: task.required_tools || [],
         phase: task.phase
       }))
@@ -527,9 +526,8 @@ export function SimpleMissionForm({
                   assigned_to: null,
                   status: 'not_started',
                   mission_id: '',
-                  estimated_duration: '',
-                  actual_duration: '',
-                  required_tools: [],
+        estimated_duration: '',
+        required_tools: [],
                   phase: 'execution'
                 }}
                 profiles={profiles}
@@ -553,7 +551,7 @@ export function SimpleMissionForm({
                   status: 'not_started',
                   mission_id: '',
                   estimated_duration: formData.tasks[editingTaskIndex].estimated_duration,
-                  actual_duration: formData.tasks[editingTaskIndex].actual_duration,
+                  
                   required_tools: formData.tasks[editingTaskIndex].required_tools,
                   phase: formData.tasks[editingTaskIndex].phase
                 }}

@@ -11,7 +11,6 @@ import {
   Save, 
   X, 
   Clock, 
-  Timer, 
   Wrench, 
   FileText, 
   Users, 
@@ -37,7 +36,7 @@ interface Task {
   status: string;
   mission_id: string;
   estimated_duration?: string;
-  actual_duration?: string;
+  
   required_tools?: string[];
   phase?: 'planning' | 'execution' | 'verification' | 'documentation';
 }
@@ -70,9 +69,8 @@ export function TaskDetailEditor({
     observations: task.observations || '',
     assigned_to: task.assigned_to,
     estimated_duration: task.estimated_duration || '',
-    actual_duration: task.actual_duration || '',
     required_tools: task.required_tools || [],
-    phase: task.phase || 'execution'
+    phase: task.phase || (task.title.toLowerCase().includes('plan') ? 'planning' : 'execution')
   });
 
   const [newTool, setNewTool] = useState('');
@@ -85,9 +83,8 @@ export function TaskDetailEditor({
       observations: task.observations || '',
       assigned_to: task.assigned_to,
       estimated_duration: task.estimated_duration || '',
-      actual_duration: task.actual_duration || '',
       required_tools: task.required_tools || [],
-      phase: task.phase || 'execution'
+      phase: task.phase || (task.title.toLowerCase().includes('plan') ? 'planning' : 'execution')
     };
 
     const hasChanged = JSON.stringify(editData) !== JSON.stringify(originalData);
@@ -149,7 +146,14 @@ export function TaskDetailEditor({
             <Input
               id="title"
               value={editData.title || ''}
-              onChange={(e) => setEditData(prev => ({ ...prev, title: e.target.value }))}
+      onChange={(e) => {
+                const newTitle = e.target.value;
+                setEditData(prev => ({ 
+                  ...prev, 
+                  title: newTitle,
+                  phase: newTitle.toLowerCase().includes('plan') ? 'planning' : prev.phase
+                }));
+              }}
               placeholder="Enter task title..."
               className="mt-1"
             />
@@ -202,34 +206,18 @@ export function TaskDetailEditor({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="estimated_duration">
-                <Clock className="w-4 h-4 inline mr-1" />
-                Estimated Duration
-              </Label>
-              <Input
-                id="estimated_duration"
-                value={editData.estimated_duration || ''}
-                onChange={(e) => setEditData(prev => ({ ...prev, estimated_duration: e.target.value }))}
-                placeholder="e.g., 2 hours, 30 mins"
-                className="mt-1"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="actual_duration">
-                <Timer className="w-4 h-4 inline mr-1" />
-                Actual Duration
-              </Label>
-              <Input
-                id="actual_duration"
-                value={editData.actual_duration || ''}
-                onChange={(e) => setEditData(prev => ({ ...prev, actual_duration: e.target.value }))}
-                placeholder="e.g., 2.5 hours"
-                className="mt-1"
-              />
-            </div>
+          <div>
+            <Label htmlFor="estimated_duration">
+              <Clock className="w-4 h-4 inline mr-1" />
+              Expected Completion Date
+            </Label>
+            <Input
+              id="estimated_duration"
+              value={editData.estimated_duration || ''}
+              onChange={(e) => setEditData(prev => ({ ...prev, estimated_duration: e.target.value }))}
+              placeholder="e.g., 2024-12-25, Next Tuesday"
+              className="mt-1"
+            />
           </div>
         </div>
 

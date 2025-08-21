@@ -417,7 +417,7 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
             }}
           >
             <Plus className="h-4 w-4 mr-2" />
-            Add Inventory
+            Add Stock
           </Button>
           <Button
             type="button"

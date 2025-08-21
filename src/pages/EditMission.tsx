@@ -360,13 +360,20 @@ export default function EditMission() {
                 JSON.stringify(newFormData.selected_resources) !== JSON.stringify(formData.selected_resources)) {
               handleAutoSaveMission(newFormData);
             }
-            // Auto-save task changes
+            // Handle task changes - additions, updates, and deletions
             if (JSON.stringify(newFormData.tasks) !== JSON.stringify(formData.tasks)) {
-              newFormData.tasks.forEach((task, index) => {
-                if (JSON.stringify(task) !== JSON.stringify(formData.tasks[index])) {
-                  handleAutoSaveTask(index, task);
-                }
-              });
+              // Check for deletions (old tasks that are not in new tasks)
+              if (newFormData.tasks.length < formData.tasks.length) {
+                // Tasks were removed - the component handles database deletion
+                // No additional action needed here since removeTask handles it
+              } else {
+                // Handle additions and updates
+                newFormData.tasks.forEach((task, index) => {
+                  if (JSON.stringify(task) !== JSON.stringify(formData.tasks[index])) {
+                    handleAutoSaveTask(index, task);
+                  }
+                });
+              }
             }
           }} 
           profiles={profiles} 

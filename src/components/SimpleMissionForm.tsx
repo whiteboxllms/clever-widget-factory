@@ -210,12 +210,49 @@ export function SimpleMissionForm({
     });
   };
 
-  const removeTask = (index: number) => {
+  const removeTask = async (index: number) => {
+    const taskToRemove = formData.tasks[index];
+    
+    // If editing mode, delete from database
+    if (isEditing && missionId) {
+      try {
+        // Get existing tasks to find the database ID
+        const { data: existingTasks } = await supabase
+          .from('mission_tasks')
+          .select('*')
+          .eq('mission_id', missionId)
+          .order('created_at', { ascending: true });
+
+        if (existingTasks && existingTasks[index]) {
+          // Delete from database
+          await supabase
+            .from('mission_tasks')
+            .delete()
+            .eq('id', existingTasks[index].id);
+        }
+      } catch (error) {
+        console.error('Error deleting task:', error);
+        toast({
+          title: "Error",
+          description: "Failed to delete task from database",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
+    // Update local state
     setFormData(prev => ({
       ...prev,
       tasks: prev.tasks.filter((_, i) => i !== index)
     }));
     setEditingTaskIndex(null);
+    
+    // Show success toast
+    toast({
+      title: "Task removed",
+      description: `"${taskToRemove.title}" has been removed from the mission.`
+    });
   };
 
   const handleProblemPhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {

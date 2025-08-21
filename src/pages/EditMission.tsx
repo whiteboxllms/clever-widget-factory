@@ -27,7 +27,7 @@ interface Task {
   plan?: string;
   observations?: string;
   assigned_to: string | null;
-  estimated_duration?: string;
+  estimated_completion_date?: Date;
   actual_duration?: string;
   required_tools?: string[];
   phase?: 'planning' | 'execution' | 'verification' | 'documentation';
@@ -150,7 +150,7 @@ export default function EditMission() {
           plan: task.plan || '',
           observations: task.observations || '',
           assigned_to: task.assigned_to,
-          estimated_duration: task.estimated_duration || '',
+          estimated_completion_date: task.estimated_duration ? new Date(task.estimated_duration) : undefined,
           actual_duration: task.actual_duration || '',
           required_tools: task.required_tools || [],
           phase: (task.phase as 'planning' | 'execution' | 'verification' | 'documentation') || 'execution'
@@ -233,6 +233,10 @@ export default function EditMission() {
 
       console.log('Auto-saving task data:', taskData);
 
+      // Convert date to ISO string for database storage
+      const estimatedDuration = taskData.estimated_completion_date ? 
+        taskData.estimated_completion_date.toISOString() : null;
+
       // Get existing task or create new one
       const { data: existingTasks } = await supabase
         .from('mission_tasks')
@@ -249,7 +253,7 @@ export default function EditMission() {
             plan: taskData.plan || null,
             observations: taskData.observations || null,
             assigned_to: taskData.assigned_to || null,
-            estimated_duration: taskData.estimated_duration || null,
+            estimated_duration: estimatedDuration,
             required_tools: taskData.required_tools || [],
             phase: taskData.phase || 'execution'
           })
@@ -266,7 +270,7 @@ export default function EditMission() {
           console.log('Task updated successfully');
           toast({
             title: "Saved",
-            description: "Task changes saved successfully"
+            description: "Task plan saved successfully"
           });
         }
       } else {
@@ -280,7 +284,7 @@ export default function EditMission() {
             observations: taskData.observations || null,
             assigned_to: taskData.assigned_to || null,
             status: 'not_started',
-            estimated_duration: taskData.estimated_duration || null,
+            estimated_duration: estimatedDuration,
             required_tools: taskData.required_tools || [],
             phase: taskData.phase || 'execution'
           });

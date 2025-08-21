@@ -25,7 +25,7 @@ interface Task {
   plan?: string;
   observations?: string;
   assigned_to: string | null;
-  estimated_duration?: string;
+  estimated_completion_date?: Date;
   required_tools?: string[];
   required_stock?: { part_id: string; quantity: number; part_name: string; }[];
   phase?: 'planning' | 'execution' | 'verification' | 'documentation';
@@ -150,7 +150,7 @@ export function SimpleMissionForm({
       plan: taskData.plan || '',
       observations: taskData.observations || '',
       assigned_to: taskData.assigned_to || null,
-      estimated_duration: taskData.estimated_duration,
+      estimated_completion_date: taskData.estimated_completion_date,
       required_stock: taskData.required_stock || [],
       required_tools: taskData.required_tools || [],
       phase: taskData.phase || 'execution'
@@ -179,7 +179,7 @@ export function SimpleMissionForm({
         plan: task.description,
         observations: '',
         assigned_to: null,
-        estimated_duration: undefined,
+        estimated_completion_date: undefined,
         required_tools: task.required_tools || [],
         phase: task.phase
       }))
@@ -575,7 +575,7 @@ export function SimpleMissionForm({
                   assigned_to: null,
                   status: 'not_started',
                   mission_id: '',
-                  estimated_duration: undefined,
+                  estimated_completion_date: undefined,
                   required_tools: [],
                   required_stock: [],
                   phase: 'execution'
@@ -600,7 +600,7 @@ export function SimpleMissionForm({
                   assigned_to: formData.tasks[editingTaskIndex].assigned_to,
                   status: 'not_started',
                   mission_id: '',
-                  estimated_duration: formData.tasks[editingTaskIndex].estimated_duration,
+                  estimated_completion_date: formData.tasks[editingTaskIndex].estimated_completion_date,
                   required_tools: formData.tasks[editingTaskIndex].required_tools,
                   required_stock: formData.tasks[editingTaskIndex].required_stock,
                   phase: formData.tasks[editingTaskIndex].phase
@@ -649,7 +649,11 @@ export function SimpleMissionForm({
                       }
                     </div>
                     <div>
-                      <span className="font-medium">Duration:</span> {task.estimated_duration || 'Not set'}
+                      <span className="font-medium">Completion:</span> {
+                        task.estimated_completion_date 
+                          ? format(task.estimated_completion_date, "MMM d, yyyy")
+                          : 'Not set'
+                      }
                     </div>
                     <div>
                       <span className="font-medium">Tools:</span> {task.required_tools?.length || 0} tools

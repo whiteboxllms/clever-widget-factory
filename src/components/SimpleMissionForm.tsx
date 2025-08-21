@@ -12,6 +12,7 @@ import { ResourceSelector } from '@/components/ResourceSelector';
 import { TaskCard } from '@/components/TaskCard';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useImageUpload } from "@/hooks/useImageUpload";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 
@@ -84,13 +85,13 @@ export function SimpleMissionForm({
   missionId // Add mission ID parameter
 }: SimpleMissionFormProps) {
   const { toast } = useToast();
+  const { uploadImages, isUploading: isImageUploading } = useImageUpload();
   const enhancedToast = useEnhancedToast();
   const tempPhotoStorage = useTempPhotoStorage();
   const [showTasks, setShowTasks] = useState(true);
   const [editingTaskIndex, setEditingTaskIndex] = useState<number | null>(null);
   const [creatingNewTask, setCreatingNewTask] = useState(false);
   const [problemPhotos, setProblemPhotos] = useState<Array<{id: string; file_url: string; file_name: string}>>([]);
-  const [isUploading, setIsUploading] = useState(false);
 
   // Load existing problem photos when editing
   useEffect(() => {
@@ -268,32 +269,17 @@ export function SimpleMissionForm({
     const file = event.target.files?.[0];
     if (!file) return;
 
-    setIsUploading(true);
-    
     try {
-      // Show compression start
-      const compressionToast = enhancedToast.showCompressionStart(file.name, file.size);
-      
-      // Compress the image
-      const compressionResult = await compressImageDetailed(
-        file,
-        { maxSizeMB: 0.5, maxWidthOrHeight: 1920 },
-        enhancedToast.showCompressionProgress
-      );
-      
-      // Show compression complete
-      enhancedToast.showCompressionComplete(compressionResult);
-      enhancedToast.dismiss(compressionToast.id);
+      // Use the standard image upload pattern
+      const result = await uploadImages(file, {
+        bucket: 'mission-evidence',
+        generateFileName: (file) => `problem-${Date.now()}-${file.name}`,
+        maxSizeMB: 0.5,
+        maxWidthOrHeight: 1920
+      });
 
-      // Upload to Supabase
-      const uploadToast = enhancedToast.showUploadStart(file.name, compressionResult.compressedSize);
-      
-      const fileName = `problem-${Date.now()}-${file.name}`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('mission-evidence')
-        .upload(fileName, compressionResult.file);
-
-      if (uploadError) throw uploadError;
+      // Handle both single result and array result
+      const uploadResult = Array.isArray(result) ? result[0] : result;
 
       // Save attachment record for editing mode
       if (isEditing && missionId) {
@@ -302,8 +288,8 @@ export function SimpleMissionForm({
           .insert({
             mission_id: missionId,
             file_name: file.name,
-            file_url: uploadData.path,
-            file_type: compressionResult.file.type,
+            file_url: uploadResult.fileName, // Use fileName from result
+            file_type: file.type,
             attachment_type: 'evidence',
             uploaded_by: (await supabase.auth.getUser()).data.user?.id
           })
@@ -311,9 +297,6 @@ export function SimpleMissionForm({
           .single();
 
         if (attachmentError) throw attachmentError;
-
-        enhancedToast.showUploadSuccess(file.name);
-        enhancedToast.dismiss(uploadToast.id);
         
         // Add to photos list with the real attachment ID
         setProblemPhotos(prev => [...prev, {
@@ -323,40 +306,16 @@ export function SimpleMissionForm({
         }]);
       } else {
         // For creation mode, just add to the list (will be saved later)
-        enhancedToast.showUploadSuccess(file.name);
-        enhancedToast.dismiss(uploadToast.id);
-        
         setProblemPhotos(prev => [...prev, {
           id: Date.now().toString(),
-          file_url: uploadData.path,
+          file_url: uploadResult.fileName,
           file_name: file.name
         }]);
       }
 
     } catch (error) {
       console.error('Photo upload failed:', error);
-      
-      // Extract status code and detailed error information
-      let statusCode: number | undefined;
-      let errorMessage = 'Upload failed';
-      
-      if (error && typeof error === 'object') {
-        // Supabase storage errors have specific structure
-        if ('status' in error) {
-          statusCode = error.status as number;
-        }
-        if ('message' in error) {
-          errorMessage = error.message as string;
-        } else if ('error' in error && typeof error.error === 'string') {
-          errorMessage = error.error;
-        }
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      
-      enhancedToast.showUploadError(errorMessage, file.name, statusCode);
-    } finally {
-      setIsUploading(false);
+      // Error handling is already done by useImageUpload hook
     }
   };
 
@@ -489,7 +448,7 @@ export function SimpleMissionForm({
               type="file"
               accept="image/*"
               onChange={handleProblemPhotoUpload}
-              disabled={isUploading}
+              disabled={isImageUploading}
               className="hidden"
               id="problem-photo-upload"
             />
@@ -498,7 +457,7 @@ export function SimpleMissionForm({
               className="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition-colors"
             >
               <Upload className="h-4 w-4" />
-              {isUploading ? 'Uploading...' : 'Upload Problem Photo'}
+              {isImageUploading ? 'Uploading...' : 'Upload Problem Photo'}
             </label>
           </div>
           

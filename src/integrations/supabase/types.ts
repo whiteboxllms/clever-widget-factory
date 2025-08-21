@@ -379,7 +379,6 @@ export type Database = {
           created_by: string
           id: string
           mission_number: number
-          plan: string
           problem_statement: string
           qa_assigned_to: string | null
           qa_feedback: string | null
@@ -399,7 +398,6 @@ export type Database = {
           created_by: string
           id?: string
           mission_number?: number
-          plan: string
           problem_statement: string
           qa_assigned_to?: string | null
           qa_feedback?: string | null
@@ -419,7 +417,6 @@ export type Database = {
           created_by?: string
           id?: string
           mission_number?: number
-          plan?: string
           problem_statement?: string
           qa_assigned_to?: string | null
           qa_feedback?: string | null

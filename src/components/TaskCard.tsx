@@ -776,14 +776,17 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                   )}
                 </div>
                 {task.status !== 'completed' ? (
-                  <LexicalEditor
+                  <>
+                    {console.log('Rendering Plan Lexical Editor')}
+                    <LexicalEditor
                     value={editData.plan}
                     onChange={handlePlanChange}
                     onFocus={handlePlanFocus}
                     onBlur={handlePlanBlur}
                     placeholder="What is the plan for this task? (Auto-saves when you click away or press Ctrl+S)"
                     className="mt-1"
-                  />
+                    />
+                  </>
                 ) : (
                   <div 
                     className="text-sm text-muted-foreground mt-1"
@@ -808,14 +811,17 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                   )}
                 </div>
                 {task.status !== 'completed' ? (
-                  <LexicalEditor
+                  <>
+                    {console.log('Rendering Implementation Lexical Editor')}
+                    <LexicalEditor
                     value={editData.observations}
                     onChange={handleImplementationChange}
                     onFocus={handleImplementationFocus}
                     onBlur={handleImplementationBlur}
                     placeholder="Add implementation notes, findings, or details... (Auto-saves when you click away or press Ctrl+S)"
                     className="mt-1"
-                  />
+                    />
+                  </>
                 ) : (
                   <div 
                     className="text-sm text-muted-foreground mt-1"

@@ -7,7 +7,7 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin';
 import { ListPlugin } from '@lexical/react/LexicalListPlugin';
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
-import { AutoLinkPlugin } from '@lexical/react/LexicalAutoLinkPlugin';
+import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $generateHtmlFromNodes } from '@lexical/html';
 import { HeadingNode, QuoteNode } from '@lexical/rich-text';
 import { ListItemNode, ListNode } from '@lexical/list';
@@ -16,7 +16,6 @@ import { $getRoot, EditorState, LexicalEditor as LexicalEditorType } from 'lexic
 import { cn } from '@/lib/utils';
 import { Bold, Italic, List, ListOrdered, Link } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { TOGGLE_LINK_COMMAND } from '@lexical/link';
 import { INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND } from '@lexical/list';
 import { FORMAT_TEXT_COMMAND } from 'lexical';
@@ -73,7 +72,12 @@ function ToolbarPlugin({ isEditing = true }: ToolbarProps) {
     editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined);
   }, [editor]);
 
-  if (!isEditing) return null;
+  if (!isEditing) {
+    console.log('Toolbar hidden - readOnly mode');
+    return null;
+  }
+
+  console.log('Rendering Lexical Toolbar');
 
   return (
     <div className="flex items-center gap-1 p-2 border-b border-border bg-muted/30">
@@ -126,24 +130,14 @@ function ToolbarPlugin({ isEditing = true }: ToolbarProps) {
   );
 }
 
-// URL regex for auto-linking
-const URL_MATCHER = /((https?:\/\/(www\.)?)|(www\.))[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)/;
-
-const MATCHERS = [
-  (text: string) => {
-    const match = URL_MATCHER.exec(text);
-    if (match === null) {
-      return null;
-    }
-    const fullMatch = match[0];
-    return {
-      index: match.index,
-      length: fullMatch.length,
-      text: fullMatch,
-      url: fullMatch.startsWith('http') ? fullMatch : `https://${fullMatch}`,
-    };
-  },
-];
+// Simple AutoLink implementation
+function AutoLinkPlugin() {
+  const [editor] = useLexicalComposerContext();
+  
+  // For now, let's just return null and get the basic editor working
+  // We can add URL detection later once the editor is functioning
+  return null;
+}
 
 interface LexicalEditorProps {
   value: string;
@@ -164,6 +158,7 @@ export function LexicalEditor({
   className,
   readOnly = false
 }: LexicalEditorProps) {
+  console.log('Lexical Editor props:', { value, readOnly, placeholder });
   const initialConfig = {
     namespace: 'TaskEditor',
     theme,
@@ -180,8 +175,10 @@ export function LexicalEditor({
   };
 
   const handleChange = useCallback((editorState: EditorState, editor: LexicalEditorType) => {
+    console.log('Lexical content changed');
     editorState.read(() => {
       const html = $generateHtmlFromNodes(editor);
+      console.log('Generated HTML:', html);
       onChange(html);
     });
   }, [onChange]);
@@ -219,7 +216,7 @@ export function LexicalEditor({
           <HistoryPlugin />
           <LinkPlugin />
           <ListPlugin />
-          <AutoLinkPlugin matchers={MATCHERS} />
+          <AutoLinkPlugin />
         </div>
       </LexicalComposer>
     </div>

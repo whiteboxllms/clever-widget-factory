@@ -195,7 +195,7 @@ export default function EditMission() {
   };
 
   const handleAutoSaveMission = async (updatedFormData: any) => {
-    if (!user || !mission || !updatedFormData.title.trim() || !updatedFormData.problem_statement.trim() || !updatedFormData.qa_assigned_to) {
+    if (!user || !mission || !updatedFormData.title?.trim() || !updatedFormData.problem_statement?.trim() || !updatedFormData.qa_assigned_to) {
       return;
     }
 
@@ -210,9 +210,9 @@ export default function EditMission() {
         .update({
           title: updatedFormData.title,
           problem_statement: updatedFormData.problem_statement,
-          resources_required: updatedFormData.selected_resources.length > 0 ? 
+          resources_required: updatedFormData.selected_resources && updatedFormData.selected_resources.length > 0 ? 
             JSON.stringify(updatedFormData.selected_resources) : 
-            updatedFormData.selected_resources.map(r => r.name).join(', '),
+            null,
           all_materials_available: updatedFormData.all_materials_available,
           qa_assigned_to: updatedFormData.qa_assigned_to || null
         })
@@ -224,12 +224,14 @@ export default function EditMission() {
   };
 
   const handleAutoSaveTask = async (taskIndex: number, taskData: any) => {
-    if (!user || !mission) return;
+    if (!user || !mission || !taskData?.title?.trim()) return;
 
     try {
       // Check if user has permission to edit this mission
       const canEdit = mission.created_by === user.id || isContributorOrLeadership;
       if (!canEdit) return;
+
+      console.log('Auto-saving task data:', taskData);
 
       // Get existing task or create new one
       const { data: existingTasks } = await supabase
@@ -240,35 +242,45 @@ export default function EditMission() {
 
       if (existingTasks && existingTasks[taskIndex]) {
         // Update existing task
-        await supabase
+        const { error } = await supabase
           .from('mission_tasks')
           .update({
             title: taskData.title,
             plan: taskData.plan || null,
             observations: taskData.observations || null,
-            assigned_to: taskData.assigned_to,
-            estimated_duration: taskData.estimated_completion_date?.toISOString() || null,
+            assigned_to: taskData.assigned_to || null,
+            estimated_duration: taskData.estimated_duration || null,
             required_tools: taskData.required_tools || [],
-            required_stock: taskData.required_stock || [],
             phase: taskData.phase || 'execution'
           })
           .eq('id', existingTasks[taskIndex].id);
-      } else if (taskData.title.trim()) {
+        
+        if (error) {
+          console.error('Error updating task:', error);
+        } else {
+          console.log('Task updated successfully');
+        }
+      } else {
         // Create new task
-        await supabase
+        const { error } = await supabase
           .from('mission_tasks')
           .insert({
             mission_id: mission.id,
             title: taskData.title,
             plan: taskData.plan || null,
             observations: taskData.observations || null,
-            assigned_to: taskData.assigned_to,
+            assigned_to: taskData.assigned_to || null,
             status: 'not_started',
-            estimated_duration: taskData.estimated_completion_date?.toISOString() || null,
+            estimated_duration: taskData.estimated_duration || null,
             required_tools: taskData.required_tools || [],
-            required_stock: taskData.required_stock || [],
             phase: taskData.phase || 'execution'
           });
+        
+        if (error) {
+          console.error('Error creating task:', error);
+        } else {
+          console.log('Task created successfully');
+        }
       }
 
     } catch (error) {

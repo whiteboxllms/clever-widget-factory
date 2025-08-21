@@ -128,7 +128,7 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, storageVicinities, init
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Tool</DialogTitle>
+          <DialogTitle>Add New Asset</DialogTitle>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">

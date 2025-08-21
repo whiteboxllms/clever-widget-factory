@@ -66,8 +66,6 @@ const Missions = () => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showEditDialog, setShowEditDialog] = useState(false);
-  const [editingMission, setEditingMission] = useState<Mission | null>(null);
   const [showTemplates, setShowTemplates] = useState(true);
   const [isLeadership, setIsLeadership] = useState(false);
   const [isContributorOrLeadership, setIsContributorOrLeadership] = useState(false);
@@ -475,211 +473,8 @@ const Missions = () => {
       throw error; // Re-throw to allow form to handle the error
     }
   };
-  const handleEditMission = async () => {
-    if (!user || !editingMission || !formData.title.trim() || !formData.problem_statement.trim() || !formData.qa_assigned_to) {
-      toast({
-        title: "Error",
-        description: "Please fill in all required fields including QA assignment",
-        variant: "destructive"
-      });
-      return;
-    }
-    try {
-      // Check if user has permission to edit this mission
-      const canEdit = editingMission.created_by === user.id || isContributorOrLeadership;
-      if (!canEdit) {
-        toast({
-          title: "Permission Error",
-          description: "You can only edit missions you created or if you have contributor/leadership role",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Update the mission
-      const {
-        error: missionError
-      } = await supabase.from('missions').update({
-        title: formData.title,
-        problem_statement: formData.problem_statement,
-        plan: '',
-        resources_required: formData.selected_resources.length > 0 ? formData.selected_resources.map(r => {
-          const quantity = r.quantity || 1;
-          const unit = r.unit || (r.type === 'part' ? 'pieces' : '');
-          return `${r.name}${quantity > 1 ? `: ${quantity}${unit ? ' ' + unit : ''}` : ''}`;
-        }).join(', ') : formData.resources_required,
-        all_materials_available: formData.all_materials_available,
-        qa_assigned_to: formData.qa_assigned_to || null
-      }).eq('id', editingMission.id);
-      if (missionError) throw missionError;
-
-      // Handle task creation for new tasks added during editing
-      const tasksToCreate = formData.tasks.filter(task => task.title.trim());
-      console.log('Tasks to create:', tasksToCreate); // Debug log
-
-      const createdTasks = [];
-      const taskIdMap: Record<string, string> = {};
-
-      if (tasksToCreate.length > 0) {
-        // First, delete existing tasks for this mission (if we want to replace them)
-        // Or we could implement a more sophisticated update/insert/delete logic
-        const { error: deleteError } = await supabase
-          .from('mission_tasks')
-          .delete()
-          .eq('mission_id', editingMission.id);
-        
-        if (deleteError) {
-          console.error('Error deleting existing tasks:', deleteError);
-          throw deleteError;
-        }
-
-        // Insert all tasks (both existing and new)
-        const { data: tasksData, error: tasksError } = await supabase
-          .from('mission_tasks')
-          .insert(tasksToCreate.map(task => ({
-            mission_id: editingMission.id,
-            title: task.title,
-            plan: task.plan || null,
-            observations: task.observations || null,
-            assigned_to: task.assigned_to || null
-          })))
-          .select();
-        
-        if (tasksError) {
-          console.error('Error creating tasks:', tasksError);
-          throw tasksError;
-        }
-
-        // Create task ID mapping from temp IDs to real IDs
-        tasksToCreate.forEach((task, index) => {
-          const tempId = `temp-${index}`;
-          if (tasksData && tasksData[index]) {
-            taskIdMap[tempId] = tasksData[index].id;
-          }
-        });
-        
-        createdTasks.push(...(tasksData || []));
-      }
-
-      toast({
-        title: "Success",
-        description: "Mission updated successfully!"
-      });
-      setShowEditDialog(false);
-      setEditingMission(null);
-      resetFormData();
-      fetchMissions();
-      
-      // Return the result for photo migration
-      return { 
-        missionId: editingMission.id, 
-        taskIdMap, 
-        createdTasks 
-      };
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update mission",
-        variant: "destructive"
-      });
-      throw error; // Re-throw to allow form to handle the error
-    }
-  };
-  const handleEditClick = async (mission: Mission) => {
-    setEditingMission(mission);
-
-    // Create template object from stored mission data
-    let missionTemplate = null;
-    if (mission.template_id && mission.template_name && mission.template_color) {
-      missionTemplate = {
-        id: mission.template_id,
-        name: mission.template_name,
-        color: mission.template_color,
-        icon: getIconComponent(mission.template_icon || 'Wrench')
-      };
-    }
-    setSelectedTemplate(missionTemplate);
-
-    // Load existing tasks for this mission
-    const {
-      data: existingTasks
-    } = await supabase.from('mission_tasks').select('*').eq('mission_id', mission.id);
-
-    // Parse existing selected resources from resources_required string and lookup actual IDs
-    let parsedResources: SelectedResource[] = [];
-    if (mission.resources_required) {
-      // Fetch current tools and parts to match names to IDs
-      const {
-        data: currentTools
-      } = await supabase.from('tools').select('id, name');
-      const {
-        data: currentParts
-      } = await supabase.from('parts').select('id, name, unit');
-      const resourceLines = mission.resources_required.split(', ').filter(line => line.trim());
-      parsedResources = resourceLines.map(line => {
-        const parts = line.split(': ');
-        const name = parts[0]?.trim() || '';
-
-        // Try to find matching tool first
-        const matchingTool = currentTools?.find(tool => tool.name.toLowerCase() === name.toLowerCase());
-        if (matchingTool) {
-          return {
-            id: matchingTool.id,
-            name: matchingTool.name,
-            type: 'tool' as const,
-            quantity: 1,
-            status: 'planned' as const
-          };
-        }
-
-        // Try to find matching part
-        const matchingPart = currentParts?.find(part => part.name.toLowerCase() === name.toLowerCase());
-        if (matchingPart) {
-          const details = parts[1] || '';
-          const quantityMatch = details.match(/(\d+)/);
-          const quantity = quantityMatch ? parseInt(quantityMatch[1]) : 1;
-          return {
-            id: matchingPart.id,
-            name: matchingPart.name,
-            type: 'part' as const,
-            quantity: quantity,
-            unit: matchingPart.unit,
-            status: 'planned' as const
-          };
-        }
-
-        // If no match found, still include as unknown resource
-        return {
-          id: `unknown-${name}`,
-          name: name,
-          type: 'tool' as const,
-          quantity: 1,
-          status: 'planned' as const
-        };
-      }).filter(resource => resource.name && resource.name !== 'undefined');
-    }
-
-    // Load mission data into form
-    setFormData({
-      title: mission.title,
-      problem_statement: mission.problem_statement,
-      resources_required: mission.resources_required || '',
-      selected_resources: parsedResources,
-      all_materials_available: mission.all_materials_available,
-      qa_assigned_to: mission.qa_assigned_to || '',
-      tasks: existingTasks && existingTasks.length > 0 ? existingTasks.map(task => ({
-        title: task.title,
-        plan: task.plan || '',
-        observations: task.observations || '',
-        assigned_to: task.assigned_to || null
-      })) : [{
-        title: '',
-        plan: '',
-        observations: '',
-        assigned_to: null
-      }]
-    });
-    setShowEditDialog(true);
+  const handleEditClick = (mission: Mission) => {
+    navigate(`/missions/${mission.id}/edit`);
   };
   const resetFormData = () => {
     setFormData({
@@ -703,12 +498,6 @@ const Missions = () => {
   const resetDialog = () => {
     setShowCreateDialog(false);
     setShowTemplates(true);
-    setSelectedTemplate(null);
-    resetFormData();
-  };
-  const resetEditDialog = () => {
-    setShowEditDialog(false);
-    setEditingMission(null);
     setSelectedTemplate(null);
     resetFormData();
   };
@@ -815,28 +604,6 @@ const Missions = () => {
               </DialogContent>
             </Dialog>}
 
-          {/* Edit Mission Dialog */}
-          <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Update Mission</DialogTitle>
-                <DialogDescription>
-                  Update the mission details
-                </DialogDescription>
-              </DialogHeader>
-              
-              <SimpleMissionForm 
-                formData={formData} 
-                setFormData={setFormData} 
-                profiles={profiles} 
-                onSubmit={handleEditMission} 
-                onCancel={resetEditDialog} 
-                isEditing={true} 
-                selectedTemplate={selectedTemplate} 
-                missionId={editingMission?.id}
-              />
-            </DialogContent>
-          </Dialog>
         </div>
       </header>
 

@@ -16,6 +16,7 @@ import Inventory from "./pages/Inventory";
 import InventorySummary from "./pages/InventorySummary";
 import CheckIn from "./pages/CheckIn";
 import Missions from "./pages/Missions";
+import EditMission from "./pages/EditMission";
 import Audit from "./pages/Audit";
 import AuditTool from "./pages/AuditTool";
 import NotFound from "./pages/NotFound";
@@ -71,6 +72,11 @@ function AppContent() {
       <Route path="/missions" element={
         <ProtectedRoute>
           <Missions />
+        </ProtectedRoute>
+      } />
+      <Route path="/missions/:missionId/edit" element={
+        <ProtectedRoute>
+          <EditMission />
         </ProtectedRoute>
       } />
       <Route path="/audit" element={

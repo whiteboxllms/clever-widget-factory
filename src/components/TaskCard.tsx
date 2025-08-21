@@ -14,6 +14,8 @@ import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { DEFAULT_DONE_DEFINITION } from "@/lib/constants";
 import { useTempPhotoStorage, type TempPhoto } from "@/hooks/useTempPhotoStorage";
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 interface Profile {
   id: string;
@@ -775,15 +777,21 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                   )}
                 </div>
                 {task.status !== 'completed' ? (
-                  <Textarea
-                    ref={planTextareaRef}
+                  <ReactQuill
                     value={editData.plan}
-                    onChange={(e) => handlePlanChange(e.target.value)}
+                    onChange={handlePlanChange}
                     onFocus={handlePlanFocus}
                     onBlur={handlePlanBlur}
                     placeholder="What is the plan for this task? (Auto-saves when you click away or press Ctrl+S)"
-                    rows={2}
                     className="mt-1"
+                    modules={{
+                      toolbar: [
+                        ['bold', 'italic'],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        ['clean']
+                      ]
+                    }}
+                    formats={['bold', 'italic', 'list', 'bullet']}
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground mt-1">
@@ -808,15 +816,21 @@ export function TaskCard({ task, profiles, onUpdate, isEditing = false, onSave, 
                   )}
                 </div>
                 {task.status !== 'completed' ? (
-                  <Textarea
-                    ref={implementationTextareaRef}
+                  <ReactQuill
                     value={editData.observations}
-                    onChange={(e) => handleImplementationChange(e.target.value)}
+                    onChange={handleImplementationChange}
                     onFocus={handleImplementationFocus}
                     onBlur={handleImplementationBlur}
                     placeholder="Add implementation notes, findings, or details... (Auto-saves when you click away or press Ctrl+S)"
-                    rows={3}
                     className="mt-1"
+                    modules={{
+                      toolbar: [
+                        ['bold', 'italic'],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        ['clean']
+                      ]
+                    }}
+                    formats={['bold', 'italic', 'list', 'bullet']}
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground mt-1">

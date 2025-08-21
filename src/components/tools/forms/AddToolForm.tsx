@@ -133,7 +133,7 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, storageVicinities, init
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="name">Tool Name *</Label>
+            <Label htmlFor="name">Asset Name *</Label>
             <Input
               id="name"
               value={newTool.name}

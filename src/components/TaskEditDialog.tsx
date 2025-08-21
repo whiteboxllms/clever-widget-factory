@@ -17,7 +17,6 @@ interface Task {
   estimated_completion_date?: Date;
   required_tools?: string[];
   required_stock?: { part_id: string; quantity: number; part_name: string; }[];
-  phase?: 'planning' | 'execution' | 'verification' | 'documentation';
 }
 
 interface Profile {

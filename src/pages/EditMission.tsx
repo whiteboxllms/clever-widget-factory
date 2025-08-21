@@ -33,7 +33,6 @@ interface Task {
   estimated_completion_date?: Date;
   actual_duration?: string;
   required_tools?: string[];
-  phase?: 'planning' | 'execution' | 'verification' | 'documentation';
 }
 
 interface Profile {
@@ -159,7 +158,7 @@ export default function EditMission() {
           estimated_completion_date: task.estimated_duration ? new Date(task.estimated_duration) : undefined,
           actual_duration: task.actual_duration || '',
           required_tools: task.required_tools || [],
-          phase: (task.phase as 'planning' | 'execution' | 'verification' | 'documentation') || 'execution'
+          // phase removed - tasks no longer have phases
         })) || []
       });
 

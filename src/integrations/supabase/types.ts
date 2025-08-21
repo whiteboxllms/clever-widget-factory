@@ -262,7 +262,6 @@ export type Database = {
           id: string
           mission_id: string
           observations: string | null
-          phase: string
           plan: string | null
           qa_approved_at: string | null
           required_tools: string[] | null
@@ -281,7 +280,6 @@ export type Database = {
           id?: string
           mission_id: string
           observations?: string | null
-          phase?: string
           plan?: string | null
           qa_approved_at?: string | null
           required_tools?: string[] | null
@@ -300,7 +298,6 @@ export type Database = {
           id?: string
           mission_id?: string
           observations?: string | null
-          phase?: string
           plan?: string | null
           qa_approved_at?: string | null
           required_tools?: string[] | null

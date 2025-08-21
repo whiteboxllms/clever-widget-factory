@@ -30,7 +30,6 @@ interface Task {
   estimated_completion_date?: Date;
   required_tools?: string[];
   required_stock?: { part_id: string; quantity: number; part_name: string; }[];
-  phase?: 'planning' | 'execution' | 'verification' | 'documentation';
 }
 
 interface Profile {
@@ -119,8 +118,7 @@ export function SimpleMissionForm({
         mission_id: task.mission_id,
         estimated_completion_date: task.estimated_duration ? new Date(task.estimated_duration) : undefined,
         actual_duration: task.actual_duration || '',
-        required_tools: task.required_tools || [],
-        phase: (task.phase as 'planning' | 'execution' | 'verification' | 'documentation') || 'execution'
+        required_tools: task.required_tools || []
       })) || [];
 
       setFormData(prev => ({ ...prev, tasks: updatedTasks }));
@@ -202,8 +200,7 @@ export function SimpleMissionForm({
         observations: '',
         assigned_to: null,
         estimated_completion_date: undefined,
-        required_tools: task.required_tools || [],
-        phase: task.phase
+        required_tools: task.required_tools || []
       }))
     }));
   };
@@ -587,8 +584,7 @@ export function SimpleMissionForm({
               mission_id: missionId || '',
               estimated_completion_date: undefined,
               required_tools: [],
-              required_stock: [],
-              phase: 'execution'
+              required_stock: []
             }}
             profiles={profiles}
             onSave={handleCreateTask}
@@ -618,7 +614,7 @@ export function SimpleMissionForm({
               estimated_completion_date: formData.tasks[editingTaskIndex].estimated_completion_date,
               required_tools: formData.tasks[editingTaskIndex].required_tools,
               required_stock: formData.tasks[editingTaskIndex].required_stock,
-              phase: formData.tasks[editingTaskIndex].phase
+              // phase removed - tasks no longer have phases
             } : {
               id: '',
               title: '',
@@ -630,7 +626,7 @@ export function SimpleMissionForm({
               estimated_completion_date: undefined,
               required_tools: [],
               required_stock: [],
-              phase: 'execution'
+              // phase removed - tasks no longer have phases
             }}
             profiles={profiles}
             onSave={handleEditTask}
@@ -663,9 +659,7 @@ export function SimpleMissionForm({
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="px-2 py-1 bg-muted rounded text-xs font-medium capitalize">
-                      {task.phase || 'execution'}
-                    </div>
+                    {/* Phase display removed - tasks no longer have phases */}
                     <h4 className="font-medium">{task.title || `Task ${index + 1}`}</h4>
                   </div>
                   

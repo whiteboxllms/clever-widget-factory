@@ -32,7 +32,6 @@ interface Task {
   estimated_duration?: string;
   actual_duration?: string;
   required_tools?: string[];
-  phase?: 'planning' | 'execution' | 'verification' | 'documentation';
 }
 
 interface TaskInlineEditorProps {

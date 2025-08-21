@@ -49,7 +49,6 @@ interface Task {
   estimated_completion_date?: Date;
   required_tools?: string[];
   required_stock?: { part_id: string; quantity: number; part_name: string; }[];
-  phase?: 'planning' | 'execution' | 'verification' | 'documentation';
 }
 
 interface TaskDetailEditorProps {
@@ -60,12 +59,6 @@ interface TaskDetailEditorProps {
   isCreating?: boolean;
 }
 
-const PHASE_OPTIONS = [
-  { value: 'planning', label: 'Planning', icon: FileText, color: 'bg-blue-500' },
-  { value: 'execution', label: 'Execution', icon: Wrench, color: 'bg-green-500' },
-  { value: 'verification', label: 'Verification', icon: Users, color: 'bg-yellow-500' },
-  { value: 'documentation', label: 'Documentation', icon: FileText, color: 'bg-purple-500' }
-];
 
 export function TaskDetailEditor({ 
   task, 
@@ -82,8 +75,7 @@ export function TaskDetailEditor({
     assigned_to: task.assigned_to,
     estimated_completion_date: task.estimated_completion_date,
     required_tools: task.required_tools || [],
-    required_stock: task.required_stock || [],
-    phase: task.phase || (task.title.toLowerCase().includes('plan') ? 'planning' : 'execution')
+    required_stock: task.required_stock || []
   });
 
   const [newTool, setNewTool] = useState('');
@@ -98,8 +90,7 @@ export function TaskDetailEditor({
       assigned_to: task.assigned_to,
       estimated_completion_date: task.estimated_completion_date,
       required_tools: task.required_tools || [],
-      required_stock: task.required_stock || [],
-      phase: task.phase || (task.title.toLowerCase().includes('plan') ? 'planning' : 'execution')
+      required_stock: task.required_stock || []
     };
 
     const hasChanged = JSON.stringify(editData) !== JSON.stringify(originalData);
@@ -125,8 +116,7 @@ export function TaskDetailEditor({
         observations: editData.observations || null,
         assigned_to: editData.assigned_to || null,
         estimated_duration: estimatedDuration,
-        required_tools: editData.required_tools || [],
-        phase: editData.phase || 'execution'
+        required_tools: editData.required_tools || []
       };
 
       // Check if this is a new task (no ID or temporary ID) or existing task
@@ -194,7 +184,7 @@ export function TaskDetailEditor({
     }));
   };
 
-  const selectedPhase = PHASE_OPTIONS.find(p => p.value === editData.phase);
+  
 
   return (
     <Card className="w-full">
@@ -204,35 +194,7 @@ export function TaskDetailEditor({
             {isCreating ? 'Create New Task' : 'Edit Task Details'}
           </CardTitle>
           <div className="flex items-center gap-2">
-            {selectedPhase && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    className={`${selectedPhase.color} text-white hover:opacity-80 h-auto p-1 px-2`}
-                  >
-                    <selectedPhase.icon className="w-3 h-3 mr-1" />
-                    {selectedPhase.label}
-                    <ChevronDown className="w-3 h-3 ml-1" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-48 p-1" align="end">
-                  {PHASE_OPTIONS.map(option => (
-                    <Button
-                      key={option.value}
-                      variant="ghost"
-                      size="sm"
-                      className="w-full justify-start gap-2"
-                      onClick={() => setEditData(prev => ({ ...prev, phase: option.value as any }))}
-                    >
-                      <option.icon className="w-4 h-4" />
-                      {option.label}
-                    </Button>
-                  ))}
-                </PopoverContent>
-              </Popover>
-            )}
+            {/* Phase selection removed - tasks no longer have phases */}
           </div>
         </div>
       </CardHeader>
@@ -245,14 +207,7 @@ export function TaskDetailEditor({
             <Input
               id="title"
               value={editData.title || ''}
-      onChange={(e) => {
-                const newTitle = e.target.value;
-                setEditData(prev => ({ 
-                  ...prev, 
-                  title: newTitle,
-                  phase: newTitle.toLowerCase().includes('plan') ? 'planning' : prev.phase
-                }));
-              }}
+              onChange={(e) => setEditData(prev => ({ ...prev, title: e.target.value }))}
               placeholder="Enter task title..."
               className="mt-1"
             />

@@ -356,7 +356,7 @@ export function SimpleMissionForm({
     if (!photo) return;
 
     // If editing mode and photo exists in database, delete it
-    if (isEditing && missionId && !photo.id.toString().startsWith('temp-')) {
+    if (isEditing && missionId && !photo.id.toString().startsWith('temp-') && !photo.id.toString().match(/^\d+$/)) {
       try {
         // Delete from storage
         await supabase.storage.from('mission-attachments').remove([photo.file_url]);

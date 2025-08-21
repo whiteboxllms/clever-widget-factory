@@ -281,7 +281,7 @@ export function SimpleMissionForm({
       
       const fileName = `problem-${Date.now()}-${file.name}`;
       const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('mission-attachments')
+        .from('mission-evidence')
         .upload(fileName, compressionResult.file);
 
       if (uploadError) throw uploadError;
@@ -373,7 +373,7 @@ export function SimpleMissionForm({
         
         // Delete from storage
         const { error: storageError } = await supabase.storage
-          .from('mission-attachments')
+          .from('mission-evidence')
           .remove([photo.file_url]);
         
         if (storageError) {
@@ -499,7 +499,7 @@ export function SimpleMissionForm({
               {problemPhotos.map((photo) => (
                 <div key={photo.id} className="relative group">
                   <img
-                    src={`${supabase.storage.from('mission-attachments').getPublicUrl(photo.file_url).data.publicUrl}`}
+                    src={`${supabase.storage.from('mission-evidence').getPublicUrl(photo.file_url).data.publicUrl}`}
                     alt={photo.file_name}
                     className="w-full h-24 object-cover rounded-md border"
                   />

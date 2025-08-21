@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,7 +55,7 @@ interface Task {
 interface TaskDetailEditorProps {
   task: Task;
   profiles: Profile[];
-  onSave: (taskData: Partial<Task>) => void;
+  onSave: () => void; // Just call when save is complete
   onCancel: () => void;
   isCreating?: boolean;
 }
@@ -72,6 +74,7 @@ export function TaskDetailEditor({
   onCancel, 
   isCreating = false 
 }: TaskDetailEditorProps) {
+  const { toast } = useToast();
   const [editData, setEditData] = useState<Partial<Task>>({
     title: task.title,
     plan: task.plan || '',
@@ -109,13 +112,63 @@ export function TaskDetailEditor({
     }
     
     setIsSaving(true);
-    console.log('TaskDetailEditor - Saving task data:', editData);
+    console.log('TaskDetailEditor - Saving task data directly to database:', editData);
     
     try {
-      await onSave(editData);
-      console.log('TaskDetailEditor - Save completed successfully');
+      // Convert date to ISO string for database storage
+      const estimatedDuration = editData.estimated_completion_date ? 
+        editData.estimated_completion_date.toISOString() : null;
+
+      const taskData = {
+        title: editData.title.trim(),
+        plan: editData.plan || null,
+        observations: editData.observations || null,
+        assigned_to: editData.assigned_to || null,
+        estimated_duration: estimatedDuration,
+        required_tools: editData.required_tools || [],
+        phase: editData.phase || 'execution'
+      };
+
+      if (isCreating) {
+        // Creating new task
+        const { error } = await supabase
+          .from('mission_tasks')
+          .insert({
+            ...taskData,
+            mission_id: task.mission_id,
+            status: 'not_started'
+          });
+
+        if (error) throw error;
+        
+        toast({
+          title: "Task created",
+          description: `"${editData.title}" has been created successfully.`
+        });
+      } else {
+        // Updating existing task
+        const { error } = await supabase
+          .from('mission_tasks')
+          .update(taskData)
+          .eq('id', task.id);
+
+        if (error) throw error;
+        
+        toast({
+          title: "Task updated",
+          description: `"${editData.title}" has been updated successfully.`
+        });
+      }
+
+      console.log('TaskDetailEditor - Direct save completed successfully');
+      onSave(); // Notify parent that save is complete
     } catch (error) {
-      console.error('TaskDetailEditor - Save failed:', error);
+      console.error('TaskDetailEditor - Direct save failed:', error);
+      toast({
+        title: "Save failed",
+        description: error.message || "Failed to save task. Please try again.",
+        variant: "destructive"
+      });
     } finally {
       setIsSaving(false);
     }

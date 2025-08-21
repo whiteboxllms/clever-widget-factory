@@ -144,28 +144,9 @@ export function SimpleMissionForm({
     setCreatingNewTask(true);
   };
 
-  const handleCreateTask = (taskData: Partial<Task>) => {
-    const newTask: Task = {
-      title: taskData.title || '',
-      plan: taskData.plan || '',
-      observations: taskData.observations || '',
-      assigned_to: taskData.assigned_to || null,
-      estimated_completion_date: taskData.estimated_completion_date,
-      required_stock: taskData.required_stock || [],
-      required_tools: taskData.required_tools || [],
-      phase: taskData.phase || 'execution'
-    };
-    setFormData(prev => ({
-      ...prev,
-      tasks: [...prev.tasks, newTask]
-    }));
+  const handleCreateTask = () => {
+    // TaskDetailEditor handles creation directly
     setCreatingNewTask(false);
-    
-    // Show success toast
-    toast({
-      title: "Task created",
-      description: `"${taskData.title}" has been added to the mission.`
-    });
   };
 
   const loadStandardTasks = () => {
@@ -196,38 +177,9 @@ export function SimpleMissionForm({
     setEditingTaskIndex(null);
   };
 
-  const handleEditTask = async (taskData: Partial<Task>) => {
-    if (editingTaskIndex === null) return;
-    
-    console.log('SimpleMissionForm - handleEditTask called with:', taskData);
-    
-    const updatedTask: Task = {
-      ...formData.tasks[editingTaskIndex],
-      ...taskData
-    };
-    
-    console.log('SimpleMissionForm - Updated task:', updatedTask);
-    
-    // Update the form data which will trigger auto-save in parent
-    setFormData(prev => ({
-      ...prev,
-      tasks: prev.tasks.map((task, i) => 
-        i === editingTaskIndex ? updatedTask : task
-      )
-    }));
-    
-    // Wait a small amount to ensure the setFormData has triggered
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
+  const handleEditTask = () => {
+    // Just close the editor - TaskDetailEditor handles saving directly
     setEditingTaskIndex(null);
-    
-    // Show success toast
-    toast({
-      title: "Task updated",
-      description: `"${taskData.title || 'Task'}" has been updated successfully.`
-    });
-    
-    console.log('SimpleMissionForm - Task edit completed, editor minimized');
   };
 
   const removeTask = async (index: number) => {
@@ -584,7 +536,7 @@ export function SimpleMissionForm({
                   observations: '',
                   assigned_to: null,
                   status: 'not_started',
-                  mission_id: '',
+                  mission_id: missionId || '',
                   estimated_completion_date: undefined,
                   required_tools: [],
                   required_stock: [],
@@ -609,7 +561,7 @@ export function SimpleMissionForm({
                   observations: formData.tasks[editingTaskIndex].observations,
                   assigned_to: formData.tasks[editingTaskIndex].assigned_to,
                   status: 'not_started',
-                  mission_id: '',
+                  mission_id: missionId || '',
                   estimated_completion_date: formData.tasks[editingTaskIndex].estimated_completion_date,
                   required_tools: formData.tasks[editingTaskIndex].required_tools,
                   required_stock: formData.tasks[editingTaskIndex].required_stock,

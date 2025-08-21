@@ -181,14 +181,17 @@ export function TaskDetailEditor({
             <div>
               <Label htmlFor="assigned_to">Assigned To</Label>
               <Select 
-                value={editData.assigned_to || ''} 
-                onValueChange={(value) => setEditData(prev => ({ ...prev, assigned_to: value || null }))}
+                value={editData.assigned_to || 'unassigned'} 
+                onValueChange={(value) => setEditData(prev => ({ 
+                  ...prev, 
+                  assigned_to: value === 'unassigned' ? null : value 
+                }))}
               >
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Select assignee..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Unassigned</SelectItem>
+                  <SelectItem value="unassigned">Unassigned</SelectItem>
                   {profiles.map(profile => (
                     <SelectItem key={profile.user_id} value={profile.user_id}>
                       {profile.full_name}

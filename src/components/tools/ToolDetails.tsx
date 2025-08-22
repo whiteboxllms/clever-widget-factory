@@ -139,18 +139,6 @@ export const ToolDetails = ({
 
             <TabsContent value="issues" className="space-y-4">
               <div className="space-y-4">
-                {tool.known_issues && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Legacy Known Issues</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                        {tool.known_issues}
-                      </p>
-                    </CardContent>
-                  </Card>
-                )}
                 
                 {issues.map((issue) => (
                   <IssueCard
@@ -162,7 +150,7 @@ export const ToolDetails = ({
                   />
                 ))}
                 
-                {issues.length === 0 && !tool.known_issues && (
+                {issues.length === 0 && (
                   <p className="text-center text-muted-foreground py-8">
                     No issues reported.
                   </p>

@@ -20,8 +20,7 @@ export const useToolFilters = (tools: Tool[], toolsWithIssues: Set<string>, acti
 
       // Issues filter
       const matchesIssuesFilter = !showToolsWithIssues || 
-        toolsWithIssues.has(tool.id) || 
-        (tool.known_issues && tool.known_issues.trim().length > 0);
+        toolsWithIssues.has(tool.id);
 
       return matchesSearch && matchesMyCheckedOut && matchesIssuesFilter;
     });

@@ -4,10 +4,9 @@ import { useToolIssues } from "@/hooks/useToolIssues";
 
 interface ToolIssuesSummaryProps {
   toolId: string;
-  knownIssues?: string;
 }
 
-export function ToolIssuesSummary({ toolId, knownIssues }: ToolIssuesSummaryProps) {
+export function ToolIssuesSummary({ toolId }: ToolIssuesSummaryProps) {
   const { issues, isLoading } = useToolIssues(toolId);
 
   if (isLoading) {
@@ -19,9 +18,8 @@ export function ToolIssuesSummary({ toolId, knownIssues }: ToolIssuesSummaryProp
   const otherIssues = issues.filter(issue => !['efficiency', 'safety'].includes(issue.issue_type));
   
   const hasActiveIssues = issues.length > 0;
-  const hasLegacyIssues = knownIssues && knownIssues.trim().length > 0;
 
-  if (!hasActiveIssues && !hasLegacyIssues) {
+  if (!hasActiveIssues) {
     return null;
   }
 
@@ -51,16 +49,6 @@ export function ToolIssuesSummary({ toolId, knownIssues }: ToolIssuesSummaryProp
           <AlertTriangle className="h-4 w-4 text-orange-600" />
           <Badge variant="outline" className="text-xs">
             {otherIssues.length} Other Issue{otherIssues.length !== 1 ? 's' : ''}
-          </Badge>
-        </div>
-      )}
-
-      {/* Legacy known_issues field */}
-      {hasLegacyIssues && (
-        <div className="flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          <Badge variant="outline" className="text-xs text-muted-foreground">
-            Legacy Notes
           </Badge>
         </div>
       )}

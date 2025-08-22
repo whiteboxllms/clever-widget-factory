@@ -37,7 +37,7 @@ type CheckInForm = {
   reflection: string;
   hours_used: string;
   checkin_reason: string;
-  updated_known_issues: string;
+  
 };
 
 interface ToolCheckInDialogProps {
@@ -59,8 +59,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
     returned_to_correct_location: true,
     reflection: '',
     hours_used: '',
-    checkin_reason: '',
-    updated_known_issues: ''
+    checkin_reason: ''
   });
   const [showValidation, setShowValidation] = useState(false);
   const [selectedIssueForResolution, setSelectedIssueForResolution] = useState<any>(null);
@@ -85,8 +84,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         returned_to_correct_location: true,
         reflection: '',
         hours_used: '',
-        checkin_reason: '',
-        updated_known_issues: tool.known_issues || ''
+        checkin_reason: ''
       });
       // Reset photo state
       setSelectedPhotos([]);

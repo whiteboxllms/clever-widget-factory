@@ -15,7 +15,7 @@ export interface Tool {
   serial_number?: string;
   last_maintenance?: string;
   manual_url?: string;
-  known_issues?: string;
+  
   stargazer_sop?: string;
   created_at: string;
   updated_at: string;
@@ -47,7 +47,7 @@ export const useToolsData = (showRemovedItems: boolean = false) => {
           serial_number,
           last_maintenance,
           manual_url,
-          known_issues,
+          
           stargazer_sop,
           created_at,
           updated_at,

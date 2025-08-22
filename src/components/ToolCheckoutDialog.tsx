@@ -19,7 +19,7 @@ interface Tool {
   id: string;
   name: string;
   manual_url?: string;
-  known_issues?: string;
+  
 }
 
 interface ToolCheckoutDialogProps {
@@ -161,27 +161,15 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
 
       if (error) throw error;
 
-      // Update tool with new known issues if any were found during inspection
-      let updatedKnownIssues = tool.known_issues || '';
-      if (form.preCheckoutIssues.trim()) {
-        const newIssues = form.preCheckoutIssues.trim();
-        if (updatedKnownIssues) {
-          updatedKnownIssues += '\n\n' + newIssues;
-        } else {
-          updatedKnownIssues = newIssues;
-        }
-      }
-
-      // Update tool status to checked_out and add any new known issues
-      const { error: updateError } = await supabase
+      // Update tool status to checked out
+      const { error: toolError } = await supabase
         .from('tools')
         .update({ 
-          status: 'checked_out',
-          known_issues: updatedKnownIssues || null
+          status: 'checked_out'
         })
         .eq('id', tool.id);
 
-      if (updateError) throw updateError;
+      if (toolError) throw toolError;
 
       toast({
         title: "Success",
@@ -331,17 +319,6 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
             />
           </div>
 
-          {/* Known Issues - Read Only */}
-          {tool?.known_issues && (
-            <div className="space-y-2">
-              <Label>Known Issues</Label>
-              <div className="bg-muted p-3 rounded-lg">
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                  {tool.known_issues}
-                </p>
-              </div>
-            </div>
-          )}
 
           {/* Pre-checkout Inspection */}
           <div className="space-y-2">

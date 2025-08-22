@@ -201,16 +201,6 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
                   No active issues reported
                 </div>
               )}
-              
-              {/* Legacy issues from known_issues field */}
-              {tool.known_issues && tool.known_issues.trim() && (
-                <div className="mt-3 pt-3 border-t">
-                  <p className="text-sm font-medium mb-2">Legacy Notes:</p>
-                  <p className="text-sm text-muted-foreground bg-yellow-50 p-2 rounded">
-                    {tool.known_issues}
-                  </p>
-                </div>
-              )}
             </CardContent>
           </Card>
 

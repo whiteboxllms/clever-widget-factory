@@ -1,4 +1,1 @@
 project_id = "oskwnlhuuxjfuwnjuavn"
-
-[functions.migrate-legacy-issues]
-verify_jwt = false

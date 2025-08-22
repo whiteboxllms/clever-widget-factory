@@ -817,6 +817,7 @@ export type Database = {
           is_misuse: boolean
           issue_type: string
           related_checkout_id: string | null
+          report_photo_urls: string[] | null
           reported_at: string
           reported_by: string
           resolution_notes: string | null
@@ -839,6 +840,7 @@ export type Database = {
           is_misuse?: boolean
           issue_type?: string
           related_checkout_id?: string | null
+          report_photo_urls?: string[] | null
           reported_at?: string
           reported_by: string
           resolution_notes?: string | null
@@ -861,6 +863,7 @@ export type Database = {
           is_misuse?: boolean
           issue_type?: string
           related_checkout_id?: string | null
+          report_photo_urls?: string[] | null
           reported_at?: string
           reported_by?: string
           resolution_notes?: string | null

@@ -8,9 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Bug, Wrench, Shield, CheckCircle } from "lucide-react";
+import { AlertTriangle, Bug, Wrench, Shield, CheckCircle, ImagePlus, X } from "lucide-react";
 import { Tool } from "@/hooks/tools/useToolsData";
 import { useToolIssues } from "@/hooks/useToolIssues";
+import { useImageUpload, ImageUploadResult } from "@/hooks/useImageUpload";
 import { ToolIssuesSummary } from "./ToolIssuesSummary";
 
 interface IssueReportDialogProps {
@@ -40,9 +41,12 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
   const [blocksCheckout, setBlocksCheckout] = useState(false);
   const [damageAssessment, setDamageAssessment] = useState("");
   const [efficiencyLoss, setEfficiencyLoss] = useState("");
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [uploadedImages, setUploadedImages] = useState<ImageUploadResult[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { issues, isLoading, createIssue, fetchIssues } = useToolIssues(tool?.id || null);
+  const { uploadImages, isUploading } = useImageUpload();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,6 +54,29 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
 
     setIsSubmitting(true);
     try {
+      let photoUrls: string[] = [];
+      
+      // Upload images if any are selected
+      if (selectedImages.length > 0) {
+        try {
+          const uploadResults = await uploadImages(selectedImages, {
+            bucket: 'tool-resolution-photos',
+            generateFileName: (file, index) => `issue-report-${tool.id}-${Date.now()}-${index || 1}-${file.name}`
+          });
+          
+          if (Array.isArray(uploadResults)) {
+            photoUrls = uploadResults.map(result => result.url);
+          } else {
+            photoUrls = [uploadResults.url];
+          }
+          setUploadedImages(Array.isArray(uploadResults) ? uploadResults : [uploadResults]);
+        } catch (error) {
+          console.error('Failed to upload images:', error);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       await createIssue(
         description,
         issueType,
@@ -57,7 +84,8 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
         false, // is_misuse
         undefined, // related_checkout_id
         damageAssessment || undefined,
-        efficiencyLoss ? parseFloat(efficiencyLoss) : undefined
+        efficiencyLoss ? parseFloat(efficiencyLoss) : undefined,
+        photoUrls
       );
 
       // Reset form
@@ -66,6 +94,8 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
       setBlocksCheckout(false);
       setDamageAssessment("");
       setEfficiencyLoss("");
+      setSelectedImages([]);
+      setUploadedImages([]);
       
       onSuccess?.();
       onOpenChange(false);
@@ -74,6 +104,15 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    setSelectedImages(files);
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleResolveIssue = async (issueId: string) => {
@@ -247,6 +286,62 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
                   </Label>
                 </div>
 
+                {/* Image Upload Section */}
+                <div className="space-y-3">
+                  <Label>Photos (Optional)</Label>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleImageSelect}
+                        className="hidden"
+                        id="issue-photos"
+                      />
+                      <Label
+                        htmlFor="issue-photos"
+                        className="flex items-center gap-2 px-3 py-2 border border-input rounded-md cursor-pointer hover:bg-accent"
+                      >
+                        <ImagePlus className="h-4 w-4" />
+                        Select Images
+                      </Label>
+                      {selectedImages.length > 0 && (
+                        <span className="text-sm text-muted-foreground">
+                          {selectedImages.length} image{selectedImages.length > 1 ? 's' : ''} selected
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Image Previews */}
+                    {selectedImages.length > 0 && (
+                      <div className="grid grid-cols-2 gap-2">
+                        {selectedImages.map((file, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={URL.createObjectURL(file)}
+                              alt={`Preview ${index + 1}`}
+                              className="w-full h-20 object-cover rounded border"
+                            />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => removeImage(index)}
+                              className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                            <div className="absolute bottom-1 left-1 text-xs bg-background/80 rounded px-1">
+                              {file.name.substring(0, 12)}...
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <div className="flex gap-2 pt-4">
                   <Button
                     type="button"
@@ -258,9 +353,9 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
                   </Button>
                   <Button
                     type="submit"
-                    disabled={!description.trim() || isSubmitting}
+                    disabled={!description.trim() || isSubmitting || isUploading}
                   >
-                    {isSubmitting ? "Reporting..." : "Report Issue"}
+                    {isUploading ? "Uploading..." : isSubmitting ? "Reporting..." : "Report Issue"}
                   </Button>
                 </div>
               </form>

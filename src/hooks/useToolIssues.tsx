@@ -15,6 +15,7 @@ interface ToolIssue {
   root_cause?: string;
   resolution_notes?: string;
   resolution_photo_urls?: string[];
+  report_photo_urls?: string[];
   blocks_checkout?: boolean;
   is_misuse?: boolean;
   related_checkout_id?: string;
@@ -64,7 +65,8 @@ export function useToolIssues(toolId: string | null) {
     isMisuse: boolean = false,
     checkoutId?: string,
     damageAssessment?: string,
-    efficiencyLossPercentage?: number
+    efficiencyLossPercentage?: number,
+    reportPhotoUrls?: string[]
   ) => {
     if (!toolId) return null;
 
@@ -83,6 +85,7 @@ export function useToolIssues(toolId: string | null) {
           related_checkout_id: checkoutId,
           damage_assessment: damageAssessment,
           efficiency_loss_percentage: efficiencyLossPercentage,
+          report_photo_urls: reportPhotoUrls || [],
           reported_by: user.data.user.id
         })
         .select()
@@ -127,7 +130,8 @@ export function useToolIssues(toolId: string | null) {
     isMisuse: boolean = false,
     checkoutId?: string,
     damageAssessment?: string,
-    efficiencyLossPercentage?: number
+    efficiencyLossPercentage?: number,
+    reportPhotoUrls?: string[]
   ) => {
     if (!issuesText.trim() || !toolId) return;
 
@@ -138,7 +142,7 @@ export function useToolIssues(toolId: string | null) {
       .filter(line => line.length > 0);
 
     for (const description of issueDescriptions) {
-      await createIssue(description, issueType, blocksCheckout, isMisuse, checkoutId, damageAssessment, efficiencyLossPercentage);
+      await createIssue(description, issueType, blocksCheckout, isMisuse, checkoutId, damageAssessment, efficiencyLossPercentage, reportPhotoUrls);
     }
   };
 

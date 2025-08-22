@@ -11,28 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Edit, Shield, Wrench, Bug, AlertTriangle, ImagePlus, X } from "lucide-react";
 import { useImageUpload, ImageUploadResult } from "@/hooks/useImageUpload";
-
-interface ToolIssue {
-  id: string;
-  tool_id: string;
-  description: string;
-  issue_type: 'safety' | 'efficiency' | 'cosmetic' | 'maintenance';
-  status: 'active' | 'resolved' | 'removed';
-  reported_by: string;
-  reported_at: string;
-  resolved_by?: string;
-  resolved_at?: string;
-  root_cause?: string;
-  resolution_notes?: string;
-  resolution_photo_urls?: string[];
-  report_photo_urls?: string[];
-  blocks_checkout?: boolean;
-  is_misuse?: boolean;
-  related_checkout_id?: string;
-  damage_assessment?: string;
-  responsibility_assigned?: boolean;
-  efficiency_loss_percentage?: number;
-}
+import { ToolIssue } from "@/hooks/useToolIssues";
 
 interface IssueEditDialogProps {
   issue: ToolIssue | null;
@@ -46,14 +25,14 @@ const issueTypeIcons = {
   safety: Shield,
   efficiency: Wrench,
   cosmetic: Bug,
-  maintenance: AlertTriangle
+  maintenance_due: AlertTriangle
 };
 
 export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate }: IssueEditDialogProps) {
   const [description, setDescription] = useState("");
-  const [issueType, setIssueType] = useState<"safety" | "efficiency" | "cosmetic" | "maintenance">("efficiency");
+  const [issueType, setIssueType] = useState<"safety" | "efficiency" | "cosmetic" | "maintenance_due">("efficiency");
   const [blocksCheckout, setBlocksCheckout] = useState(false);
-  const [isMisuse, setIsMisuse] = useState(false);
+  
   const [damageAssessment, setDamageAssessment] = useState("");
   const [efficiencyLoss, setEfficiencyLoss] = useState("");
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
@@ -68,7 +47,6 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
       setDescription(issue.description || "");
       setIssueType(issue.issue_type || "efficiency");
       setBlocksCheckout(issue.blocks_checkout || false);
-      setIsMisuse(issue.is_misuse || false);
       setDamageAssessment(issue.damage_assessment || "");
       setEfficiencyLoss(issue.efficiency_loss_percentage?.toString() || "");
       setExistingImages(issue.report_photo_urls || []);
@@ -108,7 +86,6 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
         description: description.trim(),
         issue_type: issueType,
         blocks_checkout: blocksCheckout,
-        is_misuse: isMisuse,
         damage_assessment: damageAssessment || undefined,
         efficiency_loss_percentage: efficiencyLoss ? parseFloat(efficiencyLoss) : undefined,
         report_photo_urls: photoUrls
@@ -184,10 +161,10 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
                         Cosmetic
                       </div>
                     </SelectItem>
-                    <SelectItem value="maintenance">
+                    <SelectItem value="maintenance_due">
                       <div className="flex items-center gap-2">
                         <AlertTriangle className="h-4 w-4 text-purple-500" />
-                        Maintenance
+                        Maintenance Due
                       </div>
                     </SelectItem>
                   </SelectContent>
@@ -206,6 +183,7 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
                 />
               </div>
 
+              {/* Blocks Checkout and Incident Description */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Card className="bg-muted/50">
                   <CardContent className="pt-4">
@@ -225,13 +203,14 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
                 <Card className="bg-muted/50">
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="isMisuse" className="text-sm font-medium">
-                        Misuse Related
-                      </Label>
+                        <Label htmlFor="damageDuringUse" className="text-sm font-medium">
+                          Did this happen while using the tool?
+                        </Label>
                       <Switch
-                        id="isMisuse"
-                        checked={isMisuse}
-                        onCheckedChange={setIsMisuse}
+                        id="damageDuringUse"
+                        checked={false}
+                        onCheckedChange={() => {}}
+                        disabled
                       />
                     </div>
                   </CardContent>
@@ -239,13 +218,15 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
               </div>
 
               <div>
-                <Label htmlFor="damageAssessment">Damage Assessment</Label>
+                <Label htmlFor="damageAssessment">
+                  What Happened?
+                </Label>
                 <Textarea
                   id="damageAssessment"
                   value={damageAssessment}
                   onChange={(e) => setDamageAssessment(e.target.value)}
-                  placeholder="Describe any damage or impact..."
-                  rows={2}
+                  placeholder="Please describe what you were doing when this occurred and any events that might have contributed to the issue..."
+                  rows={3}
                 />
               </div>
 

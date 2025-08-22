@@ -27,19 +27,19 @@ const issueTypeIcons = {
   safety: Shield,
   efficiency: Wrench,
   cosmetic: Bug,
-  maintenance: AlertTriangle
+  maintenance_due: AlertTriangle
 };
 
 const issueTypeColors = {
   safety: "bg-destructive text-destructive-foreground",
   efficiency: "bg-orange-500 text-white",
   cosmetic: "bg-blue-500 text-blue-foreground",
-  maintenance: "bg-yellow-500 text-yellow-foreground"
+  maintenance_due: "bg-yellow-500 text-yellow-foreground"
 };
 
 export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: IssueReportDialogProps) {
   const [description, setDescription] = useState("");
-  const [issueType, setIssueType] = useState<"safety" | "efficiency" | "cosmetic" | "maintenance">("efficiency");
+  const [issueType, setIssueType] = useState<"safety" | "efficiency" | "cosmetic" | "maintenance_due">("efficiency");
   const [blocksCheckout, setBlocksCheckout] = useState(false);
   const [damageDuringUse, setDamageDuringUse] = useState(false);
   const [incidentDescription, setIncidentDescription] = useState("");

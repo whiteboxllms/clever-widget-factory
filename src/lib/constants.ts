@@ -5,7 +5,7 @@ export const ISSUE_TYPE_OPTIONS = [
   { value: 'safety' as const, label: 'Safety' },
   { value: 'efficiency' as const, label: 'Efficiency' },
   { value: 'cosmetic' as const, label: 'Cosmetic' },
-  { value: 'maintenance' as const, label: 'Maintenance' }
+  { value: 'maintenance_due' as const, label: 'Maintenance Due' }
 ] as const;
 
 // Tool condition options - simplified binary system

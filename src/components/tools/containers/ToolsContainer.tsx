@@ -21,6 +21,7 @@ import { ToolCheckInDialog } from "@/components/ToolCheckInDialog";
 import { IssueResolutionDialog } from "@/components/IssueResolutionDialog";
 import { IssueReportDialog } from "@/components/IssueReportDialog";
 import { IssueEditDialog } from "@/components/IssueEditDialog";
+import { IssueWorkflowDialog } from "@/components/IssueWorkflowDialog";
 
 export const ToolsContainer = () => {
   const { toolId } = useParams();

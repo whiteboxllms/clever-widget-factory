@@ -6,7 +6,7 @@ export interface ToolIssue {
   id: string;
   tool_id: string;
   description: string;
-  issue_type: 'safety' | 'efficiency' | 'cosmetic' | 'maintenance_due';
+  issue_type: 'safety' | 'efficiency' | 'cosmetic' | 'preventative_maintenance' | 'functionality';
   status: 'active' | 'resolved' | 'removed';
   reported_by: string;
   reported_at: string;
@@ -22,6 +22,11 @@ export interface ToolIssue {
   damage_assessment?: string;
   responsibility_assigned?: boolean;
   efficiency_loss_percentage?: number;
+  // New workflow fields
+  action_required?: 'repair' | 'replace_part' | 'not_fixable' | 'remove';
+  workflow_status: 'reported' | 'diagnosed' | 'in_progress' | 'completed';
+  diagnosed_by?: string;
+  diagnosed_at?: string;
 }
 
 export function useToolIssues(toolId: string | null) {

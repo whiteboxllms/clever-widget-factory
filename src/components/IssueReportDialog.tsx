@@ -27,19 +27,21 @@ const issueTypeIcons = {
   safety: Shield,
   efficiency: Wrench,
   cosmetic: Bug,
-  maintenance_due: AlertTriangle
+  preventative_maintenance: AlertTriangle,
+  functionality: AlertTriangle
 };
 
 const issueTypeColors = {
   safety: "bg-destructive text-destructive-foreground",
   efficiency: "bg-orange-500 text-white",
   cosmetic: "bg-blue-500 text-blue-foreground",
-  maintenance_due: "bg-yellow-500 text-yellow-foreground"
+  preventative_maintenance: "bg-yellow-500 text-yellow-foreground",
+  functionality: "bg-purple-500 text-white"
 };
 
 export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: IssueReportDialogProps) {
   const [description, setDescription] = useState("");
-  const [issueType, setIssueType] = useState<"safety" | "efficiency" | "cosmetic" | "maintenance_due">("efficiency");
+  const [issueType, setIssueType] = useState<"safety" | "efficiency" | "cosmetic" | "preventative_maintenance" | "functionality">("efficiency");
   const [blocksCheckout, setBlocksCheckout] = useState(false);
   const [damageDuringUse, setDamageDuringUse] = useState(false);
   const [incidentDescription, setIncidentDescription] = useState("");
@@ -234,6 +236,18 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
                         <div className="flex items-center gap-2">
                           <Bug className="h-4 w-4 text-blue-500" />
                           Cosmetic
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="preventative_maintenance">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-purple-500" />
+                          Preventative Maintenance
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="functionality">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-indigo-500" />
+                          Functionality
                         </div>
                       </SelectItem>
                     </SelectContent>

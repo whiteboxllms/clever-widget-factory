@@ -5,7 +5,24 @@ export const ISSUE_TYPE_OPTIONS = [
   { value: 'safety' as const, label: 'Safety' },
   { value: 'efficiency' as const, label: 'Efficiency' },
   { value: 'cosmetic' as const, label: 'Cosmetic' },
-  { value: 'maintenance_due' as const, label: 'Maintenance Due' }
+  { value: 'preventative_maintenance' as const, label: 'Preventative Maintenance' },
+  { value: 'functionality' as const, label: 'Functionality' }
+] as const;
+
+// Action required options for workflow
+export const ACTION_REQUIRED_OPTIONS = [
+  { value: 'repair' as const, label: 'Repair' },
+  { value: 'replace_part' as const, label: 'Replace Part' },
+  { value: 'not_fixable' as const, label: 'Damaged - Not Fixable' },
+  { value: 'remove' as const, label: 'Remove from Service' }
+] as const;
+
+// Workflow status options
+export const WORKFLOW_STATUS_OPTIONS = [
+  { value: 'reported' as const, label: 'Reported' },
+  { value: 'diagnosed' as const, label: 'Diagnosed' },
+  { value: 'in_progress' as const, label: 'In Progress' },
+  { value: 'completed' as const, label: 'Completed' }
 ] as const;
 
 // Tool condition options - simplified binary system
@@ -22,6 +39,8 @@ export const getStatusColor = (status: string) => {
     case 'checked_out': return 'bg-yellow-100 text-yellow-800';
     case 'unavailable': return 'bg-red-100 text-red-800';
     case 'unable_to_find': return 'bg-gray-100 text-gray-800';
+    case 'needs_attention': return 'bg-orange-100 text-orange-800';
+    case 'under_repair': return 'bg-blue-100 text-blue-800';
     default: return 'bg-gray-100 text-gray-800';
   }
 };
@@ -32,6 +51,8 @@ export const getStatusLabel = (status: string) => {
     case 'checked_out': return 'Checked Out';
     case 'unavailable': return 'Unavailable';
     case 'unable_to_find': return 'Unable to Find';
+    case 'needs_attention': return 'Needs Attention';
+    case 'under_repair': return 'Under Repair';
     default: return status;
   }
 };

@@ -817,10 +817,15 @@ export type Database = {
       }
       tool_issues: {
         Row: {
+          action_required:
+            | Database["public"]["Enums"]["action_required_type"]
+            | null
           blocks_checkout: boolean
           created_at: string
           damage_assessment: string | null
           description: string
+          diagnosed_at: string | null
+          diagnosed_by: string | null
           efficiency_loss_percentage: number | null
           id: string
           is_misuse: boolean
@@ -838,12 +843,18 @@ export type Database = {
           status: string
           tool_id: string
           updated_at: string
+          workflow_status: Database["public"]["Enums"]["workflow_status_type"]
         }
         Insert: {
+          action_required?:
+            | Database["public"]["Enums"]["action_required_type"]
+            | null
           blocks_checkout?: boolean
           created_at?: string
           damage_assessment?: string | null
           description: string
+          diagnosed_at?: string | null
+          diagnosed_by?: string | null
           efficiency_loss_percentage?: number | null
           id?: string
           is_misuse?: boolean
@@ -861,12 +872,18 @@ export type Database = {
           status?: string
           tool_id: string
           updated_at?: string
+          workflow_status?: Database["public"]["Enums"]["workflow_status_type"]
         }
         Update: {
+          action_required?:
+            | Database["public"]["Enums"]["action_required_type"]
+            | null
           blocks_checkout?: boolean
           created_at?: string
           damage_assessment?: string | null
           description?: string
+          diagnosed_at?: string | null
+          diagnosed_by?: string | null
           efficiency_loss_percentage?: number | null
           id?: string
           is_misuse?: boolean
@@ -884,6 +901,7 @@ export type Database = {
           status?: string
           tool_id?: string
           updated_at?: string
+          workflow_status?: Database["public"]["Enums"]["workflow_status_type"]
         }
         Relationships: [
           {
@@ -983,11 +1001,19 @@ export type Database = {
       }
     }
     Enums: {
+      action_required_type: "repair" | "replace_part" | "not_fixable" | "remove"
       tool_status:
         | "available"
         | "checked_out"
         | "unavailable"
         | "unable_to_find"
+        | "needs_attention"
+        | "under_repair"
+      workflow_status_type:
+        | "reported"
+        | "diagnosed"
+        | "in_progress"
+        | "completed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1115,11 +1141,20 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      action_required_type: ["repair", "replace_part", "not_fixable", "remove"],
       tool_status: [
         "available",
         "checked_out",
         "unavailable",
         "unable_to_find",
+        "needs_attention",
+        "under_repair",
+      ],
+      workflow_status_type: [
+        "reported",
+        "diagnosed",
+        "in_progress",
+        "completed",
       ],
     },
   },

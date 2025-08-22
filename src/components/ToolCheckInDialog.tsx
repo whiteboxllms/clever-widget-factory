@@ -64,7 +64,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
   const [showValidation, setShowValidation] = useState(false);
   const [selectedIssueForResolution, setSelectedIssueForResolution] = useState<any>(null);
   const [isResolutionDialogOpen, setIsResolutionDialogOpen] = useState(false);
-  const [newIssueType, setNewIssueType] = useState<'safety' | 'efficiency' | 'cosmetic' | 'maintenance_due'>('efficiency');
+  const [newIssueType, setNewIssueType] = useState<'safety' | 'efficiency' | 'cosmetic' | 'preventative_maintenance' | 'functionality'>('efficiency');
   const [blocksCheckout, setBlocksCheckout] = useState(false);
   const [efficiencyLossPercentage, setEfficiencyLossPercentage] = useState<number | undefined>();
   const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
@@ -416,7 +416,8 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
                       <SelectItem value="safety">🚨 Safety</SelectItem>
                       <SelectItem value="efficiency">⚙️ Efficiency</SelectItem>
                       <SelectItem value="cosmetic">✨ Cosmetic</SelectItem>
-                      <SelectItem value="maintenance_due">🔧 Maintenance Due</SelectItem>
+                      <SelectItem value="preventative_maintenance">🔧 Preventative Maintenance</SelectItem>
+                      <SelectItem value="functionality">⚙️ Functionality</SelectItem>
                     </SelectContent>
                   </Select>
                   <div className="flex items-center space-x-2">

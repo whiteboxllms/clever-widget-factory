@@ -90,7 +90,14 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5" />
-            Report Issue - {tool.name}
+            <div className="flex items-baseline gap-2">
+              <span>Report Issue - {tool.name}</span>
+              {tool.serial_number && (
+                <span className="text-sm text-muted-foreground font-normal">
+                  ({tool.serial_number})
+                </span>
+              )}
+            </div>
           </DialogTitle>
         </DialogHeader>
 

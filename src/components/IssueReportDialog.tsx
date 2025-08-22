@@ -251,14 +251,9 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
                   <Card className="bg-muted/50">
                     <CardContent className="pt-4">
                       <div className="flex items-center justify-between">
-                        <div className="space-y-1">
                           <Label htmlFor="damageDuringUse" className="text-sm font-medium">
-                            Did this damage/issue occur while you were using the tool?
+                            Did this happen while using the tool?
                           </Label>
-                          <p className="text-xs text-muted-foreground">
-                            This helps us understand when and how issues happen
-                          </p>
-                        </div>
                         <Switch
                           id="damageDuringUse"
                           checked={damageDuringUse}

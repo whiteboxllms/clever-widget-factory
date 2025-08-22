@@ -221,19 +221,13 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
                       <SelectItem value="efficiency">
                         <div className="flex items-center gap-2">
                           <Wrench className="h-4 w-4 text-orange-500" />
-                          Efficiency/Performance
+                          Efficiency
                         </div>
                       </SelectItem>
                       <SelectItem value="cosmetic">
                         <div className="flex items-center gap-2">
                           <Bug className="h-4 w-4 text-blue-500" />
                           Cosmetic
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="maintenance">
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                          Maintenance Required
                         </div>
                       </SelectItem>
                     </SelectContent>
@@ -290,7 +284,7 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
 
                 <div>
                   <Label htmlFor="incidentDescription">
-                    What Happened? {damageDuringUse ? "*" : "(optional)"}
+                    {damageDuringUse ? "What Happened?" : "What scenario might have caused this?"} {damageDuringUse ? "*" : "(optional)"}
                   </Label>
                   <Textarea
                     id="incidentDescription"
@@ -299,7 +293,7 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
                     placeholder={
                       damageDuringUse
                         ? "Please describe what you were doing when this occurred and any events that might have contributed to the issue..."
-                        : "Describe what happened when the damage occurred, or what you think likely caused this issue..."
+                        : "Describe what might have caused the damage..."
                     }
                     rows={damageDuringUse ? 3 : 2}
                     required={damageDuringUse}

@@ -61,6 +61,7 @@ export function IssueWorkflowDialog({
   const [assignedWorkerId, setAssignedWorkerId] = useState<string | null>(null);
   const [canSelfClaim, setCanSelfClaim] = useState(false);
   const [readyToWork, setReadyToWork] = useState(false);
+  const [nextSteps, setNextSteps] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { user } = useAuth();
   
@@ -84,6 +85,7 @@ export function IssueWorkflowDialog({
       setAssignedWorkerId(issue.assigned_to || null);
       setCanSelfClaim(issue.can_self_claim || false);
       setReadyToWork(issue.ready_to_work || false);
+      setNextSteps(issue.next_steps || "");
     }
   }, [issue]);
 
@@ -132,6 +134,9 @@ export function IssueWorkflowDialog({
       }
       if (readyToWork !== issue.ready_to_work) {
         updates.ready_to_work = readyToWork;
+      }
+      if (nextSteps !== issue.next_steps) {
+        updates.next_steps = nextSteps;
       }
 
       // Update resolution info if completing
@@ -298,6 +303,17 @@ export function IssueWorkflowDialog({
                     value={aiAnalysis}
                     onChange={(e) => setAiAnalysis(e.target.value)}
                     placeholder="AI-generated analysis, recommendations, or notes..."
+                    rows={3}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="nextSteps">Tool Keeper Next Steps</Label>
+                  <Textarea
+                    id="nextSteps"
+                    value={nextSteps}
+                    onChange={(e) => setNextSteps(e.target.value)}
+                    placeholder="Comments about next steps, follow-up actions, or tool keeper notes..."
                     rows={3}
                   />
                 </div>

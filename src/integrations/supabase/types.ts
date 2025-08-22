@@ -867,6 +867,7 @@ export type Database = {
           is_misuse: boolean
           issue_type: string
           materials_needed: Json | null
+          next_steps: string | null
           ready_to_work: boolean | null
           related_checkout_id: string | null
           report_photo_urls: string[] | null
@@ -903,6 +904,7 @@ export type Database = {
           is_misuse?: boolean
           issue_type?: string
           materials_needed?: Json | null
+          next_steps?: string | null
           ready_to_work?: boolean | null
           related_checkout_id?: string | null
           report_photo_urls?: string[] | null
@@ -939,6 +941,7 @@ export type Database = {
           is_misuse?: boolean
           issue_type?: string
           materials_needed?: Json | null
+          next_steps?: string | null
           ready_to_work?: boolean | null
           related_checkout_id?: string | null
           report_photo_urls?: string[] | null

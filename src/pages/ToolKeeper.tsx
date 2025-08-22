@@ -58,12 +58,12 @@ export default function ToolKeeper() {
     try {
       setIsLoading(true);
       
-      // Fetch issues with tool information
-      // Fetch issues first
+      // Fetch issues with tool information - filter for unresolved issues where asset is not removed
       const { data: issuesData, error: issuesError } = await supabase
         .from('tool_issues')
         .select('*')
         .eq('status', 'active')
+        .neq('workflow_status', 'completed')
         .order('reported_at', { ascending: false });
 
       if (issuesError) throw issuesError;

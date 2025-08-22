@@ -36,6 +36,7 @@ export interface ToolIssue {
   can_self_claim?: boolean;
   estimated_hours?: number;
   actual_hours?: number;
+  next_steps?: string;
 }
 
 export function useToolIssues(toolId: string | null) {

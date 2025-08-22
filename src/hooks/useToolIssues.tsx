@@ -22,11 +22,20 @@ export interface ToolIssue {
   damage_assessment?: string;
   responsibility_assigned?: boolean;
   efficiency_loss_percentage?: number;
-  // New workflow fields
+  // Original workflow fields
   action_required?: 'repair' | 'replace_part' | 'not_fixable' | 'remove';
   workflow_status: 'reported' | 'diagnosed' | 'in_progress' | 'completed';
   diagnosed_by?: string;
   diagnosed_at?: string;
+  // New attribute/level system fields
+  assigned_to?: string;
+  ready_to_work?: boolean;
+  ai_analysis?: string;
+  materials_needed?: any[];
+  work_progress?: string;
+  can_self_claim?: boolean;
+  estimated_hours?: number;
+  actual_hours?: number;
 }
 
 export function useToolIssues(toolId: string | null) {

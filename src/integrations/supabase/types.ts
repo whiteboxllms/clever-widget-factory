@@ -192,6 +192,38 @@ export type Database = {
           },
         ]
       }
+      issue_requirements: {
+        Row: {
+          attribute_type: Database["public"]["Enums"]["attribute_type"]
+          created_at: string | null
+          id: string
+          issue_id: string | null
+          required_level: number
+        }
+        Insert: {
+          attribute_type: Database["public"]["Enums"]["attribute_type"]
+          created_at?: string | null
+          id?: string
+          issue_id?: string | null
+          required_level: number
+        }
+        Update: {
+          attribute_type?: Database["public"]["Enums"]["attribute_type"]
+          created_at?: string | null
+          id?: string
+          issue_id?: string | null
+          required_level?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "issue_requirements_issue_id_fkey"
+            columns: ["issue_id"]
+            isOneToOne: false
+            referencedRelation: "tool_issues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mission_attachments: {
         Row: {
           attachment_type: string
@@ -820,15 +852,22 @@ export type Database = {
           action_required:
             | Database["public"]["Enums"]["action_required_type"]
             | null
+          actual_hours: number | null
+          ai_analysis: string | null
+          assigned_to: string | null
+          can_self_claim: boolean | null
           created_at: string
           damage_assessment: string | null
           description: string
           diagnosed_at: string | null
           diagnosed_by: string | null
           efficiency_loss_percentage: number | null
+          estimated_hours: number | null
           id: string
           is_misuse: boolean
           issue_type: string
+          materials_needed: Json | null
+          ready_to_work: boolean | null
           related_checkout_id: string | null
           report_photo_urls: string[] | null
           reported_at: string
@@ -842,21 +881,29 @@ export type Database = {
           status: string
           tool_id: string
           updated_at: string
+          work_progress: string | null
           workflow_status: Database["public"]["Enums"]["workflow_status_type"]
         }
         Insert: {
           action_required?:
             | Database["public"]["Enums"]["action_required_type"]
             | null
+          actual_hours?: number | null
+          ai_analysis?: string | null
+          assigned_to?: string | null
+          can_self_claim?: boolean | null
           created_at?: string
           damage_assessment?: string | null
           description: string
           diagnosed_at?: string | null
           diagnosed_by?: string | null
           efficiency_loss_percentage?: number | null
+          estimated_hours?: number | null
           id?: string
           is_misuse?: boolean
           issue_type?: string
+          materials_needed?: Json | null
+          ready_to_work?: boolean | null
           related_checkout_id?: string | null
           report_photo_urls?: string[] | null
           reported_at?: string
@@ -870,21 +917,29 @@ export type Database = {
           status?: string
           tool_id: string
           updated_at?: string
+          work_progress?: string | null
           workflow_status?: Database["public"]["Enums"]["workflow_status_type"]
         }
         Update: {
           action_required?:
             | Database["public"]["Enums"]["action_required_type"]
             | null
+          actual_hours?: number | null
+          ai_analysis?: string | null
+          assigned_to?: string | null
+          can_self_claim?: boolean | null
           created_at?: string
           damage_assessment?: string | null
           description?: string
           diagnosed_at?: string | null
           diagnosed_by?: string | null
           efficiency_loss_percentage?: number | null
+          estimated_hours?: number | null
           id?: string
           is_misuse?: boolean
           issue_type?: string
+          materials_needed?: Json | null
+          ready_to_work?: boolean | null
           related_checkout_id?: string | null
           report_photo_urls?: string[] | null
           reported_at?: string
@@ -898,9 +953,17 @@ export type Database = {
           status?: string
           tool_id?: string
           updated_at?: string
+          work_progress?: string | null
           workflow_status?: Database["public"]["Enums"]["workflow_status_type"]
         }
         Relationships: [
+          {
+            foreignKeyName: "tool_issues_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
           {
             foreignKeyName: "tool_issues_related_checkout_id_fkey"
             columns: ["related_checkout_id"]
@@ -976,6 +1039,107 @@ export type Database = {
         }
         Relationships: []
       }
+      worker_attributes: {
+        Row: {
+          attribute_type: Database["public"]["Enums"]["attribute_type"]
+          created_at: string | null
+          earned_at: string | null
+          id: string
+          level: number | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          attribute_type: Database["public"]["Enums"]["attribute_type"]
+          created_at?: string | null
+          earned_at?: string | null
+          id?: string
+          level?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          attribute_type?: Database["public"]["Enums"]["attribute_type"]
+          created_at?: string | null
+          earned_at?: string | null
+          id?: string
+          level?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worker_attributes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      worker_performance: {
+        Row: {
+          attributes_used:
+            | Database["public"]["Enums"]["attribute_type"][]
+            | null
+          completed_at: string | null
+          completion_notes: string | null
+          created_at: string | null
+          hours_worked: number | null
+          id: string
+          issue_id: string | null
+          level_at_completion: number | null
+          outcome: string | null
+          supervisor_notes: string | null
+          user_id: string | null
+        }
+        Insert: {
+          attributes_used?:
+            | Database["public"]["Enums"]["attribute_type"][]
+            | null
+          completed_at?: string | null
+          completion_notes?: string | null
+          created_at?: string | null
+          hours_worked?: number | null
+          id?: string
+          issue_id?: string | null
+          level_at_completion?: number | null
+          outcome?: string | null
+          supervisor_notes?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          attributes_used?:
+            | Database["public"]["Enums"]["attribute_type"][]
+            | null
+          completed_at?: string | null
+          completion_notes?: string | null
+          created_at?: string | null
+          hours_worked?: number | null
+          id?: string
+          issue_id?: string | null
+          level_at_completion?: number | null
+          outcome?: string | null
+          supervisor_notes?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worker_performance_issue_id_fkey"
+            columns: ["issue_id"]
+            isOneToOne: false
+            referencedRelation: "tool_issues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worker_performance_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -999,6 +1163,19 @@ export type Database = {
     }
     Enums: {
       action_required_type: "repair" | "replace_part" | "not_fixable" | "remove"
+      attribute_type:
+        | "communication"
+        | "quality"
+        | "transparency"
+        | "reliability"
+        | "mechanical"
+        | "electrical"
+        | "it"
+        | "carpentry"
+        | "plumbing"
+        | "hydraulics"
+        | "welding"
+        | "fabrication"
       tool_status:
         | "available"
         | "checked_out"
@@ -1139,6 +1316,20 @@ export const Constants = {
   public: {
     Enums: {
       action_required_type: ["repair", "replace_part", "not_fixable", "remove"],
+      attribute_type: [
+        "communication",
+        "quality",
+        "transparency",
+        "reliability",
+        "mechanical",
+        "electrical",
+        "it",
+        "carpentry",
+        "plumbing",
+        "hydraulics",
+        "welding",
+        "fabrication",
+      ],
       tool_status: [
         "available",
         "checked_out",

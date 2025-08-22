@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { 
   Stethoscope, 
   Wrench, 
@@ -14,11 +15,16 @@ import {
   Calendar,
   ClipboardCheck,
   Settings,
-  AlertTriangle 
+  AlertTriangle,
+  Brain,
+  Package 
 } from "lucide-react";
 import { ToolIssue } from "@/hooks/useToolIssues";
 import { ACTION_REQUIRED_OPTIONS } from "@/lib/constants";
 import { useAuth } from "@/hooks/useAuth";
+import { AttributeSelector } from "@/components/AttributeSelector";
+import { WorkerSelector } from "@/components/WorkerSelector";
+import { useIssueRequirements } from "@/hooks/useWorkerAttributes";
 
 interface IssueWorkflowDialogProps {
   issue: ToolIssue | null;
@@ -48,8 +54,18 @@ export function IssueWorkflowDialog({
   const [workflowStatus, setWorkflowStatus] = useState<string>("");
   const [resolutionNotes, setResolutionNotes] = useState("");
   const [rootCause, setRootCause] = useState("");
+  const [aiAnalysis, setAiAnalysis] = useState("");
+  const [workProgress, setWorkProgress] = useState("");
+  const [estimatedHours, setEstimatedHours] = useState<number | undefined>();
+  const [actualHours, setActualHours] = useState<number | undefined>();
+  const [assignedWorkerId, setAssignedWorkerId] = useState<string | null>(null);
+  const [canSelfClaim, setCanSelfClaim] = useState(false);
+  const [readyToWork, setReadyToWork] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { user } = useAuth();
+  
+  // Get issue requirements
+  const { requirements, addRequirement, removeRequirement } = useIssueRequirements(issue?.id || null);
 
   // Check user permissions
   const isToolKeeper = userRole === 'leadership';
@@ -61,6 +77,13 @@ export function IssueWorkflowDialog({
       setWorkflowStatus(issue.workflow_status || "reported");
       setResolutionNotes(issue.resolution_notes || "");
       setRootCause(issue.root_cause || "");
+      setAiAnalysis(issue.ai_analysis || "");
+      setWorkProgress(issue.work_progress || "");
+      setEstimatedHours(issue.estimated_hours || undefined);
+      setActualHours(issue.actual_hours || undefined);
+      setAssignedWorkerId(issue.assigned_to || null);
+      setCanSelfClaim(issue.can_self_claim || false);
+      setReadyToWork(issue.ready_to_work || false);
     }
   }, [issue]);
 
@@ -86,6 +109,29 @@ export function IssueWorkflowDialog({
       // Update action required if changed
       if (actionRequired !== issue.action_required) {
         updates.action_required = actionRequired as any;
+      }
+
+      // Update additional fields
+      if (aiAnalysis !== issue.ai_analysis) {
+        updates.ai_analysis = aiAnalysis;
+      }
+      if (workProgress !== issue.work_progress) {
+        updates.work_progress = workProgress;
+      }
+      if (estimatedHours !== issue.estimated_hours) {
+        updates.estimated_hours = estimatedHours;
+      }
+      if (actualHours !== issue.actual_hours) {
+        updates.actual_hours = actualHours;
+      }
+      if (assignedWorkerId !== issue.assigned_to) {
+        updates.assigned_to = assignedWorkerId;
+      }
+      if (canSelfClaim !== issue.can_self_claim) {
+        updates.can_self_claim = canSelfClaim;
+      }
+      if (readyToWork !== issue.ready_to_work) {
+        updates.ready_to_work = readyToWork;
       }
 
       // Update resolution info if completing
@@ -223,6 +269,60 @@ export function IssueWorkflowDialog({
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="estimatedHours">Estimated Hours</Label>
+                    <Select 
+                      value={estimatedHours?.toString() || ''} 
+                      onValueChange={(value) => setEstimatedHours(value ? parseInt(value) : undefined)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select hours" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[0.5, 1, 2, 4, 8, 16, 24, 40].map((hours) => (
+                          <SelectItem key={hours} value={hours.toString()}>
+                            {hours} {hours === 1 ? 'hour' : 'hours'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="aiAnalysis">AI Analysis & Recommendations</Label>
+                  <Textarea
+                    id="aiAnalysis"
+                    value={aiAnalysis}
+                    onChange={(e) => setAiAnalysis(e.target.value)}
+                    placeholder="AI-generated analysis, recommendations, or notes..."
+                    rows={3}
+                  />
+                </div>
+
+                <Separator />
+
+                {/* Skill Requirements */}
+                <AttributeSelector
+                  requirements={requirements}
+                  onAddRequirement={addRequirement}
+                  onRemoveRequirement={removeRequirement}
+                  disabled={workflowStatus !== 'reported'}
+                />
+
+                <Separator />
+
+                {/* Worker Assignment */}
+                <WorkerSelector
+                  requirements={requirements}
+                  selectedWorkerId={assignedWorkerId}
+                  onWorkerSelect={setAssignedWorkerId}
+                  canSelfClaim={canSelfClaim}
+                  onCanSelfClaimChange={setCanSelfClaim}
+                  disabled={workflowStatus !== 'reported'}
+                />
                 
                 <div className="flex gap-2">
                   <Button
@@ -238,16 +338,64 @@ export function IssueWorkflowDialog({
             </Card>
           )}
 
-          {/* Repairer Section - Execution */}
+          {/* Worker Section - Execution */}
           {canProgress && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Wrench className="h-4 w-4" />
-                  Repair Execution
+                  Work Progress & Execution
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Ready to Work Toggle */}
+                {issue.workflow_status === 'diagnosed' && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="readyToWork"
+                      checked={readyToWork}
+                      onChange={(e) => setReadyToWork(e.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    <Label htmlFor="readyToWork">
+                      Materials Available & Ready to Start Work
+                    </Label>
+                  </div>
+                )}
+
+                <div>
+                  <Label htmlFor="workProgress">Work Progress & Notes</Label>
+                  <Textarea
+                    id="workProgress"
+                    value={workProgress}
+                    onChange={(e) => setWorkProgress(e.target.value)}
+                    placeholder="Document your progress, materials used, challenges encountered..."
+                    rows={3}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="actualHours">Actual Hours Worked</Label>
+                    <Select 
+                      value={actualHours?.toString() || ''} 
+                      onValueChange={(value) => setActualHours(value ? parseInt(value) : undefined)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select hours" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[0.5, 1, 2, 4, 8, 16, 24, 40].map((hours) => (
+                          <SelectItem key={hours} value={hours.toString()}>
+                            {hours} {hours === 1 ? 'hour' : 'hours'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 <div>
                   <Label htmlFor="workflowStatus">Update Status</Label>
                   <Select value={workflowStatus} onValueChange={setWorkflowStatus}>
@@ -267,24 +415,25 @@ export function IssueWorkflowDialog({
 
                 {workflowStatus === 'completed' && (
                   <>
+                    <Separator />
                     <div>
-                      <Label htmlFor="rootCause">Root Cause</Label>
+                      <Label htmlFor="rootCause">Root Cause Analysis</Label>
                       <Textarea
                         id="rootCause"
                         value={rootCause}
                         onChange={(e) => setRootCause(e.target.value)}
-                        placeholder="What caused this issue?"
+                        placeholder="What caused this issue? How can it be prevented?"
                         rows={2}
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="resolutionNotes">Resolution Notes *</Label>
+                      <Label htmlFor="resolutionNotes">Resolution Summary *</Label>
                       <Textarea
                         id="resolutionNotes"
                         value={resolutionNotes}
                         onChange={(e) => setResolutionNotes(e.target.value)}
-                        placeholder="Describe how the issue was resolved..."
+                        placeholder="Describe how the issue was resolved, parts used, final outcome..."
                         rows={3}
                         required
                       />

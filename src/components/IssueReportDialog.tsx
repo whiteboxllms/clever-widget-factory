@@ -282,6 +282,24 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
                                 <strong>Damage:</strong> {issue.damage_assessment}
                               </p>
                             )}
+                            {/* Issue Report Photos */}
+                            {issue.report_photo_urls && issue.report_photo_urls.length > 0 && (
+                              <div className="mt-2">
+                                <p className="text-xs text-muted-foreground mb-1">Issue Photos:</p>
+                                <div className="flex gap-1 flex-wrap">
+                                  {issue.report_photo_urls.map((url, index) => (
+                                    <img
+                                      key={index}
+                                      src={url}
+                                      alt={`Issue photo ${index + 1}`}
+                                      className="h-12 w-12 object-cover rounded border border-border cursor-pointer hover:opacity-80 transition-opacity"
+                                      onClick={() => window.open(url, '_blank')}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {/* Resolution Photos */}
                             {issue.resolution_photo_urls && issue.resolution_photo_urls.length > 0 && (
                               <div className="mt-2">
                                 <p className="text-xs text-muted-foreground mb-1">Resolution Photos:</p>

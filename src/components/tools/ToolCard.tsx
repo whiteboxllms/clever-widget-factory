@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { LogOut, Edit, Trash2, Wrench, LogIn } from "lucide-react";
+import { LogOut, Edit, Trash2, Wrench, LogIn, AlertTriangle } from "lucide-react";
 import { Tool } from "@/hooks/tools/useToolsData";
 import { ToolStatusBadge } from "./ToolStatusBadge";
 import { useNavigate } from "react-router-dom";
@@ -17,6 +17,7 @@ interface ToolCardProps {
   onCheckinClick: (tool: Tool) => void;
   onEditClick: (tool: Tool) => void;
   onRemoveClick: (tool: Tool) => void;
+  onReportIssue: (tool: Tool) => void;
 }
 
 export const ToolCard = ({
@@ -30,7 +31,8 @@ export const ToolCard = ({
   onCheckoutClick,
   onCheckinClick,
   onEditClick,
-  onRemoveClick
+  onRemoveClick,
+  onReportIssue
  }: ToolCardProps) => {
   const navigate = useNavigate();
   return (
@@ -125,6 +127,19 @@ export const ToolCard = ({
               >
                 <Edit className="h-4 w-4 mr-1" />
                 Edit
+              </Button>
+              
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReportIssue(tool);
+                }}
+                className="text-orange-600 hover:text-orange-700 border-orange-200 hover:border-orange-300"
+              >
+                <AlertTriangle className="h-4 w-4 mr-1" />
+                Report Issue
               </Button>
               
               {isLeadership && (

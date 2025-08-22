@@ -19,6 +19,7 @@ import { EditToolForm } from "../forms/EditToolForm";
 import { ToolCheckoutDialog } from "@/components/ToolCheckoutDialog";
 import { ToolCheckInDialog } from "@/components/ToolCheckInDialog";
 import { IssueResolutionDialog } from "@/components/IssueResolutionDialog";
+import { IssueReportDialog } from "@/components/IssueReportDialog";
 
 export const ToolsContainer = () => {
   const { toolId } = useParams();
@@ -37,6 +38,8 @@ export const ToolsContainer = () => {
   const [checkinTool, setCheckinTool] = useState(null);
   const [resolveIssue, setResolveIssue] = useState(null);
   const [isResolveDialogOpen, setIsResolveDialogOpen] = useState(false);
+  const [reportIssueTool, setReportIssueTool] = useState(null);
+  const [isReportIssueDialogOpen, setIsReportIssueDialogOpen] = useState(false);
   const [storageVicinities, setStorageVicinities] = useState([]);
 
   // Custom hooks
@@ -115,6 +118,11 @@ export const ToolsContainer = () => {
   const handleResolveIssue = (issue) => {
     setResolveIssue(issue);
     setIsResolveDialogOpen(true);
+  };
+
+  const handleReportIssue = (tool) => {
+    setReportIssueTool(tool);
+    setIsReportIssueDialogOpen(true);
   };
 
   const handleAddTool = async (toolData) => {
@@ -216,6 +224,7 @@ export const ToolsContainer = () => {
               onCheckinClick={handleCheckinClick}
               onEditClick={handleEditClick}
               onRemoveClick={handleRemoveClick}
+              onReportIssue={handleReportIssue}
             />
 
       <AddToolForm
@@ -257,6 +266,18 @@ export const ToolsContainer = () => {
           setIsCheckinDialogOpen(false);
           setCheckinTool(null);
           fetchTools();
+        }}
+      />
+
+      <IssueReportDialog
+        tool={reportIssueTool}
+        open={isReportIssueDialogOpen}
+        onOpenChange={setIsReportIssueDialogOpen}
+        onSuccess={() => {
+          fetchTools();
+          fetchToolsWithIssues();
+          setIsReportIssueDialogOpen(false);
+          setReportIssueTool(null);
         }}
       />
       </div>

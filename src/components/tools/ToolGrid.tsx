@@ -13,6 +13,7 @@ interface ToolGridProps {
   onCheckinClick: (tool: Tool) => void;
   onEditClick: (tool: Tool) => void;
   onRemoveClick: (tool: Tool) => void;
+  onReportIssue: (tool: Tool) => void;
 }
 
 export const ToolGrid = ({
@@ -26,7 +27,8 @@ export const ToolGrid = ({
   onCheckoutClick,
   onCheckinClick,
   onEditClick,
-  onRemoveClick
+  onRemoveClick,
+  onReportIssue
 }: ToolGridProps) => {
   if (tools.length === 0) {
     return (
@@ -52,6 +54,7 @@ export const ToolGrid = ({
           onCheckinClick={onCheckinClick}
           onEditClick={onEditClick}
           onRemoveClick={onRemoveClick}
+          onReportIssue={onReportIssue}
         />
       ))}
     </div>

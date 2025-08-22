@@ -145,7 +145,7 @@ export const ToolCard = ({
               {isLeadership && (
                 <Button
                   size="icon"
-                  variant="ghost"
+                  variant="outline"
                   onClick={(e) => {
                     e.stopPropagation();
                     onRemoveClick(tool);

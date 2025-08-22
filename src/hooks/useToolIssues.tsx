@@ -6,7 +6,7 @@ export interface ToolIssue {
   id: string;
   tool_id: string;
   description: string;
-  issue_type: 'safety' | 'efficiency' | 'cosmetic' | 'preventative_maintenance' | 'functionality' | 'improper_setup';
+  issue_type: 'safety' | 'efficiency' | 'cosmetic' | 'preventative_maintenance' | 'functionality' | 'lifespan';
   status: 'active' | 'resolved' | 'removed';
   reported_by: string;
   reported_at: string;

@@ -29,7 +29,7 @@ const issueTypeIcons = {
   cosmetic: Bug,
   preventative_maintenance: AlertTriangle,
   functionality: AlertTriangle,
-  improper_setup: Settings
+  lifespan: Settings
 };
 
 const issueTypeColors = {
@@ -38,12 +38,12 @@ const issueTypeColors = {
   cosmetic: "bg-blue-500 text-blue-foreground",
   preventative_maintenance: "bg-yellow-500 text-yellow-foreground",
   functionality: "bg-purple-500 text-white",
-  improper_setup: "bg-teal-500 text-white"
+  lifespan: "bg-teal-500 text-white"
 };
 
 export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: IssueReportDialogProps) {
   const [description, setDescription] = useState("");
-  const [issueType, setIssueType] = useState<"safety" | "efficiency" | "cosmetic" | "preventative_maintenance" | "functionality" | "improper_setup">("efficiency");
+  const [issueType, setIssueType] = useState<"safety" | "efficiency" | "cosmetic" | "preventative_maintenance" | "functionality" | "lifespan">("efficiency");
   
   const [damageDuringUse, setDamageDuringUse] = useState(false);
   const [incidentDescription, setIncidentDescription] = useState("");
@@ -244,10 +244,10 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
                           Functionality
                         </div>
                       </SelectItem>
-                      <SelectItem value="improper_setup">
+                      <SelectItem value="lifespan">
                         <div className="flex items-center gap-2">
                           <Settings className="h-4 w-4 text-teal-500" />
-                          Improper Setup
+                          Lifespan
                         </div>
                       </SelectItem>
                     </SelectContent>

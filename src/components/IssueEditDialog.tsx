@@ -26,12 +26,13 @@ const issueTypeIcons = {
   efficiency: Wrench,
   cosmetic: Bug,
   preventative_maintenance: AlertTriangle,
-  functionality: AlertTriangle
+  functionality: AlertTriangle,
+  improper_setup: Edit
 };
 
 export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate }: IssueEditDialogProps) {
   const [description, setDescription] = useState("");
-  const [issueType, setIssueType] = useState<"safety" | "efficiency" | "cosmetic" | "preventative_maintenance" | "functionality">("efficiency");
+  const [issueType, setIssueType] = useState<"safety" | "efficiency" | "cosmetic" | "preventative_maintenance" | "functionality" | "improper_setup">("efficiency");
   
   
   const [damageAssessment, setDamageAssessment] = useState("");
@@ -172,6 +173,12 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
                       <div className="flex items-center gap-2">
                         <AlertTriangle className="h-4 w-4 text-indigo-500" />
                         Functionality
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="improper_setup">
+                      <div className="flex items-center gap-2">
+                        <Edit className="h-4 w-4 text-teal-500" />
+                        Improper Setup
                       </div>
                     </SelectItem>
                   </SelectContent>

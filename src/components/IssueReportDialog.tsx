@@ -28,7 +28,8 @@ const issueTypeIcons = {
   efficiency: Wrench,
   cosmetic: Bug,
   preventative_maintenance: AlertTriangle,
-  functionality: AlertTriangle
+  functionality: AlertTriangle,
+  improper_setup: Settings
 };
 
 const issueTypeColors = {
@@ -36,12 +37,13 @@ const issueTypeColors = {
   efficiency: "bg-orange-500 text-white",
   cosmetic: "bg-blue-500 text-blue-foreground",
   preventative_maintenance: "bg-yellow-500 text-yellow-foreground",
-  functionality: "bg-purple-500 text-white"
+  functionality: "bg-purple-500 text-white",
+  improper_setup: "bg-teal-500 text-white"
 };
 
 export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: IssueReportDialogProps) {
   const [description, setDescription] = useState("");
-  const [issueType, setIssueType] = useState<"safety" | "efficiency" | "cosmetic" | "preventative_maintenance" | "functionality">("efficiency");
+  const [issueType, setIssueType] = useState<"safety" | "efficiency" | "cosmetic" | "preventative_maintenance" | "functionality" | "improper_setup">("efficiency");
   
   const [damageDuringUse, setDamageDuringUse] = useState(false);
   const [incidentDescription, setIncidentDescription] = useState("");
@@ -240,6 +242,12 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
                         <div className="flex items-center gap-2">
                           <AlertTriangle className="h-4 w-4 text-indigo-500" />
                           Functionality
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="improper_setup">
+                        <div className="flex items-center gap-2">
+                          <Settings className="h-4 w-4 text-teal-500" />
+                          Improper Setup
                         </div>
                       </SelectItem>
                     </SelectContent>

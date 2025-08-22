@@ -64,7 +64,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
   const [showValidation, setShowValidation] = useState(false);
   const [selectedIssueForResolution, setSelectedIssueForResolution] = useState<any>(null);
   const [isResolutionDialogOpen, setIsResolutionDialogOpen] = useState(false);
-  const [newIssueType, setNewIssueType] = useState<'safety' | 'efficiency' | 'cosmetic' | 'preventative_maintenance' | 'functionality'>('efficiency');
+  const [newIssueType, setNewIssueType] = useState<'safety' | 'efficiency' | 'cosmetic' | 'preventative_maintenance' | 'functionality' | 'improper_setup'>('efficiency');
   
   const [efficiencyLossPercentage, setEfficiencyLossPercentage] = useState<number | undefined>();
   const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
@@ -412,6 +412,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
                       <SelectItem value="cosmetic">✨ Cosmetic</SelectItem>
                       <SelectItem value="preventative_maintenance">🔧 Preventative Maintenance</SelectItem>
                       <SelectItem value="functionality">⚙️ Functionality</SelectItem>
+                      <SelectItem value="improper_setup">🔧 Improper Setup</SelectItem>
                     </SelectContent>
                   </Select>
                  </div>

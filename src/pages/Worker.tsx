@@ -23,7 +23,6 @@ interface IssueWithTool extends ToolIssue {
   tool_name: string;
   tool_location: string;
   requirements?: IssueRequirement[];
-  tools?: { name: string; storage_vicinity: string; storage_location: string };
   canClaim?: boolean;
 }
 
@@ -67,31 +66,48 @@ export default function Worker() {
     try {
       const { data, error } = await supabase
         .from('tool_issues')
-        .select(`
-          *,
-          tools!tool_issues_tool_id_fkey (
-            name,
-            storage_vicinity,
-            storage_location
-          )
-        `)
+        .select('*')
         .eq('assigned_to', user.id)
         .eq('status', 'active')
         .order('reported_at', { ascending: false });
 
       if (error) throw error;
 
+      if (!data || data.length === 0) {
+        setAssignedIssues([]);
+        return;
+      }
+
+      // Get unique tool IDs
+      const toolIds = [...new Set(data.map(issue => issue.tool_id))];
+      
+      // Fetch tool information separately
+      const { data: toolsData, error: toolsError } = await supabase
+        .from('tools')
+        .select('id, name, storage_vicinity, storage_location')
+        .in('id', toolIds);
+
+      if (toolsError) throw toolsError;
+
+      // Create tool lookup map
+      const toolsMap = new Map();
+      (toolsData || []).forEach(tool => {
+        toolsMap.set(tool.id, tool);
+      });
+
       const issuesWithRequirements = await Promise.all(
-        (data || []).map(async (issue) => {
+        data.map(async (issue) => {
           const { data: requirements } = await supabase
             .from('issue_requirements')
             .select('*')
             .eq('issue_id', issue.id);
 
+          const tool = toolsMap.get(issue.tool_id);
+
           return {
             ...issue,
-            tool_name: issue.tools?.name || 'Unknown Tool',
-            tool_location: `${issue.tools?.storage_vicinity || ''} ${issue.tools?.storage_location || ''}`.trim(),
+            tool_name: tool?.name || 'Unknown Tool',
+            tool_location: `${tool?.storage_vicinity || ''} ${tool?.storage_location || ''}`.trim() || 'Unknown Location',
             requirements: requirements || []
           };
         })
@@ -109,14 +125,7 @@ export default function Worker() {
     try {
       const { data, error } = await supabase
         .from('tool_issues')
-        .select(`
-          *,
-          tools!tool_issues_tool_id_fkey (
-            name,
-            storage_vicinity,
-            storage_location
-          )
-        `)
+        .select('*')
         .eq('can_self_claim', true)
         .eq('workflow_status', 'diagnosed')
         .eq('status', 'active')
@@ -125,17 +134,41 @@ export default function Worker() {
 
       if (error) throw error;
 
+      if (!data || data.length === 0) {
+        setAvailableIssues([]);
+        return;
+      }
+
+      // Get unique tool IDs
+      const toolIds = [...new Set(data.map(issue => issue.tool_id))];
+      
+      // Fetch tool information separately
+      const { data: toolsData, error: toolsError } = await supabase
+        .from('tools')
+        .select('id, name, storage_vicinity, storage_location')
+        .in('id', toolIds);
+
+      if (toolsError) throw toolsError;
+
+      // Create tool lookup map
+      const toolsMap = new Map();
+      (toolsData || []).forEach(tool => {
+        toolsMap.set(tool.id, tool);
+      });
+
       const issuesWithRequirements = await Promise.all(
-        (data || []).map(async (issue) => {
+        data.map(async (issue) => {
           const { data: requirements } = await supabase
             .from('issue_requirements')
             .select('*')
             .eq('issue_id', issue.id);
 
+          const tool = toolsMap.get(issue.tool_id);
+
           return {
             ...issue,
-            tool_name: issue.tools?.name || 'Unknown Tool',
-            tool_location: `${issue.tools?.storage_vicinity || ''} ${issue.tools?.storage_location || ''}`.trim(),
+            tool_name: tool?.name || 'Unknown Tool',
+            tool_location: `${tool?.storage_vicinity || ''} ${tool?.storage_location || ''}`.trim() || 'Unknown Location',
             requirements: requirements || [],
             canClaim: checkQualification(user.id, requirements || [])
           };

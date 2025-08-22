@@ -25,7 +25,6 @@ interface IssueWithTool extends ToolIssue {
   tool_name: string;
   tool_location: string;
   requirements?: IssueRequirement[];
-  tools?: { name: string; storage_vicinity: string; storage_location: string };
 }
 
 export default function ToolKeeper() {
@@ -60,33 +59,51 @@ export default function ToolKeeper() {
       setIsLoading(true);
       
       // Fetch issues with tool information
+      // Fetch issues first
       const { data: issuesData, error: issuesError } = await supabase
         .from('tool_issues')
-        .select(`
-          *,
-          tools!tool_issues_tool_id_fkey (
-            name,
-            storage_vicinity,
-            storage_location
-          )
-        `)
+        .select('*')
         .eq('status', 'active')
         .order('reported_at', { ascending: false });
 
       if (issuesError) throw issuesError;
 
+      if (!issuesData || issuesData.length === 0) {
+        setIssues([]);
+        return;
+      }
+
+      // Get unique tool IDs
+      const toolIds = [...new Set(issuesData.map(issue => issue.tool_id))];
+      
+      // Fetch tool information separately
+      const { data: toolsData, error: toolsError } = await supabase
+        .from('tools')
+        .select('id, name, storage_vicinity, storage_location')
+        .in('id', toolIds);
+
+      if (toolsError) throw toolsError;
+
+      // Create tool lookup map
+      const toolsMap = new Map();
+      (toolsData || []).forEach(tool => {
+        toolsMap.set(tool.id, tool);
+      });
+
       // Fetch requirements for each issue
       const issuesWithRequirements = await Promise.all(
-        (issuesData || []).map(async (issue) => {
+        issuesData.map(async (issue) => {
           const { data: requirements } = await supabase
             .from('issue_requirements')
             .select('*')
             .eq('issue_id', issue.id);
 
+          const tool = toolsMap.get(issue.tool_id);
+          
           return {
             ...issue,
-            tool_name: issue.tools?.name || 'Unknown Tool',
-            tool_location: `${issue.tools?.storage_vicinity || ''} ${issue.tools?.storage_location || ''}`.trim(),
+            tool_name: tool?.name || 'Unknown Tool',
+            tool_location: `${tool?.storage_vicinity || ''} ${tool?.storage_location || ''}`.trim() || 'Unknown Location',
             requirements: requirements || []
           };
         })

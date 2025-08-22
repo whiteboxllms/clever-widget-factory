@@ -44,6 +44,9 @@ export const ToolCard = ({
         <div className="flex items-start justify-between mb-2">
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-lg truncate">{tool.name}</h3>
+            {tool.serial_number && (
+              <p className="text-sm text-muted-foreground">{tool.serial_number}</p>
+            )}
           </div>
           <ToolStatusBadge status={tool.status} className="ml-2 flex-shrink-0" />
         </div>
@@ -63,12 +66,6 @@ export const ToolCard = ({
             <span className="font-medium">Location:</span> {tool.storage_vicinity}
             {tool.storage_location && ` - ${tool.storage_location}`}
           </div>
-          
-          {tool.serial_number && (
-            <div>
-              <span className="font-medium">Serial:</span> {tool.serial_number}
-            </div>
-          )}
           
           {activeCheckout && (
             <div className="text-orange-600 font-medium">

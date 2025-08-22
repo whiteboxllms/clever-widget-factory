@@ -246,64 +246,59 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
                   />
                 </div>
 
-                {/* Damage During Use Toggle */}
-                <Card className="bg-muted/50">
-                  <CardContent className="pt-4">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <Label htmlFor="damageDuringUse" className="text-sm font-medium">
-                          Did this damage/issue occur while you were using the tool?
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          This helps us understand when and how issues happen
-                        </p>
+                {/* Damage During Use and Efficiency Loss */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card className="bg-muted/50">
+                    <CardContent className="pt-4">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-1">
+                          <Label htmlFor="damageDuringUse" className="text-sm font-medium">
+                            Did this damage/issue occur while you were using the tool?
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            This helps us understand when and how issues happen
+                          </p>
+                        </div>
+                        <Switch
+                          id="damageDuringUse"
+                          checked={damageDuringUse}
+                          onCheckedChange={setDamageDuringUse}
+                        />
                       </div>
-                      <Switch
-                        id="damageDuringUse"
-                        checked={damageDuringUse}
-                        onCheckedChange={setDamageDuringUse}
+                    </CardContent>
+                  </Card>
+
+                  {issueType === "efficiency" && (
+                    <div>
+                      <Label htmlFor="efficiencyLoss">Efficiency Loss %</Label>
+                      <Input
+                        id="efficiencyLoss"
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={efficiencyLoss}
+                        onChange={(e) => setEfficiencyLoss(e.target.value)}
+                        placeholder="e.g., 25"
                       />
                     </div>
-                  </CardContent>
-                </Card>
+                  )}
+                </div>
 
-                {issueType === "efficiency" && (
+                {damageDuringUse && (
                   <div>
-                    <Label htmlFor="efficiencyLoss">Efficiency Loss % (optional)</Label>
-                    <Input
-                      id="efficiencyLoss"
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={efficiencyLoss}
-                      onChange={(e) => setEfficiencyLoss(e.target.value)}
-                      placeholder="e.g., 25"
+                    <Label htmlFor="incidentDescription">
+                      What Happened? *
+                    </Label>
+                    <Textarea
+                      id="incidentDescription"
+                      value={incidentDescription}
+                      onChange={(e) => setIncidentDescription(e.target.value)}
+                      placeholder="Please describe what you were doing when this occurred and any events that might have contributed to the issue..."
+                      rows={3}
+                      required={damageDuringUse}
                     />
                   </div>
                 )}
-
-                <div>
-                  <Label htmlFor="incidentDescription">
-                    {damageDuringUse ? "What Happened?" : "What scenario might have caused this?"} {damageDuringUse ? "*" : "(optional)"}
-                  </Label>
-                  <Textarea
-                    id="incidentDescription"
-                    value={incidentDescription}
-                    onChange={(e) => setIncidentDescription(e.target.value)}
-                    placeholder={
-                      damageDuringUse
-                        ? "Please describe what you were doing when this occurred and any events that might have contributed to the issue..."
-                        : "Describe what might have caused the damage..."
-                    }
-                    rows={damageDuringUse ? 3 : 2}
-                    required={damageDuringUse}
-                  />
-                  {damageDuringUse && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Your honest account helps us improve safety and prevent future issues
-                    </p>
-                  )}
-                </div>
 
                 <div className="flex items-center space-x-2">
                   <Checkbox
@@ -312,13 +307,13 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
                     onCheckedChange={(checked) => setBlocksCheckout(checked === true)}
                   />
                   <Label htmlFor="blocksCheckout" className="text-sm">
-                    This issue should prevent the asset from being checked out
+                    Prevent asset from being checked out
                   </Label>
                 </div>
 
                 {/* Image Upload Section */}
                 <div className="space-y-3">
-                  <Label>Photos (Optional)</Label>
+                  <Label>Photos</Label>
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
                       <input

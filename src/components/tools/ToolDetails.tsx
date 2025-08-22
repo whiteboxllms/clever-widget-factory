@@ -4,14 +4,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tool } from "@/hooks/tools/useToolsData";
-import { CheckoutHistory } from "@/hooks/tools/useToolHistory";
+import { CheckoutHistory, HistoryEntry, IssueHistoryEntry } from "@/hooks/tools/useToolHistory";
 import { ToolStatusBadge } from "./ToolStatusBadge";
 import { IssueCard } from "@/components/IssueCard";
 import { ToolIssuesSummary } from "@/components/ToolIssuesSummary";
+import { AlertTriangle, Bug, Shield, Wrench } from "lucide-react";
 
 interface ToolDetailsProps {
   tool: Tool;
-  toolHistory: CheckoutHistory[];
+  toolHistory: HistoryEntry[];
   currentCheckout: { user_name: string } | null;
   issues: any[];
   onBack: () => void;
@@ -28,6 +29,34 @@ export const ToolDetails = ({
   onResolveIssue,
   onEditIssue
 }: ToolDetailsProps) => {
+  const isCheckoutHistory = (record: HistoryEntry): record is CheckoutHistory => {
+    return record.type !== 'issue_change';
+  };
+
+  const isIssueHistory = (record: HistoryEntry): record is IssueHistoryEntry => {
+    return record.type === 'issue_change';
+  };
+
+  const getIssueTypeIcon = (issueType?: string) => {
+    switch (issueType) {
+      case 'safety': return Shield;
+      case 'efficiency': return Wrench;
+      case 'cosmetic': return Bug;
+      case 'maintenance_due': return AlertTriangle;
+      default: return AlertTriangle;
+    }
+  };
+
+  const getChangeTypeLabel = (changeType: string) => {
+    switch (changeType) {
+      case 'created': return 'Issue Reported';
+      case 'updated': return 'Issue Updated';
+      case 'resolved': return 'Issue Resolved';
+      case 'removed': return 'Issue Removed';
+      default: return 'Issue Changed';
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4 mb-6">
@@ -146,58 +175,108 @@ export const ToolDetails = ({
                 {toolHistory.map((record) => (
                   <Card key={record.id}>
                     <CardContent className="p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-medium">{record.user_name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {record.type === 'checkin' ? 'Check-in' : 'Checkout'} on{' '}
-                            {new Date(record.checkout_date).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <Badge variant={record.is_returned ? 'default' : 'secondary'}>
-                          {record.is_returned ? 'Returned' : 'Active'}
-                        </Badge>
-                      </div>
-                      
-                      {record.intended_usage && (
-                        <p className="text-sm mb-2">
-                          <span className="font-medium">Intended Usage:</span> {record.intended_usage}
-                        </p>
-                      )}
-                      
-                      {record.notes && (
-                        <p className="text-sm mb-2">
-                          <span className="font-medium">Notes:</span> {record.notes}
-                        </p>
-                      )}
+                      {isCheckoutHistory(record) ? (
+                        // Checkout/Check-in History
+                        <>
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <p className="font-medium">{record.user_name}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {record.type === 'checkin' ? 'Check-in' : 'Checkout'} on{' '}
+                                {new Date(record.checkout_date).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <Badge variant={record.is_returned ? 'default' : 'secondary'}>
+                              {record.is_returned ? 'Returned' : 'Active'}
+                            </Badge>
+                          </div>
+                          
+                          {record.intended_usage && (
+                            <p className="text-sm mb-2">
+                              <span className="font-medium">Intended Usage:</span> {record.intended_usage}
+                            </p>
+                          )}
+                          
+                          {record.notes && (
+                            <p className="text-sm mb-2">
+                              <span className="font-medium">Notes:</span> {record.notes}
+                            </p>
+                          )}
 
-                      {record.checkin && (
-                        <div className="mt-3 p-3 bg-muted rounded-md text-sm">
-                          <p className="font-medium mb-1">Check-in Details:</p>
-                          {record.checkin.problems_reported && (
-                            <p className="mb-1">
-                              <span className="font-medium">Problems:</span> {record.checkin.problems_reported}
+                          {record.checkin && (
+                            <div className="mt-3 p-3 bg-muted rounded-md text-sm">
+                              <p className="font-medium mb-1">Check-in Details:</p>
+                              {record.checkin.problems_reported && (
+                                <p className="mb-1">
+                                  <span className="font-medium">Problems:</span> {record.checkin.problems_reported}
+                                </p>
+                              )}
+                              {record.checkin.hours_used && (
+                                <p className="mb-1">
+                                  <span className="font-medium">Hours Used:</span> {record.checkin.hours_used}
+                                </p>
+                              )}
+                              {record.checkin.what_did_you_do && (
+                                <p className="mb-1">
+                                  <span className="font-medium">Work Done:</span> {record.checkin.what_did_you_do}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      ) : isIssueHistory(record) ? (
+                        // Issue History
+                        <>
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex items-start gap-2">
+                              {(() => {
+                                const IconComponent = getIssueTypeIcon(record.issue_type);
+                                return <IconComponent className="h-4 w-4 mt-0.5 text-muted-foreground" />;
+                              })()}
+                              <div>
+                                <p className="font-medium">{record.user_name}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {getChangeTypeLabel(record.change_type)} on{' '}
+                                  {new Date(record.changed_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+                            <Badge variant="outline" className="capitalize">
+                              {record.issue_type?.replace('_', ' ')}
+                            </Badge>
+                          </div>
+                          
+                          {record.issue_description && (
+                            <p className="text-sm mb-2">
+                              <span className="font-medium">Issue:</span> {record.issue_description}
                             </p>
                           )}
-                          {record.checkin.hours_used && (
-                            <p className="mb-1">
-                              <span className="font-medium">Hours Used:</span> {record.checkin.hours_used}
+                          
+                          {record.field_changed && (
+                            <p className="text-sm mb-2">
+                              <span className="font-medium">Field Changed:</span> {record.field_changed}
+                              {record.old_value && record.new_value && (
+                                <span className="text-muted-foreground">
+                                  {' '}({record.old_value} → {record.new_value})
+                                </span>
+                              )}
                             </p>
                           )}
-                          {record.checkin.what_did_you_do && (
-                            <p className="mb-1">
-                              <span className="font-medium">Work Done:</span> {record.checkin.what_did_you_do}
+                          
+                          {record.notes && (
+                            <p className="text-sm text-muted-foreground">
+                              {record.notes}
                             </p>
                           )}
-                        </div>
-                      )}
+                        </>
+                      ) : null}
                     </CardContent>
                   </Card>
                 ))}
                 
                 {toolHistory.length === 0 && (
                   <p className="text-center text-muted-foreground py-8">
-                    No checkout history available.
+                    No history available.
                   </p>
                 )}
               </div>

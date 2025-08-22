@@ -7,7 +7,7 @@ import { Plus, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToolsData } from "@/hooks/tools/useToolsData";
 import { useToolFilters } from "@/hooks/tools/useToolFilters";
-import { useToolHistory } from "@/hooks/tools/useToolHistory";
+import { useToolHistory, HistoryEntry } from "@/hooks/tools/useToolHistory";
 import { useToolsWithIssues } from "@/hooks/tools/useToolsWithIssues";
 import { useToolIssues } from "@/hooks/useToolIssues";
 import { toolsService } from "@/services/toolsService";
@@ -167,6 +167,10 @@ export const ToolsContainer = () => {
           onSuccess={() => {
             fetchIssues();
             fetchTools();
+            // Refresh tool history to show issue resolution
+            if (selectedTool) {
+              fetchToolHistory(selectedTool.id);
+            }
             setIsResolveDialogOpen(false);
             setResolveIssue(null);
           }}
@@ -180,6 +184,10 @@ export const ToolsContainer = () => {
           onSuccess={() => {
             fetchIssues();
             fetchTools();
+            // Refresh tool history to show issue updates
+            if (selectedTool) {
+              fetchToolHistory(selectedTool.id);
+            }
             setIsEditIssueDialogOpen(false);
             setEditIssue(null);
           }}
@@ -298,6 +306,10 @@ export const ToolsContainer = () => {
         onSuccess={() => {
           fetchTools();
           fetchToolsWithIssues();
+          // Refresh tool history to show new issue
+          if (reportIssueTool) {
+            fetchToolHistory(reportIssueTool.id);
+          }
           setIsReportIssueDialogOpen(false);
           setReportIssueTool(null);
         }}
@@ -311,6 +323,10 @@ export const ToolsContainer = () => {
         onSuccess={() => {
           fetchTools();
           fetchToolsWithIssues();
+          // Refresh tool history to show issue updates
+          if (selectedTool) {
+            fetchToolHistory(selectedTool.id);
+          }
           setIsEditIssueDialogOpen(false);
           setEditIssue(null);
         }}

@@ -101,7 +101,7 @@ export function useToolIssues(toolId: string | null) {
           old_status: null,
           new_status: 'active',
           changed_by: user.data.user.id,
-          notes: 'Issue reported during check-in'
+          notes: `Issue reported: "${description.trim().substring(0, 50)}${description.trim().length > 50 ? '...' : ''}"`
         });
 
       toast({

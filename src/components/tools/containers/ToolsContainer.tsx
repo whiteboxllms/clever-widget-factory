@@ -9,6 +9,7 @@ import { useToolsData } from "@/hooks/tools/useToolsData";
 import { useToolFilters } from "@/hooks/tools/useToolFilters";
 import { useToolHistory, HistoryEntry } from "@/hooks/tools/useToolHistory";
 import { useToolsWithIssues } from "@/hooks/tools/useToolsWithIssues";
+import { useToolsWithUnassignedIssues } from "@/hooks/tools/useToolsWithUnassignedIssues";
 import { useToolIssues } from "@/hooks/useToolIssues";
 import { toolsService } from "@/services/toolsService";
 import { ToolFilters } from "../ToolFilters";
@@ -49,7 +50,8 @@ export const ToolsContainer = () => {
   // Custom hooks
   const { tools, loading, activeCheckouts, fetchTools, createTool, updateTool } = useToolsData(showRemovedItems);
   const { toolsWithIssues, fetchToolsWithIssues } = useToolsWithIssues();
-  const { filteredTools, searchTerm, setSearchTerm, showMyCheckedOut, setShowMyCheckedOut, showToolsWithIssues, setShowToolsWithIssues } = useToolFilters(tools, toolsWithIssues, activeCheckouts, user?.id || null);
+  const { toolsWithUnassignedIssues, fetchToolsWithUnassignedIssues } = useToolsWithUnassignedIssues();
+  const { filteredTools, searchTerm, setSearchTerm, showMyCheckedOut, setShowMyCheckedOut, showToolsWithIssues, setShowToolsWithIssues, showToolkeeperActionNeeded, setShowToolkeeperActionNeeded } = useToolFilters(tools, toolsWithIssues, toolsWithUnassignedIssues, activeCheckouts, user?.id || null);
   const { toolHistory, currentCheckout, fetchToolHistory } = useToolHistory();
   const { issues, fetchIssues, updateIssue } = useToolIssues(selectedTool?.id || null);
 
@@ -76,6 +78,13 @@ export const ToolsContainer = () => {
       fetchToolsWithIssues();
     }
   }, [showToolsWithIssues]);
+
+  // Fetch tools with unassigned issues when filter is enabled  
+  useEffect(() => {
+    if (showToolkeeperActionNeeded) {
+      fetchToolsWithUnassignedIssues();
+    }
+  }, [showToolkeeperActionNeeded]);
 
   // Handle editing from URL parameter
   useEffect(() => {
@@ -220,6 +229,8 @@ export const ToolsContainer = () => {
           onShowMyCheckedOutChange={setShowMyCheckedOut}
           showToolsWithIssues={showToolsWithIssues}
           onShowToolsWithIssuesChange={setShowToolsWithIssues}
+          showToolkeeperActionNeeded={showToolkeeperActionNeeded}
+          onShowToolkeeperActionNeededChange={setShowToolkeeperActionNeeded}
           showRemovedItems={showRemovedItems}
           onShowRemovedItemsChange={setShowRemovedItems}
           actionButton={canEditTools && (

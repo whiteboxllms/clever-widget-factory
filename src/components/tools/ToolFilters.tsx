@@ -10,6 +10,8 @@ interface ToolFiltersProps {
   onShowMyCheckedOutChange: (value: boolean) => void;
   showToolsWithIssues: boolean;
   onShowToolsWithIssuesChange: (value: boolean) => void;
+  showToolkeeperActionNeeded: boolean;
+  onShowToolkeeperActionNeededChange: (value: boolean) => void;
   showRemovedItems: boolean;
   onShowRemovedItemsChange: (value: boolean) => void;
   actionButton?: ReactNode;
@@ -21,6 +23,8 @@ export const ToolFilters = ({
   onShowMyCheckedOutChange,
   showToolsWithIssues,
   onShowToolsWithIssuesChange,
+  showToolkeeperActionNeeded,
+  onShowToolkeeperActionNeededChange,
   showRemovedItems,
   onShowRemovedItemsChange,
   actionButton
@@ -43,6 +47,11 @@ export const ToolFilters = ({
         <div className="flex items-center space-x-2">
           <Switch id="show-issues" checked={showToolsWithIssues} onCheckedChange={onShowToolsWithIssuesChange} />
           <Label htmlFor="show-issues" className="text-sm">Show assets with issues</Label>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <Switch id="show-toolkeeper-action" checked={showToolkeeperActionNeeded} onCheckedChange={onShowToolkeeperActionNeededChange} />
+          <Label htmlFor="show-toolkeeper-action" className="text-sm">Toolkeeper action needed</Label>
         </div>
         
         <div className="flex items-center space-x-2">

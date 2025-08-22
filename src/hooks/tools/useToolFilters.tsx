@@ -1,10 +1,17 @@
 import { useState, useMemo } from 'react';
 import { Tool } from './useToolsData';
 
-export const useToolFilters = (tools: Tool[], toolsWithIssues: Set<string>, activeCheckouts: any, currentUserId: string | null) => {
+export const useToolFilters = (
+  tools: Tool[], 
+  toolsWithIssues: Set<string>, 
+  toolsWithUnassignedIssues: Set<string>,
+  activeCheckouts: any, 
+  currentUserId: string | null
+) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [showMyCheckedOut, setShowMyCheckedOut] = useState(false);
   const [showToolsWithIssues, setShowToolsWithIssues] = useState(false);
+  const [showToolkeeperActionNeeded, setShowToolkeeperActionNeeded] = useState(false);
 
   const filteredTools = useMemo(() => {
     return tools.filter(tool => {
@@ -22,9 +29,13 @@ export const useToolFilters = (tools: Tool[], toolsWithIssues: Set<string>, acti
       const matchesIssuesFilter = !showToolsWithIssues || 
         toolsWithIssues.has(tool.id);
 
-      return matchesSearch && matchesMyCheckedOut && matchesIssuesFilter;
+      // Toolkeeper action needed filter
+      const matchesToolkeeperFilter = !showToolkeeperActionNeeded || 
+        toolsWithUnassignedIssues.has(tool.id);
+
+      return matchesSearch && matchesMyCheckedOut && matchesIssuesFilter && matchesToolkeeperFilter;
     });
-  }, [tools, searchTerm, showMyCheckedOut, showToolsWithIssues, toolsWithIssues, activeCheckouts, currentUserId]);
+  }, [tools, searchTerm, showMyCheckedOut, showToolsWithIssues, showToolkeeperActionNeeded, toolsWithIssues, toolsWithUnassignedIssues, activeCheckouts, currentUserId]);
 
   return {
     searchTerm,
@@ -33,6 +44,8 @@ export const useToolFilters = (tools: Tool[], toolsWithIssues: Set<string>, acti
     setShowMyCheckedOut,
     showToolsWithIssues,
     setShowToolsWithIssues,
+    showToolkeeperActionNeeded,
+    setShowToolkeeperActionNeeded,
     filteredTools
   };
 };

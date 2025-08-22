@@ -19,6 +19,7 @@ import Missions from "./pages/Missions";
 import EditMission from "./pages/EditMission";
 import Audit from "./pages/Audit";
 import AuditTool from "./pages/AuditTool";
+import ToolKeeper from "./pages/ToolKeeper";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -87,6 +88,11 @@ function AppContent() {
       <Route path="/audit/tool/:toolId" element={
         <ProtectedRoute>
           <AuditTool />
+        </ProtectedRoute>
+      } />
+      <Route path="/tool-keeper" element={
+        <ProtectedRoute>
+          <ToolKeeper />
         </ProtectedRoute>
       } />
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

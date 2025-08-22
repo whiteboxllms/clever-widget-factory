@@ -44,9 +44,6 @@ export const ToolCard = ({
         <div className="flex items-start justify-between mb-2">
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-lg truncate">{tool.name}</h3>
-            {tool.category && (
-              <p className="text-sm text-muted-foreground">{tool.category}</p>
-            )}
           </div>
           <ToolStatusBadge status={tool.status} className="ml-2 flex-shrink-0" />
         </div>

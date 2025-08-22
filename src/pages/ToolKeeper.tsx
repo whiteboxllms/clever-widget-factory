@@ -38,17 +38,17 @@ export default function ToolKeeper() {
   const [isWorkflowDialogOpen, setIsWorkflowDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
-  const { user, isLeadership } = useAuth();
+  const { user, isToolKeeper } = useAuth();
   const { updateAttributeLevel } = useWorkerAttributes();
 
   useEffect(() => {
-    if (!isLeadership) {
-      // Redirect non-leadership users
+    if (!isToolKeeper) {
+      // Redirect non-tool keeper users
       window.location.href = '/tools';
       return;
     }
     fetchIssues();
-  }, [isLeadership]);
+  }, [isToolKeeper]);
 
   useEffect(() => {
     filterIssues();
@@ -220,7 +220,7 @@ export default function ToolKeeper() {
     return filteredIssues.filter(issue => issue.workflow_status === status);
   };
 
-  if (!isLeadership) {
+  if (!isToolKeeper) {
     return null;
   }
 

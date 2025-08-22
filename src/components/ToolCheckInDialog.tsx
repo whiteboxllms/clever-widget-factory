@@ -65,7 +65,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
   const [selectedIssueForResolution, setSelectedIssueForResolution] = useState<any>(null);
   const [isResolutionDialogOpen, setIsResolutionDialogOpen] = useState(false);
   const [newIssueType, setNewIssueType] = useState<'safety' | 'efficiency' | 'cosmetic' | 'preventative_maintenance' | 'functionality'>('efficiency');
-  const [blocksCheckout, setBlocksCheckout] = useState(false);
+  
   const [efficiencyLossPercentage, setEfficiencyLossPercentage] = useState<number | undefined>();
   const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
   const [uploadedPhotoUrls, setUploadedPhotoUrls] = useState<string[]>([]);
@@ -255,7 +255,6 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         await createIssuesFromText(
           form.tool_issues,
           newIssueType,
-          blocksCheckout,
           false, // isMisuse - removed as requested
           checkout.id,
           undefined, // damageAssessment - not used for general issues
@@ -263,16 +262,11 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         );
       }
 
-      // Update tool status - determine based on active issues
-      const hasActiveIssues = issues.some(issue => issue.status === 'active');
-      const hasBlockingIssues = issues.some(issue => issue.status === 'active' && issue.blocks_checkout);
-      const hasSafetyIssues = issues.some(issue => issue.status === 'active' && issue.issue_type === 'safety');
-      
-      // Update tool status based on active issues
+      // Update tool status to available and location
       const { error: toolError } = await supabase
         .from('tools')
         .update({ 
-          status: hasBlockingIssues ? 'unavailable' : 'available',
+          status: 'available',
           actual_location: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : '')
         })
         .eq('id', tool.id);
@@ -420,18 +414,6 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
                       <SelectItem value="functionality">⚙️ Functionality</SelectItem>
                     </SelectContent>
                   </Select>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id="blocks_checkout"
-                      checked={blocksCheckout}
-                      onChange={(e) => setBlocksCheckout(e.target.checked)}
-                      className="rounded border-gray-300"
-                    />
-                    <Label htmlFor="blocks_checkout" className="text-sm">
-                      Mark tool as offline until repaired
-                    </Label>
-                  </div>
                  </div>
                  
                  {newIssueType === 'efficiency' && (

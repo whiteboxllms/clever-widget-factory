@@ -820,7 +820,6 @@ export type Database = {
           action_required:
             | Database["public"]["Enums"]["action_required_type"]
             | null
-          blocks_checkout: boolean
           created_at: string
           damage_assessment: string | null
           description: string
@@ -849,7 +848,6 @@ export type Database = {
           action_required?:
             | Database["public"]["Enums"]["action_required_type"]
             | null
-          blocks_checkout?: boolean
           created_at?: string
           damage_assessment?: string | null
           description: string
@@ -878,7 +876,6 @@ export type Database = {
           action_required?:
             | Database["public"]["Enums"]["action_required_type"]
             | null
-          blocks_checkout?: boolean
           created_at?: string
           damage_assessment?: string | null
           description?: string

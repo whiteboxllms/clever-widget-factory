@@ -32,7 +32,7 @@ const issueTypeIcons = {
 export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate }: IssueEditDialogProps) {
   const [description, setDescription] = useState("");
   const [issueType, setIssueType] = useState<"safety" | "efficiency" | "cosmetic" | "preventative_maintenance" | "functionality">("efficiency");
-  const [blocksCheckout, setBlocksCheckout] = useState(false);
+  
   
   const [damageAssessment, setDamageAssessment] = useState("");
   const [efficiencyLoss, setEfficiencyLoss] = useState("");
@@ -47,7 +47,7 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
     if (issue) {
       setDescription(issue.description || "");
       setIssueType(issue.issue_type || "efficiency");
-      setBlocksCheckout(issue.blocks_checkout || false);
+      
       setDamageAssessment(issue.damage_assessment || "");
       setEfficiencyLoss(issue.efficiency_loss_percentage?.toString() || "");
       setExistingImages(issue.report_photo_urls || []);
@@ -86,7 +86,7 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
       const updates: Partial<ToolIssue> = {
         description: description.trim(),
         issue_type: issueType,
-        blocks_checkout: blocksCheckout,
+        
         damage_assessment: damageAssessment || undefined,
         efficiency_loss_percentage: efficiencyLoss ? parseFloat(efficiencyLoss) : undefined,
         report_photo_urls: photoUrls
@@ -190,39 +190,22 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
                 />
               </div>
 
-              {/* Blocks Checkout and Incident Description */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Card className="bg-muted/50">
-                  <CardContent className="pt-4">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="blocksCheckout" className="text-sm font-medium">
-                        Blocks Checkout
+              {/* Incident Description */}
+              <Card className="bg-muted/50">
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                      <Label htmlFor="damageDuringUse" className="text-sm font-medium">
+                        Did this happen while using the tool?
                       </Label>
-                      <Switch
-                        id="blocksCheckout"
-                        checked={blocksCheckout}
-                        onCheckedChange={setBlocksCheckout}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-muted/50">
-                  <CardContent className="pt-4">
-                    <div className="flex items-center justify-between">
-                        <Label htmlFor="damageDuringUse" className="text-sm font-medium">
-                          Did this happen while using the tool?
-                        </Label>
-                      <Switch
-                        id="damageDuringUse"
-                        checked={false}
-                        onCheckedChange={() => {}}
-                        disabled
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+                    <Switch
+                      id="damageDuringUse"
+                      checked={false}
+                      onCheckedChange={() => {}}
+                      disabled
+                    />
+                  </div>
+                </CardContent>
+              </Card>
 
               <div>
                 <Label htmlFor="damageAssessment">

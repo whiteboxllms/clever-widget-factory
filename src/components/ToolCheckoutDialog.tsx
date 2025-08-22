@@ -47,7 +47,7 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
   });
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [blockingIssues, setBlockingIssues] = useState<any[]>([]);
+  
   const [isCheckingIssues, setIsCheckingIssues] = useState(false);
   const [userFullName, setUserFullName] = useState<string>("");
   const { toast } = useToast();
@@ -199,32 +199,7 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
     }
   };
 
-  const checkForBlockingIssues = async () => {
-    if (!tool) return;
-    
-    setIsCheckingIssues(true);
-    try {
-      const { data: issues, error } = await supabase
-        .from('tool_issues')
-        .select('*')
-        .eq('tool_id', tool.id)
-        .eq('status', 'active')
-        .eq('blocks_checkout', true);
 
-      if (error) throw error;
-      setBlockingIssues(issues || []);
-    } catch (error) {
-      console.error('Error checking blocking issues:', error);
-    } finally {
-      setIsCheckingIssues(false);
-    }
-  };
-
-  useEffect(() => {
-    if (open && tool) {
-      checkForBlockingIssues();
-    }
-  }, [open, tool]);
 
   const resetForm = () => {
     setForm({
@@ -246,22 +221,6 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
           <DialogTitle>Check Out Tool: {tool?.name}</DialogTitle>
         </DialogHeader>
 
-        {blockingIssues.length > 0 && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              <strong>Tool offline for maintenance</strong>
-              <div className="mt-2 space-y-1">
-                {blockingIssues.map((issue) => (
-                  <div key={issue.id} className="text-sm">
-                    • {issue.description}
-                  </div>
-                ))}
-              </div>
-              <p className="mt-2 text-sm">This tool cannot be checked out until these issues are resolved.</p>
-            </AlertDescription>
-          </Alert>
-        )}
 
         {tool?.manual_url && (
           <div className="bg-muted p-4 rounded-lg">
@@ -399,20 +358,13 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
             </Button>
             <Button 
               type="submit" 
-              disabled={isSubmitting || blockingIssues.length > 0 || isCheckingIssues || !form.intendedUsage || !userFullName}
+              disabled={isSubmitting || !form.intendedUsage || !userFullName}
             >
-              {isCheckingIssues ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Checking availability...
-                </>
-              ) : isSubmitting ? (
+              {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Checking Out...
                 </>
-              ) : blockingIssues.length > 0 ? (
-                "Tool Offline for Maintenance"
               ) : (
                 "Check Out Tool"
               )}

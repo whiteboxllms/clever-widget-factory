@@ -16,7 +16,7 @@ export interface ToolIssue {
   resolution_notes?: string;
   resolution_photo_urls?: string[];
   report_photo_urls?: string[];
-  blocks_checkout?: boolean;
+  
   is_misuse?: boolean;
   related_checkout_id?: string;
   damage_assessment?: string;
@@ -63,16 +63,19 @@ export function useToolIssues(toolId: string | null) {
     }
   };
 
-  const createIssue = async (
-    description: string, 
-    issueType: ToolIssue['issue_type'] = 'efficiency', 
-    blocksCheckout: boolean = false,
-    isMisuse: boolean = false,
-    checkoutId?: string,
-    damageAssessment?: string,
-    efficiencyLossPercentage?: number,
-    reportPhotoUrls?: string[]
-  ) => {
+  const createIssue = async ({
+    description,
+    issueType = 'efficiency',
+    damageAssessment,
+    efficiencyLoss,
+    photoUrls = []
+  }: {
+    description: string;
+    issueType?: ToolIssue['issue_type'];
+    damageAssessment?: string;
+    efficiencyLoss?: number;
+    photoUrls?: string[];
+  }) => {
     if (!toolId) return null;
 
     try {
@@ -85,12 +88,9 @@ export function useToolIssues(toolId: string | null) {
           tool_id: toolId,
           description: description.trim(),
           issue_type: issueType,
-          blocks_checkout: blocksCheckout,
-          is_misuse: isMisuse,
-          related_checkout_id: checkoutId,
           damage_assessment: damageAssessment,
-          efficiency_loss_percentage: efficiencyLossPercentage,
-          report_photo_urls: reportPhotoUrls || [],
+          efficiency_loss_percentage: efficiencyLoss,
+          report_photo_urls: photoUrls,
           reported_by: user.data.user.id
         })
         .select()
@@ -130,8 +130,7 @@ export function useToolIssues(toolId: string | null) {
 
   const createIssuesFromText = async (
     issuesText: string, 
-    issueType: ToolIssue['issue_type'] = 'efficiency', 
-    blocksCheckout: boolean = false,
+    issueType: ToolIssue['issue_type'] = 'efficiency',
     isMisuse: boolean = false,
     checkoutId?: string,
     damageAssessment?: string,
@@ -147,7 +146,13 @@ export function useToolIssues(toolId: string | null) {
       .filter(line => line.length > 0);
 
     for (const description of issueDescriptions) {
-      await createIssue(description, issueType, blocksCheckout, isMisuse, checkoutId, damageAssessment, efficiencyLossPercentage, reportPhotoUrls);
+      await createIssue({
+        description,
+        issueType,
+        damageAssessment,
+        efficiencyLoss: efficiencyLossPercentage,
+        photoUrls: reportPhotoUrls
+      });
     }
   };
 

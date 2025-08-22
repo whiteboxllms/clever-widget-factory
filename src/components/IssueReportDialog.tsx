@@ -42,7 +42,7 @@ const issueTypeColors = {
 export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: IssueReportDialogProps) {
   const [description, setDescription] = useState("");
   const [issueType, setIssueType] = useState<"safety" | "efficiency" | "cosmetic" | "preventative_maintenance" | "functionality">("efficiency");
-  const [blocksCheckout, setBlocksCheckout] = useState(false);
+  
   const [damageDuringUse, setDamageDuringUse] = useState(false);
   const [incidentDescription, setIncidentDescription] = useState("");
   const [efficiencyLoss, setEfficiencyLoss] = useState("");
@@ -84,21 +84,18 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
         }
       }
 
-        await createIssue(
+        await createIssue({
           description,
           issueType,
-          blocksCheckout,
-          false, // is_misuse
-          undefined, // related_checkout_id
-          incidentDescription || undefined,
-          efficiencyLoss ? parseFloat(efficiencyLoss) : undefined,
+          damageAssessment: incidentDescription || undefined,
+          efficiencyLoss: efficiencyLoss ? parseFloat(efficiencyLoss) : undefined,
           photoUrls
-        );
+        });
 
         // Reset form
         setDescription("");
         setIssueType("efficiency");
-        setBlocksCheckout(false);
+        
         setDamageDuringUse(false);
         setIncidentDescription("");
         setEfficiencyLoss("");
@@ -174,11 +171,6 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
                             <Badge variant="secondary" className={issueTypeColors[issue.issue_type]}>
                               {issue.issue_type}
                             </Badge>
-                            {issue.blocks_checkout && (
-                              <Badge variant="destructive" className="text-xs">
-                                Blocks Checkout
-                              </Badge>
-                            )}
                           </div>
                           <p className="text-sm">{issue.description}</p>
                           <p className="text-xs text-muted-foreground mt-1">
@@ -315,16 +307,6 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
                   </div>
                 )}
 
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="blocksCheckout"
-                    checked={blocksCheckout}
-                    onCheckedChange={(checked) => setBlocksCheckout(checked === true)}
-                  />
-                  <Label htmlFor="blocksCheckout" className="text-sm">
-                    Prevent asset from being checked out
-                  </Label>
-                </div>
 
                 {/* Image Upload Section */}
                 <div className="space-y-3">

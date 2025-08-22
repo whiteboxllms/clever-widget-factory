@@ -49,9 +49,8 @@ export const ToolDetails = ({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <Tabs defaultValue="details" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="details">Details</TabsTrigger>
-              <TabsTrigger value="notes">Notes</TabsTrigger>
               <TabsTrigger value="issues">Issues</TabsTrigger>
               <TabsTrigger value="history">History</TabsTrigger>
             </TabsList>
@@ -106,34 +105,22 @@ export const ToolDetails = ({
               </Card>
             </TabsContent>
 
-            <TabsContent value="notes" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Known Issues</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    {tool.known_issues || 'No known issues reported.'}
-                  </p>
-                </CardContent>
-              </Card>
-
-              {tool.stargazer_sop && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Stargazer SOP</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                      {tool.stargazer_sop}
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
 
             <TabsContent value="issues" className="space-y-4">
               <div className="space-y-4">
+                {tool.known_issues && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Legacy Known Issues</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                        {tool.known_issues}
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+                
                 {issues.map((issue) => (
                   <IssueCard
                     key={issue.id}
@@ -143,9 +130,9 @@ export const ToolDetails = ({
                   />
                 ))}
                 
-                {issues.length === 0 && (
+                {issues.length === 0 && !tool.known_issues && (
                   <p className="text-center text-muted-foreground py-8">
-                    No active issues reported.
+                    No issues reported.
                   </p>
                 )}
               </div>

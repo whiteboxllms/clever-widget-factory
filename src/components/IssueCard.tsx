@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle, X, Clock } from "lucide-react";
+import { AlertTriangle, CheckCircle, X, Clock, Edit } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -23,10 +23,11 @@ interface ToolIssue {
 interface IssueCardProps {
   issue: ToolIssue;
   onResolve: (issue: ToolIssue) => void;
+  onEdit?: (issue: ToolIssue) => void;
   onRefresh: () => void;
 }
 
-export function IssueCard({ issue, onResolve, onRefresh }: IssueCardProps) {
+export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProps) {
   const [isRemoving, setIsRemoving] = useState(false);
 
   const getIssueTypeIcon = (issueType: string) => {
@@ -154,6 +155,16 @@ export function IssueCard({ issue, onResolve, onRefresh }: IssueCardProps) {
           </div>
           
           <div className="flex gap-1 flex-shrink-0">
+            {onEdit && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onEdit(issue)}
+                className="h-7 px-2 text-xs"
+              >
+                <Edit className="h-3 w-3" />
+              </Button>
+            )}
             <Button
               size="sm"
               variant="outline"

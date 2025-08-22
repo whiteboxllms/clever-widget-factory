@@ -16,6 +16,7 @@ interface ToolDetailsProps {
   issues: any[];
   onBack: () => void;
   onResolveIssue: (issue: any) => void;
+  onEditIssue?: (issue: any) => void;
 }
 
 export const ToolDetails = ({
@@ -24,7 +25,8 @@ export const ToolDetails = ({
   currentCheckout,
   issues,
   onBack,
-  onResolveIssue
+  onResolveIssue,
+  onEditIssue
 }: ToolDetailsProps) => {
   return (
     <div className="space-y-6">
@@ -126,6 +128,7 @@ export const ToolDetails = ({
                     key={issue.id}
                     issue={issue}
                     onResolve={() => onResolveIssue(issue)}
+                    onEdit={onEditIssue ? () => onEditIssue(issue) : undefined}
                     onRefresh={() => {}}
                   />
                 ))}

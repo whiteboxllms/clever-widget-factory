@@ -150,11 +150,85 @@ export function useToolIssues(toolId: string | null) {
     fetchIssues();
   }, [toolId]);
 
+  const updateIssue = async (
+    issueId: string,
+    updates: Partial<ToolIssue>
+  ) => {
+    try {
+      const user = await supabase.auth.getUser();
+      if (!user.data.user) throw new Error('Not authenticated');
+
+      // Get current issue data to track changes
+      const { data: currentIssue, error: fetchError } = await supabase
+        .from('tool_issues')
+        .select('*')
+        .eq('id', issueId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Update the issue
+      const { error: updateError } = await supabase
+        .from('tool_issues')
+        .update(updates)
+        .eq('id', issueId);
+
+      if (updateError) throw updateError;
+
+      // Create detailed history entries for each changed field
+      const historyPromises = [];
+      
+      for (const [field, newValue] of Object.entries(updates)) {
+        const oldValue = currentIssue[field];
+        
+        // Only create history if value actually changed
+        if (oldValue !== newValue) {
+          historyPromises.push(
+            supabase
+              .from('tool_issue_history')
+              .insert({
+                issue_id: issueId,
+                old_status: currentIssue.status,
+                new_status: currentIssue.status, // Status didn't change, just other fields
+                changed_by: user.data.user.id,
+                field_changed: field,
+                old_value: oldValue ? String(oldValue) : null,
+                new_value: newValue ? String(newValue) : null,
+                notes: `Field '${field}' updated during issue edit`
+              })
+          );
+        }
+      }
+
+      if (historyPromises.length > 0) {
+        await Promise.all(historyPromises);
+      }
+
+      toast({
+        title: "Issue updated",
+        description: "The issue has been successfully updated."
+      });
+
+      await fetchIssues();
+      return true;
+
+    } catch (error) {
+      console.error('Error updating issue:', error);
+      toast({
+        title: "Error updating issue",
+        description: "Could not update the issue. Please try again.",
+        variant: "destructive"
+      });
+      return false;
+    }
+  };
+
   return {
     issues,
     isLoading,
     fetchIssues,
     createIssue,
-    createIssuesFromText
+    createIssuesFromText,
+    updateIssue
   };
 }

@@ -778,31 +778,40 @@ export type Database = {
           changed_at: string
           changed_by: string
           created_at: string
+          field_changed: string | null
           id: string
           issue_id: string
           new_status: string
+          new_value: string | null
           notes: string | null
           old_status: string | null
+          old_value: string | null
         }
         Insert: {
           changed_at?: string
           changed_by: string
           created_at?: string
+          field_changed?: string | null
           id?: string
           issue_id: string
           new_status: string
+          new_value?: string | null
           notes?: string | null
           old_status?: string | null
+          old_value?: string | null
         }
         Update: {
           changed_at?: string
           changed_by?: string
           created_at?: string
+          field_changed?: string | null
           id?: string
           issue_id?: string
           new_status?: string
+          new_value?: string | null
           notes?: string | null
           old_status?: string | null
+          old_value?: string | null
         }
         Relationships: []
       }

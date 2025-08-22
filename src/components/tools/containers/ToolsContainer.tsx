@@ -20,6 +20,7 @@ import { ToolCheckoutDialog } from "@/components/ToolCheckoutDialog";
 import { ToolCheckInDialog } from "@/components/ToolCheckInDialog";
 import { IssueResolutionDialog } from "@/components/IssueResolutionDialog";
 import { IssueReportDialog } from "@/components/IssueReportDialog";
+import { IssueEditDialog } from "@/components/IssueEditDialog";
 
 export const ToolsContainer = () => {
   const { toolId } = useParams();
@@ -40,6 +41,8 @@ export const ToolsContainer = () => {
   const [isResolveDialogOpen, setIsResolveDialogOpen] = useState(false);
   const [reportIssueTool, setReportIssueTool] = useState(null);
   const [isReportIssueDialogOpen, setIsReportIssueDialogOpen] = useState(false);
+  const [editIssue, setEditIssue] = useState(null);
+  const [isEditIssueDialogOpen, setIsEditIssueDialogOpen] = useState(false);
   const [storageVicinities, setStorageVicinities] = useState([]);
 
   // Custom hooks
@@ -47,7 +50,7 @@ export const ToolsContainer = () => {
   const { toolsWithIssues, fetchToolsWithIssues } = useToolsWithIssues();
   const { filteredTools, searchTerm, setSearchTerm, showMyCheckedOut, setShowMyCheckedOut, showToolsWithIssues, setShowToolsWithIssues } = useToolFilters(tools, toolsWithIssues, activeCheckouts, user?.id || null);
   const { toolHistory, currentCheckout, fetchToolHistory } = useToolHistory();
-  const { issues, fetchIssues } = useToolIssues(selectedTool?.id || null);
+  const { issues, fetchIssues, updateIssue } = useToolIssues(selectedTool?.id || null);
 
   // Fetch storage vicinities for form
   useEffect(() => {
@@ -120,6 +123,11 @@ export const ToolsContainer = () => {
     setIsResolveDialogOpen(true);
   };
 
+  const handleEditIssue = (issue) => {
+    setEditIssue(issue);
+    setIsEditIssueDialogOpen(true);
+  };
+
   const handleReportIssue = (tool) => {
     setReportIssueTool(tool);
     setIsReportIssueDialogOpen(true);
@@ -149,6 +157,7 @@ export const ToolsContainer = () => {
           issues={issues}
           onBack={handleBackToTools}
           onResolveIssue={handleResolveIssue}
+          onEditIssue={handleEditIssue}
         />
         
         <IssueResolutionDialog
@@ -160,6 +169,19 @@ export const ToolsContainer = () => {
             fetchTools();
             setIsResolveDialogOpen(false);
             setResolveIssue(null);
+          }}
+        />
+
+        <IssueEditDialog
+          issue={editIssue}
+          open={isEditIssueDialogOpen}
+          onOpenChange={setIsEditIssueDialogOpen}
+          onUpdate={updateIssue}
+          onSuccess={() => {
+            fetchIssues();
+            fetchTools();
+            setIsEditIssueDialogOpen(false);
+            setEditIssue(null);
           }}
         />
       </>
@@ -278,6 +300,19 @@ export const ToolsContainer = () => {
           fetchToolsWithIssues();
           setIsReportIssueDialogOpen(false);
           setReportIssueTool(null);
+        }}
+      />
+
+      <IssueEditDialog
+        issue={editIssue}
+        open={isEditIssueDialogOpen}
+        onOpenChange={setIsEditIssueDialogOpen}
+        onUpdate={updateIssue}
+        onSuccess={() => {
+          fetchTools();
+          fetchToolsWithIssues();
+          setIsEditIssueDialogOpen(false);
+          setEditIssue(null);
         }}
       />
       </div>

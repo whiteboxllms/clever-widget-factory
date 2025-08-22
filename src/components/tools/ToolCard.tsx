@@ -144,16 +144,15 @@ export const ToolCard = ({
               
               {isLeadership && (
                 <Button
-                  size="sm"
+                  size="icon"
                   variant="ghost"
                   onClick={(e) => {
                     e.stopPropagation();
                     onRemoveClick(tool);
                   }}
-                  className="text-muted-foreground hover:text-destructive"
+                  className="text-muted-foreground hover:text-destructive h-9 w-9"
                 >
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Remove
+                  <Trash2 className="h-4 w-4" />
                 </Button>
               )}
             </>

@@ -9,11 +9,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Bug, Wrench, Shield, CheckCircle, ImagePlus, X } from "lucide-react";
+import { AlertTriangle, Bug, Wrench, Shield, CheckCircle, ImagePlus, X, Edit, Settings } from "lucide-react";
 import { Tool } from "@/hooks/tools/useToolsData";
-import { useToolIssues } from "@/hooks/useToolIssues";
+import { useToolIssues, ToolIssue } from "@/hooks/useToolIssues";
 import { useImageUpload, ImageUploadResult } from "@/hooks/useImageUpload";
 import { ToolIssuesSummary } from "./ToolIssuesSummary";
+import { IssueEditDialog } from "./IssueEditDialog";
 
 interface IssueReportDialogProps {
   tool: Tool | null;
@@ -46,8 +47,10 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [uploadedImages, setUploadedImages] = useState<ImageUploadResult[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingIssue, setEditingIssue] = useState<ToolIssue | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  const { issues, isLoading, createIssue, fetchIssues } = useToolIssues(tool?.id || null);
+  const { issues, isLoading, createIssue, fetchIssues, updateIssue } = useToolIssues(tool?.id || null);
   const { uploadImages, isUploading } = useImageUpload();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -118,10 +121,15 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
     setSelectedImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleResolveIssue = async (issueId: string) => {
-    // This would trigger the existing issue resolution flow
-    // For now, we'll just refresh the issues
+  const handleEditIssue = (issue: ToolIssue) => {
+    setEditingIssue(issue);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleEditSuccess = async () => {
     await fetchIssues();
+    setIsEditDialogOpen(false);
+    setEditingIssue(null);
   };
 
   if (!tool) return null;
@@ -131,9 +139,9 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5" />
+            <Settings className="h-5 w-5" />
             <div className="flex items-baseline gap-2">
-              <span>Report Issue - {tool.name}</span>
+              <span>Manage Issues - {tool.name}</span>
               {tool.serial_number && (
                 <span className="text-sm text-muted-foreground font-normal">
                   ({tool.serial_number})
@@ -175,6 +183,14 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
                             Reported {new Date(issue.reported_at).toLocaleDateString()}
                           </p>
                         </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEditIssue(issue)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
                       </div>
                     );
                   })}
@@ -382,6 +398,15 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
             </CardContent>
           </Card>
         </div>
+
+        {/* Edit Issue Dialog */}
+        <IssueEditDialog
+          issue={editingIssue}
+          open={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          onUpdate={updateIssue}
+          onSuccess={handleEditSuccess}
+        />
       </DialogContent>
     </Dialog>
   );

@@ -224,8 +224,7 @@ export const ToolDetails = ({
                               <div>
                                 <p className="font-medium">{record.user_name}</p>
                                 <p className="text-sm text-muted-foreground">
-                                  {getChangeTypeLabel(record.change_type)} on{' '}
-                                  {new Date(record.changed_at).toLocaleDateString()}
+                                  {new Date(record.changed_at).toLocaleDateString()} {new Date(record.changed_at).toLocaleTimeString()}
                                 </p>
                               </div>
                             </div>

@@ -133,7 +133,7 @@ export const ToolCard = ({
                 className="text-orange-600 hover:text-orange-700 border-orange-200 hover:border-orange-300"
               >
                 <AlertTriangle className="h-4 w-4 mr-1" />
-                Report
+                Issues
               </Button>
               
               {isLeadership && (

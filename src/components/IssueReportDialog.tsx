@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Bug, Wrench, Shield, CheckCircle, ImagePlus, X } from "lucide-react";
@@ -39,7 +40,8 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
   const [description, setDescription] = useState("");
   const [issueType, setIssueType] = useState<"safety" | "efficiency" | "cosmetic" | "maintenance">("efficiency");
   const [blocksCheckout, setBlocksCheckout] = useState(false);
-  const [damageAssessment, setDamageAssessment] = useState("");
+  const [damageDuringUse, setDamageDuringUse] = useState(false);
+  const [incidentDescription, setIncidentDescription] = useState("");
   const [efficiencyLoss, setEfficiencyLoss] = useState("");
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [uploadedImages, setUploadedImages] = useState<ImageUploadResult[]>([]);
@@ -77,25 +79,26 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
         }
       }
 
-      await createIssue(
-        description,
-        issueType,
-        blocksCheckout,
-        false, // is_misuse
-        undefined, // related_checkout_id
-        damageAssessment || undefined,
-        efficiencyLoss ? parseFloat(efficiencyLoss) : undefined,
-        photoUrls
-      );
+        await createIssue(
+          description,
+          issueType,
+          blocksCheckout,
+          false, // is_misuse
+          undefined, // related_checkout_id
+          incidentDescription || undefined,
+          efficiencyLoss ? parseFloat(efficiencyLoss) : undefined,
+          photoUrls
+        );
 
-      // Reset form
-      setDescription("");
-      setIssueType("efficiency");
-      setBlocksCheckout(false);
-      setDamageAssessment("");
-      setEfficiencyLoss("");
-      setSelectedImages([]);
-      setUploadedImages([]);
+        // Reset form
+        setDescription("");
+        setIssueType("efficiency");
+        setBlocksCheckout(false);
+        setDamageDuringUse(false);
+        setIncidentDescription("");
+        setEfficiencyLoss("");
+        setSelectedImages([]);
+        setUploadedImages([]);
       
       onSuccess?.();
       onOpenChange(false);
@@ -249,6 +252,27 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
                   />
                 </div>
 
+                {/* Damage During Use Toggle */}
+                <Card className="bg-muted/50">
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <Label htmlFor="damageDuringUse" className="text-sm font-medium">
+                          Did this damage/issue occur while you were using the tool?
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          This helps us understand when and how issues happen
+                        </p>
+                      </div>
+                      <Switch
+                        id="damageDuringUse"
+                        checked={damageDuringUse}
+                        onCheckedChange={setDamageDuringUse}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
                 {issueType === "efficiency" && (
                   <div>
                     <Label htmlFor="efficiencyLoss">Efficiency Loss % (optional)</Label>
@@ -265,14 +289,26 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
                 )}
 
                 <div>
-                  <Label htmlFor="damageAssessment">Damage Assessment (optional)</Label>
+                  <Label htmlFor="incidentDescription">
+                    What Happened? {damageDuringUse ? "*" : "(optional)"}
+                  </Label>
                   <Textarea
-                    id="damageAssessment"
-                    value={damageAssessment}
-                    onChange={(e) => setDamageAssessment(e.target.value)}
-                    placeholder="Describe any visible damage..."
-                    rows={2}
+                    id="incidentDescription"
+                    value={incidentDescription}
+                    onChange={(e) => setIncidentDescription(e.target.value)}
+                    placeholder={
+                      damageDuringUse
+                        ? "Please describe what you were doing when this occurred and any events that might have contributed to the issue..."
+                        : "Describe what happened when the damage occurred, or what you think likely caused this issue..."
+                    }
+                    rows={damageDuringUse ? 3 : 2}
+                    required={damageDuringUse}
                   />
+                  {damageDuringUse && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Your honest account helps us improve safety and prevent future issues
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex items-center space-x-2">

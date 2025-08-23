@@ -670,7 +670,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                   {tempPhotos.map((photo, index) => (
                     <div key={index} className="relative group">
                       <img
-                        src={photo.previewUrl}
+                        src={photo.fileUrl}
                         alt={`Temp photo ${index + 1}`}
                         className="w-full h-20 object-cover rounded border"
                       />
@@ -678,7 +678,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                         size="sm"
                         variant="destructive"
                         className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => tempPhotoStorage?.removeTempPhoto(action.id, photo.id)}
+                        onClick={() => tempPhotoStorage?.removeTempPhoto(photo.id)}
                       >
                         <X className="h-3 w-3" />
                       </Button>
@@ -774,7 +774,6 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                   onFocus={handlePlanFocus}
                   onBlur={handlePlanBlur}
                   placeholder="Describe the plan for this action..."
-                  editable={action.status !== 'completed'}
                 />
               </div>
             </div>
@@ -803,7 +802,6 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                   onFocus={handleImplementationFocus}
                   onBlur={handleImplementationBlur}
                   placeholder="Document implementation progress and observations..."
-                  editable={action.status !== 'completed'}
                 />
               </div>
             </div>
@@ -856,7 +854,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                   {tempPhotos.map((photo, index) => (
                     <div key={`temp-${index}`} className="relative group">
                       <img
-                        src={photo.url}
+                        src={photo.fileUrl}
                         alt={`Temp photo ${index + 1}`}
                         className="w-full h-24 object-cover rounded border"
                       />

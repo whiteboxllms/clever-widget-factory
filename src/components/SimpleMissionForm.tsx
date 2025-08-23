@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChevronDown, ChevronRight, Plus, Upload, Image, X } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ResourceSelector } from '@/components/ResourceSelector';
-import { TaskCard } from '@/components/TaskCard';
+import { ActionCard } from '@/components/ActionCard';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useImageUpload } from "@/hooks/useImageUpload";
@@ -17,8 +17,8 @@ import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 
 import { useTempPhotoStorage } from "@/hooks/useTempPhotoStorage";
-import { getStandardTasksForTemplate } from "@/lib/standardTaskBlocks";
-import { TaskEditDialog } from './TaskEditDialog';
+import { getStandardActionsForTemplate } from "@/lib/standardActionBlocks";
+import { ActionEditDialog } from './ActionEditDialog';
 
 interface Task {
   id?: string; // Add optional id field

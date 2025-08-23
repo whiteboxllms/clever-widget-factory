@@ -101,7 +101,7 @@ export function SimpleMissionForm({
     
     try {
       const { data: tasksData, error } = await supabase
-        .from('mission_tasks')
+        .from('mission_actions')
         .select('*')
         .eq('mission_id', missionId)
         .order('created_at', { ascending: true });
@@ -190,7 +190,7 @@ export function SimpleMissionForm({
 
   const loadStandardTasks = () => {
     const templateId = selectedTemplate?.id || 'default';
-    const standardTasks = getStandardTasksForTemplate(templateId);
+    const standardTasks = getStandardActionsForTemplate(templateId);
     
     setFormData(prev => ({
       ...prev,
@@ -232,7 +232,7 @@ export function SimpleMissionForm({
       try {
         // Get existing tasks to find the database ID
         const { data: existingTasks } = await supabase
-          .from('mission_tasks')
+          .from('mission_actions')
           .select('*')
           .eq('mission_id', missionId)
           .order('created_at', { ascending: true });
@@ -240,7 +240,7 @@ export function SimpleMissionForm({
         if (existingTasks && existingTasks[index]) {
           // Delete from database
           await supabase
-            .from('mission_tasks')
+            .from('mission_actions')
             .delete()
             .eq('id', existingTasks[index].id);
         }
@@ -568,13 +568,13 @@ export function SimpleMissionForm({
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-4 mt-4">
           {/* Task Creation Modal */}
-          <TaskEditDialog
+          <ActionEditDialog
             open={taskDialogOpen && creatingNewTask}
             onOpenChange={(open) => {
               setTaskDialogOpen(open);
               if (!open) setCreatingNewTask(false);
             }}
-            task={{
+            action={{
               id: '',
               title: '',
               plan: '',
@@ -597,13 +597,13 @@ export function SimpleMissionForm({
           />
 
           {/* Task Edit Modal */}
-          <TaskEditDialog
+          <ActionEditDialog
             open={taskDialogOpen && editingTaskIndex !== null && formData.tasks && formData.tasks[editingTaskIndex] !== undefined}
             onOpenChange={(open) => {
               setTaskDialogOpen(open);
               if (!open) setEditingTaskIndex(null);
             }}
-            task={editingTaskIndex !== null && formData.tasks && formData.tasks[editingTaskIndex] ? {
+            action={editingTaskIndex !== null && formData.tasks && formData.tasks[editingTaskIndex] ? {
               id: formData.tasks[editingTaskIndex].id || `temp-${editingTaskIndex}`,
               title: formData.tasks[editingTaskIndex].title,
               plan: formData.tasks[editingTaskIndex].plan,

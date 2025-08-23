@@ -238,7 +238,7 @@ export function useInventoryAnalytics() {
         .in("id", missionIds);
 
       const { data: tasksData, error: tasksError } = await supabase
-        .from("mission_tasks")
+        .from("mission_actions")
         .select("id, title")
         .in("id", taskIds);
 

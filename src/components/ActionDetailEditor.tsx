@@ -38,7 +38,7 @@ interface Profile {
   role: string;
 }
 
-interface Task {
+interface Action {
   id: string;
   title: string;
   plan?: string;
@@ -51,8 +51,8 @@ interface Task {
   required_stock?: { part_id: string; quantity: number; part_name: string; }[];
 }
 
-interface TaskDetailEditorProps {
-  task: Task;
+interface ActionDetailEditorProps {
+  action: Action;
   profiles: Profile[];
   onSave: () => void; // Just call when save is complete
   onCancel: () => void;
@@ -60,22 +60,22 @@ interface TaskDetailEditorProps {
 }
 
 
-export function TaskDetailEditor({ 
-  task, 
+export function ActionDetailEditor({ 
+  action, 
   profiles, 
   onSave, 
   onCancel, 
   isCreating = false 
-}: TaskDetailEditorProps) {
+}: ActionDetailEditorProps) {
   const { toast } = useToast();
-  const [editData, setEditData] = useState<Partial<Task>>({
-    title: task.title,
-    plan: task.plan || '',
-    observations: task.observations || '',
-    assigned_to: task.assigned_to,
-    estimated_completion_date: task.estimated_completion_date,
-    required_tools: task.required_tools || [],
-    required_stock: task.required_stock || []
+  const [editData, setEditData] = useState<Partial<Action>>({
+    title: action.title,
+    plan: action.plan || '',
+    observations: action.observations || '',
+    assigned_to: action.assigned_to,
+    estimated_completion_date: action.estimated_completion_date,
+    required_tools: action.required_tools || [],
+    required_stock: action.required_stock || []
   });
 
   const [newTool, setNewTool] = useState('');
@@ -84,18 +84,18 @@ export function TaskDetailEditor({
 
   useEffect(() => {
     const originalData = {
-      title: task.title,
-      plan: task.plan || '',
-      observations: task.observations || '',
-      assigned_to: task.assigned_to,
-      estimated_completion_date: task.estimated_completion_date,
-      required_tools: task.required_tools || [],
-      required_stock: task.required_stock || []
+      title: action.title,
+      plan: action.plan || '',
+      observations: action.observations || '',
+      assigned_to: action.assigned_to,
+      estimated_completion_date: action.estimated_completion_date,
+      required_tools: action.required_tools || [],
+      required_stock: action.required_stock || []
     };
 
     const hasChanged = JSON.stringify(editData) !== JSON.stringify(originalData);
     setHasChanges(hasChanged);
-  }, [editData, task]);
+  }, [editData, action]);
 
   const handleSave = async () => {
     if (!editData.title?.trim()) {
@@ -103,14 +103,14 @@ export function TaskDetailEditor({
     }
     
     setIsSaving(true);
-    console.log('TaskDetailEditor - Saving task data directly to database:', editData);
+    console.log('ActionDetailEditor - Saving action data directly to database:', editData);
     
     try {
       // Convert date to ISO string for database storage
       const estimatedDuration = editData.estimated_completion_date ? 
         editData.estimated_completion_date.toISOString() : null;
 
-      const taskData = {
+      const actionData = {
         title: editData.title.trim(),
         plan: editData.plan || null,
         observations: editData.observations || null,
@@ -119,47 +119,47 @@ export function TaskDetailEditor({
         required_tools: editData.required_tools || []
       };
 
-      // Check if this is a new task (no ID or temporary ID) or existing task
-      const isNewTask = isCreating || !task.id || task.id.startsWith('temp-');
+      // Check if this is a new action (no ID or temporary ID) or existing action
+      const isNewAction = isCreating || !action.id || action.id.startsWith('temp-');
       
-      if (isNewTask) {
-        // Creating new task
+      if (isNewAction) {
+        // Creating new action
         const { error } = await supabase
-          .from('mission_tasks')
+          .from('mission_actions')
           .insert({
-            ...taskData,
-            mission_id: task.mission_id,
+            ...actionData,
+            mission_id: action.mission_id,
             status: 'not_started'
           });
 
         if (error) throw error;
         
         toast({
-          title: "Task created",
+          title: "Action created",
           description: `"${editData.title}" has been created successfully.`
         });
       } else {
-        // Updating existing task
+        // Updating existing action
         const { error } = await supabase
-          .from('mission_tasks')
-          .update(taskData)
-          .eq('id', task.id);
+          .from('mission_actions')
+          .update(actionData)
+          .eq('id', action.id);
 
         if (error) throw error;
         
         toast({
-          title: "Task updated",
+          title: "Action updated",
           description: `"${editData.title}" has been updated successfully.`
         });
       }
 
-      console.log('TaskDetailEditor - Direct save completed successfully');
+      console.log('ActionDetailEditor - Direct save completed successfully');
       onSave(); // Notify parent that save is complete
     } catch (error) {
-      console.error('TaskDetailEditor - Direct save failed:', error);
+      console.error('ActionDetailEditor - Direct save failed:', error);
       toast({
         title: "Save failed",
-        description: error.message || "Failed to save task. Please try again.",
+        description: error.message || "Failed to save action. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -191,10 +191,10 @@ export function TaskDetailEditor({
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">
-            {isCreating ? 'Create New Task' : 'Edit Task Details'}
+            {isCreating ? 'Create New Action' : 'Edit Action Details'}
           </CardTitle>
           <div className="flex items-center gap-2">
-            {/* Phase selection removed - tasks no longer have phases */}
+            {/* Phase selection removed - actions no longer have phases */}
           </div>
         </div>
       </CardHeader>
@@ -203,12 +203,12 @@ export function TaskDetailEditor({
         {/* Basic Info */}
         <div className="space-y-4">
           <div>
-            <Label htmlFor="title">Task Title *</Label>
+            <Label htmlFor="title">Action Title *</Label>
             <Input
               id="title"
               value={editData.title || ''}
               onChange={(e) => setEditData(prev => ({ ...prev, title: e.target.value }))}
-              placeholder="Enter task title..."
+              placeholder="Enter action title..."
               className="mt-1"
             />
           </div>
@@ -363,12 +363,12 @@ export function TaskDetailEditor({
           
           <TabsContent value="plan" className="mt-4">
             <div>
-              <Label>Task Plan</Label>
+              <Label>Action Plan</Label>
               <div className="mt-2 border rounded-lg">
                 <LexicalEditor
                   value={editData.plan || ''}
                   onChange={(value) => setEditData(prev => ({ ...prev, plan: value }))}
-                  placeholder="Describe the plan for this task..."
+                  placeholder="Describe the plan for this action..."
                 />
               </div>
             </div>
@@ -399,7 +399,7 @@ export function TaskDetailEditor({
             disabled={!editData.title?.trim() || !hasChanges || isSaving}
           >
             <Save className="w-4 h-4 mr-1" />
-            {isSaving ? 'Saving...' : (isCreating ? 'Create Task' : 'Save Changes')}
+            {isSaving ? 'Saving...' : (isCreating ? 'Create Action' : 'Save Changes')}
           </Button>
         </div>
       </CardContent>

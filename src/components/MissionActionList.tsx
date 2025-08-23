@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { ActionCard } from '@/components/ActionCard';
 import { Button } from "@/components/ui/button";
@@ -26,24 +25,24 @@ interface Profile {
   role: string;
 }
 
-interface MissionTaskListProps {
+interface MissionActionListProps {
   missionId: string;
   profiles: Profile[];
   canEdit?: boolean;
   missionNumber?: number;
 }
 
-export function MissionTaskList({ missionId, profiles, canEdit = false, missionNumber }: MissionTaskListProps) {
+export function MissionActionList({ missionId, profiles, canEdit = false, missionNumber }: MissionActionListProps) {
   const { toast } = useToast();
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [actions, setActions] = useState<Action[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isAddingTask, setIsAddingTask] = useState(false);
+  const [isAddingAction, setIsAddingAction] = useState(false);
 
   useEffect(() => {
-    fetchTasks();
+    fetchActions();
   }, [missionId]);
 
-  const fetchTasks = async () => {
+  const fetchActions = async () => {
     setLoading(true);
     
     const { data, error } = await supabase
@@ -53,29 +52,29 @@ export function MissionTaskList({ missionId, profiles, canEdit = false, missionN
       .order('created_at', { ascending: true });
 
     if (error) {
-      console.error('Error fetching tasks:', error);
+      console.error('Error fetching actions:', error);
       toast({
         title: "Error",
-        description: "Failed to load tasks",
+        description: "Failed to load actions",
         variant: "destructive",
       });
     } else {
-      setTasks(data || []);
+      setActions(data || []);
     }
     
     setLoading(false);
   };
 
-  const handleAddTask = async (taskData: any) => {
+  const handleAddAction = async (actionData: any) => {
     try {
       const { data, error } = await supabase
         .from('mission_actions')
         .insert({
           mission_id: missionId,
-          title: taskData.title,
-          plan: taskData.plan,
-          observations: taskData.observations,
-          assigned_to: taskData.assigned_to || null
+          title: actionData.title,
+          plan: actionData.plan,
+          observations: actionData.observations,
+          assigned_to: actionData.assigned_to || null
         })
         .select()
         .single();
@@ -84,44 +83,44 @@ export function MissionTaskList({ missionId, profiles, canEdit = false, missionN
 
       toast({
         title: "Success",
-        description: "Task added successfully",
+        description: "Action added successfully",
       });
 
-      setIsAddingTask(false);
-      fetchTasks();
+      setIsAddingAction(false);
+      fetchActions();
     } catch (error) {
-      console.error('Error adding task:', error);
+      console.error('Error adding action:', error);
       toast({
         title: "Error",
-        description: "Failed to add task",
+        description: "Failed to add action",
         variant: "destructive",
       });
     }
   };
 
   if (loading) {
-    return <div className="text-center py-4">Loading tasks...</div>;
+    return <div className="text-center py-4">Loading actions...</div>;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">Tasks</h3>
+        <h3 className="text-lg font-semibold">Actions</h3>
         {canEdit && (
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setIsAddingTask(true)}
+            onClick={() => setIsAddingAction(true)}
           >
             <Plus className="h-4 w-4 mr-2" />
-            Add Task
+            Add Action
           </Button>
         )}
       </div>
 
-      {isAddingTask && (
-        <TaskCard
-          task={{
+      {isAddingAction && (
+        <ActionCard
+          action={{
             id: 'new',
             title: '',
             plan: '',
@@ -131,28 +130,28 @@ export function MissionTaskList({ missionId, profiles, canEdit = false, missionN
             mission_id: missionId
           }}
           profiles={profiles}
-          onUpdate={fetchTasks}
+          onUpdate={fetchActions}
           isEditing={true}
-          onSave={handleAddTask}
-          onCancel={() => setIsAddingTask(false)}
+          onSave={handleAddAction}
+          onCancel={() => setIsAddingAction(false)}
         />
       )}
 
-      {tasks.length === 0 && !isAddingTask ? (
+      {actions.length === 0 && !isAddingAction ? (
         <div className="text-center py-8 text-muted-foreground">
-          <p>No tasks defined for this mission.</p>
+          <p>No actions defined for this mission.</p>
           {canEdit && (
-            <p className="text-sm mt-2">Add tasks to break down the mission into manageable steps.</p>
+            <p className="text-sm mt-2">Add actions to break down the mission into manageable steps.</p>
           )}
         </div>
       ) : (
         <div className="space-y-4">
-          {tasks.map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
+          {actions.map((action) => (
+            <ActionCard
+              key={action.id}
+              action={action}
               profiles={profiles}
-              onUpdate={fetchTasks}
+              onUpdate={fetchActions}
             />
           ))}
         </div>

@@ -1,4 +1,4 @@
-export interface StandardTask {
+export interface StandardAction {
   title: string;
   description: string;
   estimated_completion_date?: Date;
@@ -7,8 +7,8 @@ export interface StandardTask {
   status: 'not_started' | 'in_progress' | 'completed';
 }
 
-// Common task templates that can be used across all mission types
-export const STANDARD_TASKS: StandardTask[] = [
+// Common action templates that can be used across all mission types
+export const STANDARD_ACTIONS: StandardAction[] = [
   {
     title: "Site Assessment",
     description: "Evaluate the work area and identify potential challenges",
@@ -81,8 +81,8 @@ export const STANDARD_TASKS: StandardTask[] = [
   }
 ];
 
-// Mission-specific task templates
-export const MISSION_TEMPLATES: Record<string, StandardTask[]> = {
+// Mission-specific action templates
+export const MISSION_TEMPLATES: Record<string, StandardAction[]> = {
   construction: [
     {
       title: "Site Assessment",
@@ -376,6 +376,6 @@ export const MISSION_TEMPLATES: Record<string, StandardTask[]> = {
   ]
 };
 
-export function getStandardTasksForTemplate(templateId: string): StandardTask[] {
-  return MISSION_TEMPLATES[templateId] || STANDARD_TASKS;
+export function getStandardActionsForTemplate(templateId: string): StandardAction[] {
+  return MISSION_TEMPLATES[templateId] || STANDARD_ACTIONS;
 }

@@ -180,7 +180,7 @@ export type Database = {
             foreignKeyName: "inventory_usage_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
-            referencedRelation: "mission_tasks"
+            referencedRelation: "mission_actions"
             referencedColumns: ["id"]
           },
           {
@@ -224,65 +224,7 @@ export type Database = {
           },
         ]
       }
-      mission_attachments: {
-        Row: {
-          attachment_type: string
-          created_at: string
-          file_name: string
-          file_type: string
-          file_url: string
-          id: string
-          mission_id: string | null
-          task_id: string | null
-          uploaded_by: string
-        }
-        Insert: {
-          attachment_type: string
-          created_at?: string
-          file_name: string
-          file_type: string
-          file_url: string
-          id?: string
-          mission_id?: string | null
-          task_id?: string | null
-          uploaded_by: string
-        }
-        Update: {
-          attachment_type?: string
-          created_at?: string
-          file_name?: string
-          file_type?: string
-          file_url?: string
-          id?: string
-          mission_id?: string | null
-          task_id?: string | null
-          uploaded_by?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "mission_attachments_mission_id_fkey"
-            columns: ["mission_id"]
-            isOneToOne: false
-            referencedRelation: "missions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "mission_attachments_task_id_fkey"
-            columns: ["task_id"]
-            isOneToOne: false
-            referencedRelation: "mission_tasks"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "mission_attachments_uploaded_by_fkey"
-            columns: ["uploaded_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-        ]
-      }
-      mission_tasks: {
+      mission_actions: {
         Row: {
           actual_duration: string | null
           assigned_to: string | null
@@ -354,6 +296,64 @@ export type Database = {
           },
         ]
       }
+      mission_attachments: {
+        Row: {
+          attachment_type: string
+          created_at: string
+          file_name: string
+          file_type: string
+          file_url: string
+          id: string
+          mission_id: string | null
+          task_id: string | null
+          uploaded_by: string
+        }
+        Insert: {
+          attachment_type: string
+          created_at?: string
+          file_name: string
+          file_type: string
+          file_url: string
+          id?: string
+          mission_id?: string | null
+          task_id?: string | null
+          uploaded_by: string
+        }
+        Update: {
+          attachment_type?: string
+          created_at?: string
+          file_name?: string
+          file_type?: string
+          file_url?: string
+          id?: string
+          mission_id?: string | null
+          task_id?: string | null
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mission_attachments_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mission_attachments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "mission_actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mission_attachments_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       mission_tool_usage: {
         Row: {
           checkout_id: string
@@ -395,7 +395,7 @@ export type Database = {
             foreignKeyName: "mission_tool_usage_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
-            referencedRelation: "mission_tasks"
+            referencedRelation: "mission_actions"
             referencedColumns: ["id"]
           },
         ]

@@ -4,9 +4,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { TaskDetailEditor } from './TaskDetailEditor';
+import { ActionDetailEditor } from './ActionDetailEditor';
 
-interface Task {
+interface Action {
   id: string;
   title: string;
   plan?: string;
@@ -26,10 +26,10 @@ interface Profile {
   role: string;
 }
 
-interface TaskEditDialogProps {
+interface ActionEditDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  task: Task;
+  action: Action;
   profiles: Profile[];
   onSave: () => void;
   onCancel: () => void;
@@ -37,16 +37,16 @@ interface TaskEditDialogProps {
   missionId?: string;
 }
 
-export function TaskEditDialog({
+export function ActionEditDialog({
   open,
   onOpenChange,
-  task,
+  action,
   profiles,
   onSave,
   onCancel,
   isCreating = false,
   missionId
-}: TaskEditDialogProps) {
+}: ActionEditDialogProps) {
   const handleCancel = () => {
     onCancel();
     onOpenChange(false);
@@ -62,14 +62,14 @@ export function TaskEditDialog({
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {isCreating ? 'Create New Task' : `Edit Task: ${task.title || 'Untitled Task'}`}
+            {isCreating ? 'Create New Action' : `Edit Action: ${action.title || 'Untitled Action'}`}
           </DialogTitle>
         </DialogHeader>
         
-        <TaskDetailEditor
-          task={{
-            ...task,
-            mission_id: task.mission_id || missionId || '',
+        <ActionDetailEditor
+          action={{
+            ...action,
+            mission_id: action.mission_id || missionId || '',
           }}
           profiles={profiles}
           onSave={handleSave}

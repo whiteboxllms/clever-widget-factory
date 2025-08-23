@@ -440,7 +440,7 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
                       <CardContent className="pt-4">
                         <div className="flex items-center justify-between">
                             <Label htmlFor="damageDuringUse" className="text-sm font-medium">
-                              Did this happen while using the tool?
+                              Do the issue start while you were using it.?
                             </Label>
                           <Switch
                             id="damageDuringUse"

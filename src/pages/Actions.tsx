@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { POLICY_CATEGORY_OPTIONS } from '@/lib/constants';
-import { Target, Plus, Filter, Search, Clock, CheckCircle, Circle, User, AlertTriangle, Wrench } from 'lucide-react';
+import { Zap, Plus, Filter, Search, Clock, CheckCircle, Circle, User, AlertTriangle, Wrench } from 'lucide-react';
 import { ActionEditDialog } from '@/components/ActionEditDialog';
 
 interface PolicyAction {
@@ -26,6 +26,7 @@ interface PolicyAction {
   created_at: string;
   updated_at: string;
   completed_at?: string;
+  estimated_completion_date?: string;
   asset?: { name: string; category: string; } | null;
   assignee?: { full_name: string; } | null;
   mission?: { title: string; mission_number: number; } | null;
@@ -164,6 +165,8 @@ export default function Actions() {
         filtered = filtered.filter(action => !action.assigned_to);
       } else if (assigneeFilter === 'me' && user) {
         filtered = filtered.filter(action => action.assigned_to === user.id);
+      } else {
+        filtered = filtered.filter(action => action.assigned_to === assigneeFilter);
       }
     }
 
@@ -214,6 +217,15 @@ export default function Actions() {
 
   const unresolved = filteredActions.filter(a => a.status !== 'completed');
   const completed = filteredActions.filter(a => a.status === 'completed');
+  
+  // Get unique assignees from actions
+  const uniqueAssignees = Array.from(
+    new Map(
+      actions
+        .filter(action => action.assignee?.full_name && action.assigned_to)
+        .map(action => [action.assigned_to, { user_id: action.assigned_to, full_name: action.assignee!.full_name }])
+    ).values()
+  );
 
   if (loading) {
     return (
@@ -230,7 +242,7 @@ export default function Actions() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Target className="h-8 w-8 text-primary" />
+          <Zap className="h-8 w-8 text-primary" />
           <div>
             <h1 className="text-3xl font-bold">Actions</h1>
             <p className="text-muted-foreground">Track and manage actions</p>
@@ -324,6 +336,11 @@ export default function Actions() {
                   <SelectItem value="all">All Assignees</SelectItem>
                   <SelectItem value="me">Assigned to Me</SelectItem>
                   <SelectItem value="unassigned">Unassigned</SelectItem>
+                  {uniqueAssignees.map(assignee => (
+                    <SelectItem key={assignee.user_id} value={assignee.user_id}>
+                      {assignee.full_name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -348,9 +365,9 @@ export default function Actions() {
           {unresolved.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
-                <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <Zap className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-semibold mb-2">No unresolved actions</h3>
-                <p className="text-muted-foreground">All policy actions are completed or none match your filters.</p>
+                <p className="text-muted-foreground">All actions are completed or none match your filters.</p>
               </CardContent>
             </Card>
           ) : (
@@ -374,21 +391,22 @@ export default function Actions() {
                             {action.status.replace('_', ' ')}
                           </Badge>
                           
-                          {action.policy_category && (
+                          {/* Action Type Indicator */}
+                          {action.policy_category ? (
                             <Badge variant="outline" className={getPolicyCategoryColor(action.policy_category)}>
-                              {POLICY_CATEGORY_OPTIONS.find(opt => opt.value === action.policy_category)?.label}
+                              Policy: {POLICY_CATEGORY_OPTIONS.find(opt => opt.value === action.policy_category)?.label}
                             </Badge>
-                          )}
-                          
-                          {action.asset && (
-                            <Badge variant="outline">
+                          ) : action.asset ? (
+                            <Badge variant="outline" className="bg-blue-100 text-blue-800">
                               Asset: {action.asset.name}
                             </Badge>
-                          )}
-                          
-                          {!action.asset && action.issue_tool && (
+                          ) : action.issue_tool ? (
                             <Badge variant="outline" className="bg-orange-100 text-orange-800">
                               Issue Tool: {action.issue_tool.name}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-gray-100 text-gray-800">
+                              General Action
                             </Badge>
                           )}
                           
@@ -412,7 +430,9 @@ export default function Actions() {
                       </div>
                       
                       <div className="text-sm text-muted-foreground text-right">
-                        <div>Created: {new Date(action.created_at).toLocaleString()}</div>
+                        {action.estimated_completion_date && (
+                          <div>Expected: {new Date(action.estimated_completion_date).toLocaleDateString()}</div>
+                        )}
                         <div>Updated: {new Date(action.updated_at).toLocaleString()}</div>
                       </div>
                     </div>
@@ -453,27 +473,28 @@ export default function Actions() {
                             {action.status.replace('_', ' ')}
                           </Badge>
                           
-                          {action.policy_category && (
+                          {/* Action Type Indicator */}
+                          {action.policy_category ? (
                             <Badge variant="outline" className={getPolicyCategoryColor(action.policy_category)}>
-                              {POLICY_CATEGORY_OPTIONS.find(opt => opt.value === action.policy_category)?.label}
+                              Policy: {POLICY_CATEGORY_OPTIONS.find(opt => opt.value === action.policy_category)?.label}
+                            </Badge>
+                          ) : action.asset ? (
+                            <Badge variant="outline" className="bg-blue-100 text-blue-800">
+                              Asset: {action.asset.name}
+                            </Badge>
+                          ) : action.issue_tool ? (
+                            <Badge variant="outline" className="bg-orange-100 text-orange-800">
+                              Issue Tool: {action.issue_tool.name}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-gray-100 text-gray-800">
+                              General Action
                             </Badge>
                           )}
                           
                           {action.score && (
                             <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
                               Score: {action.score}
-                            </Badge>
-                          )}
-                          
-                          {action.asset && (
-                            <Badge variant="outline">
-                              Asset: {action.asset.name}
-                            </Badge>
-                          )}
-                          
-                          {!action.asset && action.issue_tool && (
-                            <Badge variant="outline" className="bg-orange-100 text-orange-800">
-                              Issue Tool: {action.issue_tool.name}
                             </Badge>
                           )}
                           
@@ -494,7 +515,9 @@ export default function Actions() {
                       
                       <div className="text-sm text-muted-foreground text-right">
                         <div>Completed: {action.completed_at ? new Date(action.completed_at).toLocaleString() : 'N/A'}</div>
-                        <div>Created: {new Date(action.created_at).toLocaleString()}</div>
+                        {action.estimated_completion_date && (
+                          <div>Expected: {new Date(action.estimated_completion_date).toLocaleDateString()}</div>
+                        )}
                       </div>
                     </div>
                   </CardContent>

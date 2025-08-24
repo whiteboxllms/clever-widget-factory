@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { POLICY_CATEGORY_OPTIONS } from '@/lib/constants';
 import { Target, Plus, Filter, Search, Clock, CheckCircle, Circle, User, AlertTriangle, Wrench } from 'lucide-react';
+import { ActionEditDialog } from '@/components/ActionEditDialog';
 
 interface PolicyAction {
   id: string;
@@ -41,6 +42,9 @@ export default function Actions() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
   const [viewFilter, setViewFilter] = useState('all');
+  const [editingAction, setEditingAction] = useState<PolicyAction | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [profiles, setProfiles] = useState<any[]>([]);
 
   const fetchActions = async () => {
     try {
@@ -100,8 +104,37 @@ export default function Actions() {
     }
   };
 
+  const fetchProfiles = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*');
+      if (error) throw error;
+      setProfiles(data || []);
+    } catch (error) {
+      console.error('Error fetching profiles:', error);
+    }
+  };
+
+  const handleEditAction = (action: PolicyAction) => {
+    setEditingAction(action);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveAction = async () => {
+    await fetchActions();
+    setIsEditDialogOpen(false);
+    setEditingAction(null);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditDialogOpen(false);
+    setEditingAction(null);
+  };
+
   useEffect(() => {
     fetchActions();
+    fetchProfiles();
   }, []);
 
   useEffect(() => {
@@ -199,8 +232,8 @@ export default function Actions() {
         <div className="flex items-center gap-3">
           <Target className="h-8 w-8 text-primary" />
           <div>
-            <h1 className="text-3xl font-bold">Policy Actions</h1>
-            <p className="text-muted-foreground">Track and manage RL-aligned policy actions</p>
+            <h1 className="text-3xl font-bold">Actions</h1>
+            <p className="text-muted-foreground">Track and manage actions</p>
           </div>
         </div>
         <Button>
@@ -239,9 +272,11 @@ export default function Actions() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Actions</SelectItem>
-                  <SelectItem value="toolkeeper" className="flex items-center gap-2">
-                    <Wrench className="h-4 w-4" />
-                    Toolkeeper View
+                  <SelectItem value="toolkeeper">
+                    <div className="flex items-center gap-2">
+                      <Wrench className="h-4 w-4" />
+                      Toolkeeper View
+                    </div>
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -321,7 +356,7 @@ export default function Actions() {
           ) : (
             <div className="grid gap-4">
               {unresolved.map(action => (
-                <Card key={action.id} className="hover:shadow-md transition-shadow">
+                <Card key={action.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleEditAction(action)}>
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between">
                       <div className="flex-1 space-y-3">
@@ -377,8 +412,8 @@ export default function Actions() {
                       </div>
                       
                       <div className="text-sm text-muted-foreground text-right">
-                        <div>Created: {new Date(action.created_at).toLocaleDateString()}</div>
-                        <div>Updated: {new Date(action.updated_at).toLocaleDateString()}</div>
+                        <div>Created: {new Date(action.created_at).toLocaleString()}</div>
+                        <div>Updated: {new Date(action.updated_at).toLocaleString()}</div>
                       </div>
                     </div>
                   </CardContent>
@@ -400,7 +435,7 @@ export default function Actions() {
           ) : (
             <div className="grid gap-4">
               {completed.map(action => (
-                <Card key={action.id} className="hover:shadow-md transition-shadow">
+                <Card key={action.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleEditAction(action)}>
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between">
                       <div className="flex-1 space-y-3">
@@ -458,8 +493,8 @@ export default function Actions() {
                       </div>
                       
                       <div className="text-sm text-muted-foreground text-right">
-                        <div>Completed: {action.completed_at ? new Date(action.completed_at).toLocaleDateString() : 'N/A'}</div>
-                        <div>Created: {new Date(action.created_at).toLocaleDateString()}</div>
+                        <div>Completed: {action.completed_at ? new Date(action.completed_at).toLocaleString() : 'N/A'}</div>
+                        <div>Created: {new Date(action.created_at).toLocaleString()}</div>
                       </div>
                     </div>
                   </CardContent>
@@ -469,6 +504,27 @@ export default function Actions() {
           )}
         </TabsContent>
       </Tabs>
+      
+      {editingAction && (
+        <ActionEditDialog
+          open={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          action={{
+            ...editingAction,
+            assigned_to: editingAction.assigned_to || null,
+            mission_id: editingAction.mission_id || '',
+            plan: '',
+            observations: '',
+            estimated_completion_date: undefined,
+            required_tools: [],
+            required_stock: []
+          }}
+          profiles={profiles}
+          onSave={handleSaveAction}
+          onCancel={handleCancelEdit}
+          isCreating={false}
+        />
+      )}
     </div>
   );
 }

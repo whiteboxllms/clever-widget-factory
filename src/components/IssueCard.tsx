@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle, X, Clock, Edit, Plus } from "lucide-react";
+import { AlertTriangle, CheckCircle, X, Clock, Edit, Plus, Target } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { CreateActionFromIssueDialog } from "./CreateActionFromIssueDialog";
+import { IssueScoreDialog } from "./IssueScoreDialog";
 
 interface ToolIssue {
   id: string;
@@ -32,6 +33,8 @@ interface IssueCardProps {
 export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProps) {
   const [isRemoving, setIsRemoving] = useState(false);
   const [showCreateActionDialog, setShowCreateActionDialog] = useState(false);
+  const [showScoreDialog, setShowScoreDialog] = useState(false);
+  const [tool, setTool] = useState<any>(null);
 
   const getIssueTypeIcon = (issueType: string) => {
     switch (issueType) {
@@ -109,6 +112,28 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
     }
   };
 
+  const handleAssignScore = async () => {
+    try {
+      const { data: toolData, error } = await supabase
+        .from('tools')
+        .select('*')
+        .eq('id', issue.tool_id)
+        .single();
+
+      if (error) throw error;
+      
+      setTool(toolData);
+      setShowScoreDialog(true);
+    } catch (error) {
+      console.error('Error fetching tool:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load tool information",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <Card className="border-l-4 border-l-primary/20">
       <CardContent className="p-3">
@@ -158,6 +183,15 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
           </div>
           
           <div className="flex gap-1 flex-shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleAssignScore}
+              className="h-7 px-2 text-xs"
+              title="Assign Score"
+            >
+              <Target className="h-3 w-3" />
+            </Button>
             <Button
               size="sm"
               variant="outline"
@@ -211,6 +245,15 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
           onRefresh();
         }}
       />
+
+      {tool && (
+        <IssueScoreDialog
+          open={showScoreDialog}
+          onOpenChange={setShowScoreDialog}
+          issue={issue}
+          tool={tool}
+        />
+      )}
     </Card>
   );
 }

@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      asset_scores: {
+        Row: {
+          asset_id: string
+          asset_name: string
+          created_at: string
+          id: string
+          prompt_id: string
+          prompt_text: string
+          scores: Json
+          source_id: string
+          source_type: string
+          updated_at: string
+        }
+        Insert: {
+          asset_id: string
+          asset_name: string
+          created_at?: string
+          id?: string
+          prompt_id: string
+          prompt_text: string
+          scores?: Json
+          source_id: string
+          source_type: string
+          updated_at?: string
+        }
+        Update: {
+          asset_id?: string
+          asset_name?: string
+          created_at?: string
+          id?: string
+          prompt_id?: string
+          prompt_text?: string
+          scores?: Json
+          source_id?: string
+          source_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_asset_scores_prompt_id"
+            columns: ["prompt_id"]
+            isOneToOne: false
+            referencedRelation: "scoring_prompts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_asset_scores_tool_id"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "tools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       checkins: {
         Row: {
           after_image_urls: string[] | null
@@ -697,6 +751,36 @@ export type Database = {
           role?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      scoring_prompts: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          is_default: boolean
+          name: string
+          prompt_text: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          is_default?: boolean
+          name: string
+          prompt_text: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          prompt_text?: string
+          updated_at?: string
         }
         Relationships: []
       }

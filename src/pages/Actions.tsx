@@ -20,6 +20,7 @@ interface PolicyAction {
   asset_id?: string;
   mission_id?: string;
   assigned_to?: string;
+  linked_issue_id?: string;
   score?: number;
   created_at: string;
   updated_at: string;
@@ -27,6 +28,7 @@ interface PolicyAction {
   asset?: { name: string; category: string; } | null;
   assignee?: { full_name: string; } | null;
   mission?: { title: string; mission_number: number; } | null;
+  issue_tool?: { name: string; category: string; } | null;
 }
 
 export default function Actions() {
@@ -47,7 +49,11 @@ export default function Actions() {
           *,
           asset:tools(name, category),
           assignee:profiles!mission_actions_assigned_to_fkey(full_name),
-          mission:missions(title, mission_number)
+          mission:missions(title, mission_number),
+          issue_tool:tool_issues!mission_actions_linked_issue_id_fkey(
+            tool_id,
+            tool:tools(name, category)
+          )
         `)
         .order('created_at', { ascending: false });
 
@@ -56,7 +62,8 @@ export default function Actions() {
         ...item,
         asset: item.asset && typeof item.asset === 'object' && !('error' in item.asset) ? item.asset : null,
         assignee: item.assignee && typeof item.assignee === 'object' && !('error' in item.assignee) ? item.assignee : null,
-        mission: item.mission && typeof item.mission === 'object' && !('error' in item.mission) ? item.mission : null
+        mission: item.mission && typeof item.mission === 'object' && !('error' in item.mission) ? item.mission : null,
+        issue_tool: item.issue_tool?.tool && typeof item.issue_tool.tool === 'object' && !('error' in item.issue_tool.tool) ? item.issue_tool.tool : null
       })) || []);
     } catch (error) {
       console.error('Error fetching actions:', error);
@@ -300,6 +307,12 @@ export default function Actions() {
                             </Badge>
                           )}
                           
+                          {!action.asset && action.issue_tool && (
+                            <Badge variant="outline" className="bg-orange-100 text-orange-800">
+                              Issue Tool: {action.issue_tool.name}
+                            </Badge>
+                          )}
+                          
                           {action.mission && (
                             <Badge variant="outline" className="bg-indigo-100 text-indigo-800">
                               Mission #{action.mission.mission_number}: {action.mission.title}
@@ -376,6 +389,12 @@ export default function Actions() {
                           {action.asset && (
                             <Badge variant="outline">
                               Asset: {action.asset.name}
+                            </Badge>
+                          )}
+                          
+                          {!action.asset && action.issue_tool && (
+                            <Badge variant="outline" className="bg-orange-100 text-orange-800">
+                              Issue Tool: {action.issue_tool.name}
                             </Badge>
                           )}
                           

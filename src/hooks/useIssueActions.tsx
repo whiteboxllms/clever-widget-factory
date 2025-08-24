@@ -6,8 +6,13 @@ export interface IssueAction {
   id: string;
   title: string;
   description?: string;
+  plan?: string;
+  observations?: string;
   status: string;
   assigned_to?: string;
+  estimated_duration?: string;
+  required_tools?: string[];
+  required_stock?: { part_id: string; quantity: number; part_name: string; }[];
   created_at: string;
   updated_at: string;
   completed_at?: string;

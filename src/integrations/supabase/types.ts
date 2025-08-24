@@ -228,12 +228,15 @@ export type Database = {
         Row: {
           actual_duration: string | null
           assigned_to: string | null
+          attachments: string[] | null
           completed_at: string | null
           created_at: string
           description: string | null
           estimated_duration: string | null
           evidence_description: string | null
           id: string
+          issue_reference: string | null
+          linked_issue_id: string | null
           mission_id: string
           observations: string | null
           plan: string | null
@@ -246,12 +249,15 @@ export type Database = {
         Insert: {
           actual_duration?: string | null
           assigned_to?: string | null
+          attachments?: string[] | null
           completed_at?: string | null
           created_at?: string
           description?: string | null
           estimated_duration?: string | null
           evidence_description?: string | null
           id?: string
+          issue_reference?: string | null
+          linked_issue_id?: string | null
           mission_id: string
           observations?: string | null
           plan?: string | null
@@ -264,12 +270,15 @@ export type Database = {
         Update: {
           actual_duration?: string | null
           assigned_to?: string | null
+          attachments?: string[] | null
           completed_at?: string | null
           created_at?: string
           description?: string | null
           estimated_duration?: string | null
           evidence_description?: string | null
           id?: string
+          issue_reference?: string | null
+          linked_issue_id?: string | null
           mission_id?: string
           observations?: string | null
           plan?: string | null
@@ -280,6 +289,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "mission_actions_linked_issue_id_fkey"
+            columns: ["linked_issue_id"]
+            isOneToOne: false
+            referencedRelation: "tool_issues"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "mission_tasks_assigned_to_fkey"
             columns: ["assigned_to"]

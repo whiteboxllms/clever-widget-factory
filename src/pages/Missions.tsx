@@ -280,7 +280,9 @@ const Missions = () => {
           id, 
           status, 
           plan, 
-          observations
+          observations,
+          linked_issue_id,
+          issue_reference
         )
       `).order('created_at', {
       ascending: false

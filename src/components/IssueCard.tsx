@@ -2,9 +2,10 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle, X, Clock, Edit } from "lucide-react";
+import { AlertTriangle, CheckCircle, X, Clock, Edit, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { CreateActionFromIssueDialog } from "./CreateActionFromIssueDialog";
 
 interface ToolIssue {
   id: string;
@@ -13,6 +14,7 @@ interface ToolIssue {
   status: 'active' | 'resolved' | 'removed';
   reported_at: string;
   reported_by: string;
+  tool_id: string;
   blocks_checkout?: boolean;
   is_misuse?: boolean;
   damage_assessment?: string;
@@ -29,6 +31,7 @@ interface IssueCardProps {
 
 export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProps) {
   const [isRemoving, setIsRemoving] = useState(false);
+  const [showCreateActionDialog, setShowCreateActionDialog] = useState(false);
 
   const getIssueTypeIcon = (issueType: string) => {
     switch (issueType) {
@@ -155,6 +158,15 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
           </div>
           
           <div className="flex gap-1 flex-shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowCreateActionDialog(true)}
+              className="h-7 px-2 text-xs"
+              title="Create Action"
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
             {onEdit && (
               <Button
                 size="sm"
@@ -186,6 +198,19 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
           </div>
         </div>
       </CardContent>
+
+      <CreateActionFromIssueDialog
+        open={showCreateActionDialog}
+        onOpenChange={setShowCreateActionDialog}
+        issue={issue}
+        onActionCreated={() => {
+          toast({
+            title: "Success",
+            description: "Action created successfully from issue"
+          });
+          onRefresh();
+        }}
+      />
     </Card>
   );
 }

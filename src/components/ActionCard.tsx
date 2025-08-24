@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Clock, User, Upload, Image, ChevronDown, ChevronRight, Save, X } from 'lucide-react';
+import { CheckCircle, Clock, User, Upload, Image, ChevronDown, ChevronRight, Save, X, Link } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -41,6 +41,8 @@ interface ActionCardProps {
     estimated_duration?: string;
     actual_duration?: string;
     required_tools?: string[];
+    linked_issue_id?: string;
+    issue_reference?: string;
   };
   profiles: Profile[];
   onUpdate: () => void;
@@ -737,14 +739,22 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                 {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
               </div>
             </CardTitle>
-            {action.assigned_to && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <User className="w-3 h-3" />
-                <span>
-                  {profiles.find(p => p.user_id === action.assigned_to)?.full_name || 'Unknown User'}
-                </span>
-              </div>
-            )}
+            <div className="space-y-1">
+              {action.assigned_to && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <User className="w-3 h-3" />
+                  <span>
+                    {profiles.find(p => p.user_id === action.assigned_to)?.full_name || 'Unknown User'}
+                  </span>
+                </div>
+              )}
+              {action.issue_reference && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Link className="w-3 h-3" />
+                  <span className="text-xs">From: {action.issue_reference}</span>
+                </div>
+              )}
+            </div>
           </CardHeader>
         </CollapsibleTrigger>
 

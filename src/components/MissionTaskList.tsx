@@ -16,6 +16,9 @@ interface Action {
   created_at: string;
   updated_at: string;
   completed_at: string;
+  linked_issue_id?: string;
+  issue_reference?: string;
+  attachments?: string[];
 }
 
 interface Profile {
@@ -47,7 +50,7 @@ export function MissionTaskList({ missionId, profiles, canEdit = false, missionN
     
     const { data, error } = await supabase
       .from('mission_actions')
-      .select('*')
+      .select('*, linked_issue_id, issue_reference, attachments')
       .eq('mission_id', missionId)
       .order('created_at', { ascending: true });
 

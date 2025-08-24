@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { CreateActionFromIssueDialog } from "./CreateActionFromIssueDialog";
 import { IssueScoreDialog } from "./IssueScoreDialog";
+import { useAssetScores, AssetScore } from "@/hooks/useAssetScores";
 
 interface ToolIssue {
   id: string;
@@ -35,6 +36,8 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
   const [showCreateActionDialog, setShowCreateActionDialog] = useState(false);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
   const [tool, setTool] = useState<any>(null);
+  const [existingScore, setExistingScore] = useState<AssetScore | null>(null);
+  const { getScoreForIssue } = useAssetScores();
 
   const getIssueTypeIcon = (issueType: string) => {
     switch (issueType) {
@@ -112,6 +115,15 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
     }
   };
 
+  // Check for existing score when component mounts
+  useEffect(() => {
+    const checkExistingScore = async () => {
+      const score = await getScoreForIssue(issue.id);
+      setExistingScore(score);
+    };
+    checkExistingScore();
+  }, [issue.id, getScoreForIssue]);
+
   const handleAssignScore = async () => {
     try {
       const { data: toolData, error } = await supabase
@@ -187,8 +199,8 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
               size="sm"
               variant="outline"
               onClick={handleAssignScore}
-              className="h-7 px-2 text-xs"
-              title="Assign Score"
+              className={`h-7 px-2 text-xs ${existingScore ? 'border-green-500 border-2' : ''}`}
+              title={existingScore ? "View/Edit Score" : "Assign Score"}
             >
               <Target className="h-3 w-3" />
             </Button>
@@ -252,6 +264,11 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
           onOpenChange={setShowScoreDialog}
           issue={issue}
           tool={tool}
+          existingScore={existingScore}
+          onScoreUpdated={() => {
+            // Refresh the existing score when updated
+            getScoreForIssue(issue.id).then(setExistingScore);
+          }}
         />
       )}
     </Card>

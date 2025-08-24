@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Copy, Save } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -8,9 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useScoringPrompts } from '@/hooks/useScoringPrompts';
-import { useAssetScores } from '@/hooks/useAssetScores';
+import { useAssetScores, AssetScore } from '@/hooks/useAssetScores';
 import { useToast } from '@/hooks/use-toast';
 import { ScoreEntryForm } from './ScoreEntryForm';
+import { ScoreDisplayCard } from './ScoreDisplayCard';
 
 interface ToolIssue {
   id: string;
@@ -37,11 +38,13 @@ interface IssueScoreDialogProps {
   onOpenChange: (open: boolean) => void;
   issue: ToolIssue;
   tool: Tool;
+  existingScore?: AssetScore | null;
+  onScoreUpdated?: () => void;
 }
 
-export function IssueScoreDialog({ open, onOpenChange, issue, tool }: IssueScoreDialogProps) {
+export function IssueScoreDialog({ open, onOpenChange, issue, tool, existingScore, onScoreUpdated }: IssueScoreDialogProps) {
   const { prompts, getDefaultPrompt } = useScoringPrompts();
-  const { createScore } = useAssetScores();
+  const { createScore, updateScore } = useAssetScores();
   const { toast } = useToast();
   
   const [selectedPromptId, setSelectedPromptId] = useState<string>('');
@@ -50,16 +53,32 @@ export function IssueScoreDialog({ open, onOpenChange, issue, tool }: IssueScore
   const [parsedRootCauses, setParsedRootCauses] = useState<string[]>([]);
   const [fullAiResponse, setFullAiResponse] = useState<Record<string, any>>({});
   const [showScoreForm, setShowScoreForm] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
 
-  // Initialize with default prompt when dialog opens
-  useState(() => {
-    if (open && prompts.length > 0 && !selectedPromptId) {
-      const defaultPrompt = getDefaultPrompt();
-      if (defaultPrompt) {
-        setSelectedPromptId(defaultPrompt.id);
+  // Initialize with existing score data or default prompt when dialog opens
+  useEffect(() => {
+    if (open) {
+      if (existingScore) {
+        // Edit mode - populate with existing data
+        setIsEditMode(true);
+        setSelectedPromptId(existingScore.prompt_id);
+        setAiResponse(JSON.stringify(existingScore.ai_response || {}, null, 2));
+        setParsedScores(existingScore.scores);
+        setParsedRootCauses(existingScore.likely_root_causes || []);
+        setFullAiResponse(existingScore.ai_response || {});
+        setShowScoreForm(true);
+      } else {
+        // Create mode - initialize with defaults
+        setIsEditMode(false);
+        if (prompts.length > 0 && !selectedPromptId) {
+          const defaultPrompt = getDefaultPrompt();
+          if (defaultPrompt) {
+            setSelectedPromptId(defaultPrompt.id);
+          }
+        }
       }
     }
-  });
+  }, [open, existingScore, prompts, selectedPromptId, getDefaultPrompt]);
 
   const selectedPrompt = prompts.find(p => p.id === selectedPromptId);
 
@@ -129,27 +148,42 @@ export function IssueScoreDialog({ open, onOpenChange, issue, tool }: IssueScore
     if (!selectedPrompt) return;
 
     try {
-      await createScore({
-        asset_id: tool.id,
-        asset_name: tool.name,
-        source_type: 'issue',
-        source_id: issue.id,
-        prompt_id: selectedPrompt.id,
-        prompt_text: selectedPrompt.prompt_text,
-        scores,
-        ai_response: fullAiResponse,
-        likely_root_causes: parsedRootCauses,
-      });
+      if (isEditMode && existingScore) {
+        // Update existing score
+        await updateScore(existingScore.id, {
+          scores,
+          ai_response: fullAiResponse,
+          likely_root_causes: parsedRootCauses,
+          prompt_id: selectedPrompt.id,
+          prompt_text: selectedPrompt.prompt_text,
+        });
 
-      toast({
-        title: "Success",
-        description: "Asset score saved successfully",
-      });
+        toast({
+          title: "Success",
+          description: "Asset score updated successfully",
+        });
+      } else {
+        // Create new score
+        await createScore({
+          asset_id: tool.id,
+          asset_name: tool.name,
+          source_type: 'issue',
+          source_id: issue.id,
+          prompt_id: selectedPrompt.id,
+          prompt_text: selectedPrompt.prompt_text,
+          scores,
+          ai_response: fullAiResponse,
+          likely_root_causes: parsedRootCauses,
+        });
+
+        toast({
+          title: "Success",
+          description: "Asset score saved successfully",
+        });
+      }
       
-      onOpenChange(false);
-      setAiResponse('');
-      setParsedScores({});
-      setShowScoreForm(false);
+      onScoreUpdated?.();
+      handleClose();
     } catch (error) {
       // Error handled in hook
     }
@@ -162,15 +196,21 @@ export function IssueScoreDialog({ open, onOpenChange, issue, tool }: IssueScore
     setParsedRootCauses([]);
     setFullAiResponse({});
     setShowScoreForm(false);
+    setIsEditMode(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Score Asset Performance</DialogTitle>
+          <DialogTitle>
+            {isEditMode ? 'Edit Asset Score' : 'Score Asset Performance'}
+          </DialogTitle>
           <DialogDescription>
-            Generate AI scoring for {tool.name} based on issue report
+            {isEditMode 
+              ? `Review and edit existing AI scoring for ${tool.name}`
+              : `Generate AI scoring for ${tool.name} based on issue report`
+            }
           </DialogDescription>
         </DialogHeader>
 
@@ -234,6 +274,21 @@ export function IssueScoreDialog({ open, onOpenChange, issue, tool }: IssueScore
               </div>
             </CardContent>
           </Card>
+
+          {/* Show existing scores if in edit mode */}
+          {isEditMode && existingScore && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Current Score</CardTitle>
+                <CardDescription>
+                  Existing score data - you can edit the details below
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ScoreDisplayCard scores={[existingScore]} assetName={tool.name} />
+              </CardContent>
+            </Card>
+          )}
 
           {/* Prompt Selection */}
           <div className="space-y-4">

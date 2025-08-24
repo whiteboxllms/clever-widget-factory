@@ -111,6 +111,23 @@ export const useAssetScores = (assetId?: string) => {
     }
   };
 
+  const getScoreForIssue = async (issueId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('asset_scores')
+        .select('*')
+        .eq('source_id', issueId)
+        .eq('source_type', 'issue')
+        .maybeSingle();
+
+      if (error) throw error;
+      return data as AssetScore | null;
+    } catch (error) {
+      console.error('Error fetching score for issue:', error);
+      return null;
+    }
+  };
+
   useEffect(() => {
     if (assetId) {
       fetchScores();
@@ -123,5 +140,6 @@ export const useAssetScores = (assetId?: string) => {
     fetchScores,
     createScore,
     updateScore,
+    getScoreForIssue,
   };
 };

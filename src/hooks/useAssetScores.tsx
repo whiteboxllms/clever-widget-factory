@@ -11,6 +11,8 @@ export interface AssetScore {
   prompt_id: string;
   prompt_text: string;
   scores: Record<string, { score: number; reason: string }>;
+  ai_response?: Record<string, any>;
+  likely_root_causes?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -55,6 +57,8 @@ export const useAssetScores = (assetId?: string) => {
     prompt_id: string;
     prompt_text: string;
     scores: Record<string, { score: number; reason: string }>;
+    ai_response?: Record<string, any>;
+    likely_root_causes?: string[];
   }) => {
     try {
       const { data, error } = await supabase

@@ -14,11 +14,12 @@ interface ScoreEntry {
 
 interface ScoreEntryFormProps {
   initialScores?: Record<string, ScoreEntry>;
+  rootCauses?: string[];
   onSave: (scores: Record<string, ScoreEntry>) => void;
   onCancel: () => void;
 }
 
-export function ScoreEntryForm({ initialScores = {}, onSave, onCancel }: ScoreEntryFormProps) {
+export function ScoreEntryForm({ initialScores = {}, rootCauses = [], onSave, onCancel }: ScoreEntryFormProps) {
   const [scores, setScores] = useState<Record<string, ScoreEntry>>(initialScores);
   const [newAttributeName, setNewAttributeName] = useState('');
 
@@ -72,6 +73,27 @@ export function ScoreEntryForm({ initialScores = {}, onSave, onCancel }: ScoreEn
 
   return (
     <div className="space-y-6">
+      {/* Root Causes Analysis */}
+      {rootCauses.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">AI Root Cause Analysis</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+              {rootCauses.map((cause, index) => (
+                <li key={index} className="flex items-start space-x-2">
+                  <Badge variant="outline" className="mt-0.5 text-xs">
+                    {index + 1}
+                  </Badge>
+                  <span className="text-sm">{cause}</span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Existing Scores */}
       <div className="space-y-4">
         {Object.entries(scores).map(([attribute, entry]) => (

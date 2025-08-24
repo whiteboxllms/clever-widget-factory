@@ -47,6 +47,8 @@ export function IssueScoreDialog({ open, onOpenChange, issue, tool }: IssueScore
   const [selectedPromptId, setSelectedPromptId] = useState<string>('');
   const [aiResponse, setAiResponse] = useState('');
   const [parsedScores, setParsedScores] = useState<Record<string, { score: number; reason: string }>>({});
+  const [parsedRootCauses, setParsedRootCauses] = useState<string[]>([]);
+  const [fullAiResponse, setFullAiResponse] = useState<Record<string, any>>({});
   const [showScoreForm, setShowScoreForm] = useState(false);
 
   // Initialize with default prompt when dialog opens
@@ -104,14 +106,20 @@ export function IssueScoreDialog({ open, onOpenChange, issue, tool }: IssueScore
       const parsed = JSON.parse(aiResponse);
       if (parsed.scores && typeof parsed.scores === 'object') {
         setParsedScores(parsed.scores);
+        setParsedRootCauses(parsed.likely_root_causes || []);
+        setFullAiResponse(parsed);
         setShowScoreForm(true);
       } else {
-        throw new Error('Invalid response format');
+        toast({
+          title: "Error",
+          description: "Response must contain a 'scores' field with scoring data.",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       toast({
         title: "Error",
-        description: "Invalid JSON response. Please check the format.",
+        description: "Invalid JSON response. Please check the format and try again.",
         variant: "destructive",
       });
     }
@@ -129,6 +137,8 @@ export function IssueScoreDialog({ open, onOpenChange, issue, tool }: IssueScore
         prompt_id: selectedPrompt.id,
         prompt_text: selectedPrompt.prompt_text,
         scores,
+        ai_response: fullAiResponse,
+        likely_root_causes: parsedRootCauses,
       });
 
       toast({
@@ -149,6 +159,8 @@ export function IssueScoreDialog({ open, onOpenChange, issue, tool }: IssueScore
     onOpenChange(false);
     setAiResponse('');
     setParsedScores({});
+    setParsedRootCauses([]);
+    setFullAiResponse({});
     setShowScoreForm(false);
   };
 
@@ -302,6 +314,7 @@ export function IssueScoreDialog({ open, onOpenChange, issue, tool }: IssueScore
               <CardContent>
                 <ScoreEntryForm
                   initialScores={parsedScores}
+                  rootCauses={parsedRootCauses}
                   onSave={handleSaveScore}
                   onCancel={() => setShowScoreForm(false)}
                 />

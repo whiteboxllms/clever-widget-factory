@@ -117,6 +117,20 @@ export function ScoreDisplayCard({ scores, assetName }: ScoreDisplayCardProps) {
               <CollapsibleContent>
                 <CardContent className="pt-0">
                   <div className="space-y-3">
+                    {assetScore.likely_root_causes && assetScore.likely_root_causes.length > 0 && (
+                      <div className="p-3 bg-blue-50 rounded-lg">
+                        <h4 className="text-sm font-semibold mb-2">Root Causes Identified:</h4>
+                        <ul className="space-y-1">
+                          {assetScore.likely_root_causes.map((cause, idx) => (
+                            <li key={idx} className="text-xs text-blue-700 flex items-start">
+                              <span className="mr-2">•</span>
+                              <span>{cause}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
                     {Object.entries(assetScore.scores).map(([attribute, data]) => (
                       <div key={attribute} className="flex items-start justify-between p-3 bg-muted rounded-lg">
                         <div className="flex-1">

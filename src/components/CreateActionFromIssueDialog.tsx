@@ -148,7 +148,7 @@ export function CreateActionFromIssueDialog({
         .insert({
           title: formData.title,
           description: formData.details,
-          assigned_to: formData.assigned_to || null,
+          assigned_to: formData.assigned_to === 'unassigned' ? null : formData.assigned_to || null,
           mission_id: null,
           linked_issue_id: issue?.id,
           issue_reference: issue ? `Issue: ${issue.description}` : null,
@@ -263,7 +263,7 @@ export function CreateActionFromIssueDialog({
                 </div>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Unassigned</SelectItem>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
                 {profiles.map((profile) => (
                   <SelectItem key={profile.user_id} value={profile.user_id}>
                     {profile.full_name}

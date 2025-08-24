@@ -16,10 +16,12 @@ export type Database = {
     Tables: {
       asset_scores: {
         Row: {
+          ai_response: Json | null
           asset_id: string
           asset_name: string
           created_at: string
           id: string
+          likely_root_causes: string[] | null
           prompt_id: string
           prompt_text: string
           scores: Json
@@ -28,10 +30,12 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_response?: Json | null
           asset_id: string
           asset_name: string
           created_at?: string
           id?: string
+          likely_root_causes?: string[] | null
           prompt_id: string
           prompt_text: string
           scores?: Json
@@ -40,10 +44,12 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_response?: Json | null
           asset_id?: string
           asset_name?: string
           created_at?: string
           id?: string
+          likely_root_causes?: string[] | null
           prompt_id?: string
           prompt_text?: string
           scores?: Json

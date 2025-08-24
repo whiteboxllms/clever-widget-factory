@@ -131,7 +131,7 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
       setExistingActions(actions);
     };
     checkExistingData();
-  }, [issue.id, getScoreForIssue, getActionsForIssue]);
+  }, [issue.id]);
 
   const handleAssignScore = async () => {
     try {

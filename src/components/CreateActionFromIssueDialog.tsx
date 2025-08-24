@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { Paperclip, Calendar } from "lucide-react";
+import { Paperclip, Calendar, Users } from "lucide-react";
 import { useImageUpload } from "@/hooks/useImageUpload";
 
 interface ToolIssue {
@@ -31,6 +31,13 @@ interface Mission {
   status: string;
 }
 
+interface Profile {
+  id: string;
+  user_id: string;
+  full_name: string;
+  role: string;
+}
+
 interface CreateActionFromIssueDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -47,11 +54,34 @@ export function CreateActionFromIssueDialog({
   const [formData, setFormData] = useState({
     title: '',
     details: '',
+    assigned_to: '',
     attachments: [] as string[]
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   
   const { uploadImages, isUploading } = useImageUpload();
+
+  // Fetch profiles for assignee selector
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, user_id, full_name, role')
+        .order('full_name');
+      
+      if (error) {
+        console.error('Error fetching profiles:', error);
+        return;
+      }
+      
+      setProfiles(data || []);
+    };
+
+    if (open) {
+      fetchProfiles();
+    }
+  }, [open]);
 
   // Pre-fill form with issue data when dialog opens
   useEffect(() => {
@@ -59,6 +89,7 @@ export function CreateActionFromIssueDialog({
       setFormData({
         title: `Resolve ${issue.issue_type} issue`,
         details: `Action needed to address issue: ${issue.description}`,
+        assigned_to: '',
         attachments: []
       });
     }
@@ -117,6 +148,7 @@ export function CreateActionFromIssueDialog({
         .insert({
           title: formData.title,
           description: formData.details,
+          assigned_to: formData.assigned_to || null,
           mission_id: null,
           linked_issue_id: issue?.id,
           issue_reference: issue ? `Issue: ${issue.description}` : null,
@@ -134,6 +166,7 @@ export function CreateActionFromIssueDialog({
       setFormData({
         title: '',
         details: '',
+        assigned_to: '',
         attachments: []
       });
       
@@ -215,6 +248,29 @@ export function CreateActionFromIssueDialog({
               className="mt-1"
               rows={4}
             />
+          </div>
+
+          {/* Assigned To */}
+          <div>
+            <Label htmlFor="assignedTo" className="text-sm font-medium">
+              Assigned To
+            </Label>
+            <Select value={formData.assigned_to} onValueChange={(value) => setFormData(prev => ({ ...prev, assigned_to: value }))}>
+              <SelectTrigger className="mt-1">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <SelectValue placeholder="Select assignee (optional)" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Unassigned</SelectItem>
+                {profiles.map((profile) => (
+                  <SelectItem key={profile.user_id} value={profile.user_id}>
+                    {profile.full_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
 

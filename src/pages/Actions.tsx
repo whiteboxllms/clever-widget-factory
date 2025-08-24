@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { POLICY_CATEGORY_OPTIONS } from '@/lib/constants';
-import { Zap, Plus, Filter, Search, Clock, CheckCircle, Circle, User, AlertTriangle, Wrench } from 'lucide-react';
+import { Bolt, Plus, Filter, Search, Clock, CheckCircle, Circle, User, AlertTriangle, Wrench } from 'lucide-react';
 import { ActionEditDialog } from '@/components/ActionEditDialog';
 
 interface PolicyAction {
@@ -242,7 +242,7 @@ export default function Actions() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Zap className="h-8 w-8 text-primary" />
+          <Bolt className="h-8 w-8 text-primary" />
           <div>
             <h1 className="text-3xl font-bold">Actions</h1>
             <p className="text-muted-foreground">Track and manage actions</p>
@@ -365,7 +365,7 @@ export default function Actions() {
           {unresolved.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
-                <Zap className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <Bolt className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-semibold mb-2">No unresolved actions</h3>
                 <p className="text-muted-foreground">All actions are completed or none match your filters.</p>
               </CardContent>

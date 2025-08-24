@@ -47,23 +47,45 @@ export default function Actions() {
         .from('mission_actions')
         .select(`
           *,
-          asset:tools(name, category),
-          assignee:profiles!mission_actions_assigned_to_fkey(full_name),
-          mission:missions(title, mission_number),
-          issue_tool:tool_issues!mission_actions_linked_issue_id_fkey(
-            tool_id,
-            tool:tools(name, category)
-          )
+          assignee:profiles(full_name),
+          mission:missions(title, mission_number)
         `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setActions((data as any[])?.map(item => ({
+
+      // Fetch tool info for actions with asset_id
+      const assetActions = data?.filter(action => action.asset_id) || [];
+      let toolsData = [];
+      if (assetActions.length > 0) {
+        const { data: tools } = await supabase
+          .from('tools')
+          .select('id, name, category')
+          .in('id', assetActions.map(a => a.asset_id));
+        toolsData = tools || [];
+      }
+
+      // Fetch tool info for actions with linked_issue_id
+      const issueActions = data?.filter(action => action.linked_issue_id) || [];
+      let issueToolsData = [];
+      if (issueActions.length > 0) {
+        const { data: issueTools } = await supabase
+          .from('tool_issues')
+          .select(`
+            id,
+            tool_id,
+            tool:tools(name, category)
+          `)
+          .in('id', issueActions.map(a => a.linked_issue_id));
+        issueToolsData = issueTools || [];
+      }
+
+      setActions(data?.map(item => ({
         ...item,
-        asset: item.asset && typeof item.asset === 'object' && !('error' in item.asset) ? item.asset : null,
+        asset: toolsData.find(tool => tool.id === item.asset_id) || null,
         assignee: item.assignee && typeof item.assignee === 'object' && !('error' in item.assignee) ? item.assignee : null,
         mission: item.mission && typeof item.mission === 'object' && !('error' in item.mission) ? item.mission : null,
-        issue_tool: item.issue_tool?.tool && typeof item.issue_tool.tool === 'object' && !('error' in item.issue_tool.tool) ? item.issue_tool.tool : null
+        issue_tool: issueToolsData.find(issue => issue.id === item.linked_issue_id)?.tool || null
       })) || []);
     } catch (error) {
       console.error('Error fetching actions:', error);

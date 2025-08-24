@@ -266,18 +266,10 @@ export function CreateActionFromIssueDialog({
               Issue #{issue.id.slice(0, 8)} - {issue.issue_type} - {issue.description}
             </p>
             <div className="flex items-center gap-2 mt-1">
-              <Calendar className="h-3 w-3" />
+              <CalendarIcon className="h-3 w-3" />
               <span className="text-xs text-muted-foreground">
                 Reported: {new Date(issue.reported_at).toLocaleDateString()}
               </span>
-            </div>
-          </div>
-
-          {/* Date Created (Display Only) */}
-          <div>
-            <Label className="text-sm font-medium">Date Created</Label>
-            <div className="mt-1 px-3 py-2 bg-muted rounded-md text-sm">
-              {new Date().toLocaleDateString()}
             </div>
           </div>
 

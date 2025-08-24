@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { POLICY_CATEGORY_OPTIONS } from '@/lib/constants';
-import { Target, Plus, Filter, Search, Clock, CheckCircle, Circle, User, AlertTriangle } from 'lucide-react';
+import { Target, Plus, Filter, Search, Clock, CheckCircle, Circle, User, AlertTriangle, Wrench } from 'lucide-react';
 
 interface PolicyAction {
   id: string;
@@ -40,6 +40,7 @@ export default function Actions() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
+  const [viewFilter, setViewFilter] = useState('all');
 
   const fetchActions = async () => {
     try {
@@ -133,8 +134,13 @@ export default function Actions() {
       }
     }
 
+    // View filter (Toolkeeper view)
+    if (viewFilter === 'toolkeeper') {
+      filtered = filtered.filter(action => action.linked_issue_id);
+    }
+
     setFilteredActions(filtered);
-  }, [actions, searchTerm, statusFilter, categoryFilter, assigneeFilter, user]);
+  }, [actions, searchTerm, statusFilter, categoryFilter, assigneeFilter, viewFilter, user]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -212,7 +218,7 @@ export default function Actions() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium flex items-center gap-2">
                 <Search className="h-4 w-4" />
@@ -223,6 +229,22 @@ export default function Actions() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">View</label>
+              <Select value={viewFilter} onValueChange={setViewFilter}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Actions</SelectItem>
+                  <SelectItem value="toolkeeper" className="flex items-center gap-2">
+                    <Wrench className="h-4 w-4" />
+                    Toolkeeper View
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             
             <div className="space-y-2">

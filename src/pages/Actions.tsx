@@ -45,7 +45,7 @@ export default function Actions() {
         .from('mission_actions')
         .select(`
           *,
-          asset:tools!mission_actions_asset_id_fkey(name, category),
+          asset:tools(name, category),
           assignee:profiles!mission_actions_assigned_to_fkey(full_name),
           mission:missions(title, mission_number)
         `)

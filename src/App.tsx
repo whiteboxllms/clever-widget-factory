@@ -17,6 +17,7 @@ import InventorySummary from "./pages/InventorySummary";
 import CheckIn from "./pages/CheckIn";
 import Missions from "./pages/Missions";
 import EditMission from "./pages/EditMission";
+import Actions from "./pages/Actions";
 import Audit from "./pages/Audit";
 import AuditTool from "./pages/AuditTool";
 import ScoringPrompts from "./pages/ScoringPrompts";
@@ -78,6 +79,11 @@ function AppContent() {
       <Route path="/missions/:missionId/edit" element={
         <ProtectedRoute>
           <EditMission />
+        </ProtectedRoute>
+      } />
+      <Route path="/actions" element={
+        <ProtectedRoute>
+          <Actions />
         </ProtectedRoute>
       } />
       <Route path="/audit" element={

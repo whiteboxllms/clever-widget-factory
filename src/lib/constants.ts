@@ -68,5 +68,13 @@ export const TOOL_CATEGORY_OPTIONS = [
   { value: 'Structure', label: 'Structure' }
 ] as const;
 
+// Policy category options for RL-aligned actions
+export const POLICY_CATEGORY_OPTIONS = [
+  { value: 'experiment', label: 'Experiment' },
+  { value: 'legal', label: 'Legal' },
+  { value: 'product_development', label: 'Product Development' },
+  { value: 'training', label: 'Training' }
+] as const;
+
 // Default done definition for tasks only
 export const DEFAULT_DONE_DEFINITION = "The task is complete when the images show the full solution, work follows Stargazer SOP, reflects best practices and professionalism, and any problems encountered are documented.";

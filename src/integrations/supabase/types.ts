@@ -287,6 +287,7 @@ export type Database = {
       mission_actions: {
         Row: {
           actual_duration: string | null
+          asset_id: string | null
           assigned_to: string | null
           attachments: string[] | null
           completed_at: string | null
@@ -300,14 +301,20 @@ export type Database = {
           mission_id: string | null
           observations: string | null
           plan: string | null
+          policy_category:
+            | Database["public"]["Enums"]["policy_category_type"]
+            | null
           qa_approved_at: string | null
           required_tools: string[] | null
+          score: number | null
+          scoring_data: Json | null
           status: string
           title: string
           updated_at: string
         }
         Insert: {
           actual_duration?: string | null
+          asset_id?: string | null
           assigned_to?: string | null
           attachments?: string[] | null
           completed_at?: string | null
@@ -321,14 +328,20 @@ export type Database = {
           mission_id?: string | null
           observations?: string | null
           plan?: string | null
+          policy_category?:
+            | Database["public"]["Enums"]["policy_category_type"]
+            | null
           qa_approved_at?: string | null
           required_tools?: string[] | null
+          score?: number | null
+          scoring_data?: Json | null
           status?: string
           title: string
           updated_at?: string
         }
         Update: {
           actual_duration?: string | null
+          asset_id?: string | null
           assigned_to?: string | null
           attachments?: string[] | null
           completed_at?: string | null
@@ -342,8 +355,13 @@ export type Database = {
           mission_id?: string | null
           observations?: string | null
           plan?: string | null
+          policy_category?:
+            | Database["public"]["Enums"]["policy_category_type"]
+            | null
           qa_approved_at?: string | null
           required_tools?: string[] | null
+          score?: number | null
+          scoring_data?: Json | null
           status?: string
           title?: string
           updated_at?: string
@@ -1285,6 +1303,11 @@ export type Database = {
         | "hydraulics"
         | "welding"
         | "fabrication"
+      policy_category_type:
+        | "experiment"
+        | "legal"
+        | "product_development"
+        | "training"
       tool_status:
         | "available"
         | "checked_out"
@@ -1438,6 +1461,12 @@ export const Constants = {
         "hydraulics",
         "welding",
         "fabrication",
+      ],
+      policy_category_type: [
+        "experiment",
+        "legal",
+        "product_development",
+        "training",
       ],
       tool_status: [
         "available",

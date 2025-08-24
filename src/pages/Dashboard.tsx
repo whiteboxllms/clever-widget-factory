@@ -51,6 +51,13 @@ export default function Dashboard() {
       color: "bg-red-500"
     },
     {
+      title: "Actions",
+      description: "Track and manage policy actions",
+      icon: Target,
+      path: "/actions",
+      color: "bg-yellow-500"
+    },
+    {
       title: "Stargazer Missions",
       description: "Manage objectives and track progress",
       icon: Flag,

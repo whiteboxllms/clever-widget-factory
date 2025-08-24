@@ -503,9 +503,11 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
   };
 
   const getActionTheme = () => {
-    const hasContent = action.plan?.trim() || action.observations?.trim();
+    const hasPlan = action.plan?.trim();
+    const hasObservations = action.observations?.trim();
     const isAssigned = Boolean(action.assigned_to);
     
+    // Green border for completed actions
     if (action.status === 'completed') {
       return {
         bgColor: 'bg-emerald-50 dark:bg-emerald-950',
@@ -514,7 +516,17 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
       };
     }
     
-    if (hasContent && isAssigned) {
+    // Yellow border when there's a plan
+    if (hasPlan) {
+      return {
+        bgColor: 'bg-yellow-50 dark:bg-yellow-950',
+        borderColor: 'border-yellow-500 border-2 shadow-yellow-200 shadow-lg dark:border-yellow-600 dark:shadow-yellow-900',
+        textColor: 'text-yellow-900 dark:text-yellow-100'
+      };
+    }
+    
+    // Blue for assigned with observations but no plan
+    if (hasObservations && isAssigned) {
       return {
         bgColor: 'bg-blue-50 dark:bg-blue-950',
         borderColor: 'border-blue-200 dark:border-blue-800',
@@ -522,7 +534,8 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
       };
     }
     
-    if (hasContent || isAssigned) {
+    // Amber for assigned but no content
+    if (isAssigned) {
       return {
         bgColor: 'bg-amber-50 dark:bg-amber-950',
         borderColor: 'border-amber-200 dark:border-amber-800',

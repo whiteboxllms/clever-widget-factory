@@ -117,6 +117,7 @@ export function CreateActionFromIssueDialog({
         .insert({
           title: formData.title,
           description: formData.details,
+          mission_id: null,
           linked_issue_id: issue?.id,
           issue_reference: issue ? `Issue: ${issue.description}` : null,
           attachments: formData.attachments,

@@ -168,6 +168,10 @@ export const ToolsContainer = () => {
           onBack={handleBackToTools}
           onResolveIssue={handleResolveIssue}
           onEditIssue={handleEditIssue}
+          onRefresh={() => {
+            fetchTools();
+            fetchIssues();
+          }}
         />
         
         <IssueResolutionDialog

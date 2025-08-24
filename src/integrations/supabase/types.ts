@@ -237,7 +237,7 @@ export type Database = {
           id: string
           issue_reference: string | null
           linked_issue_id: string | null
-          mission_id: string
+          mission_id: string | null
           observations: string | null
           plan: string | null
           qa_approved_at: string | null
@@ -258,7 +258,7 @@ export type Database = {
           id?: string
           issue_reference?: string | null
           linked_issue_id?: string | null
-          mission_id: string
+          mission_id?: string | null
           observations?: string | null
           plan?: string | null
           qa_approved_at?: string | null
@@ -279,7 +279,7 @@ export type Database = {
           id?: string
           issue_reference?: string | null
           linked_issue_id?: string | null
-          mission_id?: string
+          mission_id?: string | null
           observations?: string | null
           plan?: string | null
           qa_approved_at?: string | null

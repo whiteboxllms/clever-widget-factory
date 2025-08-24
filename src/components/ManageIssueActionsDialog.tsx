@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle, Circle, Calendar, User, Plus } from "lucide-react";
 import { useIssueActions, IssueAction } from "@/hooks/useIssueActions";
 import { CreateActionFromIssueDialog } from "./CreateActionFromIssueDialog";
+import { ActionEditDialog } from "./ActionEditDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -45,7 +46,9 @@ export function ManageIssueActionsDialog({
 }: ManageIssueActionsDialogProps) {
   const [actions, setActions] = useState<IssueAction[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [toolName, setToolName] = useState<string>("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [editingAction, setEditingAction] = useState<IssueAction | null>(null);
   const { getActionsForIssue, markActionComplete, markActionIncomplete, loading } = useIssueActions();
 
   // Fetch actions and profiles when dialog opens
@@ -60,17 +63,27 @@ export function ManageIssueActionsDialog({
     const issueActions = await getActionsForIssue(issue.id);
     setActions(issueActions);
 
-    // Fetch profiles for display names
+    // Fetch profiles for display names and tool name
     try {
-      const { data: profilesData, error } = await supabase
-        .from('profiles')
-        .select('id, user_id, full_name, role')
-        .order('full_name');
+      const [profilesResponse, toolResponse] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id, user_id, full_name, role')
+          .order('full_name'),
+        supabase
+          .from('tools')
+          .select('name')
+          .eq('id', issue.tool_id)
+          .single()
+      ]);
       
-      if (error) throw error;
-      setProfiles(profilesData || []);
+      if (profilesResponse.error) throw profilesResponse.error;
+      if (toolResponse.error) throw toolResponse.error;
+      
+      setProfiles(profilesResponse.data || []);
+      setToolName(toolResponse.data?.name || "Unknown Tool");
     } catch (error) {
-      console.error('Error fetching profiles:', error);
+      console.error('Error fetching data:', error);
     }
   };
 
@@ -119,7 +132,7 @@ export function ManageIssueActionsDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Manage Actions for Issue</DialogTitle>
+            <DialogTitle>Manage Actions for {toolName}</DialogTitle>
           </DialogHeader>
           
           <div className="space-y-4">
@@ -172,11 +185,12 @@ export function ManageIssueActionsDialog({
                   {actions.map((action) => (
                     <Card 
                       key={action.id}
-                      className={`border-l-4 transition-all duration-200 ${
+                      className={`border-l-4 transition-all duration-200 cursor-pointer ${
                         action.status === 'completed' 
-                          ? 'border-l-green-500 bg-green-50 shadow-green-100 shadow-lg' 
+                          ? 'border-l-green-500 bg-green-50 shadow-green-100 shadow-lg hover:shadow-xl' 
                           : 'border-l-blue-500 hover:shadow-md'
                       }`}
+                      onClick={() => setEditingAction(action)}
                     >
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between gap-4">
@@ -281,6 +295,26 @@ export function ManageIssueActionsDialog({
         issue={issue}
         onActionCreated={handleActionCreated}
       />
+
+      {/* Edit Action Dialog */}
+      {editingAction && (
+        <ActionEditDialog
+          open={!!editingAction}
+          onOpenChange={(open) => !open && setEditingAction(null)}
+          action={{
+            ...editingAction,
+            mission_id: '',
+            assigned_to: editingAction.assigned_to || null
+          }}
+          profiles={profiles}
+          onSave={() => {
+            setEditingAction(null);
+            fetchActionsAndProfiles();
+            onRefresh();
+          }}
+          onCancel={() => setEditingAction(null)}
+        />
+      )}
     </>
   );
 }

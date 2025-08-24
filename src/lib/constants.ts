@@ -65,8 +65,7 @@ export const TOOL_CATEGORY_OPTIONS = [
   { value: 'Vehicle', label: 'Vehicle' },
   { value: 'Recreation', label: 'Recreation' },
   { value: 'Container', label: 'Container' },
-  { value: 'Structure', label: 'Structure' },
-  { value: 'Experiment', label: 'Experiment' }
+  { value: 'Structure', label: 'Structure' }
 ] as const;
 
 // Default done definition for tasks only

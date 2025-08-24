@@ -343,7 +343,7 @@ export function CreateActionFromIssueDialog({
                     )}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0 z-50 bg-background border shadow-md" align="start">
                   <Calendar
                     mode="single"
                     selected={formData.estimated_completion_date}

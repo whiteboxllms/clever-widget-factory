@@ -304,7 +304,9 @@ export function ManageIssueActionsDialog({
           action={{
             ...editingAction,
             mission_id: '',
-            assigned_to: editingAction.assigned_to || null
+            assigned_to: editingAction.assigned_to || null,
+            required_tools: [],
+            required_stock: []
           }}
           profiles={profiles}
           onSave={() => {

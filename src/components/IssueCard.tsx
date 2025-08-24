@@ -10,7 +10,7 @@ import { CreateActionFromIssueDialog } from "./CreateActionFromIssueDialog";
 interface ToolIssue {
   id: string;
   description: string;
-  issue_type: 'safety' | 'efficiency' | 'cosmetic' | 'maintenance';
+  issue_type: 'safety' | 'efficiency' | 'cosmetic' | 'preventative_maintenance' | 'functionality' | 'lifespan';
   status: 'active' | 'resolved' | 'removed';
   reported_at: string;
   reported_by: string;

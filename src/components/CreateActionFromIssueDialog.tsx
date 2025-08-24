@@ -47,51 +47,22 @@ export function CreateActionFromIssueDialog({
   const [formData, setFormData] = useState({
     title: '',
     details: '',
-    mission_id: '',
     attachments: [] as string[]
   });
-  const [missions, setMissions] = useState<Mission[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [loadingMissions, setLoadingMissions] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const { uploadImages, isUploading } = useImageUpload();
 
-  // Fetch available missions
+  // Pre-fill form with issue data when dialog opens
   useEffect(() => {
-    if (open) {
-      fetchMissions();
-      // Pre-fill form with issue data
+    if (open && issue) {
       setFormData({
         title: `Resolve ${issue.issue_type} issue`,
         details: `Action needed to address issue: ${issue.description}`,
-        mission_id: '',
         attachments: []
       });
     }
   }, [open, issue]);
-
-  const fetchMissions = async () => {
-    setLoadingMissions(true);
-    try {
-      const { data, error } = await supabase
-        .from('missions')
-        .select('id, title, mission_number, status')
-        .in('status', ['planning', 'in_progress'])
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setMissions(data || []);
-    } catch (error) {
-      console.error('Error fetching missions:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load missions",
-        variant: "destructive"
-      });
-    } finally {
-      setLoadingMissions(false);
-    }
-  };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -126,26 +97,28 @@ export function CreateActionFromIssueDialog({
     }
   };
 
-  const handleSubmit = async () => {
-    if (!formData.title.trim() || !formData.details.trim() || !formData.mission_id) {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.title.trim()) {
       toast({
         title: "Error",
-        description: "Please fill in all required fields",
+        description: "Please enter an action title",
         variant: "destructive"
       });
       return;
     }
 
-    setLoading(true);
+    setIsSubmitting(true);
+    
     try {
       const { error } = await supabase
         .from('mission_actions')
         .insert({
-          mission_id: formData.mission_id,
           title: formData.title,
           description: formData.details,
-          linked_issue_id: issue.id,
-          issue_reference: `Issue #${issue.id.slice(0, 8)} - ${issue.description.slice(0, 50)}...`,
+          linked_issue_id: issue?.id,
+          issue_reference: issue ? `Issue: ${issue.description}` : null,
           attachments: formData.attachments,
           status: 'not_started'
         });
@@ -154,19 +127,17 @@ export function CreateActionFromIssueDialog({
 
       toast({
         title: "Success",
-        description: "Action created successfully from issue"
+        description: "Action created successfully"
       });
 
-      onActionCreated();
-      onOpenChange(false);
-      
-      // Reset form
       setFormData({
         title: '',
         details: '',
-        mission_id: '',
         attachments: []
       });
+      
+      onActionCreated?.();
+      onOpenChange(false);
     } catch (error) {
       console.error('Error creating action:', error);
       toast({
@@ -175,7 +146,7 @@ export function CreateActionFromIssueDialog({
         variant: "destructive"
       });
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -245,36 +216,10 @@ export function CreateActionFromIssueDialog({
             />
           </div>
 
-          {/* Mission Selection */}
-          <div>
-            <Label htmlFor="missionSelect" className="text-sm font-medium">
-              Assign to Mission *
-            </Label>
-            <Select 
-              value={formData.mission_id} 
-              onValueChange={(value) => setFormData(prev => ({ ...prev, mission_id: value }))}
-              disabled={loadingMissions}
-            >
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder={loadingMissions ? "Loading missions..." : "Select a mission"} />
-              </SelectTrigger>
-              <SelectContent>
-                {missions.map((mission) => (
-                  <SelectItem key={mission.id} value={mission.id}>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">#{mission.mission_number}</span>
-                      <span>{mission.title}</span>
-                      <span className="text-xs text-muted-foreground">({mission.status})</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
           {/* Attachments */}
           <div>
-            <Label className="text-sm font-medium">Attachments</Label>
+            <Label className="text-sm font-medium">Before, during and after photos</Label>
             <div className="mt-1">
               <input
                 type="file"
@@ -336,10 +281,10 @@ export function CreateActionFromIssueDialog({
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={loading || isUploading}
+              disabled={isSubmitting || isUploading}
               className="flex-1"
             >
-              {loading ? 'Creating...' : 'Create Action'}
+              {isSubmitting ? 'Creating...' : 'Create Action'}
             </Button>
           </div>
         </div>

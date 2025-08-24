@@ -15,6 +15,7 @@ import { useToolIssues, ToolIssue } from "@/hooks/useToolIssues";
 import { useImageUpload, ImageUploadResult } from "@/hooks/useImageUpload";
 import { ToolIssuesSummary } from "./ToolIssuesSummary";
 import { IssueEditDialog } from "./IssueEditDialog";
+import { IssueCard } from "./IssueCard";
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -263,91 +264,13 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
               ) : issues.length > 0 ? (
                 <div className="space-y-3">
                   {issues.map((issue) => (
-                    <Card key={issue.id} className="border-l-4 border-l-primary/20">
-                      <CardContent className="p-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              {getIssueTypeIcon(issue.issue_type)}
-                              <Badge variant={getIssueTypeColor(issue.issue_type) as any} className="text-xs">
-                                {issue.issue_type}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                {new Date(issue.reported_at).toLocaleDateString()}
-                              </span>
-                            </div>
-                            <p className="text-sm break-words">{issue.description}</p>
-                            {issue.damage_assessment && (
-                              <p className="text-sm text-orange-600 mt-1">
-                                <strong>Damage:</strong> {issue.damage_assessment}
-                              </p>
-                            )}
-                            {/* Issue Report Photos */}
-                            {issue.report_photo_urls && issue.report_photo_urls.length > 0 && (
-                              <div className="mt-2">
-                                <p className="text-xs text-muted-foreground mb-1">Issue Photos:</p>
-                                <div className="flex gap-1 flex-wrap">
-                                  {issue.report_photo_urls.map((url, index) => (
-                                    <img
-                                      key={index}
-                                      src={url}
-                                      alt={`Issue photo ${index + 1}`}
-                                      className="h-12 w-12 object-cover rounded border border-border cursor-pointer hover:opacity-80 transition-opacity"
-                                      onClick={() => window.open(url, '_blank')}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            {/* Resolution Photos */}
-                            {issue.resolution_photo_urls && issue.resolution_photo_urls.length > 0 && (
-                              <div className="mt-2">
-                                <p className="text-xs text-muted-foreground mb-1">Resolution Photos:</p>
-                                <div className="flex gap-1 flex-wrap">
-                                  {issue.resolution_photo_urls.map((url, index) => (
-                                    <img
-                                      key={index}
-                                      src={url}
-                                      alt={`Resolution photo ${index + 1}`}
-                                      className="h-12 w-12 object-cover rounded border border-border cursor-pointer hover:opacity-80 transition-opacity"
-                                      onClick={() => window.open(url, '_blank')}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                          
-                          <div className="flex gap-1 flex-shrink-0">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleEditIssue(issue)}
-                              className="h-7 px-2 text-xs"
-                            >
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleResolveIssue(issue)}
-                              className="h-7 px-2 text-xs"
-                            >
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Resolve
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleRemoveIssue(issue)}
-                              className="h-7 px-2 text-xs text-destructive hover:text-destructive"
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <IssueCard
+                      key={issue.id}
+                      issue={issue}
+                      onResolve={() => handleResolveIssue(issue)}
+                      onEdit={() => handleEditIssue(issue)}
+                      onRefresh={fetchIssues}
+                    />
                   ))}
                 </div>
               ) : (

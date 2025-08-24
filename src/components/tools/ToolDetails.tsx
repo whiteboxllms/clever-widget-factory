@@ -18,6 +18,7 @@ interface ToolDetailsProps {
   onBack: () => void;
   onResolveIssue: (issue: any) => void;
   onEditIssue?: (issue: any) => void;
+  onRefresh?: () => void;
 }
 
 export const ToolDetails = ({
@@ -27,7 +28,8 @@ export const ToolDetails = ({
   issues,
   onBack,
   onResolveIssue,
-  onEditIssue
+  onEditIssue,
+  onRefresh
 }: ToolDetailsProps) => {
   const isCheckoutHistory = (record: HistoryEntry): record is CheckoutHistory => {
     return record.type !== 'issue_change';
@@ -146,7 +148,7 @@ export const ToolDetails = ({
                     issue={issue}
                     onResolve={() => onResolveIssue(issue)}
                     onEdit={onEditIssue ? () => onEditIssue(issue) : undefined}
-                    onRefresh={() => {}}
+                    onRefresh={onRefresh || (() => {})}
                   />
                 ))}
                 

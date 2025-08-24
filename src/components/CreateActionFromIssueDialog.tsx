@@ -326,7 +326,7 @@ export function CreateActionFromIssueDialog({
                 <Clock className="w-4 h-4 inline mr-1" />
                 Estimated Completion Date
               </Label>
-              <Popover modal={true}>
+              <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
@@ -343,20 +343,13 @@ export function CreateActionFromIssueDialog({
                     )}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent 
-                  className="w-auto p-0 z-[9999]" 
-                  align="start"
-                  side="bottom"
-                  sideOffset={4}
-                  avoidCollisions={true}
-                  collisionPadding={10}
-                >
+                <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
                     selected={formData.estimated_completion_date}
                     onSelect={(date) => setFormData(prev => ({ ...prev, estimated_completion_date: date }))}
                     initialFocus
-                    className="p-3 pointer-events-auto bg-background"
+                    className="p-3 pointer-events-auto"
                   />
                 </PopoverContent>
               </Popover>

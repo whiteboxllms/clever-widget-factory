@@ -18,6 +18,7 @@ interface PolicyAction {
   status: string;
   policy_category?: string;
   asset_id?: string;
+  mission_id?: string;
   assigned_to?: string;
   score?: number;
   created_at: string;
@@ -25,6 +26,7 @@ interface PolicyAction {
   completed_at?: string;
   asset?: { name: string; category: string; } | null;
   assignee?: { full_name: string; } | null;
+  mission?: { title: string; mission_number: number; } | null;
 }
 
 export default function Actions() {
@@ -44,16 +46,17 @@ export default function Actions() {
         .select(`
           *,
           asset:tools!mission_actions_asset_id_fkey(name, category),
-          assignee:profiles!mission_actions_assigned_to_fkey(full_name)
+          assignee:profiles!mission_actions_assigned_to_fkey(full_name),
+          mission:missions(title, mission_number)
         `)
-        .is('mission_id', null) // Only standalone policy actions
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       setActions((data as any[])?.map(item => ({
         ...item,
         asset: item.asset && typeof item.asset === 'object' && !('error' in item.asset) ? item.asset : null,
-        assignee: item.assignee && typeof item.assignee === 'object' && !('error' in item.assignee) ? item.assignee : null
+        assignee: item.assignee && typeof item.assignee === 'object' && !('error' in item.assignee) ? item.assignee : null,
+        mission: item.mission && typeof item.mission === 'object' && !('error' in item.mission) ? item.mission : null
       })) || []);
     } catch (error) {
       console.error('Error fetching actions:', error);
@@ -297,6 +300,12 @@ export default function Actions() {
                             </Badge>
                           )}
                           
+                          {action.mission && (
+                            <Badge variant="outline" className="bg-indigo-100 text-indigo-800">
+                              Mission #{action.mission.mission_number}: {action.mission.title}
+                            </Badge>
+                          )}
+                          
                           {action.assignee ? (
                             <Badge variant="outline" className="flex items-center gap-1">
                               <User className="h-3 w-3" />
@@ -367,6 +376,12 @@ export default function Actions() {
                           {action.asset && (
                             <Badge variant="outline">
                               Asset: {action.asset.name}
+                            </Badge>
+                          )}
+                          
+                          {action.mission && (
+                            <Badge variant="outline" className="bg-indigo-100 text-indigo-800">
+                              Mission #{action.mission.mission_number}: {action.mission.title}
                             </Badge>
                           )}
                           

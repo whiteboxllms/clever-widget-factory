@@ -509,7 +509,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     if (action.status === 'completed') {
       return {
         bgColor: 'bg-emerald-50 dark:bg-emerald-950',
-        borderColor: 'border-emerald-200 dark:border-emerald-800',
+        borderColor: 'border-emerald-500 border-2 shadow-emerald-200 shadow-lg dark:border-emerald-600 dark:shadow-emerald-900',
         textColor: 'text-emerald-900 dark:text-emerald-100'
       };
     }

@@ -2,12 +2,14 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle, X, Clock, Edit, Plus, Target } from "lucide-react";
+import { AlertTriangle, CheckCircle, X, Clock, Edit, Plus, Target, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { CreateActionFromIssueDialog } from "./CreateActionFromIssueDialog";
+import { ManageIssueActionsDialog } from "./ManageIssueActionsDialog";
 import { IssueScoreDialog } from "./IssueScoreDialog";
 import { useAssetScores, AssetScore } from "@/hooks/useAssetScores";
+import { useIssueActions } from "@/hooks/useIssueActions";
 
 interface ToolIssue {
   id: string;
@@ -34,10 +36,13 @@ interface IssueCardProps {
 export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProps) {
   const [isRemoving, setIsRemoving] = useState(false);
   const [showCreateActionDialog, setShowCreateActionDialog] = useState(false);
+  const [showManageActionsDialog, setShowManageActionsDialog] = useState(false);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
   const [tool, setTool] = useState<any>(null);
   const [existingScore, setExistingScore] = useState<AssetScore | null>(null);
+  const [existingActions, setExistingActions] = useState<any[]>([]);
   const { getScoreForIssue } = useAssetScores();
+  const { getActionsForIssue } = useIssueActions();
 
   const getIssueTypeIcon = (issueType: string) => {
     switch (issueType) {
@@ -115,14 +120,18 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
     }
   };
 
-  // Check for existing score when component mounts
+  // Check for existing score and actions when component mounts
   useEffect(() => {
-    const checkExistingScore = async () => {
-      const score = await getScoreForIssue(issue.id);
+    const checkExistingData = async () => {
+      const [score, actions] = await Promise.all([
+        getScoreForIssue(issue.id),
+        getActionsForIssue(issue.id)
+      ]);
       setExistingScore(score);
+      setExistingActions(actions);
     };
-    checkExistingScore();
-  }, [issue.id, getScoreForIssue]);
+    checkExistingData();
+  }, [issue.id, getScoreForIssue, getActionsForIssue]);
 
   const handleAssignScore = async () => {
     try {
@@ -145,6 +154,16 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
       });
     }
   };
+
+  const handleManageActions = () => {
+    if (existingActions.length > 0) {
+      setShowManageActionsDialog(true);
+    } else {
+      setShowCreateActionDialog(true);
+    }
+  };
+
+  const hasCompletedActions = existingActions.some(action => action.status === 'completed');
 
   return (
     <Card className="border-l-4 border-l-primary/20">
@@ -207,11 +226,25 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setShowCreateActionDialog(true)}
-              className="h-7 px-2 text-xs"
-              title="Create Action"
+              onClick={handleManageActions}
+              className={`h-7 px-2 text-xs ${
+                hasCompletedActions 
+                  ? 'border-green-500 border-2' 
+                  : existingActions.length > 0 
+                    ? 'border-blue-500 border-2' 
+                    : ''
+              }`}
+              title={
+                existingActions.length > 0 
+                  ? `Manage Actions (${existingActions.length})`
+                  : "Create Action"
+              }
             >
-              <Plus className="h-3 w-3" />
+              {existingActions.length > 0 ? (
+                <Settings className="h-3 w-3" />
+              ) : (
+                <Plus className="h-3 w-3" />
+              )}
             </Button>
             {onEdit && (
               <Button
@@ -255,6 +288,19 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
             description: "Action created successfully from issue"
           });
           onRefresh();
+          // Refresh actions data
+          getActionsForIssue(issue.id).then(setExistingActions);
+        }}
+      />
+
+      <ManageIssueActionsDialog
+        open={showManageActionsDialog}
+        onOpenChange={setShowManageActionsDialog}
+        issue={issue}
+        onRefresh={() => {
+          onRefresh();
+          // Refresh actions data
+          getActionsForIssue(issue.id).then(setExistingActions);
         }}
       />
 

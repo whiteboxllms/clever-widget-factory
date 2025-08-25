@@ -28,6 +28,8 @@ interface ToolCheckoutDialogProps {
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
   assignedTasks?: string[];
+  missionId?: string;
+  taskId?: string;
 }
 
 interface CheckoutForm {
@@ -37,7 +39,7 @@ interface CheckoutForm {
   beforeImageFiles: File[];
 }
 
-export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assignedTasks = [] }: ToolCheckoutDialogProps) {
+export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assignedTasks = [], missionId, taskId }: ToolCheckoutDialogProps) {
   const { user } = useAuth();
   const [form, setForm] = useState<CheckoutForm>({
     intendedUsage: "",
@@ -147,7 +149,8 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
         beforeImageUrl = uploadedUrls[0] || null; // Use first image for now
       }
 
-      const { error } = await supabase
+      // Create checkout record
+      const { data: checkoutData, error } = await supabase
         .from('checkouts')
         .insert({
           tool_id: tool.id,
@@ -157,9 +160,27 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
           notes: form.notes || null,
           before_image_url: beforeImageUrl,
           pre_existing_issues: form.preCheckoutIssues || null
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
+
+      // If this checkout is for a mission, create mission tool usage record
+      if (missionId && checkoutData) {
+        const { error: missionToolError } = await supabase
+          .from('mission_tool_usage')
+          .insert({
+            mission_id: missionId,
+            task_id: taskId || null,
+            checkout_id: checkoutData.id
+          });
+
+        if (missionToolError) {
+          console.error('Error linking tool to mission:', missionToolError);
+          // Don't fail the entire checkout if mission linking fails
+        }
+      }
 
       // Update tool status to checked out
       const { error: toolError } = await supabase
@@ -173,7 +194,7 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
 
       toast({
         title: "Success",
-        description: `${tool.name} has been checked out successfully`
+        description: `${tool.name} has been checked out successfully${missionId ? ' for mission' : ''}`
       });
 
       // Reset form

@@ -126,33 +126,39 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
   };
 
   const fetchTeamTools = async () => {
-    if (!assignedUsers.length) return;
+    if (!missionId) return;
 
-    const userIds = assignedUsers.map(user => user.user_id);
-    
+    // Only fetch tools that are explicitly linked to this mission
     const { data, error } = await supabase
-      .from('checkouts')
+      .from('mission_tool_usage')
       .select(`
         *,
-        tools (
-           id,
-           name,
-           status
+        checkouts!inner (
+          id,
+          user_name,
+          checkout_date,
+          is_returned,
+          tools!inner (
+            id,
+            name,
+            status
+          )
         )
       `)
-      .eq('is_returned', false)
-      .in('user_id', userIds);
+      .eq('mission_id', missionId)
+      .eq('checkouts.is_returned', false);
 
     if (error) {
-      console.error('Error fetching team tools:', error);
+      console.error('Error fetching mission tools:', error);
       return;
     }
 
-    const toolsWithUsers = data?.map(checkout => ({
-      ...(checkout.tools || {}),
-      checkout_id: checkout.id,
-      checked_out_to: checkout.user_name,
-      checkout_date: checkout.checkout_date
+    const toolsWithUsers = data?.map(missionTool => ({
+      ...(missionTool.checkouts?.tools || {}),
+      checkout_id: missionTool.checkout_id,
+      checked_out_to: missionTool.checkouts?.user_name,
+      checkout_date: missionTool.checkouts?.checkout_date,
+      mission_linked: true
     })) || [];
 
     setTeamTools(toolsWithUsers);
@@ -715,6 +721,7 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
         onOpenChange={setShowCheckoutDialog}
         onSuccess={handleCheckoutSuccess}
         assignedTasks={assignedTasks}
+        missionId={missionId}
       />
 
       <ToolCheckInDialog

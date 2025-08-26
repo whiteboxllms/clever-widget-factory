@@ -9,6 +9,7 @@ import { ActionDetailEditor } from './ActionDetailEditor';
 interface Action {
   id: string;
   title: string;
+  description?: string;
   plan?: string;
   observations?: string;
   assigned_to: string | null;
@@ -17,6 +18,9 @@ interface Action {
   estimated_completion_date?: Date;
   required_tools?: string[];
   required_stock?: { part_id: string; quantity: number; part_name: string; }[];
+  attachments?: string[];
+  issue_reference?: string;
+  linked_issue_id?: string;
 }
 
 interface Profile {

@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { CreateActionFromIssueDialog } from "./CreateActionFromIssueDialog";
 import { ManageIssueActionsDialog } from "./ManageIssueActionsDialog";
 import { IssueScoreDialog } from "./IssueScoreDialog";
+import { IssueQuickResolveDialog } from "./IssueQuickResolveDialog";
 import { useAssetScores, AssetScore } from "@/hooks/useAssetScores";
 import { useIssueActions } from "@/hooks/useIssueActions";
 
@@ -38,6 +39,7 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
   const [showCreateActionDialog, setShowCreateActionDialog] = useState(false);
   const [showManageActionsDialog, setShowManageActionsDialog] = useState(false);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
+  const [showQuickResolveDialog, setShowQuickResolveDialog] = useState(false);
   const [tool, setTool] = useState<any>(null);
   const [existingScore, setExistingScore] = useState<AssetScore | null>(null);
   const [existingActions, setExistingActions] = useState<any[]>([]);
@@ -259,8 +261,18 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
             <Button
               size="sm"
               variant="outline"
+              onClick={() => setShowQuickResolveDialog(true)}
+              className="h-7 px-2 text-xs text-green-700 hover:bg-green-50"
+              title="Quick Resolve"
+            >
+              <CheckCircle className="h-3 w-3" />
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
               onClick={() => onResolve(issue)}
               className="h-7 px-2 text-xs"
+              title="Detailed Resolve"
             >
               <CheckCircle className="h-3 w-3 mr-1" />
               Resolve
@@ -317,6 +329,13 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
           }}
         />
       )}
+
+      <IssueQuickResolveDialog
+        open={showQuickResolveDialog}
+        onOpenChange={setShowQuickResolveDialog}
+        issue={issue}
+        onSuccess={onRefresh}
+      />
     </Card>
   );
 }

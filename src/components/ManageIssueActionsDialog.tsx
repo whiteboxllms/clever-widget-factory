@@ -12,6 +12,7 @@ import { CheckCircle, Circle, Calendar, User, Plus } from "lucide-react";
 import { useIssueActions, IssueAction } from "@/hooks/useIssueActions";
 import { CreateActionFromIssueDialog } from "./CreateActionFromIssueDialog";
 import { ActionEditDialog } from "./ActionEditDialog";
+import { IssueQuickResolveDialog } from "./IssueQuickResolveDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -48,6 +49,7 @@ export function ManageIssueActionsDialog({
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [toolName, setToolName] = useState<string>("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showResolveDialog, setShowResolveDialog] = useState(false);
   const [editingAction, setEditingAction] = useState<IssueAction | null>(null);
   const { getActionsForIssue, markActionComplete, markActionIncomplete, loading } = useIssueActions();
 
@@ -154,14 +156,25 @@ export function ManageIssueActionsDialog({
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h4 className="font-semibold">Actions ({actions.length})</h4>
-                <Button
-                  onClick={() => setShowCreateDialog(true)}
-                  size="sm"
-                  className="flex items-center gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Action
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => setShowResolveDialog(true)}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2 text-green-700 border-green-500 hover:bg-green-50"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    Resolve Issue
+                  </Button>
+                  <Button
+                    onClick={() => setShowCreateDialog(true)}
+                    size="sm"
+                    className="flex items-center gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Action
+                  </Button>
+                </div>
               </div>
 
               {loading ? (
@@ -319,6 +332,17 @@ export function ManageIssueActionsDialog({
           onCancel={() => setEditingAction(null)}
         />
       )}
+
+      {/* Quick Resolve Issue Dialog */}
+      <IssueQuickResolveDialog
+        open={showResolveDialog}
+        onOpenChange={setShowResolveDialog}
+        issue={issue}
+        onSuccess={() => {
+          onRefresh();
+          onOpenChange(false);
+        }}
+      />
     </>
   );
 }

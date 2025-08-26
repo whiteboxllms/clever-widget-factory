@@ -26,9 +26,12 @@ import {
   Users, 
   ChevronDown,
   Plus,
-  Trash2 
+  Trash2,
+  Paperclip,
+  AlertCircle
 } from 'lucide-react';
 import { LexicalEditor } from './LexicalEditor';
+import { useImageUpload } from '@/hooks/useImageUpload';
 import { cn } from "@/lib/utils";
 
 interface Profile {
@@ -41,6 +44,7 @@ interface Profile {
 interface Action {
   id: string;
   title: string;
+  description?: string;
   plan?: string;
   observations?: string;
   assigned_to: string | null;
@@ -49,6 +53,9 @@ interface Action {
   estimated_completion_date?: Date;
   required_tools?: string[];
   required_stock?: { part_id: string; quantity: number; part_name: string; }[];
+  attachments?: string[];
+  issue_reference?: string;
+  linked_issue_id?: string;
 }
 
 interface ActionDetailEditorProps {
@@ -70,27 +77,33 @@ export function ActionDetailEditor({
   const { toast } = useToast();
   const [editData, setEditData] = useState<Partial<Action>>({
     title: action.title,
+    description: action.description || '',
     plan: action.plan || '',
     observations: action.observations || '',
     assigned_to: action.assigned_to,
     estimated_completion_date: action.estimated_completion_date,
     required_tools: action.required_tools || [],
-    required_stock: action.required_stock || []
+    required_stock: action.required_stock || [],
+    attachments: action.attachments || []
   });
 
   const [newTool, setNewTool] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  
+  const { uploadImages, isUploading } = useImageUpload();
 
   useEffect(() => {
     const originalData = {
       title: action.title,
+      description: action.description || '',
       plan: action.plan || '',
       observations: action.observations || '',
       assigned_to: action.assigned_to,
       estimated_completion_date: action.estimated_completion_date,
       required_tools: action.required_tools || [],
-      required_stock: action.required_stock || []
+      required_stock: action.required_stock || [],
+      attachments: action.attachments || []
     };
 
     const hasChanged = JSON.stringify(editData) !== JSON.stringify(originalData);
@@ -112,11 +125,13 @@ export function ActionDetailEditor({
 
       const actionData = {
         title: editData.title.trim(),
+        description: editData.description || null,
         plan: editData.plan || null,
         observations: editData.observations || null,
         assigned_to: editData.assigned_to || null,
         estimated_duration: estimatedDuration,
-        required_tools: editData.required_tools || []
+        required_tools: editData.required_tools || [],
+        attachments: editData.attachments || []
       };
 
       // Check if this is a new action (no ID or temporary ID) or existing action
@@ -200,6 +215,17 @@ export function ActionDetailEditor({
       </CardHeader>
 
       <CardContent className="space-y-6">
+        {/* Issue Reference Display */}
+        {action.issue_reference && (
+          <div className="bg-muted p-4 rounded-lg">
+            <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Linked Issue Reference
+            </h4>
+            <p className="text-sm text-muted-foreground">{action.issue_reference}</p>
+          </div>
+        )}
+
         {/* Basic Info */}
         <div className="space-y-4">
           <div>
@@ -210,6 +236,18 @@ export function ActionDetailEditor({
               onChange={(e) => setEditData(prev => ({ ...prev, title: e.target.value }))}
               placeholder="Enter action title..."
               className="mt-1"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="description">Description</Label>
+            <Textarea
+              id="description"
+              value={editData.description || ''}
+              onChange={(e) => setEditData(prev => ({ ...prev, description: e.target.value }))}
+              placeholder="Brief description of the action..."
+              className="mt-1"
+              rows={3}
             />
           </div>
 
@@ -387,6 +425,94 @@ export function ActionDetailEditor({
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Attachments */}
+        <div>
+          <Label className="text-sm font-medium">Photos and Documents</Label>
+          <div className="mt-1">
+            <input
+              type="file"
+              multiple
+              accept="image/*"
+              onChange={async (e) => {
+                const files = e.target.files;
+                if (!files || files.length === 0) return;
+
+                try {
+                  const fileArray = Array.from(files);
+                  const uploadResults = await uploadImages(fileArray, {
+                    bucket: 'mission-attachments'
+                  });
+                  
+                  const resultsArray = Array.isArray(uploadResults) ? uploadResults : [uploadResults];
+                  const uploadedUrls = resultsArray.map(result => result.url);
+                  
+                  setEditData(prev => ({
+                    ...prev,
+                    attachments: [...(prev.attachments || []), ...uploadedUrls]
+                  }));
+                  
+                  toast({
+                    title: "Success",
+                    description: `${uploadedUrls.length} file(s) uploaded successfully`
+                  });
+                } catch (error) {
+                  console.error('Error uploading files:', error);
+                  toast({
+                    title: "Error",
+                    description: "Failed to upload files",
+                    variant: "destructive"
+                  });
+                }
+              }}
+              className="hidden"
+              id="attachmentUpload"
+              disabled={isUploading}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => document.getElementById('attachmentUpload')?.click()}
+              disabled={isUploading}
+              className="w-full"
+            >
+              <Paperclip className="h-4 w-4 mr-2" />
+              {isUploading ? 'Uploading...' : 'Upload Photos/Documents'}
+            </Button>
+          </div>
+          
+          {/* Display uploaded attachments */}
+          {editData.attachments && editData.attachments.length > 0 && (
+            <div className="mt-3 space-y-2">
+              <p className="text-sm text-muted-foreground">Uploaded attachments:</p>
+              <div className="flex flex-wrap gap-2">
+                {editData.attachments.map((url, index) => (
+                  <div key={index} className="relative">
+                    <img
+                      src={url}
+                      alt={`Attachment ${index + 1}`}
+                      className="h-16 w-16 object-cover rounded border cursor-pointer"
+                      onClick={() => window.open(url, '_blank')}
+                    />
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => {
+                        setEditData(prev => ({
+                          ...prev,
+                          attachments: prev.attachments?.filter((_, i) => i !== index) || []
+                        }));
+                      }}
+                      className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0"
+                    >
+                      ×
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Action Buttons */}
         <div className="flex justify-end gap-2 pt-4 border-t">

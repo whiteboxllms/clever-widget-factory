@@ -19,7 +19,9 @@ export const useToolFilters = (
       const matchesSearch = tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         tool.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         tool.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tool.serial_number?.toLowerCase().includes(searchTerm.toLowerCase());
+        tool.serial_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tool.storage_vicinity?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tool.storage_location?.toLowerCase().includes(searchTerm.toLowerCase());
 
       // My checked out filter
       const matchesMyCheckedOut = !showMyCheckedOut || 

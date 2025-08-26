@@ -20,13 +20,7 @@ export const useToolFilters = (
         tool.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         tool.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         tool.serial_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tool.storage_vicinity?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         tool.storage_location?.toLowerCase().includes(searchTerm.toLowerCase());
-
-      // Debug logging
-      if (searchTerm.toLowerCase() === 's1p2') {
-        console.log('Debug tool:', tool.name, 'storage_location:', tool.storage_location, 'matches:', matchesSearch);
-      }
 
       // My checked out filter
       const matchesMyCheckedOut = !showMyCheckedOut || 

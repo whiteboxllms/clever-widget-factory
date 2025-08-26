@@ -28,9 +28,11 @@ import {
   Plus,
   Trash2,
   Paperclip,
-  AlertCircle
+  AlertCircle,
+  CheckCircle
 } from 'lucide-react';
 import { LexicalEditor } from './LexicalEditor';
+import { IssueQuickResolveDialog } from './IssueQuickResolveDialog';
 import { useImageUpload } from '@/hooks/useImageUpload';
 import { cn } from "@/lib/utils";
 
@@ -90,6 +92,8 @@ export function ActionDetailEditor({
   const [newTool, setNewTool] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showResolveDialog, setShowResolveDialog] = useState(false);
+  const [linkedIssue, setLinkedIssue] = useState(null);
   
   const { uploadImages, isUploading } = useImageUpload();
 
@@ -109,6 +113,28 @@ export function ActionDetailEditor({
     const hasChanged = JSON.stringify(editData) !== JSON.stringify(originalData);
     setHasChanges(hasChanged);
   }, [editData, action]);
+
+  // Fetch linked issue data
+  useEffect(() => {
+    const fetchLinkedIssue = async () => {
+      if (action.linked_issue_id) {
+        try {
+          const { data, error } = await supabase
+            .from('tool_issues')
+            .select('*')
+            .eq('id', action.linked_issue_id)
+            .single();
+          
+          if (error) throw error;
+          setLinkedIssue(data);
+        } catch (error) {
+          console.error('Error fetching linked issue:', error);
+        }
+      }
+    };
+
+    fetchLinkedIssue();
+  }, [action.linked_issue_id]);
 
   const handleSave = async () => {
     if (!editData.title?.trim()) {
@@ -218,11 +244,26 @@ export function ActionDetailEditor({
         {/* Issue Reference Display */}
         {action.issue_reference && (
           <div className="bg-muted p-4 rounded-lg">
-            <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
-              <AlertCircle className="h-4 w-4" />
-              Linked Issue Reference
-            </h4>
-            <p className="text-sm text-muted-foreground">{action.issue_reference}</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" />
+                  Linked Issue Reference
+                </h4>
+                <p className="text-sm text-muted-foreground">{action.issue_reference}</p>
+              </div>
+              {action.linked_issue_id && (
+                <Button
+                  onClick={() => setShowResolveDialog(true)}
+                  size="sm"
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  Resolve Issue
+                </Button>
+              )}
+            </div>
           </div>
         )}
 
@@ -529,6 +570,22 @@ export function ActionDetailEditor({
           </Button>
         </div>
       </CardContent>
+
+      {/* Issue Resolution Dialog */}
+      {linkedIssue && (
+        <IssueQuickResolveDialog
+          open={showResolveDialog}
+          onOpenChange={setShowResolveDialog}
+          issue={linkedIssue}
+          onSuccess={() => {
+            setShowResolveDialog(false);
+            toast({
+              title: "Issue resolved",
+              description: "The linked issue has been resolved successfully."
+            });
+          }}
+        />
+      )}
     </Card>
   );
 }

@@ -208,6 +208,143 @@ export function ActionDetailEditor({
     }
   };
 
+  const handleCompleteAction = async () => {
+    if (!editData.observations?.trim()) {
+      toast({
+        title: "Implementation notes required",
+        description: "Please add implementation notes before completing the action.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // First save any pending changes
+      await handleSave();
+
+      // Then mark the action as completed
+      const { error } = await supabase
+        .from('mission_actions')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', action.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Action completed",
+        description: `"${editData.title}" has been marked as completed.`
+      });
+
+      // Check if all actions for the linked issue are completed
+      if (action.linked_issue_id) {
+        const { data: allActions, error: actionsError } = await supabase
+          .from('mission_actions')
+          .select('status')
+          .eq('linked_issue_id', action.linked_issue_id);
+
+        if (!actionsError && allActions) {
+          const allCompleted = allActions.every(a => a.status === 'completed' || a.status === 'no_action_required');
+          
+          if (allCompleted) {
+            // Mark the issue as resolved
+            const { error: issueError } = await supabase
+              .from('tool_issues')
+              .update({
+                status: 'resolved',
+                resolved_at: new Date().toISOString(),
+                resolved_by: (await supabase.auth.getUser()).data.user?.id
+              })
+              .eq('id', action.linked_issue_id);
+
+            if (!issueError) {
+              toast({
+                title: "Issue resolved",
+                description: "All actions for this issue are completed. The issue has been automatically resolved."
+              });
+            }
+          }
+        }
+      }
+
+      onSave(); // Notify parent that save is complete
+    } catch (error) {
+      console.error('Error completing action:', error);
+      toast({
+        title: "Failed to complete action",
+        description: error.message || "Failed to complete action. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleNoActionRequired = async () => {
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from('mission_actions')
+        .update({
+          status: 'no_action_required',
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', action.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Marked as no action required",
+        description: `"${editData.title}" has been marked as no action required.`
+      });
+
+      // Check if all actions for the linked issue are completed
+      if (action.linked_issue_id) {
+        const { data: allActions, error: actionsError } = await supabase
+          .from('mission_actions')
+          .select('status')
+          .eq('linked_issue_id', action.linked_issue_id);
+
+        if (!actionsError && allActions) {
+          const allCompleted = allActions.every(a => a.status === 'completed' || a.status === 'no_action_required');
+          
+          if (allCompleted) {
+            // Mark the issue as resolved
+            const { error: issueError } = await supabase
+              .from('tool_issues')
+              .update({
+                status: 'resolved',
+                resolved_at: new Date().toISOString(),
+                resolved_by: (await supabase.auth.getUser()).data.user?.id
+              })
+              .eq('id', action.linked_issue_id);
+
+            if (!issueError) {
+              toast({
+                title: "Issue resolved",
+                description: "All actions for this issue are completed. The issue has been automatically resolved."
+              });
+            }
+          }
+        }
+      }
+
+      onSave(); // Notify parent that save is complete
+    } catch (error) {
+      console.error('Error marking action as no action required:', error);
+      toast({
+        title: "Failed to update action",
+        description: error.message || "Failed to update action. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const addTool = () => {
     if (newTool.trim() && !editData.required_tools?.includes(newTool.trim())) {
       setEditData(prev => ({
@@ -224,8 +361,6 @@ export function ActionDetailEditor({
       required_tools: prev.required_tools?.filter(t => t !== tool) || []
     }));
   };
-
-  
 
   return (
     <Card className="w-full">
@@ -556,18 +691,40 @@ export function ActionDetailEditor({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex justify-end gap-2 pt-4 border-t">
+        <div className="flex justify-between pt-4 border-t">
           <Button variant="outline" onClick={onCancel}>
             <X className="w-4 h-4 mr-1" />
             Cancel
           </Button>
-          <Button 
-            onClick={handleSave}
-            disabled={!editData.title?.trim() || !hasChanges || isSaving}
-          >
-            <Save className="w-4 h-4 mr-1" />
-            {isSaving ? 'Saving...' : (isCreating ? 'Create Action' : 'Save Changes')}
-          </Button>
+          
+          <div className="flex gap-2">
+            {!isCreating && action.status !== 'completed' && action.status !== 'no_action_required' && (
+              <>
+                <Button
+                  onClick={handleNoActionRequired}
+                  variant="outline"
+                  disabled={isSaving}
+                >
+                  No Action Required
+                </Button>
+                <Button
+                  onClick={handleCompleteAction}
+                  disabled={!editData.observations?.trim() || isSaving}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <CheckCircle className="w-4 h-4 mr-1" />
+                  Complete Action
+                </Button>
+              </>
+            )}
+            <Button 
+              onClick={handleSave}
+              disabled={!editData.title?.trim() || !hasChanges || isSaving}
+            >
+              <Save className="w-4 h-4 mr-1" />
+              {isSaving ? 'Saving...' : (isCreating ? 'Create Action' : 'Save Changes')}
+            </Button>
+          </div>
         </div>
       </CardContent>
 

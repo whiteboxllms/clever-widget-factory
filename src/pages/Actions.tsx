@@ -16,6 +16,8 @@ interface PolicyAction {
   id: string;
   title: string;
   description?: string;
+  plan?: string;
+  observations?: string;
   status: string;
   policy_category?: string;
   asset_id?: string;
@@ -27,6 +29,10 @@ interface PolicyAction {
   updated_at: string;
   completed_at?: string;
   estimated_completion_date?: string;
+  estimated_duration?: string;
+  required_tools?: string[];
+  attachments?: string[];
+  issue_reference?: string;
   asset?: { name: string; category: string; } | null;
   assignee?: { full_name: string; } | null;
   mission?: { title: string; mission_number: number; } | null;
@@ -536,10 +542,12 @@ export default function Actions() {
             ...editingAction,
             assigned_to: editingAction.assigned_to || null,
             mission_id: editingAction.mission_id || '',
-            plan: '',
-            observations: '',
-            estimated_completion_date: undefined,
-            required_tools: [],
+            plan: editingAction.plan || '',
+            observations: editingAction.observations || '',
+            estimated_completion_date: editingAction.estimated_completion_date ? new Date(editingAction.estimated_completion_date) : undefined,
+            required_tools: editingAction.required_tools || [],
+            attachments: editingAction.attachments || [],
+            issue_reference: editingAction.issue_reference || '',
             required_stock: []
           }}
           profiles={profiles}

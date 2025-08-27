@@ -229,9 +229,9 @@ export default function Inventory() {
 
     if (searchTerm) {
       filtered = filtered.filter(part => {
-        // Supplier search removed - focusing on name and description only
         return part.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          part.description?.toLowerCase().includes(searchTerm.toLowerCase());
+          part.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          part.storage_location?.toLowerCase().includes(searchTerm.toLowerCase());
       });
     }
 

@@ -410,7 +410,7 @@ export function UnifiedActionDialog({
                     htmlFor="plan-commitment" 
                     className="text-sm leading-5 cursor-pointer"
                   >
-                    I, {profiles.find(p => p.user_id === formData.assigned_to)?.full_name || 'Assignee'}, will follow the documented plan. If issues arise, I will record them, consult AI for options, and bring solutions to leadership. I will not use low-quality fixes unless directed as part of a long-term solution.
+                    I, {profiles.find(p => p.user_id === formData.assigned_to)?.full_name || "Assignee"}, will follow the documented plan. If issues arise, I will record them, consult AI for options, and bring solutions to leadership. I will not use low-quality fixes unless directed as part of a long-term solution. Before completing the task, I will clean and return all tools and items to their proper place.
                   </Label>
                 </div>
               </div>

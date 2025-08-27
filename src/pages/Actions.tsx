@@ -173,25 +173,35 @@ export default function Actions() {
     setFilteredActions(filtered);
   }, [actions, searchTerm, statusFilter, assigneeFilter, user]);
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: string, action?: BaseAction) => {
+    // Blue: Ready to work (when plan_commitment is true)
+    if (action?.plan_commitment && status !== 'completed') {
+      return <CheckCircle className="h-4 w-4 text-[hsl(var(--action-ready))]" />;
+    }
+    
     switch (status) {
       case 'completed':
-        return <CheckCircle className="h-4 w-4 text-green-600" />;
+        return <CheckCircle className="h-4 w-4 text-[hsl(var(--action-done))]" />;
       case 'in_progress':
-        return <Clock className="h-4 w-4 text-blue-600" />;
+        return <Clock className="h-4 w-4 text-[hsl(var(--action-progress))]" />;
       default:
-        return <Circle className="h-4 w-4 text-gray-400" />;
+        return <Circle className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string, action?: BaseAction) => {
+    // Blue: Ready to work (when plan_commitment is true)
+    if (action?.plan_commitment && status !== 'completed') {
+      return 'bg-[hsl(var(--action-ready)/0.1)] text-[hsl(var(--action-ready))] border-[hsl(var(--action-ready)/0.2)]';
+    }
+    
     switch (status) {
       case 'completed':
-        return 'bg-green-100 text-green-800';
+        return 'bg-[hsl(var(--action-done)/0.1)] text-[hsl(var(--action-done))] border-[hsl(var(--action-done)/0.2)]';
       case 'in_progress':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-[hsl(var(--action-progress)/0.1)] text-[hsl(var(--action-progress))] border-[hsl(var(--action-progress)/0.2)]';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-muted text-muted-foreground';
     }
   };
 
@@ -323,7 +333,9 @@ export default function Actions() {
                   key={action.id} 
                   className={cn(
                     "hover:shadow-md transition-shadow cursor-pointer",
-                    action.plan_commitment && "border-primary border-2"
+                    action.plan_commitment && status !== 'completed' && "border-2 border-[hsl(var(--action-ready-border))]",
+                    action.status === 'in_progress' && !action.plan_commitment && "border-2 border-[hsl(var(--action-progress-border))]",
+                    action.status === 'completed' && "border-2 border-[hsl(var(--action-done-border))]"
                   )}
                   onClick={() => handleEditAction(action)}
                 >
@@ -331,7 +343,7 @@ export default function Actions() {
                     <div className="flex items-start justify-between">
                       <div className="flex-1 space-y-3">
                         <div className="flex items-center gap-3">
-                          {getStatusIcon(action.status)}
+                          {getStatusIcon(action.status, action)}
                           <h3 className="text-lg font-semibold">{action.title}</h3>
                         </div>
                         
@@ -340,8 +352,11 @@ export default function Actions() {
                         )}
                         
                         <div className="flex flex-wrap gap-2">
-                          <Badge className={getStatusColor(action.status)}>
-                            {action.status.replace('_', ' ')}
+                          <Badge variant="outline" className={getStatusColor(action.status, action)}>
+                            {action.plan_commitment && action.status !== 'completed' ? 'Ready to Work' : 
+                             action.status === 'completed' ? 'Done' :
+                             action.status === 'in_progress' ? 'In Progress' :
+                             action.status.replace('_', ' ')}
                           </Badge>
                           
                           {/* Action Type Indicator */}
@@ -412,7 +427,9 @@ export default function Actions() {
                   key={action.id} 
                   className={cn(
                     "hover:shadow-md transition-shadow cursor-pointer",
-                    action.plan_commitment && "border-primary border-2"
+                    action.plan_commitment && action.status !== 'completed' && "border-2 border-[hsl(var(--action-ready-border))]",
+                    action.status === 'in_progress' && !action.plan_commitment && "border-2 border-[hsl(var(--action-progress-border))]",
+                    action.status === 'completed' && "border-2 border-[hsl(var(--action-done-border))]"
                   )}
                   onClick={() => handleEditAction(action)}
                 >
@@ -420,7 +437,7 @@ export default function Actions() {
                     <div className="flex items-start justify-between">
                       <div className="flex-1 space-y-3">
                         <div className="flex items-center gap-3">
-                          {getStatusIcon(action.status)}
+                          {getStatusIcon(action.status, action)}
                           <h3 className="text-lg font-semibold">{action.title}</h3>
                         </div>
                         
@@ -429,8 +446,11 @@ export default function Actions() {
                         )}
                         
                         <div className="flex flex-wrap gap-2">
-                          <Badge className={getStatusColor(action.status)}>
-                            {action.status.replace('_', ' ')}
+                          <Badge variant="outline" className={getStatusColor(action.status, action)}>
+                            {action.plan_commitment && action.status !== 'completed' ? 'Ready to Work' : 
+                             action.status === 'completed' ? 'Done' :
+                             action.status === 'in_progress' ? 'In Progress' :
+                             action.status.replace('_', ' ')}
                           </Badge>
                           
                           {/* Action Type Indicator */}

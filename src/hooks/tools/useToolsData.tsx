@@ -57,7 +57,7 @@ export const useToolsData = (showRemovedItems: boolean = false) => {
         `);
       
       if (!showRemovedItems) {
-        query = query.neq('status', 'unable_to_find');
+        query = query.neq('status', 'removed');
       }
       
       const { data, error } = await query.order('name');

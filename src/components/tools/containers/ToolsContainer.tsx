@@ -23,6 +23,7 @@ import { IssueResolutionDialog } from "@/components/IssueResolutionDialog";
 import { IssueReportDialog } from "@/components/IssueReportDialog";
 import { IssueEditDialog } from "@/components/IssueEditDialog";
 import { IssueWorkflowDialog } from "@/components/IssueWorkflowDialog";
+import { ToolRemovalDialog } from "../ToolRemovalDialog";
 
 export const ToolsContainer = () => {
   const { toolId } = useParams();
@@ -46,6 +47,9 @@ export const ToolsContainer = () => {
   const [editIssue, setEditIssue] = useState(null);
   const [isEditIssueDialogOpen, setIsEditIssueDialogOpen] = useState(false);
   const [storageVicinities, setStorageVicinities] = useState([]);
+  const [removeTool, setRemoveTool] = useState(null);
+  const [isRemovalDialogOpen, setIsRemovalDialogOpen] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   // Custom hooks
   const { tools, loading, activeCheckouts, fetchTools, createTool, updateTool } = useToolsData(showRemovedItems);
@@ -124,8 +128,29 @@ export const ToolsContainer = () => {
   };
 
   const handleRemoveClick = (tool) => {
-    // TODO: Implement remove dialog
-    console.log('Remove tool:', tool);
+    setRemoveTool(tool);
+    setIsRemovalDialogOpen(true);
+  };
+
+  const handleConfirmRemoval = async (reason: string, notes: string) => {
+    if (!removeTool) return;
+    
+    setIsRemoving(true);
+    try {
+      await updateTool(removeTool.id, { 
+        status: 'removed',
+        known_issues: notes ? `Removal reason: ${reason}. Notes: ${notes}` : `Removal reason: ${reason}`,
+      });
+      await fetchTools();
+      setIsRemovalDialogOpen(false);
+      setRemoveTool(null);
+      // Show success toast
+      console.log(`Tool "${removeTool.name}" has been removed from inventory.`);
+    } catch (error) {
+      console.error('Error removing tool:', error);
+    } finally {
+      setIsRemoving(false);
+    }
   };
 
   const handleResolveIssue = (issue) => {
@@ -346,6 +371,14 @@ export const ToolsContainer = () => {
           setIsEditIssueDialogOpen(false);
           setEditIssue(null);
         }}
+      />
+
+      <ToolRemovalDialog
+        open={isRemovalDialogOpen}
+        onOpenChange={setIsRemovalDialogOpen}
+        tool={removeTool}
+        onConfirm={handleConfirmRemoval}
+        isLoading={isRemoving}
       />
       </div>
     </TooltipProvider>

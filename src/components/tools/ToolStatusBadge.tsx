@@ -7,7 +7,7 @@ interface ToolStatusBadgeProps {
 }
 
 const getStatusVariant = (status: string) => {
-  if (status === 'unavailable' || status === 'unable_to_find') return 'destructive';
+  if (status === 'unavailable' || status === 'removed') return 'destructive';
   if (status === 'checked_out') return 'secondary';
   if (status === 'needs_attention') return 'destructive';
   if (status === 'under_repair') return 'secondary';
@@ -16,7 +16,7 @@ const getStatusVariant = (status: string) => {
 
 const getStatusLabel = (status: string) => {
   if (status === 'unavailable') return 'Unavailable';
-  if (status === 'unable_to_find') return 'Unable to Find';
+  if (status === 'removed') return 'Removed';
   if (status === 'checked_out') return 'Checked Out';
   if (status === 'needs_attention') return 'Needs Attention';
   if (status === 'under_repair') return 'Under Repair';
@@ -24,7 +24,7 @@ const getStatusLabel = (status: string) => {
 };
 
 const getStatusIcon = (status: string) => {
-  if (status === 'unable_to_find' || status === 'unavailable' || status === 'needs_attention') return AlertTriangle;
+  if (status === 'removed' || status === 'unavailable' || status === 'needs_attention') return AlertTriangle;
   if (status === 'checked_out' || status === 'under_repair') return Clock;
   return CheckCircle;
 };

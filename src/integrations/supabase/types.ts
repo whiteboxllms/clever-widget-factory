@@ -1312,9 +1312,9 @@ export type Database = {
         | "available"
         | "checked_out"
         | "unavailable"
-        | "unable_to_find"
         | "needs_attention"
         | "under_repair"
+        | "removed"
       workflow_status_type:
         | "reported"
         | "diagnosed"
@@ -1472,9 +1472,9 @@ export const Constants = {
         "available",
         "checked_out",
         "unavailable",
-        "unable_to_find",
         "needs_attention",
         "under_repair",
+        "removed",
       ],
       workflow_status_type: [
         "reported",

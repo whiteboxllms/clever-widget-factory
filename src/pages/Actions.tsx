@@ -8,10 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
-import { POLICY_CATEGORY_OPTIONS } from '@/lib/constants';
 import { Bolt, Plus, Filter, Search, Clock, CheckCircle, Circle, User, AlertTriangle, Wrench } from 'lucide-react';
 import { UnifiedActionDialog } from '@/components/UnifiedActionDialog';
-import { BaseAction, Profile, createPolicyAction } from '@/types/actions';
+import { BaseAction, Profile } from '@/types/actions';
 
 // Using unified BaseAction interface from types/actions.ts
 
@@ -195,20 +194,6 @@ export default function Actions() {
     }
   };
 
-  const getPolicyCategoryColor = (category?: string) => {
-    switch (category) {
-      case 'experiment':
-        return 'bg-purple-100 text-purple-800';
-      case 'legal':
-        return 'bg-red-100 text-red-800';
-      case 'product_development':
-        return 'bg-green-100 text-green-800';
-      case 'training':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
 
   const unresolved = filteredActions.filter(a => a.status !== 'completed');
   const completed = filteredActions.filter(a => a.status === 'completed');
@@ -352,17 +337,17 @@ export default function Actions() {
                           </Badge>
                           
                           {/* Action Type Indicator */}
-                          {action.policy_category ? (
-                            <Badge variant="outline" className={getPolicyCategoryColor(action.policy_category)}>
-                              Policy: {POLICY_CATEGORY_OPTIONS.find(opt => opt.value === action.policy_category)?.label}
-                            </Badge>
-                          ) : action.asset ? (
+                          {action.asset ? (
                             <Badge variant="outline" className="bg-blue-100 text-blue-800">
                               Asset: {action.asset.name}
                             </Badge>
                           ) : action.issue_tool ? (
                             <Badge variant="outline" className="bg-orange-100 text-orange-800">
                               Issue Tool: {action.issue_tool.name}
+                            </Badge>
+                          ) : action.mission ? (
+                            <Badge variant="outline" className="bg-indigo-100 text-indigo-800">
+                              Mission Action
                             </Badge>
                           ) : (
                             <Badge variant="outline" className="bg-gray-100 text-gray-800">
@@ -434,17 +419,17 @@ export default function Actions() {
                           </Badge>
                           
                           {/* Action Type Indicator */}
-                          {action.policy_category ? (
-                            <Badge variant="outline" className={getPolicyCategoryColor(action.policy_category)}>
-                              Policy: {POLICY_CATEGORY_OPTIONS.find(opt => opt.value === action.policy_category)?.label}
-                            </Badge>
-                          ) : action.asset ? (
+                          {action.asset ? (
                             <Badge variant="outline" className="bg-blue-100 text-blue-800">
                               Asset: {action.asset.name}
                             </Badge>
                           ) : action.issue_tool ? (
                             <Badge variant="outline" className="bg-orange-100 text-orange-800">
                               Issue Tool: {action.issue_tool.name}
+                            </Badge>
+                          ) : action.mission ? (
+                            <Badge variant="outline" className="bg-indigo-100 text-indigo-800">
+                              Mission Action
                             </Badge>
                           ) : (
                             <Badge variant="outline" className="bg-gray-100 text-gray-800">
@@ -493,10 +478,7 @@ export default function Actions() {
           open={isEditDialogOpen}
           onOpenChange={setIsEditDialogOpen}
           action={editingAction || undefined}
-          context={{ 
-            type: 'policy', 
-            prefilledData: isCreating ? createPolicyAction() : undefined 
-          }}
+          context={isCreating ? { type: 'asset' } : undefined}
           profiles={profiles}
           onActionSaved={handleSaveAction}
           isCreating={isCreating}

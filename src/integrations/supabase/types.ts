@@ -31,9 +31,6 @@ export type Database = {
           mission_id: string | null
           observations: string | null
           plan: string | null
-          policy_category:
-            | Database["public"]["Enums"]["policy_category_type"]
-            | null
           qa_approved_at: string | null
           required_stock: Json | null
           required_tools: string[] | null
@@ -59,9 +56,6 @@ export type Database = {
           mission_id?: string | null
           observations?: string | null
           plan?: string | null
-          policy_category?:
-            | Database["public"]["Enums"]["policy_category_type"]
-            | null
           qa_approved_at?: string | null
           required_stock?: Json | null
           required_tools?: string[] | null
@@ -87,9 +81,6 @@ export type Database = {
           mission_id?: string | null
           observations?: string | null
           plan?: string | null
-          policy_category?:
-            | Database["public"]["Enums"]["policy_category_type"]
-            | null
           qa_approved_at?: string | null
           required_stock?: Json | null
           required_tools?: string[] | null
@@ -1306,11 +1297,6 @@ export type Database = {
         | "hydraulics"
         | "welding"
         | "fabrication"
-      policy_category_type:
-        | "experiment"
-        | "legal"
-        | "product_development"
-        | "training"
       tool_status:
         | "available"
         | "checked_out"
@@ -1464,12 +1450,6 @@ export const Constants = {
         "hydraulics",
         "welding",
         "fabrication",
-      ],
-      policy_category_type: [
-        "experiment",
-        "legal",
-        "product_development",
-        "training",
       ],
       tool_status: [
         "available",

@@ -146,9 +146,6 @@ export function UnifiedActionDialog({
     return formData.linked_issue_id || formData.issue_reference;
   };
 
-  const showPolicyCategory = () => {
-    return context?.type === 'policy' || formData.policy_category !== undefined;
-  };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -240,10 +237,6 @@ export function UnifiedActionDialog({
         status: formData.status || 'not_started'
       };
 
-      // Only include policy_category if it's a valid enum value
-      if (formData.policy_category && ['experiment', 'legal', 'product_development', 'training'].includes(formData.policy_category)) {
-        actionData.policy_category = formData.policy_category;
-      }
 
       if (isCreating || !action?.id) {
         // Creating new action
@@ -334,19 +327,6 @@ export function UnifiedActionDialog({
             />
           </div>
 
-          {/* Policy Category (only for policy actions) */}
-          {showPolicyCategory() && (
-            <div>
-              <Label htmlFor="policyCategory">Policy Category</Label>
-              <Input
-                id="policyCategory"
-                value={formData.policy_category || ''}
-                onChange={(e) => setFormData(prev => ({ ...prev, policy_category: e.target.value }))}
-                placeholder="Policy category..."
-                className="mt-1"
-              />
-            </div>
-          )}
 
           {/* Assigned To and Estimated Completion Date */}
           <div className="grid grid-cols-2 gap-4">

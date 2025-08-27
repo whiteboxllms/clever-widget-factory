@@ -16,7 +16,6 @@ export interface BaseAction {
   mission_id?: string | null;
   asset_id?: string | null;
   linked_issue_id?: string | null;
-  policy_category?: string | null;
   
   // Additional optional fields
   estimated_duration?: string | null;
@@ -61,7 +60,7 @@ export interface Profile {
 }
 
 export interface ActionCreationContext {
-  type: 'mission' | 'issue' | 'asset' | 'policy';
+  type: 'mission' | 'issue' | 'asset';
   parentId?: string;
   parentTitle?: string;
   prefilledData?: Partial<BaseAction>;
@@ -108,26 +107,12 @@ export const createAssetAction = (assetId: string): Partial<BaseAction> => ({
   attachments: []
 });
 
-export const createPolicyAction = (category?: string): Partial<BaseAction> => ({
-  policy_category: category || '',
-  status: 'not_started',
-  title: '',
-  description: '',
-  plan: '',
-  observations: '',
-  assigned_to: null,
-  required_tools: [],
-  required_stock: [],
-  attachments: []
-});
-
 // Validation helpers
 export const validateActionRelationship = (action: Partial<BaseAction>): boolean => {
   const relationships = [
     action.mission_id,
     action.asset_id,
-    action.linked_issue_id,
-    action.policy_category
+    action.linked_issue_id
   ].filter(Boolean);
   
   return relationships.length <= 1; // Exactly zero or one parent relationship
@@ -136,6 +121,5 @@ export const validateActionRelationship = (action: Partial<BaseAction>): boolean
 export const getActionTypeFromAction = (action: BaseAction): ActionCreationContext['type'] => {
   if (action.mission_id) return 'mission';
   if (action.linked_issue_id) return 'issue';
-  if (action.asset_id) return 'asset';
-  return 'policy';
+  return 'asset';
 };

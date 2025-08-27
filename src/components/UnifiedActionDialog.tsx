@@ -59,44 +59,65 @@ export function UnifiedActionDialog({
   const [newTool, setNewTool] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [estimatedDate, setEstimatedDate] = useState<Date | undefined>();
+  const [isFormInitialized, setIsFormInitialized] = useState(false);
+  const [currentActionId, setCurrentActionId] = useState<string | null>(null);
+  const [currentContextType, setCurrentContextType] = useState<string | null>(null);
   
   const { uploadImages, isUploading } = useImageUpload();
 
-  // Initialize form data when dialog opens
+  // Initialize form data when dialog opens - preserve state for same session
   useEffect(() => {
     if (open) {
-      if (action && !isCreating) {
-        // Editing existing action
-        setFormData({
-          ...action,
-          required_tools: action.required_tools || [],
-          attachments: action.attachments || []
-        });
-        if (action.estimated_duration) {
-          setEstimatedDate(new Date(action.estimated_duration));
+      const actionId = action?.id || null;
+      const contextType = context?.type || null;
+      
+      // Check if we're opening the same action/context or a different one
+      const isSameSession = actionId === currentActionId && contextType === currentContextType;
+      
+      // Only reset form if it's a different action/context or first time opening
+      if (!isSameSession || !isFormInitialized) {
+        if (action && !isCreating) {
+          // Editing existing action
+          setFormData({
+            ...action,
+            required_tools: action.required_tools || [],
+            attachments: action.attachments || []
+          });
+          if (action.estimated_duration) {
+            setEstimatedDate(new Date(action.estimated_duration));
+          }
+        } else if (context?.prefilledData) {
+          // Creating new action with context
+          setFormData({
+            ...context.prefilledData,
+            required_tools: context.prefilledData.required_tools || [],
+            attachments: context.prefilledData.attachments || []
+          });
+        } else {
+          // Default new action
+          setFormData({
+            title: '',
+            description: '',
+            plan: '',
+            observations: '',
+            assigned_to: null,
+            status: 'not_started',
+            required_tools: [],
+            attachments: []
+          });
         }
-      } else if (context?.prefilledData) {
-        // Creating new action with context
-        setFormData({
-          ...context.prefilledData,
-          required_tools: context.prefilledData.required_tools || [],
-          attachments: context.prefilledData.attachments || []
-        });
-      } else {
-        // Default new action
-        setFormData({
-          title: '',
-          description: '',
-          plan: '',
-          observations: '',
-          assigned_to: null,
-          status: 'not_started',
-          required_tools: [],
-          attachments: []
-        });
+        
+        setIsFormInitialized(true);
+        setCurrentActionId(actionId);
+        setCurrentContextType(contextType);
       }
+    } else {
+      // Reset tracking when dialog closes
+      setIsFormInitialized(false);
+      setCurrentActionId(null);
+      setCurrentContextType(null);
     }
-  }, [open, action, context, isCreating]);
+  }, [open, action?.id, context?.type, isCreating]);
 
   const getDialogTitle = () => {
     if (!isCreating && action) {

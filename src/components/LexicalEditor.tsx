@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
@@ -139,12 +139,13 @@ function AutoLinkPlugin() {
 // Plugin to load initial HTML content into the editor
 function LoadInitialContentPlugin({ initialHtml }: { initialHtml?: string }) {
   const [editor] = useLexicalComposerContext();
-  const [lastLoadedHtml, setLastLoadedHtml] = useState<string>('');
-  const [isUserTyping, setIsUserTyping] = useState(false);
+  const lastLoadedHtmlRef = useRef<string>('');
+  const isUserTypingRef = useRef<boolean>(false);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Don't reload if user is actively typing or if it's the same content
-    if (isUserTyping || initialHtml === lastLoadedHtml) {
+    if (isUserTypingRef.current || initialHtml === lastLoadedHtmlRef.current) {
       return;
     }
 
@@ -166,22 +167,35 @@ function LoadInitialContentPlugin({ initialHtml }: { initialHtml?: string }) {
             root.append(...nodes);
           }
           
-          setLastLoadedHtml(initialHtml || '');
+          lastLoadedHtmlRef.current = initialHtml || '';
         });
       }
     });
-  }, [initialHtml, editor, lastLoadedHtml, isUserTyping]);
+  }, [initialHtml, editor]);
 
   // Track when user starts typing to prevent content reloading during input
   useEffect(() => {
     const removeListener = editor.registerTextContentListener(() => {
-      setIsUserTyping(true);
+      isUserTypingRef.current = true;
+      
+      // Clear any existing timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      
       // Reset the typing flag after a short delay
-      const timeoutId = setTimeout(() => setIsUserTyping(false), 100);
-      return () => clearTimeout(timeoutId);
+      typingTimeoutRef.current = setTimeout(() => {
+        isUserTypingRef.current = false;
+      }, 100);
     });
 
-    return removeListener;
+    return () => {
+      removeListener();
+      // Clean up timeout on unmount
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
   }, [editor]);
 
   return null;

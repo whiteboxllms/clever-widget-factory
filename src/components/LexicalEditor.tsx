@@ -143,23 +143,24 @@ function LoadInitialContentPlugin({ initialHtml }: { initialHtml?: string }) {
   useEffect(() => {
     if (initialHtml && initialHtml.trim()) {
       editor.update(() => {
-        // Only load if the editor is currently empty
+        // Clear existing content and load new content
         const root = $getRoot();
-        const children = root.getChildren();
+        root.clear();
         
-        // Only load initial content if editor is empty
-        if (children.length === 0 || (children.length === 1 && children[0].getTextContent().trim() === '')) {
-          root.clear();
-          
-          // Parse HTML and insert nodes
-          const parser = new DOMParser();
-          const dom = parser.parseFromString(initialHtml, 'text/html');
-          const nodes = $generateNodesFromDOM(editor, dom);
-          root.append(...nodes);
-        }
+        // Parse HTML and insert nodes
+        const parser = new DOMParser();
+        const dom = parser.parseFromString(initialHtml, 'text/html');
+        const nodes = $generateNodesFromDOM(editor, dom);
+        root.append(...nodes);
+      });
+    } else if (initialHtml === '') {
+      // Clear editor when initialHtml is empty
+      editor.update(() => {
+        const root = $getRoot();
+        root.clear();
       });
     }
-  }, []); // Empty dependency array - only run once on mount
+  }, [initialHtml, editor]); // Re-run when initialHtml changes
 
   return null;
 }

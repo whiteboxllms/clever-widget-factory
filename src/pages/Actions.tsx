@@ -69,6 +69,7 @@ export default function Actions() {
 
       setActions(data?.map(item => ({
         ...item,
+        required_stock: Array.isArray(item.required_stock) ? item.required_stock : [],
         asset: toolsData.find(tool => tool.id === item.asset_id) || null,
         assignee: item.assignee && typeof item.assignee === 'object' && !('error' in item.assignee) 
           ? {
@@ -87,7 +88,7 @@ export default function Actions() {
             }
           : null,
         issue_tool: issueToolsData.find(issue => issue.id === item.linked_issue_id)?.tool || null
-      })) || []);
+      })) as unknown as BaseAction[] || []);
     } catch (error) {
       console.error('Error fetching actions:', error);
       toast({

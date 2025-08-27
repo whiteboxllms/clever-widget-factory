@@ -43,7 +43,10 @@ export function MissionActionList({ missionId, profiles, canEdit = false, missio
         variant: "destructive",
       });
     } else {
-      setActions(data || []);
+      setActions((data || []).map(action => ({
+        ...action,
+        required_stock: Array.isArray(action.required_stock) ? action.required_stock : []
+      }) as unknown as BaseAction));
     }
     
     setLoading(false);

@@ -15,9 +15,15 @@ interface StockItem {
   current_quantity: number;
 }
 
+interface SelectedStockItem {
+  part_id: string;
+  quantity: number;
+  part_name: string;
+}
+
 interface StockSelectorProps {
-  selectedStock: string[];
-  onStockChange: (stock: string[]) => void;
+  selectedStock: SelectedStockItem[];
+  onStockChange: (stock: SelectedStockItem[]) => void;
 }
 
 export function StockSelector({ selectedStock, onStockChange }: StockSelectorProps) {
@@ -60,15 +66,35 @@ export function StockSelector({ selectedStock, onStockChange }: StockSelectorPro
   );
 
   const addStockItem = (item: StockItem) => {
-    if (!selectedStock.includes(item.name)) {
-      onStockChange([...selectedStock, item.name]);
+    const isAlreadySelected = selectedStock.some(selected => selected.part_id === item.id);
+    
+    if (!isAlreadySelected) {
+      const newStockItem: SelectedStockItem = {
+        part_id: item.id,
+        quantity: 1,
+        part_name: item.name
+      };
+      onStockChange([...selectedStock, newStockItem]);
       setShowSearch(false);
       setSearchTerm("");
     }
   };
 
-  const removeStockItem = (itemName: string) => {
-    onStockChange(selectedStock.filter(name => name !== itemName));
+  const removeStockItem = (partId: string) => {
+    onStockChange(selectedStock.filter(item => item.part_id !== partId));
+  };
+
+  const updateQuantity = (partId: string, quantity: number) => {
+    if (quantity <= 0) {
+      removeStockItem(partId);
+      return;
+    }
+    
+    onStockChange(selectedStock.map(item => 
+      item.part_id === partId 
+        ? { ...item, quantity }
+        : item
+    ));
   };
 
   return (
@@ -88,20 +114,29 @@ export function StockSelector({ selectedStock, onStockChange }: StockSelectorPro
 
       {/* Selected Stock */}
       {selectedStock.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {selectedStock.map((stockName, index) => (
-            <Badge key={index} variant="secondary" className="flex items-center gap-1">
-              <Package className="w-3 h-3" />
-              {stockName}
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-auto p-0 ml-1"
-                onClick={() => removeStockItem(stockName)}
-              >
-                <X className="w-3 h-3" />
-              </Button>
-            </Badge>
+        <div className="space-y-2">
+          {selectedStock.map((stockItem) => (
+            <div key={stockItem.part_id} className="flex items-center gap-2 p-2 border rounded-lg">
+              <Package className="w-4 h-4 text-muted-foreground" />
+              <span className="flex-1 font-medium">{stockItem.part_name}</span>
+              
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min="1"
+                  value={stockItem.quantity}
+                  onChange={(e) => updateQuantity(stockItem.part_id, parseInt(e.target.value) || 1)}
+                  className="w-20"
+                />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => removeStockItem(stockItem.part_id)}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -143,35 +178,43 @@ export function StockSelector({ selectedStock, onStockChange }: StockSelectorPro
                     {searchTerm ? 'No stock items found matching your search' : 'No stock items available'}
                   </div>
                 ) : (
-                  filteredStock.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
-                      onClick={() => addStockItem(item)}
-                    >
-                      <div className="flex-1">
-                        <p className="font-medium">{item.name}</p>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          {item.category && (
-                            <Badge variant="outline" className="text-xs">
-                              {item.category}
-                            </Badge>
-                          )}
-                          <span>{item.current_quantity} {item.unit || 'units'} available</span>
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          addStockItem(item);
-                        }}
+                  filteredStock.map((item) => {
+                    const isSelected = selectedStock.some(selected => selected.part_id === item.id);
+                    
+                    return (
+                      <div
+                        key={item.id}
+                        className={`flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer ${
+                          isSelected ? 'bg-muted/50 opacity-50' : ''
+                        }`}
+                        onClick={() => !isSelected && addStockItem(item)}
                       >
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))
+                        <div className="flex-1">
+                          <p className="font-medium">{item.name}</p>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            {item.category && (
+                              <Badge variant="outline" className="text-xs">
+                                {item.category}
+                              </Badge>
+                            )}
+                            <span>{item.current_quantity} {item.unit || 'units'} available</span>
+                          </div>
+                        </div>
+                        {!isSelected && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              addStockItem(item);
+                            }}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             )}

@@ -35,6 +35,7 @@ export type Database = {
             | Database["public"]["Enums"]["policy_category_type"]
             | null
           qa_approved_at: string | null
+          required_stock: Json | null
           required_tools: string[] | null
           score: number | null
           scoring_data: Json | null
@@ -62,6 +63,7 @@ export type Database = {
             | Database["public"]["Enums"]["policy_category_type"]
             | null
           qa_approved_at?: string | null
+          required_stock?: Json | null
           required_tools?: string[] | null
           score?: number | null
           scoring_data?: Json | null
@@ -89,6 +91,7 @@ export type Database = {
             | Database["public"]["Enums"]["policy_category_type"]
             | null
           qa_approved_at?: string | null
+          required_stock?: Json | null
           required_tools?: string[] | null
           score?: number | null
           scoring_data?: Json | null

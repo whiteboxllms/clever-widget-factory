@@ -28,11 +28,13 @@ import {
   X,
   Wrench,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Package
 } from "lucide-react";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { LexicalEditor } from './LexicalEditor';
 import { AssetSelector } from './AssetSelector';
+import { StockSelector } from './StockSelector';
 import { cn } from "@/lib/utils";
 import { BaseAction, Profile, ActionCreationContext } from "@/types/actions";
 
@@ -82,6 +84,7 @@ export function UnifiedActionDialog({
           setFormData({
             ...action,
             required_tools: action.required_tools || [],
+            required_stock: action.required_stock || [],
             attachments: action.attachments || []
           });
           if (action.estimated_duration) {
@@ -92,6 +95,7 @@ export function UnifiedActionDialog({
           setFormData({
             ...context.prefilledData,
             required_tools: context.prefilledData.required_tools || [],
+            required_stock: context.prefilledData.required_stock || [],
             attachments: context.prefilledData.attachments || []
           });
         } else {
@@ -104,6 +108,7 @@ export function UnifiedActionDialog({
             assigned_to: null,
             status: 'not_started',
             required_tools: [],
+            required_stock: [],
             attachments: []
           });
         }
@@ -226,6 +231,7 @@ export function UnifiedActionDialog({
         assigned_to: formData.assigned_to === 'unassigned' ? null : formData.assigned_to || null,
         estimated_duration: estimatedDuration,
         required_tools: formData.required_tools || [],
+        required_stock: formData.required_stock || [],
         attachments: formData.attachments || [],
         mission_id: formData.mission_id || null,
         asset_id: formData.asset_id || null,
@@ -404,19 +410,37 @@ export function UnifiedActionDialog({
             </div>
           </div>
 
-          {/* Required Assets */}
-          <div>
-            <Label className="flex items-center gap-1 mb-2">
-              <Wrench className="w-4 h-4" />
-              Required Assets
-            </Label>
-            <AssetSelector
-              selectedAssets={formData.required_tools || []}
-              onAssetsChange={(assets) => setFormData(prev => ({ 
-                ...prev, 
-                required_tools: assets 
-              }))}
-            />
+          {/* Assets and Stock Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Assets */}
+            <div>
+              <Label className="flex items-center gap-1 mb-2">
+                <Wrench className="w-4 h-4" />
+                Assets
+              </Label>
+              <AssetSelector
+                selectedAssets={formData.required_tools || []}
+                onAssetsChange={(assets) => setFormData(prev => ({ 
+                  ...prev, 
+                  required_tools: assets 
+                }))}
+              />
+            </div>
+
+            {/* Stock */}
+            <div>
+              <Label className="flex items-center gap-1 mb-2">
+                <Package className="w-4 h-4" />
+                Stock
+              </Label>
+              <StockSelector
+                selectedStock={formData.required_stock || []}
+                onStockChange={(stock) => setFormData(prev => ({ 
+                  ...prev, 
+                  required_stock: stock 
+                }))}
+              />
+            </div>
           </div>
 
           {/* Rich Text Content */}

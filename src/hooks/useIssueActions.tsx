@@ -16,7 +16,10 @@ export const useIssueActions = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      return (data || []).map(action => ({
+        ...action,
+        required_stock: Array.isArray(action.required_stock) ? action.required_stock : []
+      })) as unknown as BaseAction[];
     } catch (error) {
       console.error('Error fetching actions for issue:', error);
       toast({

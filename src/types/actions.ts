@@ -22,6 +22,7 @@ export interface BaseAction {
   estimated_duration?: string | null;
   estimated_completion_date?: string | null;
   required_tools?: string[];
+  required_stock?: { part_id: string; quantity: number; part_name: string; }[];
   attachments?: string[];
   issue_reference?: string | null;
   score?: number | null;
@@ -76,6 +77,7 @@ export const createMissionAction = (missionId: string): Partial<BaseAction> => (
   observations: '',
   assigned_to: null,
   required_tools: [],
+  required_stock: [],
   attachments: []
 });
 
@@ -88,6 +90,7 @@ export const createIssueAction = (issueId: string, issueDescription?: string): P
   observations: '',
   assigned_to: null,
   required_tools: [],
+  required_stock: [],
   attachments: [],
   issue_reference: issueDescription ? `Issue: ${issueDescription}` : null
 });
@@ -101,6 +104,7 @@ export const createAssetAction = (assetId: string): Partial<BaseAction> => ({
   observations: '',
   assigned_to: null,
   required_tools: [],
+  required_stock: [],
   attachments: []
 });
 
@@ -113,6 +117,7 @@ export const createPolicyAction = (category?: string): Partial<BaseAction> => ({
   observations: '',
   assigned_to: null,
   required_tools: [],
+  required_stock: [],
   attachments: []
 });
 

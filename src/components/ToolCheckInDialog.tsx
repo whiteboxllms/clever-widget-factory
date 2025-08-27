@@ -70,6 +70,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
   const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
   const [uploadedPhotoUrls, setUploadedPhotoUrls] = useState<string[]>([]);
   const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
+  const [showNewIssueForm, setShowNewIssueForm] = useState(false);
   
   // Use the new issues hook
   const { issues, isLoading: isLoadingIssues, fetchIssues, createIssuesFromText } = useToolIssues(tool?.id || null);
@@ -407,60 +408,88 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
 
             {/* New Issues Section */}
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Plus className="h-4 w-4 text-green-600" />
-                <Label htmlFor="tool_issues">Report New Issues</Label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button type="button" className="touch-manipulation">
-                      <Info className="h-4 w-4 text-muted-foreground" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" align="center" className="max-w-xs">
-                    <p>Report new problems discovered during use. Each line will become a separate tracked issue.</p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <Select value={newIssueType} onValueChange={(value: any) => setNewIssueType(value)}>
-                    <SelectTrigger className="w-fit">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="safety">🚨 Safety</SelectItem>
-                      <SelectItem value="efficiency">⚙️ Efficiency</SelectItem>
-                      <SelectItem value="cosmetic">✨ Cosmetic</SelectItem>
-                      <SelectItem value="preventative_maintenance">🔧 Preventative Maintenance</SelectItem>
-                      <SelectItem value="functionality">⚙️ Functionality</SelectItem>
-                      <SelectItem value="lifespan">🔧 Lifespan</SelectItem>
-                    </SelectContent>
-                  </Select>
-                 </div>
-                 
-                 {newIssueType === 'efficiency' && (
-                   <div>
-                     <Label htmlFor="efficiency_loss">Estimated Efficiency Loss (%)</Label>
-                     <Input
-                       id="efficiency_loss"
-                       type="number"
-                       min="0"
-                       max="100"
-                       value={efficiencyLossPercentage || ''}
-                       onChange={(e) => setEfficiencyLossPercentage(e.target.value ? parseInt(e.target.value) : undefined)}
-                       placeholder="Enter percentage (e.g., 20 for 20% loss)"
+              {!showNewIssueForm ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowNewIssueForm(true)}
+                  className="w-full"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Report New Issue
+                </Button>
+              ) : (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Plus className="h-4 w-4 text-green-600" />
+                      <Label htmlFor="tool_issues">Report New Issues</Label>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button type="button" className="touch-manipulation">
+                            <Info className="h-4 w-4 text-muted-foreground" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" align="center" className="max-w-xs">
+                          <p>Report new problems discovered during use. Each line will become a separate tracked issue.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setShowNewIssueForm(false);
+                        setForm(prev => ({ ...prev, tool_issues: '' }));
+                        setEfficiencyLossPercentage(undefined);
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <Select value={newIssueType} onValueChange={(value: any) => setNewIssueType(value)}>
+                        <SelectTrigger className="w-fit">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="safety">🚨 Safety</SelectItem>
+                          <SelectItem value="efficiency">⚙️ Efficiency</SelectItem>
+                          <SelectItem value="cosmetic">✨ Cosmetic</SelectItem>
+                          <SelectItem value="preventative_maintenance">🔧 Preventative Maintenance</SelectItem>
+                          <SelectItem value="functionality">⚙️ Functionality</SelectItem>
+                          <SelectItem value="lifespan">🔧 Lifespan</SelectItem>
+                        </SelectContent>
+                      </Select>
+                     </div>
+                     
+                     {newIssueType === 'efficiency' && (
+                       <div>
+                         <Label htmlFor="efficiency_loss">Estimated Efficiency Loss (%)</Label>
+                         <Input
+                           id="efficiency_loss"
+                           type="number"
+                           min="0"
+                           max="100"
+                           value={efficiencyLossPercentage || ''}
+                           onChange={(e) => setEfficiencyLossPercentage(e.target.value ? parseInt(e.target.value) : undefined)}
+                           placeholder="Enter percentage (e.g., 20 for 20% loss)"
+                         />
+                       </div>
+                     )}
+                     
+                     <Textarea
+                       id="tool_issues"
+                       value={form.tool_issues}
+                       onChange={(e) => setForm(prev => ({ ...prev, tool_issues: e.target.value }))}
+                       placeholder="Describe any new problems, damage, or malfunctions discovered during use. Put each issue on a separate line."
+                       rows={3}
                      />
                    </div>
-                 )}
-                 
-                 <Textarea
-                   id="tool_issues"
-                   value={form.tool_issues}
-                   onChange={(e) => setForm(prev => ({ ...prev, tool_issues: e.target.value }))}
-                   placeholder="Describe any new problems, damage, or malfunctions discovered during use. Put each issue on a separate line."
-                   rows={3}
-                 />
-              </div>
+                </div>
+              )}
             </div>
 
             {tool.has_motor && (

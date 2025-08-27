@@ -143,6 +143,48 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
     setIsSubmitting(true);
 
     try {
+      // Step 1: Check for existing active checkouts before proceeding
+      const { data: existingCheckouts, error: checkoutCheckError } = await supabase
+        .from('checkouts')
+        .select('id, user_name')
+        .eq('tool_id', tool.id)
+        .eq('is_returned', false);
+
+      if (checkoutCheckError) {
+        console.error('Error checking existing checkouts:', checkoutCheckError);
+        throw new Error('Failed to verify tool availability');
+      }
+
+      if (existingCheckouts && existingCheckouts.length > 0) {
+        const checkout = existingCheckouts[0];
+        toast({
+          title: "Tool Already Checked Out",
+          description: `This tool is currently checked out to ${checkout.user_name}. Please ensure the tool is checked in before attempting a new checkout.`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Step 2: Verify tool status is available
+      const { data: toolData, error: toolCheckError } = await supabase
+        .from('tools')
+        .select('status')
+        .eq('id', tool.id)
+        .single();
+
+      if (toolCheckError) {
+        console.error('Error checking tool status:', toolCheckError);
+        throw new Error('Failed to verify tool status');
+      }
+
+      if (toolData?.status !== 'available') {
+        toast({
+          title: "Tool Not Available",
+          description: `This tool is currently ${toolData?.status || 'unavailable'}. Please refresh the page to see the current status.`,
+          variant: "destructive"
+        });
+        return;
+      }
       let beforeImageUrl = null;
       if (form.beforeImageFiles.length > 0) {
         const uploadedUrls = await uploadImages(form.beforeImageFiles);

@@ -283,6 +283,14 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
     } catch (error) {
       console.error('Error checking in tool:', error);
       
+      const checkInErrorLog = {
+        ...debugInfo,
+        error: error,
+        errorMessage: error && typeof error === 'object' && 'message' in error ? error.message : 'Unknown error',
+        step: 'check_in_failed'
+      };
+      console.error('=== CHECK-IN ERROR LOG ===', checkInErrorLog);
+      
       let errorMessage = "Failed to check in tool";
       let errorDetails = "";
       
@@ -302,6 +310,9 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         } else if (errorDetails.includes('duplicate key')) {
           errorMessage = "Check-in already exists";
           errorDetails = "This tool may have already been checked in. Please refresh the page to see the current status.";
+        } else if (errorDetails.includes('Tool already has an active checkout')) {
+          errorMessage = "Data inconsistency detected";
+          errorDetails = "There seems to be a data inconsistency. Please refresh the page and try again.";
         }
       }
       
@@ -310,6 +321,16 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         description: errorDetails || "An unexpected error occurred. Please try again or contact support if the problem persists.",
         variant: "destructive"
       });
+
+      // For critical errors, suggest page refresh
+      if (errorDetails.includes('data inconsistency') || errorDetails.includes('foreign key')) {
+        setTimeout(() => {
+          toast({
+            title: "Suggestion",
+            description: "Consider refreshing the page to sync with the latest data.",
+          });
+        }, 2000);
+      }
     } finally {
       setIsSubmitting(false);
     }

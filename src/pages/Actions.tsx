@@ -139,6 +139,37 @@ export default function Actions() {
     setEditingAction(null);
   };
 
+  const handleCreateAction = () => {
+    const newAction: PolicyAction = {
+      id: '',
+      title: '',
+      description: '',
+      plan: '',
+      observations: '',
+      status: 'not_started',
+      policy_category: '',
+      asset_id: '',
+      mission_id: '',
+      assigned_to: '',
+      linked_issue_id: '',
+      score: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      completed_at: '',
+      estimated_completion_date: '',
+      estimated_duration: '',
+      required_tools: [],
+      attachments: [],
+      issue_reference: '',
+      asset: null,
+      assignee: null,
+      mission: null,
+      issue_tool: null
+    };
+    setEditingAction(newAction);
+    setIsEditDialogOpen(true);
+  };
+
   useEffect(() => {
     fetchActions();
     fetchProfiles();
@@ -254,7 +285,7 @@ export default function Actions() {
             <p className="text-muted-foreground">Track and manage actions</p>
           </div>
         </div>
-        <Button>
+        <Button onClick={handleCreateAction}>
           <Plus className="h-4 w-4 mr-2" />
           New Action
         </Button>
@@ -553,7 +584,7 @@ export default function Actions() {
           profiles={profiles}
           onSave={handleSaveAction}
           onCancel={handleCancelEdit}
-          isCreating={false}
+          isCreating={!editingAction.id}
         />
       )}
     </div>

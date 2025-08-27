@@ -22,9 +22,7 @@ export default function Actions() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [categoryFilter, setCategoryFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
-  const [viewFilter, setViewFilter] = useState('all');
   const [editingAction, setEditingAction] = useState<BaseAction | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -160,11 +158,6 @@ export default function Actions() {
       filtered = filtered.filter(action => action.status === statusFilter);
     }
 
-    // Category filter
-    if (categoryFilter !== 'all') {
-      filtered = filtered.filter(action => action.policy_category === categoryFilter);
-    }
-
     // Assignee filter
     if (assigneeFilter !== 'all') {
       if (assigneeFilter === 'unassigned') {
@@ -176,13 +169,8 @@ export default function Actions() {
       }
     }
 
-    // View filter (Toolkeeper view)
-    if (viewFilter === 'toolkeeper') {
-      filtered = filtered.filter(action => action.linked_issue_id);
-    }
-
     setFilteredActions(filtered);
-  }, [actions, searchTerm, statusFilter, categoryFilter, assigneeFilter, viewFilter, user]);
+  }, [actions, searchTerm, statusFilter, assigneeFilter, user]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -269,7 +257,7 @@ export default function Actions() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium flex items-center gap-2">
                 <Search className="h-4 w-4" />
@@ -283,24 +271,6 @@ export default function Actions() {
             </div>
             
             <div className="space-y-2">
-              <label className="text-sm font-medium">View</label>
-              <Select value={viewFilter} onValueChange={setViewFilter}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Actions</SelectItem>
-                  <SelectItem value="toolkeeper">
-                    <div className="flex items-center gap-2">
-                      <Wrench className="h-4 w-4" />
-                      Toolkeeper View
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
               <label className="text-sm font-medium">Status</label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger>
@@ -311,23 +281,6 @@ export default function Actions() {
                   <SelectItem value="not_started">Not Started</SelectItem>
                   <SelectItem value="in_progress">In Progress</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Policy Category</label>
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {POLICY_CATEGORY_OPTIONS.map(option => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
                 </SelectContent>
               </Select>
             </div>

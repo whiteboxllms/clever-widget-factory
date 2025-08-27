@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { LexicalEditor } from './LexicalEditor';
+import { AssetSelector } from './AssetSelector';
 import { cn } from "@/lib/utils";
 import { BaseAction, Profile, ActionCreationContext } from "@/types/actions";
 
@@ -409,36 +410,13 @@ export function UnifiedActionDialog({
               <Wrench className="w-4 h-4" />
               Required Assets
             </Label>
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <Input
-                  value={newTool}
-                  onChange={(e) => setNewTool(e.target.value)}
-                  placeholder="Add an asset..."
-                  onKeyPress={(e) => e.key === 'Enter' && addTool()}
-                />
-                <Button onClick={addTool} size="sm" variant="outline">
-                  <Plus className="w-4 h-4" />
-                </Button>
-              </div>
-              {(formData.required_tools || []).length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {(formData.required_tools || []).map((tool, index) => (
-                    <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                      {tool}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-auto p-0 ml-1"
-                        onClick={() => removeTool(tool)}
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </div>
+            <AssetSelector
+              selectedAssets={formData.required_tools || []}
+              onAssetsChange={(assets) => setFormData(prev => ({ 
+                ...prev, 
+                required_tools: assets 
+              }))}
+            />
           </div>
 
           {/* Rich Text Content */}

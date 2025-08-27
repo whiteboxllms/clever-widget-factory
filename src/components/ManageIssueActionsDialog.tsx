@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle, Circle, Calendar, User, Plus } from "lucide-react";
+import { CheckCircle, Circle, Calendar, User, Zap } from "lucide-react";
 import { useIssueActions } from "@/hooks/useIssueActions";
 import { UnifiedActionDialog } from "./UnifiedActionDialog";
 import { BaseAction, createIssueAction } from "@/types/actions";
@@ -171,7 +171,7 @@ export function ManageIssueActionsDialog({
                     size="sm"
                     className="flex items-center gap-2"
                   >
-                    <Plus className="h-4 w-4" />
+                    <Zap className="h-4 w-4" />
                     Add Action
                   </Button>
                 </div>
@@ -189,7 +189,7 @@ export function ManageIssueActionsDialog({
                     variant="outline"
                     className="mt-2"
                   >
-                    <Plus className="h-4 w-4 mr-2" />
+                    <Zap className="h-4 w-4 mr-2" />
                     Create First Action
                   </Button>
                 </div>

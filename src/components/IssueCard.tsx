@@ -261,15 +261,6 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setShowQuickResolveDialog(true)}
-              className="h-7 px-2 text-xs text-green-700 hover:bg-green-50"
-              title="Quick Resolve"
-            >
-              <CheckCircle className="h-3 w-3" />
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
               onClick={() => onResolve(issue)}
               className="h-7 px-2 text-xs"
               title="Detailed Resolve"
@@ -283,6 +274,7 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
               onClick={handleRemove}
               disabled={isRemoving}
               className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+              title="Remove issue"
             >
               <X className="h-3 w-3" />
             </Button>

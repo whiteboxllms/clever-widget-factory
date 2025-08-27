@@ -31,6 +31,7 @@ export type Database = {
           mission_id: string | null
           observations: string | null
           plan: string | null
+          plan_commitment: boolean | null
           qa_approved_at: string | null
           required_stock: Json | null
           required_tools: string[] | null
@@ -56,6 +57,7 @@ export type Database = {
           mission_id?: string | null
           observations?: string | null
           plan?: string | null
+          plan_commitment?: boolean | null
           qa_approved_at?: string | null
           required_stock?: Json | null
           required_tools?: string[] | null
@@ -81,6 +83,7 @@ export type Database = {
           mission_id?: string | null
           observations?: string | null
           plan?: string | null
+          plan_commitment?: boolean | null
           qa_approved_at?: string | null
           required_stock?: Json | null
           required_tools?: string[] | null

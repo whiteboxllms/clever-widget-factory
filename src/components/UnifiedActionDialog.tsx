@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -234,7 +235,8 @@ export function UnifiedActionDialog({
         asset_id: formData.asset_id || null,
         linked_issue_id: formData.linked_issue_id || null,
         issue_reference: formData.issue_reference || null,
-        status: formData.status || 'not_started'
+        status: formData.status || 'not_started',
+        plan_commitment: formData.plan_commitment || false
       };
 
 
@@ -354,6 +356,31 @@ export function UnifiedActionDialog({
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Plan Commitment Toggle - Only show when assigned */}
+            {formData.assigned_to && formData.assigned_to !== 'unassigned' && (
+              <div className="col-span-2 pt-2 border-t border-border">
+                <div className="flex items-start space-x-3">
+                  <Switch
+                    id="plan-commitment"
+                    checked={formData.plan_commitment || false}
+                    onCheckedChange={(checked) => {
+                      setFormData({
+                        ...formData, 
+                        plan_commitment: checked,
+                        status: checked ? 'in_progress' : 'not_started'
+                      });
+                    }}
+                  />
+                  <Label 
+                    htmlFor="plan-commitment" 
+                    className="text-sm leading-5 cursor-pointer"
+                  >
+                    I will follow the documented plan. If issues arise, I will record them, consult AI for options, and bring solutions to leadership. I will not use low-quality fixes unless directed as part of a long-term solution.
+                  </Label>
+                </div>
+              </div>
+            )}
 
             <div>
               <Label htmlFor="estimated_completion_date">

@@ -26,6 +26,7 @@ export interface BaseAction {
   issue_reference?: string | null;
   score?: number | null;
   scoring_data?: any;
+  plan_commitment?: boolean | null;
   
   // Related objects (populated by joins)
   assignee?: {

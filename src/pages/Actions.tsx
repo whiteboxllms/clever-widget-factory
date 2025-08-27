@@ -11,6 +11,7 @@ import { toast } from '@/hooks/use-toast';
 import { Bolt, Plus, Filter, Search, Clock, CheckCircle, Circle, User, AlertTriangle, Wrench } from 'lucide-react';
 import { UnifiedActionDialog } from '@/components/UnifiedActionDialog';
 import { BaseAction, Profile } from '@/types/actions';
+import { cn } from '@/lib/utils';
 
 // Using unified BaseAction interface from types/actions.ts
 
@@ -318,7 +319,14 @@ export default function Actions() {
           ) : (
             <div className="grid gap-4">
               {unresolved.map(action => (
-                <Card key={action.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleEditAction(action)}>
+                <Card 
+                  key={action.id} 
+                  className={cn(
+                    "hover:shadow-md transition-shadow cursor-pointer",
+                    action.plan_commitment && "border-primary border-2"
+                  )}
+                  onClick={() => handleEditAction(action)}
+                >
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between">
                       <div className="flex-1 space-y-3">
@@ -400,7 +408,14 @@ export default function Actions() {
           ) : (
             <div className="grid gap-4">
               {completed.map(action => (
-                <Card key={action.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleEditAction(action)}>
+                <Card 
+                  key={action.id} 
+                  className={cn(
+                    "hover:shadow-md transition-shadow cursor-pointer",
+                    action.plan_commitment && "border-primary border-2"
+                  )}
+                  onClick={() => handleEditAction(action)}
+                >
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between">
                       <div className="flex-1 space-y-3">

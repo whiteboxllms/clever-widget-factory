@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
@@ -139,28 +139,50 @@ function AutoLinkPlugin() {
 // Plugin to load initial HTML content into the editor
 function LoadInitialContentPlugin({ initialHtml }: { initialHtml?: string }) {
   const [editor] = useLexicalComposerContext();
+  const [lastLoadedHtml, setLastLoadedHtml] = useState<string>('');
+  const [isUserTyping, setIsUserTyping] = useState(false);
 
   useEffect(() => {
-    if (initialHtml && initialHtml.trim()) {
-      editor.update(() => {
-        // Clear existing content and load new content
-        const root = $getRoot();
-        root.clear();
-        
-        // Parse HTML and insert nodes
-        const parser = new DOMParser();
-        const dom = parser.parseFromString(initialHtml, 'text/html');
-        const nodes = $generateNodesFromDOM(editor, dom);
-        root.append(...nodes);
-      });
-    } else if (initialHtml === '') {
-      // Clear editor when initialHtml is empty
-      editor.update(() => {
-        const root = $getRoot();
-        root.clear();
-      });
+    // Don't reload if user is actively typing or if it's the same content
+    if (isUserTyping || initialHtml === lastLoadedHtml) {
+      return;
     }
-  }, [initialHtml, editor]); // Re-run when initialHtml changes
+
+    // Check if current editor content matches the incoming HTML to avoid unnecessary reloads
+    editor.getEditorState().read(() => {
+      const currentHtml = $generateHtmlFromNodes(editor);
+      
+      // Only reload if the content is actually different
+      if (currentHtml !== initialHtml) {
+        editor.update(() => {
+          const root = $getRoot();
+          root.clear();
+          
+          if (initialHtml && initialHtml.trim()) {
+            // Parse HTML and insert nodes
+            const parser = new DOMParser();
+            const dom = parser.parseFromString(initialHtml, 'text/html');
+            const nodes = $generateNodesFromDOM(editor, dom);
+            root.append(...nodes);
+          }
+          
+          setLastLoadedHtml(initialHtml || '');
+        });
+      }
+    });
+  }, [initialHtml, editor, lastLoadedHtml, isUserTyping]);
+
+  // Track when user starts typing to prevent content reloading during input
+  useEffect(() => {
+    const removeListener = editor.registerTextContentListener(() => {
+      setIsUserTyping(true);
+      // Reset the typing flag after a short delay
+      const timeoutId = setTimeout(() => setIsUserTyping(false), 100);
+      return () => clearTimeout(timeoutId);
+    });
+
+    return removeListener;
+  }, [editor]);
 
   return null;
 }

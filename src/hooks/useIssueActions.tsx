@@ -10,7 +10,7 @@ export const useIssueActions = () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('mission_actions')
+        .from('actions')
         .select('*')
         .eq('linked_issue_id', issueId)
         .order('created_at', { ascending: false });
@@ -33,7 +33,7 @@ export const useIssueActions = () => {
   const markActionComplete = useCallback(async (actionId: string): Promise<boolean> => {
     try {
       const { error } = await supabase
-        .from('mission_actions')
+        .from('actions')
         .update({
           status: 'completed',
           completed_at: new Date().toISOString()
@@ -61,7 +61,7 @@ export const useIssueActions = () => {
   const markActionIncomplete = useCallback(async (actionId: string): Promise<boolean> => {
     try {
       const { error } = await supabase
-        .from('mission_actions')
+        .from('actions')
         .update({
           status: 'in_progress',
           completed_at: null

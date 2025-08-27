@@ -14,6 +14,112 @@ export type Database = {
   }
   public: {
     Tables: {
+      actions: {
+        Row: {
+          actual_duration: string | null
+          asset_id: string | null
+          assigned_to: string | null
+          attachments: string[] | null
+          completed_at: string | null
+          created_at: string
+          description: string | null
+          estimated_duration: string | null
+          evidence_description: string | null
+          id: string
+          issue_reference: string | null
+          linked_issue_id: string | null
+          mission_id: string | null
+          observations: string | null
+          plan: string | null
+          policy_category:
+            | Database["public"]["Enums"]["policy_category_type"]
+            | null
+          qa_approved_at: string | null
+          required_tools: string[] | null
+          score: number | null
+          scoring_data: Json | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          actual_duration?: string | null
+          asset_id?: string | null
+          assigned_to?: string | null
+          attachments?: string[] | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          estimated_duration?: string | null
+          evidence_description?: string | null
+          id?: string
+          issue_reference?: string | null
+          linked_issue_id?: string | null
+          mission_id?: string | null
+          observations?: string | null
+          plan?: string | null
+          policy_category?:
+            | Database["public"]["Enums"]["policy_category_type"]
+            | null
+          qa_approved_at?: string | null
+          required_tools?: string[] | null
+          score?: number | null
+          scoring_data?: Json | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          actual_duration?: string | null
+          asset_id?: string | null
+          assigned_to?: string | null
+          attachments?: string[] | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          estimated_duration?: string | null
+          evidence_description?: string | null
+          id?: string
+          issue_reference?: string | null
+          linked_issue_id?: string | null
+          mission_id?: string | null
+          observations?: string | null
+          plan?: string | null
+          policy_category?:
+            | Database["public"]["Enums"]["policy_category_type"]
+            | null
+          qa_approved_at?: string | null
+          required_tools?: string[] | null
+          score?: number | null
+          scoring_data?: Json | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mission_actions_linked_issue_id_fkey"
+            columns: ["linked_issue_id"]
+            isOneToOne: false
+            referencedRelation: "tool_issues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mission_tasks_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "mission_tasks_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "missions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       asset_scores: {
         Row: {
           ai_response: Json | null
@@ -240,7 +346,7 @@ export type Database = {
             foreignKeyName: "inventory_usage_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
-            referencedRelation: "mission_actions"
+            referencedRelation: "actions"
             referencedColumns: ["id"]
           },
           {
@@ -280,112 +386,6 @@ export type Database = {
             columns: ["issue_id"]
             isOneToOne: false
             referencedRelation: "tool_issues"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      mission_actions: {
-        Row: {
-          actual_duration: string | null
-          asset_id: string | null
-          assigned_to: string | null
-          attachments: string[] | null
-          completed_at: string | null
-          created_at: string
-          description: string | null
-          estimated_duration: string | null
-          evidence_description: string | null
-          id: string
-          issue_reference: string | null
-          linked_issue_id: string | null
-          mission_id: string | null
-          observations: string | null
-          plan: string | null
-          policy_category:
-            | Database["public"]["Enums"]["policy_category_type"]
-            | null
-          qa_approved_at: string | null
-          required_tools: string[] | null
-          score: number | null
-          scoring_data: Json | null
-          status: string
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          actual_duration?: string | null
-          asset_id?: string | null
-          assigned_to?: string | null
-          attachments?: string[] | null
-          completed_at?: string | null
-          created_at?: string
-          description?: string | null
-          estimated_duration?: string | null
-          evidence_description?: string | null
-          id?: string
-          issue_reference?: string | null
-          linked_issue_id?: string | null
-          mission_id?: string | null
-          observations?: string | null
-          plan?: string | null
-          policy_category?:
-            | Database["public"]["Enums"]["policy_category_type"]
-            | null
-          qa_approved_at?: string | null
-          required_tools?: string[] | null
-          score?: number | null
-          scoring_data?: Json | null
-          status?: string
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          actual_duration?: string | null
-          asset_id?: string | null
-          assigned_to?: string | null
-          attachments?: string[] | null
-          completed_at?: string | null
-          created_at?: string
-          description?: string | null
-          estimated_duration?: string | null
-          evidence_description?: string | null
-          id?: string
-          issue_reference?: string | null
-          linked_issue_id?: string | null
-          mission_id?: string | null
-          observations?: string | null
-          plan?: string | null
-          policy_category?:
-            | Database["public"]["Enums"]["policy_category_type"]
-            | null
-          qa_approved_at?: string | null
-          required_tools?: string[] | null
-          score?: number | null
-          scoring_data?: Json | null
-          status?: string
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "mission_actions_linked_issue_id_fkey"
-            columns: ["linked_issue_id"]
-            isOneToOne: false
-            referencedRelation: "tool_issues"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "mission_tasks_assigned_to_fkey"
-            columns: ["assigned_to"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "mission_tasks_mission_id_fkey"
-            columns: ["mission_id"]
-            isOneToOne: false
-            referencedRelation: "missions"
             referencedColumns: ["id"]
           },
         ]
@@ -436,7 +436,7 @@ export type Database = {
             foreignKeyName: "mission_attachments_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
-            referencedRelation: "mission_actions"
+            referencedRelation: "actions"
             referencedColumns: ["id"]
           },
           {
@@ -489,7 +489,7 @@ export type Database = {
             foreignKeyName: "mission_tool_usage_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
-            referencedRelation: "mission_actions"
+            referencedRelation: "actions"
             referencedColumns: ["id"]
           },
         ]

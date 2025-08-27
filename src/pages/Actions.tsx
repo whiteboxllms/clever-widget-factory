@@ -31,7 +31,7 @@ export default function Actions() {
   const fetchActions = async () => {
     try {
       const { data, error } = await supabase
-        .from('mission_actions')
+        .from('actions')
         .select(`
           *,
           assignee:profiles(id, user_id, full_name, role),

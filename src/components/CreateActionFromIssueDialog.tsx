@@ -198,7 +198,7 @@ export function CreateActionFromIssueDialog({
         formData.estimated_completion_date.toISOString() : null;
 
       const { error } = await supabase
-        .from('mission_actions')
+        .from('actions')
         .insert({
           title: formData.title,
           plan: formData.plan || null,

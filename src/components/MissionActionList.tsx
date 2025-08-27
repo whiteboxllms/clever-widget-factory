@@ -30,7 +30,7 @@ export function MissionActionList({ missionId, profiles, canEdit = false, missio
     setLoading(true);
     
     const { data, error } = await supabase
-      .from('mission_actions')
+      .from('actions')
       .select('*')
       .eq('mission_id', missionId)
       .order('created_at', { ascending: true });

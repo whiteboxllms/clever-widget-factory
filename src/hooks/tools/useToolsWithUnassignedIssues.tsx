@@ -25,7 +25,7 @@ export const useToolsWithUnassignedIssues = () => {
       // Get all actions linked to these issues
       const issueIds = issuesData.map(issue => issue.id);
       const { data: actionsData, error: actionsError } = await supabase
-        .from('mission_actions')
+        .from('actions')
         .select('linked_issue_id, status')
         .in('linked_issue_id', issueIds);
 

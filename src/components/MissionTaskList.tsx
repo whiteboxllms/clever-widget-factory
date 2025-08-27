@@ -49,7 +49,7 @@ export function MissionTaskList({ missionId, profiles, canEdit = false, missionN
     setLoading(true);
     
     const { data, error } = await supabase
-      .from('mission_actions')
+      .from('actions')
       .select('*, linked_issue_id, issue_reference, attachments')
       .eq('mission_id', missionId)
       .order('created_at', { ascending: true });
@@ -71,7 +71,7 @@ export function MissionTaskList({ missionId, profiles, canEdit = false, missionN
   const handleAddAction = async (actionData: any) => {
     try {
       const { data, error } = await supabase
-        .from('mission_actions')
+        .from('actions')
         .insert({
           mission_id: missionId,
           title: actionData.title,

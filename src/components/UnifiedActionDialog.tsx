@@ -242,7 +242,7 @@ export function UnifiedActionDialog({
       if (isCreating || !action?.id) {
         // Creating new action
         const { error } = await supabase
-          .from('mission_actions')
+          .from('actions')
           .insert(actionData);
 
         if (error) throw error;
@@ -254,7 +254,7 @@ export function UnifiedActionDialog({
       } else {
         // Updating existing action
         const { error } = await supabase
-          .from('mission_actions')
+          .from('actions')
           .update(actionData)
           .eq('id', action.id);
 

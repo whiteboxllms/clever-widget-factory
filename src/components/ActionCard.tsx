@@ -193,7 +193,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
       }
 
       const { error } = await supabase
-        .from('mission_actions')
+        .from('actions')
         .update(updateData)
         .eq('id', action.id);
 
@@ -239,7 +239,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
       }
       
       const { error } = await supabase
-        .from('mission_actions')
+        .from('actions')
         .update(updateData)
         .eq('id', action.id);
 
@@ -476,8 +476,8 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     
     try {
       const { error } = await supabase
-        .from('mission_actions')
-        .update({ 
+        .from('actions')
+        .update({
           status: 'completed',
           completed_at: new Date().toISOString()
         })

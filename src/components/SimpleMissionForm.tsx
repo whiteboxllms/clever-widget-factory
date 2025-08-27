@@ -101,7 +101,7 @@ export function SimpleMissionForm({
     
     try {
       const { data: tasksData, error } = await supabase
-        .from('mission_actions')
+        .from('actions')
         .select('*')
         .eq('mission_id', missionId)
         .order('created_at', { ascending: true });
@@ -232,7 +232,7 @@ export function SimpleMissionForm({
       try {
         // Get existing tasks to find the database ID
         const { data: existingTasks } = await supabase
-          .from('mission_actions')
+          .from('actions')
           .select('*')
           .eq('mission_id', missionId)
           .order('created_at', { ascending: true });
@@ -240,7 +240,7 @@ export function SimpleMissionForm({
         if (existingTasks && existingTasks[index]) {
           // Delete from database
           await supabase
-            .from('mission_actions')
+            .from('actions')
             .delete()
             .eq('id', existingTasks[index].id);
         }

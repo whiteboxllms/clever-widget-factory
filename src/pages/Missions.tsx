@@ -212,7 +212,7 @@ const Missions = () => {
     const channel = supabase.channel('mission-tasks-changes').on('postgres_changes', {
       event: '*',
       schema: 'public',
-      table: 'mission_actions'
+      table: 'actions'
     }, async payload => {
       console.log('Task update received:', payload);
 
@@ -230,7 +230,7 @@ const Missions = () => {
           // Fetch updated tasks for just this mission
           const {
             data: updatedTasks
-          } = await supabase.from('mission_actions').select('id, status, plan, observations').eq('mission_id', missionId);
+          } = await supabase.from('actions').select('id, status, plan, observations').eq('mission_id', missionId);
           if (updatedTasks) {
             updateMissionTaskCounts(missionId, updatedTasks);
           }
@@ -276,8 +276,8 @@ const Missions = () => {
         *,
         creator:profiles!missions_created_by_fkey(full_name),
         qa_person:profiles!missions_qa_assigned_to_fkey(full_name),
-        mission_actions(
-          id, 
+        actions(
+          id,
           status, 
           plan, 
           observations,
@@ -295,7 +295,7 @@ const Missions = () => {
       });
     } else {
       const missionsWithNames = data?.map(mission => {
-        const tasks = mission.mission_actions || [];
+        const tasks = mission.actions || [];
         const completedTasks = tasks.filter((task: any) => task.status === 'completed');
         const tasksWithPlans = tasks.filter((task: any) => task.plan && task.plan.trim());
         const tasksWithImplementation = tasks.filter((task: any) => task.observations && task.observations.trim());
@@ -413,7 +413,7 @@ const Missions = () => {
         
         if (tasksToCreate.length > 0) {
           const { data: tasksData, error: tasksError } = await supabase
-            .from('mission_actions')
+            .from('actions')
             .insert(tasksToCreate.map(task => ({
               mission_id: missionData.id,
               title: task.title,

@@ -166,7 +166,7 @@ export function ActionDetailEditor({
       if (isNewAction) {
         // Creating new action
         const { error } = await supabase
-          .from('mission_actions')
+          .from('actions')
           .insert({
             ...actionData,
             mission_id: action.mission_id,
@@ -182,7 +182,7 @@ export function ActionDetailEditor({
       } else {
         // Updating existing action
         const { error } = await supabase
-          .from('mission_actions')
+          .from('actions')
           .update(actionData)
           .eq('id', action.id);
 
@@ -225,7 +225,7 @@ export function ActionDetailEditor({
 
       // Then mark the action as completed
       const { error } = await supabase
-        .from('mission_actions')
+        .from('actions')
         .update({
           status: 'completed',
           completed_at: new Date().toISOString()
@@ -242,7 +242,7 @@ export function ActionDetailEditor({
       // Check if all actions for the linked issue are completed
       if (action.linked_issue_id) {
         const { data: allActions, error: actionsError } = await supabase
-          .from('mission_actions')
+          .from('actions')
           .select('status')
           .eq('linked_issue_id', action.linked_issue_id);
 
@@ -287,7 +287,7 @@ export function ActionDetailEditor({
     setIsSaving(true);
     try {
       const { error } = await supabase
-        .from('mission_actions')
+        .from('actions')
         .update({
           status: 'no_action_required',
           completed_at: new Date().toISOString()
@@ -304,7 +304,7 @@ export function ActionDetailEditor({
       // Check if all actions for the linked issue are completed
       if (action.linked_issue_id) {
         const { data: allActions, error: actionsError } = await supabase
-          .from('mission_actions')
+          .from('actions')
           .select('status')
           .eq('linked_issue_id', action.linked_issue_id);
 

@@ -110,7 +110,7 @@ export default function EditMission() {
 
       // Fetch mission tasks
       const { data: tasksData, error: tasksError } = await supabase
-        .from('mission_actions')
+        .from('actions')
         .select('*')
         .eq('mission_id', missionId)
         .order('created_at', { ascending: true });

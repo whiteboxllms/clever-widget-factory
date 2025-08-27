@@ -357,31 +357,6 @@ export function UnifiedActionDialog({
               </Select>
             </div>
 
-            {/* Plan Commitment Toggle - Only show when assigned */}
-            {formData.assigned_to && formData.assigned_to !== 'unassigned' && (
-              <div className="col-span-2 pt-2 border-t border-border">
-                <div className="flex items-start space-x-3">
-                  <Switch
-                    id="plan-commitment"
-                    checked={formData.plan_commitment || false}
-                    onCheckedChange={(checked) => {
-                      setFormData({
-                        ...formData, 
-                        plan_commitment: checked,
-                        status: checked ? 'in_progress' : 'not_started'
-                      });
-                    }}
-                  />
-                  <Label 
-                    htmlFor="plan-commitment" 
-                    className="text-sm leading-5 cursor-pointer"
-                  >
-                    I will follow the documented plan. If issues arise, I will record them, consult AI for options, and bring solutions to leadership. I will not use low-quality fixes unless directed as part of a long-term solution.
-                  </Label>
-                </div>
-              </div>
-            )}
-
             <div>
               <Label htmlFor="estimated_completion_date">
                 <Clock className="w-4 h-4 inline mr-1" />
@@ -415,6 +390,31 @@ export function UnifiedActionDialog({
                 </PopoverContent>
               </Popover>
             </div>
+
+            {/* Plan Commitment Toggle - Only show when assigned */}
+            {formData.assigned_to && formData.assigned_to !== 'unassigned' && (
+              <div className="col-span-2 pt-2 border-t border-border">
+                <div className="flex items-start space-x-3">
+                  <Switch
+                    id="plan-commitment"
+                    checked={formData.plan_commitment || false}
+                    onCheckedChange={(checked) => {
+                      setFormData({
+                        ...formData, 
+                        plan_commitment: checked,
+                        status: checked ? 'in_progress' : 'not_started'
+                      });
+                    }}
+                  />
+                  <Label 
+                    htmlFor="plan-commitment" 
+                    className="text-sm leading-5 cursor-pointer"
+                  >
+                    I, {profiles.find(p => p.user_id === formData.assigned_to)?.full_name || 'Assignee'}, will follow the documented plan. If issues arise, I will record them, consult AI for options, and bring solutions to leadership. I will not use low-quality fixes unless directed as part of a long-term solution.
+                  </Label>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Assets and Stock Row */}

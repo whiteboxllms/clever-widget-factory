@@ -4,26 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Plus } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-
-interface Action {
-  id: string;
-  title: string;
-  plan?: string;
-  observations?: string;
-  assigned_to: string | null;
-  status: string;
-  mission_id: string;
-  created_at: string;
-  updated_at: string;
-  completed_at: string;
-}
-
-interface Profile {
-  id: string;
-  user_id: string;
-  full_name: string;
-  role: string;
-}
+import { UnifiedActionDialog } from './UnifiedActionDialog';
+import { BaseAction, Profile, createMissionAction } from '@/types/actions';
 
 interface MissionActionListProps {
   missionId: string;
@@ -34,9 +16,11 @@ interface MissionActionListProps {
 
 export function MissionActionList({ missionId, profiles, canEdit = false, missionNumber }: MissionActionListProps) {
   const { toast } = useToast();
-  const [actions, setActions] = useState<Action[]>([]);
+  const [actions, setActions] = useState<BaseAction[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddingAction, setIsAddingAction] = useState(false);
+  const [editingAction, setEditingAction] = useState<BaseAction | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
     fetchActions();
@@ -65,37 +49,29 @@ export function MissionActionList({ missionId, profiles, canEdit = false, missio
     setLoading(false);
   };
 
-  const handleAddAction = async (actionData: any) => {
-    try {
-      const { data, error } = await supabase
-        .from('mission_actions')
-        .insert({
-          mission_id: missionId,
-          title: actionData.title,
-          plan: actionData.plan,
-          observations: actionData.observations,
-          assigned_to: actionData.assigned_to || null
-        })
-        .select()
-        .single();
+  const handleCreateAction = () => {
+    setEditingAction(null);
+    setIsCreating(true);
+    setIsAddingAction(true);
+  };
 
-      if (error) throw error;
+  const handleEditAction = (action: BaseAction) => {
+    setEditingAction(action);
+    setIsCreating(false);
+    setIsAddingAction(true);
+  };
 
-      toast({
-        title: "Success",
-        description: "Action added successfully",
-      });
+  const handleSaveAction = () => {
+    setIsAddingAction(false);
+    setEditingAction(null);
+    setIsCreating(false);
+    fetchActions();
+  };
 
-      setIsAddingAction(false);
-      fetchActions();
-    } catch (error) {
-      console.error('Error adding action:', error);
-      toast({
-        title: "Error",
-        description: "Failed to add action",
-        variant: "destructive",
-      });
-    }
+  const handleCancelAction = () => {
+    setIsAddingAction(false);
+    setEditingAction(null);
+    setIsCreating(false);
   };
 
   if (loading) {
@@ -110,32 +86,13 @@ export function MissionActionList({ missionId, profiles, canEdit = false, missio
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setIsAddingAction(true)}
+            onClick={handleCreateAction}
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Action
           </Button>
         )}
       </div>
-
-      {isAddingAction && (
-        <ActionCard
-          action={{
-            id: 'new',
-            title: '',
-            plan: '',
-            observations: '',
-            assigned_to: null,
-            status: 'not_started',
-            mission_id: missionId
-          }}
-          profiles={profiles}
-          onUpdate={fetchActions}
-          isEditing={true}
-          onSave={handleAddAction}
-          onCancel={() => setIsAddingAction(false)}
-        />
-      )}
 
       {actions.length === 0 && !isAddingAction ? (
         <div className="text-center py-8 text-muted-foreground">
@@ -152,10 +109,26 @@ export function MissionActionList({ missionId, profiles, canEdit = false, missio
               action={action}
               profiles={profiles}
               onUpdate={fetchActions}
+              onEdit={canEdit ? () => handleEditAction(action) : undefined}
             />
           ))}
         </div>
       )}
+
+      {/* Unified Action Dialog */}
+      <UnifiedActionDialog
+        open={isAddingAction}
+        onOpenChange={(open) => !open && handleCancelAction()}
+        action={editingAction || undefined}
+        context={{
+          type: 'mission',
+          parentId: missionId,
+          prefilledData: isCreating ? createMissionAction(missionId) : undefined
+        }}
+        profiles={profiles}
+        onActionSaved={handleSaveAction}
+        isCreating={isCreating}
+      />
     </div>
   );
 }

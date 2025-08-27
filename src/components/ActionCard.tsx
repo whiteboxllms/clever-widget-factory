@@ -35,9 +35,9 @@ interface ActionCardProps {
     title: string;
     plan?: string;
     observations?: string;
-    assigned_to: string;
+    assigned_to?: string | null;
     status: string;
-    mission_id: string;
+    mission_id?: string;
     estimated_duration?: string;
     actual_duration?: string;
     required_tools?: string[];
@@ -49,10 +49,11 @@ interface ActionCardProps {
   isEditing?: boolean;
   onSave?: (actionData: any) => void;
   onCancel?: () => void;
+  onEdit?: () => void;
   tempPhotoStorage?: ReturnType<typeof useTempPhotoStorage>;
 }
 
-export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSave, onCancel, tempPhotoStorage }: ActionCardProps) {
+export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSave, onCancel, onEdit, tempPhotoStorage }: ActionCardProps) {
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
   const planTextareaRef = useRef<HTMLTextAreaElement>(null);

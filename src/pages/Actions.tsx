@@ -10,48 +10,25 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { POLICY_CATEGORY_OPTIONS } from '@/lib/constants';
 import { Bolt, Plus, Filter, Search, Clock, CheckCircle, Circle, User, AlertTriangle, Wrench } from 'lucide-react';
-import { ActionEditDialog } from '@/components/ActionEditDialog';
+import { UnifiedActionDialog } from '@/components/UnifiedActionDialog';
+import { BaseAction, Profile, createPolicyAction } from '@/types/actions';
 
-interface PolicyAction {
-  id: string;
-  title: string;
-  description?: string;
-  plan?: string;
-  observations?: string;
-  status: string;
-  policy_category?: string;
-  asset_id?: string;
-  mission_id?: string;
-  assigned_to?: string;
-  linked_issue_id?: string;
-  score?: number;
-  created_at: string;
-  updated_at: string;
-  completed_at?: string;
-  estimated_completion_date?: string;
-  estimated_duration?: string;
-  required_tools?: string[];
-  attachments?: string[];
-  issue_reference?: string;
-  asset?: { name: string; category: string; } | null;
-  assignee?: { full_name: string; } | null;
-  mission?: { title: string; mission_number: number; } | null;
-  issue_tool?: { name: string; category: string; } | null;
-}
+// Using unified BaseAction interface from types/actions.ts
 
 export default function Actions() {
   const { user } = useAuth();
-  const [actions, setActions] = useState<PolicyAction[]>([]);
-  const [filteredActions, setFilteredActions] = useState<PolicyAction[]>([]);
+  const [actions, setActions] = useState<BaseAction[]>([]);
+  const [filteredActions, setFilteredActions] = useState<BaseAction[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
   const [viewFilter, setViewFilter] = useState('all');
-  const [editingAction, setEditingAction] = useState<PolicyAction | null>(null);
+  const [editingAction, setEditingAction] = useState<BaseAction | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [profiles, setProfiles] = useState<any[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
 
   const fetchActions = async () => {
     try {
@@ -59,8 +36,8 @@ export default function Actions() {
         .from('mission_actions')
         .select(`
           *,
-          assignee:profiles(full_name),
-          mission:missions(title, mission_number)
+          assignee:profiles(id, user_id, full_name, role),
+          mission:missions(id, title, mission_number, status)
         `)
         .order('created_at', { ascending: false });
 
@@ -95,8 +72,22 @@ export default function Actions() {
       setActions(data?.map(item => ({
         ...item,
         asset: toolsData.find(tool => tool.id === item.asset_id) || null,
-        assignee: item.assignee && typeof item.assignee === 'object' && !('error' in item.assignee) ? item.assignee : null,
-        mission: item.mission && typeof item.mission === 'object' && !('error' in item.mission) ? item.mission : null,
+        assignee: item.assignee && typeof item.assignee === 'object' && !('error' in item.assignee) 
+          ? {
+              id: item.assignee.id || '',
+              user_id: item.assignee.user_id || '',
+              full_name: item.assignee.full_name || '',
+              role: item.assignee.role || ''
+            }
+          : null,
+        mission: item.mission && typeof item.mission === 'object' && !('error' in item.mission) 
+          ? {
+              id: item.mission.id || '',
+              title: item.mission.title || '',
+              mission_number: item.mission.mission_number || 0,
+              status: item.mission.status || ''
+            }
+          : null,
         issue_tool: issueToolsData.find(issue => issue.id === item.linked_issue_id)?.tool || null
       })) || []);
     } catch (error) {
@@ -123,8 +114,9 @@ export default function Actions() {
     }
   };
 
-  const handleEditAction = (action: PolicyAction) => {
+  const handleEditAction = (action: BaseAction) => {
     setEditingAction(action);
+    setIsCreating(false);
     setIsEditDialogOpen(true);
   };
 
@@ -132,41 +124,18 @@ export default function Actions() {
     await fetchActions();
     setIsEditDialogOpen(false);
     setEditingAction(null);
+    setIsCreating(false);
   };
 
   const handleCancelEdit = () => {
     setIsEditDialogOpen(false);
     setEditingAction(null);
+    setIsCreating(false);
   };
 
   const handleCreateAction = () => {
-    const newAction: PolicyAction = {
-      id: '',
-      title: '',
-      description: '',
-      plan: '',
-      observations: '',
-      status: 'not_started',
-      policy_category: '',
-      asset_id: '',
-      mission_id: '',
-      assigned_to: '',
-      linked_issue_id: '',
-      score: 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      completed_at: '',
-      estimated_completion_date: '',
-      estimated_duration: '',
-      required_tools: [],
-      attachments: [],
-      issue_reference: '',
-      asset: null,
-      assignee: null,
-      mission: null,
-      issue_tool: null
-    };
-    setEditingAction(newAction);
+    setEditingAction(null);
+    setIsCreating(true);
     setIsEditDialogOpen(true);
   };
 
@@ -565,26 +534,18 @@ export default function Actions() {
         </TabsContent>
       </Tabs>
       
-      {editingAction && (
-        <ActionEditDialog
+      {isEditDialogOpen && (
+        <UnifiedActionDialog
           open={isEditDialogOpen}
           onOpenChange={setIsEditDialogOpen}
-          action={{
-            ...editingAction,
-            assigned_to: editingAction.assigned_to || null,
-            mission_id: editingAction.mission_id || '',
-            plan: editingAction.plan || '',
-            observations: editingAction.observations || '',
-            estimated_completion_date: editingAction.estimated_completion_date ? new Date(editingAction.estimated_completion_date) : undefined,
-            required_tools: editingAction.required_tools || [],
-            attachments: editingAction.attachments || [],
-            issue_reference: editingAction.issue_reference || '',
-            required_stock: []
+          action={editingAction || undefined}
+          context={{ 
+            type: 'policy', 
+            prefilledData: isCreating ? createPolicyAction() : undefined 
           }}
           profiles={profiles}
-          onSave={handleSaveAction}
-          onCancel={handleCancelEdit}
-          isCreating={!editingAction.id}
+          onActionSaved={handleSaveAction}
+          isCreating={isCreating}
         />
       )}
     </div>

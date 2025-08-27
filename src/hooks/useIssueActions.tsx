@@ -1,30 +1,12 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-
-export interface IssueAction {
-  id: string;
-  title: string;
-  description?: string;
-  plan?: string;
-  observations?: string;
-  status: string;
-  assigned_to?: string;
-  estimated_duration?: string;
-  required_tools?: string[];
-  required_stock?: { part_id: string; quantity: number; part_name: string; }[];
-  created_at: string;
-  updated_at: string;
-  completed_at?: string;
-  linked_issue_id?: string;
-  issue_reference?: string;
-  attachments?: string[];
-}
+import { BaseAction } from '@/types/actions';
 
 export const useIssueActions = () => {
   const [loading, setLoading] = useState(false);
 
-  const getActionsForIssue = useCallback(async (issueId: string): Promise<IssueAction[]> => {
+  const getActionsForIssue = useCallback(async (issueId: string): Promise<BaseAction[]> => {
     setLoading(true);
     try {
       const { data, error } = await supabase

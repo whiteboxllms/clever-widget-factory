@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle, Circle, Calendar, User, Plus } from "lucide-react";
-import { useIssueActions, IssueAction } from "@/hooks/useIssueActions";
-import { CreateActionFromIssueDialog } from "./CreateActionFromIssueDialog";
-import { ActionEditDialog } from "./ActionEditDialog";
+import { useIssueActions } from "@/hooks/useIssueActions";
+import { UnifiedActionDialog } from "./UnifiedActionDialog";
+import { BaseAction, createIssueAction } from "@/types/actions";
 import { IssueQuickResolveDialog } from "./IssueQuickResolveDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -45,12 +45,12 @@ export function ManageIssueActionsDialog({
   issue,
   onRefresh
 }: ManageIssueActionsDialogProps) {
-  const [actions, setActions] = useState<IssueAction[]>([]);
+  const [actions, setActions] = useState<BaseAction[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [toolName, setToolName] = useState<string>("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showResolveDialog, setShowResolveDialog] = useState(false);
-  const [editingAction, setEditingAction] = useState<IssueAction | null>(null);
+  const [editingAction, setEditingAction] = useState<BaseAction | null>(null);
   const { getActionsForIssue, markActionComplete, markActionIncomplete, loading } = useIssueActions();
 
   // Fetch actions and profiles when dialog opens
@@ -108,7 +108,7 @@ export function ManageIssueActionsDialog({
     }
   };
 
-  const handleToggleComplete = async (action: IssueAction) => {
+  const handleToggleComplete = async (action: BaseAction) => {
     const isCompleted = action.status === 'completed';
     const success = isCompleted 
       ? await markActionIncomplete(action.id)
@@ -301,37 +301,31 @@ export function ManageIssueActionsDialog({
         </DialogContent>
       </Dialog>
 
-      {/* Create Action Dialog */}
-      <CreateActionFromIssueDialog
-        open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
-        issue={issue}
-        onActionCreated={handleActionCreated}
-      />
-
-      {/* Edit Action Dialog */}
-      {editingAction && (
-        <ActionEditDialog
-          open={!!editingAction}
-          onOpenChange={(open) => !open && setEditingAction(null)}
-          action={{
-            ...editingAction,
-            mission_id: '',
-            assigned_to: editingAction.assigned_to || null,
-            required_tools: editingAction.required_tools || [],
-            required_stock: editingAction.required_stock || [],
-            estimated_completion_date: editingAction.estimated_duration ? 
-              new Date(editingAction.estimated_duration) : undefined
-          }}
-          profiles={profiles}
-          onSave={() => {
+      {/* Create/Edit Action Dialog */}
+      <UnifiedActionDialog
+        open={showCreateDialog || !!editingAction}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowCreateDialog(false);
             setEditingAction(null);
-            fetchActionsAndProfiles();
-            onRefresh();
-          }}
-          onCancel={() => setEditingAction(null)}
-        />
-      )}
+          }
+        }}
+        action={editingAction || undefined}
+        context={{
+          type: 'issue',
+          parentId: issue.id,
+          parentTitle: issue.description,
+          prefilledData: showCreateDialog ? createIssueAction(issue.id, issue.description) : undefined
+        }}
+        profiles={profiles}
+        onActionSaved={() => {
+          setShowCreateDialog(false);
+          setEditingAction(null);
+          fetchActionsAndProfiles();
+          onRefresh();
+        }}
+        isCreating={showCreateDialog}
+      />
 
       {/* Quick Resolve Issue Dialog */}
       <IssueQuickResolveDialog

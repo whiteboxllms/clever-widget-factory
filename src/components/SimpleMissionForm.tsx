@@ -57,7 +57,7 @@ interface SimpleMissionFormProps {
     selected_resources: SelectedResource[];
     all_materials_available: boolean;
     qa_assigned_to: string;
-    tasks: Task[];
+    actions: Task[];
   };
   setFormData: (data: any) => void;
   profiles: Profile[];
@@ -121,7 +121,7 @@ export function SimpleMissionForm({
         required_tools: task.required_tools || []
       })) || [];
 
-      setFormData(prev => ({ ...prev, tasks: updatedTasks }));
+      setFormData(prev => ({ ...prev, actions: updatedTasks }));
     } catch (error) {
       console.error('Error loading tasks:', error);
     }
@@ -136,10 +136,10 @@ export function SimpleMissionForm({
 
   // Initialize with default tasks if provided
   useEffect(() => {
-    if (defaultTasks.length > 0 && formData.tasks.length === 1 && !formData.tasks[0].title) {
+    if (defaultTasks.length > 0 && formData.actions.length === 1 && !formData.actions[0].title) {
       setFormData(prev => ({ 
         ...prev, 
-        tasks: defaultTasks.map(task => ({ ...task, assigned_to: null }))
+        actions: defaultTasks.map(task => ({ ...task, assigned_to: null }))
       }));
     }
   }, [defaultTasks]);
@@ -194,7 +194,7 @@ export function SimpleMissionForm({
     
     setFormData(prev => ({
       ...prev,
-      tasks: standardTasks.map(task => ({
+      actions: standardTasks.map(task => ({
         title: task.title,
         plan: task.description,
         observations: '',
@@ -208,7 +208,7 @@ export function SimpleMissionForm({
   const updateTask = (index: number, taskData: Task) => {
     setFormData(prev => ({
       ...prev,
-      tasks: prev.tasks.map((task, i) => 
+      actions: prev.actions.map((task, i) => 
         i === index ? taskData : task
       )
     }));
@@ -225,7 +225,7 @@ export function SimpleMissionForm({
   };
 
   const removeTask = async (index: number) => {
-    const taskToRemove = formData.tasks[index];
+    const taskToRemove = formData.actions[index];
     
     // If editing mode, delete from database
     if (isEditing && missionId) {
@@ -258,7 +258,7 @@ export function SimpleMissionForm({
     // Update local state
     setFormData(prev => ({
       ...prev,
-      tasks: prev.tasks.filter((_, i) => i !== index)
+      actions: prev.actions.filter((_, i) => i !== index)
     }));
     setEditingTaskIndex(null);
     
@@ -538,11 +538,11 @@ export function SimpleMissionForm({
         onResourcesChange={(resources) => 
           setFormData(prev => ({ ...prev, selected_resources: resources }))
         }
-        assignedTasks={formData.tasks
+        assignedTasks={formData.actions
           .filter(task => task.title.trim() && task.assigned_to)
           .map(task => task.title)
         }
-        assignedUsers={formData.tasks
+        assignedUsers={formData.actions
           .filter(task => task.assigned_to)
           .map(task => ({
             user_id: task.assigned_to,
@@ -555,13 +555,13 @@ export function SimpleMissionForm({
         missionId={missionId}
       />
 
-      {/* Tasks Section */}
+      {/* Actions Section */}
       <Collapsible open={showTasks} onOpenChange={setShowTasks}>
         <CollapsibleTrigger asChild>
           <Button variant="ghost" className="w-full justify-between p-0">
             <span className="font-medium">
-              Tasks {formData.tasks.filter(t => t.title.trim()).length > 0 && 
-                `(${formData.tasks.filter(t => t.title.trim()).length})`}
+              Actions {formData.actions.filter(t => t.title.trim()).length > 0 && 
+                `(${formData.actions.filter(t => t.title.trim()).length})`}
             </span>
             {showTasks ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           </Button>
@@ -598,22 +598,22 @@ export function SimpleMissionForm({
 
           {/* Task Edit Modal */}
           <ActionEditDialog
-            open={taskDialogOpen && editingTaskIndex !== null && formData.tasks && formData.tasks[editingTaskIndex] !== undefined}
+            open={taskDialogOpen && editingTaskIndex !== null && formData.actions && formData.actions[editingTaskIndex] !== undefined}
             onOpenChange={(open) => {
               setTaskDialogOpen(open);
               if (!open) setEditingTaskIndex(null);
             }}
-            action={editingTaskIndex !== null && formData.tasks && formData.tasks[editingTaskIndex] ? {
-              id: formData.tasks[editingTaskIndex].id || `temp-${editingTaskIndex}`,
-              title: formData.tasks[editingTaskIndex].title,
-              plan: formData.tasks[editingTaskIndex].plan,
-              observations: formData.tasks[editingTaskIndex].observations,
-              assigned_to: formData.tasks[editingTaskIndex].assigned_to,
-              status: formData.tasks[editingTaskIndex].status || 'not_started',
+            action={editingTaskIndex !== null && formData.actions && formData.actions[editingTaskIndex] ? {
+              id: formData.actions[editingTaskIndex].id || `temp-${editingTaskIndex}`,
+              title: formData.actions[editingTaskIndex].title,
+              plan: formData.actions[editingTaskIndex].plan,
+              observations: formData.actions[editingTaskIndex].observations,
+              assigned_to: formData.actions[editingTaskIndex].assigned_to,
+              status: formData.actions[editingTaskIndex].status || 'not_started',
               mission_id: missionId || '',
-              estimated_completion_date: formData.tasks[editingTaskIndex].estimated_completion_date,
-              required_tools: formData.tasks[editingTaskIndex].required_tools,
-              required_stock: formData.tasks[editingTaskIndex].required_stock,
+              estimated_completion_date: formData.actions[editingTaskIndex].estimated_completion_date,
+              required_tools: formData.actions[editingTaskIndex].required_tools,
+              required_stock: formData.actions[editingTaskIndex].required_stock,
               // phase removed - tasks no longer have phases
             } : {
               id: '',
@@ -639,28 +639,53 @@ export function SimpleMissionForm({
           
           <div className="flex justify-between items-center">
             <p className="text-sm text-muted-foreground">
-              Break down your mission into specific tasks (optional)
+              Break down your mission into specific actions (optional)
             </p>
             <div className="flex gap-2">
-              {selectedTemplate && formData.tasks.length === 0 && (
+              {selectedTemplate && formData.actions.length === 0 && (
                 <Button type="button" variant="outline" size="sm" onClick={loadStandardTasks}>
-                  Load Standard Tasks
+                  Load Standard Actions
                 </Button>
               )}
               <Button type="button" variant="outline" size="sm" onClick={addTask}>
                 <Plus className="h-4 w-4 mr-2" />
-                Add Task
+                Add Action
               </Button>
             </div>
           </div>
           
-          {formData.tasks.map((task, index) => (
-            <div key={index} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+          {formData.actions.map((task, index) => {
+            // Determine border color based on action status
+            const getActionBorderColor = () => {
+              const hasPlan = task.plan?.trim();
+              const hasObservations = task.observations?.trim();
+              
+              // Green border for completed actions
+              if (task.status === 'completed') {
+                return 'border-emerald-500 border-2 shadow-emerald-200 shadow-lg';
+              }
+              
+              // Yellow border when there's a plan
+              if (hasPlan) {
+                return 'border-yellow-500 border-2 shadow-yellow-200 shadow-lg';
+              }
+              
+              // Blue border when assigned but no plan yet
+              if (task.assigned_to) {
+                return 'border-blue-500 border-2 shadow-blue-200 shadow-lg';
+              }
+              
+              // Default border
+              return 'border';
+            };
+
+            return (
+            <div key={index} className={`${getActionBorderColor()} rounded-lg p-4 hover:shadow-md transition-shadow`}>
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     {/* Phase display removed - tasks no longer have phases */}
-                    <h4 className="font-medium">{task.title || `Task ${index + 1}`}</h4>
+                    <h4 className="font-medium">{task.title || `Action ${index + 1}`}</h4>
                   </div>
                   
                   <div className="grid grid-cols-3 gap-4 text-sm text-muted-foreground">
@@ -712,7 +737,7 @@ export function SimpleMissionForm({
                   >
                     Edit
                   </Button>
-                  {formData.tasks.length > 1 && (
+                  {formData.actions.length > 1 && (
                     <Button 
                       type="button" 
                       variant="ghost" 
@@ -725,7 +750,8 @@ export function SimpleMissionForm({
                 </div>
               </div>
             </div>
-          ))}
+          );
+          })}
         </CollapsibleContent>
       </Collapsible>
       

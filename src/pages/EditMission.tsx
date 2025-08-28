@@ -71,7 +71,7 @@ export default function EditMission() {
     selected_resources: [] as SelectedResource[],
     all_materials_available: false,
     qa_assigned_to: '',
-    tasks: [] as Task[]
+    actions: [] as Task[]
   });
 
   // Fetch mission data and profiles
@@ -147,7 +147,7 @@ export default function EditMission() {
         selected_resources: parsedResources,
         all_materials_available: missionData.all_materials_available || false,
         qa_assigned_to: missionData.qa_assigned_to || '',
-        tasks: tasksData?.map(task => ({
+        actions: tasksData?.map(task => ({
           id: task.id, // Include the task ID for proper edit detection
           title: task.title,
           plan: task.plan || '',

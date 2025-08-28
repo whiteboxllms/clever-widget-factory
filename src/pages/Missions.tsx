@@ -112,7 +112,7 @@ const Missions = () => {
       throw new Error('User must be authenticated to create missions');
     })(),
     // Default to current user
-    tasks: [{
+    actions: [{
       title: '',
       plan: '',
       observations: '',
@@ -346,7 +346,7 @@ const Missions = () => {
         throw new Error('User must be authenticated to create missions');
       })(),
       // Default to current user
-      tasks: template.defaultTasks.length > 0 ? template.defaultTasks.map((task: any) => ({
+      actions: template.defaultTasks.length > 0 ? template.defaultTasks.map((task: any) => ({
         title: task.title,
         plan: task.plan || '',
         observations: task.observations || '',
@@ -407,7 +407,7 @@ const Missions = () => {
         if (missionError) throw missionError;
 
         // Create tasks for the mission if any
-        const tasksToCreate = formData.tasks.filter(task => task.title.trim());
+        const tasksToCreate = formData.actions.filter(task => task.title.trim());
         const createdTasks = [];
         const taskIdMap: Record<string, string> = {};
         
@@ -488,7 +488,7 @@ const Missions = () => {
         throw new Error('User must be authenticated to create missions');
       })(),
       // Default to current user
-      tasks: [{
+      actions: [{
         title: '',
         plan: '',
         observations: '',

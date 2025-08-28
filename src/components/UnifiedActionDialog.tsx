@@ -30,7 +30,8 @@ import {
   Wrench,
   Clock,
   AlertCircle,
-  Package
+  Package,
+  Trash2
 } from "lucide-react";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { LexicalEditor } from './LexicalEditor';
@@ -202,6 +203,42 @@ export function UnifiedActionDialog({
       ...prev,
       attachments: (prev.attachments || []).filter((_, i) => i !== index)
     }));
+  };
+
+  const handleDelete = async () => {
+    if (!action?.id) return;
+    
+    if (!confirm('Are you sure you want to delete this action? This cannot be undone.')) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    try {
+      const { error } = await supabase
+        .from('actions')
+        .delete()
+        .eq('id', action.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Action deleted successfully"
+      });
+
+      onActionSaved();
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error deleting action:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete action",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -542,6 +579,17 @@ export function UnifiedActionDialog({
 
           {/* Action Buttons */}
           <div className="flex gap-3 pt-4">
+            {!isCreating && action?.id && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDelete}
+                disabled={isSubmitting}
+                className="text-destructive hover:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}

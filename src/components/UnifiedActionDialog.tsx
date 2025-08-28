@@ -585,7 +585,7 @@ export function UnifiedActionDialog({
                 size="sm"
                 onClick={handleDelete}
                 disabled={isSubmitting}
-                className="text-destructive hover:text-destructive"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>

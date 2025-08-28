@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChevronDown, ChevronRight, Plus, Upload, Image, X } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ResourceSelector } from '@/components/ResourceSelector';
-import { ActionCard } from '@/components/ActionCard';
+
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useImageUpload } from "@/hooks/useImageUpload";
@@ -18,7 +18,8 @@ import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 
 import { useTempPhotoStorage } from "@/hooks/useTempPhotoStorage";
 import { getStandardActionsForTemplate } from "@/lib/standardActionBlocks";
-import { ActionEditDialog } from './ActionEditDialog';
+import { UnifiedActionDialog } from './UnifiedActionDialog';
+import { createMissionAction, BaseAction, ActionCreationContext } from '@/types/actions';
 
 interface Task {
   id?: string; // Add optional id field
@@ -567,74 +568,48 @@ export function SimpleMissionForm({
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-4 mt-4">
-          {/* Task Creation Modal */}
-          <ActionEditDialog
+          {/* Action Creation Modal */}
+          <UnifiedActionDialog
             open={taskDialogOpen && creatingNewTask}
             onOpenChange={(open) => {
               setTaskDialogOpen(open);
               if (!open) setCreatingNewTask(false);
             }}
-            action={{
-              id: '',
-              title: '',
-              plan: '',
-              observations: '',
-              assigned_to: null,
-              status: 'not_started',
-              mission_id: missionId || '',
-              estimated_completion_date: undefined,
-              required_tools: [],
-              required_stock: []
+            context={{
+              type: 'mission',
+              parentId: missionId,
+              prefilledData: createMissionAction(missionId || '')
             }}
             profiles={profiles}
-            onSave={handleCreateTask}
-            onCancel={() => {
-              setCreatingNewTask(false);
-              setTaskDialogOpen(false);
-            }}
+            onActionSaved={handleCreateTask}
             isCreating={true}
-            missionId={missionId}
           />
 
-          {/* Task Edit Modal */}
-          <ActionEditDialog
+          {/* Action Edit Modal */}
+          <UnifiedActionDialog
             open={taskDialogOpen && editingTaskIndex !== null && formData.actions && formData.actions[editingTaskIndex] !== undefined}
             onOpenChange={(open) => {
               setTaskDialogOpen(open);
               if (!open) setEditingTaskIndex(null);
             }}
             action={editingTaskIndex !== null && formData.actions && formData.actions[editingTaskIndex] ? {
-              id: formData.actions[editingTaskIndex].id || `temp-${editingTaskIndex}`,
+              id: formData.actions[editingTaskIndex].id || '',
               title: formData.actions[editingTaskIndex].title,
+              description: '',
               plan: formData.actions[editingTaskIndex].plan,
               observations: formData.actions[editingTaskIndex].observations,
               assigned_to: formData.actions[editingTaskIndex].assigned_to,
               status: formData.actions[editingTaskIndex].status || 'not_started',
               mission_id: missionId || '',
-              estimated_completion_date: formData.actions[editingTaskIndex].estimated_completion_date,
+              estimated_duration: formData.actions[editingTaskIndex].estimated_completion_date?.toISOString(),
               required_tools: formData.actions[editingTaskIndex].required_tools,
               required_stock: formData.actions[editingTaskIndex].required_stock,
-              // phase removed - tasks no longer have phases
-            } : {
-              id: '',
-              title: '',
-              plan: '',
-              observations: '',
-              assigned_to: null,
-              status: 'not_started',
-              mission_id: missionId || '',
-              estimated_completion_date: undefined,
-              required_tools: [],
-              required_stock: [],
-              // phase removed - tasks no longer have phases
-            }}
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              attachments: []
+            } as BaseAction : undefined}
             profiles={profiles}
-            onSave={handleEditTask}
-            onCancel={() => {
-              setEditingTaskIndex(null);
-              setTaskDialogOpen(false);
-            }}
-            missionId={missionId}
+            onActionSaved={handleEditTask}
           />
           
           <div className="flex justify-between items-center">
@@ -658,14 +633,13 @@ export function SimpleMissionForm({
             // Determine border color based on action status
             const getActionBorderColor = () => {
               const hasPlan = task.plan?.trim();
-              const hasObservations = task.observations?.trim();
               
-              // Green border for completed actions
+              // Green border for completed actions  
               if (task.status === 'completed') {
                 return 'border-emerald-500 border-2 shadow-emerald-200 shadow-lg';
               }
               
-              // Yellow border when there's a plan
+              // Yellow border when there's a plan and plan commitment is true
               if (hasPlan) {
                 return 'border-yellow-500 border-2 shadow-yellow-200 shadow-lg';
               }

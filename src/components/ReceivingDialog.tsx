@@ -249,13 +249,13 @@ export function ReceivingDialog({
           {order.estimated_cost && order.estimated_cost > 0 && (
             <div>
               <Label className="text-sm font-medium text-muted-foreground">Cost per Unit</Label>
-              <p className="text-sm">${order.estimated_cost}</p>
+              <p className="text-sm">₱{order.estimated_cost}</p>
             </div>
           )}
 
           <div>
             <Label htmlFor="receiving-notes" className="text-sm font-medium">
-              Receiving Notes (Optional)
+              Receiving Notes
             </Label>
             <Textarea
               id="receiving-notes"
@@ -271,17 +271,15 @@ export function ReceivingDialog({
           <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          {hasMismatch && (
-            <Button 
-              variant="outline"
-              onClick={handleReportIssue}
-              disabled={isSubmitting}
-              className="border-orange-500 text-orange-600 hover:bg-orange-50"
-            >
-              <AlertTriangle className="h-4 w-4 mr-2" />
-              Report Issue
-            </Button>
-          )}
+          <Button 
+            variant="outline"
+            onClick={handleReportIssue}
+            disabled={isSubmitting}
+            className="border-orange-500 text-orange-600 hover:bg-orange-50"
+          >
+            <AlertTriangle className="h-4 w-4 mr-2" />
+            Report Issue
+          </Button>
           <Button 
             onClick={handleReceive} 
             disabled={isSubmitting || actualQuantity === ''}

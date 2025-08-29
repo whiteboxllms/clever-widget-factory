@@ -287,7 +287,7 @@ export function ReceivingDialog({
             disabled={isSubmitting || actualQuantity === ''}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
-            {isSubmitting ? "Processing..." : "Complete Receiving"}
+            {isSubmitting ? "Processing..." : "Receive"}
           </Button>
         </DialogFooter>
       </DialogContent>

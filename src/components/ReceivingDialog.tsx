@@ -55,16 +55,17 @@ export function ReceivingDialog({
   const [showIssueDialog, setShowIssueDialog] = useState(false);
   const { toast } = useToast();
 
+  // Initialize actual quantity to expected if not set
+  React.useEffect(() => {
+    if (actualQuantity === '' && isOpen && order && part) {
+      const quantityToReceive = order.quantity_ordered - order.quantity_received;
+      setActualQuantity(quantityToReceive);
+    }
+  }, [order, part, actualQuantity, isOpen]);
+
   if (!order || !part) return null;
 
   const quantityToReceive = order.quantity_ordered - order.quantity_received;
-  
-  // Initialize actual quantity to expected if not set
-  React.useEffect(() => {
-    if (actualQuantity === '' && isOpen) {
-      setActualQuantity(quantityToReceive);
-    }
-  }, [quantityToReceive, actualQuantity, isOpen]);
 
   const hasMismatch = actualQuantity !== quantityToReceive;
 

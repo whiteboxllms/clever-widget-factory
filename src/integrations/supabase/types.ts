@@ -355,6 +355,48 @@ export type Database = {
           },
         ]
       }
+      issue_history: {
+        Row: {
+          changed_at: string
+          changed_by: string
+          created_at: string
+          field_changed: string | null
+          id: string
+          issue_id: string
+          new_status: string
+          new_value: string | null
+          notes: string | null
+          old_status: string | null
+          old_value: string | null
+        }
+        Insert: {
+          changed_at?: string
+          changed_by: string
+          created_at?: string
+          field_changed?: string | null
+          id?: string
+          issue_id: string
+          new_status: string
+          new_value?: string | null
+          notes?: string | null
+          old_status?: string | null
+          old_value?: string | null
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string
+          created_at?: string
+          field_changed?: string | null
+          id?: string
+          issue_id?: string
+          new_status?: string
+          new_value?: string | null
+          notes?: string | null
+          old_status?: string | null
+          old_value?: string | null
+        }
+        Relationships: []
+      }
       issue_requirements: {
         Row: {
           attribute_type: Database["public"]["Enums"]["attribute_type"]
@@ -386,6 +428,126 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      issues: {
+        Row: {
+          action_required:
+            | Database["public"]["Enums"]["action_required_type"]
+            | null
+          actual_hours: number | null
+          ai_analysis: string | null
+          assigned_to: string | null
+          can_self_claim: boolean | null
+          context_id: string
+          context_type: Database["public"]["Enums"]["context_type"]
+          created_at: string
+          damage_assessment: string | null
+          description: string
+          diagnosed_at: string | null
+          diagnosed_by: string | null
+          efficiency_loss_percentage: number | null
+          estimated_hours: number | null
+          id: string
+          is_misuse: boolean
+          issue_metadata: Json | null
+          issue_type: string
+          materials_needed: Json | null
+          next_steps: string | null
+          ready_to_work: boolean | null
+          related_checkout_id: string | null
+          report_photo_urls: string[] | null
+          reported_at: string
+          reported_by: string
+          resolution_notes: string | null
+          resolution_photo_urls: string[] | null
+          resolved_at: string | null
+          resolved_by: string | null
+          responsibility_assigned: boolean
+          root_cause: string | null
+          status: string
+          updated_at: string
+          work_progress: string | null
+          workflow_status: Database["public"]["Enums"]["workflow_status_type"]
+        }
+        Insert: {
+          action_required?:
+            | Database["public"]["Enums"]["action_required_type"]
+            | null
+          actual_hours?: number | null
+          ai_analysis?: string | null
+          assigned_to?: string | null
+          can_self_claim?: boolean | null
+          context_id: string
+          context_type?: Database["public"]["Enums"]["context_type"]
+          created_at?: string
+          damage_assessment?: string | null
+          description: string
+          diagnosed_at?: string | null
+          diagnosed_by?: string | null
+          efficiency_loss_percentage?: number | null
+          estimated_hours?: number | null
+          id?: string
+          is_misuse?: boolean
+          issue_metadata?: Json | null
+          issue_type?: string
+          materials_needed?: Json | null
+          next_steps?: string | null
+          ready_to_work?: boolean | null
+          related_checkout_id?: string | null
+          report_photo_urls?: string[] | null
+          reported_at?: string
+          reported_by: string
+          resolution_notes?: string | null
+          resolution_photo_urls?: string[] | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          responsibility_assigned?: boolean
+          root_cause?: string | null
+          status?: string
+          updated_at?: string
+          work_progress?: string | null
+          workflow_status?: Database["public"]["Enums"]["workflow_status_type"]
+        }
+        Update: {
+          action_required?:
+            | Database["public"]["Enums"]["action_required_type"]
+            | null
+          actual_hours?: number | null
+          ai_analysis?: string | null
+          assigned_to?: string | null
+          can_self_claim?: boolean | null
+          context_id?: string
+          context_type?: Database["public"]["Enums"]["context_type"]
+          created_at?: string
+          damage_assessment?: string | null
+          description?: string
+          diagnosed_at?: string | null
+          diagnosed_by?: string | null
+          efficiency_loss_percentage?: number | null
+          estimated_hours?: number | null
+          id?: string
+          is_misuse?: boolean
+          issue_metadata?: Json | null
+          issue_type?: string
+          materials_needed?: Json | null
+          next_steps?: string | null
+          ready_to_work?: boolean | null
+          related_checkout_id?: string | null
+          report_photo_urls?: string[] | null
+          reported_at?: string
+          reported_by?: string
+          resolution_notes?: string | null
+          resolution_photo_urls?: string[] | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          responsibility_assigned?: boolean
+          root_cause?: string | null
+          status?: string
+          updated_at?: string
+          work_progress?: string | null
+          workflow_status?: Database["public"]["Enums"]["workflow_status_type"]
+        }
+        Relationships: []
       }
       mission_attachments: {
         Row: {
@@ -1300,6 +1462,7 @@ export type Database = {
         | "hydraulics"
         | "welding"
         | "fabrication"
+      context_type: "tool" | "order" | "inventory" | "facility"
       tool_status:
         | "available"
         | "checked_out"
@@ -1454,6 +1617,7 @@ export const Constants = {
         "welding",
         "fabrication",
       ],
+      context_type: ["tool", "order", "inventory", "facility"],
       tool_status: [
         "available",
         "checked_out",

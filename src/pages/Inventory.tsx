@@ -26,6 +26,7 @@ import { useEnhancedToast } from '@/hooks/useEnhancedToast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { InventoryItemForm } from '@/components/InventoryItemForm';
+import { ReceivingDialog } from '@/components/ReceivingDialog';
 
 // Supplier interface removed - supplier tracking moved to stock additions
 
@@ -48,6 +49,7 @@ interface Part {
 
 interface PendingOrder {
   id: string;
+  part_id: string;
   quantity_ordered: number;
   quantity_received: number;
   supplier_name?: string;
@@ -81,6 +83,9 @@ export default function Inventory() {
   const [showEditOrderDialog, setShowEditOrderDialog] = useState(false);
   const [editingOrder, setEditingOrder] = useState<PendingOrder | null>(null);
   const [editingOrderPart, setEditingOrderPart] = useState<Part | null>(null);
+  const [showReceivingDialog, setShowReceivingDialog] = useState(false);
+  const [receivingOrder, setReceivingOrder] = useState<PendingOrder | null>(null);
+  const [receivingPart, setReceivingPart] = useState<Part | null>(null);
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
   const navigate = useNavigate();
@@ -810,6 +815,18 @@ export default function Inventory() {
     setShowEditOrderDialog(true);
   };
 
+  const handleReceiveOrder = (order: PendingOrder, part: Part) => {
+    setReceivingOrder(order);
+    setReceivingPart(part);
+    setShowReceivingDialog(true);
+  };
+
+  const handleReceivingSuccess = () => {
+    // Refresh both parts and pending orders data
+    fetchParts();
+    fetchPendingOrders();
+  };
+
   const handleDeleteOrder = async (orderId: string) => {
     try {
       const { error } = await supabase
@@ -1108,15 +1125,24 @@ export default function Inventory() {
                               {order.supplier_name && ` from ${order.supplier_name}`}
                               {order.expected_delivery_date && ` (${new Date(order.expected_delivery_date).toLocaleDateString()})`}
                             </div>
-                            <div className="flex gap-1 ml-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 hover:bg-primary/20"
-                                onClick={() => handleEditOrder(order, part)}
-                              >
-                                <Edit className="h-3 w-3" />
-                              </Button>
+                             <div className="flex gap-1 ml-2">
+                               <Button
+                                 variant="ghost"
+                                 size="sm"
+                                 className="h-6 w-6 p-0 hover:bg-green-500/20 hover:text-green-600"
+                                 onClick={() => handleReceiveOrder(order, part)}
+                                 title="Receive this order"
+                               >
+                                 <Package className="h-3 w-3" />
+                               </Button>
+                               <Button
+                                 variant="ghost"
+                                 size="sm"
+                                 className="h-6 w-6 p-0 hover:bg-primary/20"
+                                 onClick={() => handleEditOrder(order, part)}
+                               >
+                                 <Edit className="h-3 w-3" />
+                               </Button>
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button
@@ -1383,6 +1409,19 @@ export default function Inventory() {
               editingOrder={editingOrder}
             />
           )}
+
+          {/* Receiving Dialog */}
+          <ReceivingDialog
+            isOpen={showReceivingDialog}
+            onClose={() => {
+              setShowReceivingDialog(false);
+              setReceivingOrder(null);
+              setReceivingPart(null);
+            }}
+            order={receivingOrder}
+            part={receivingPart}
+            onSuccess={handleReceivingSuccess}
+          />
         </div>
       </main>
     </div>

@@ -215,15 +215,18 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
                 <p className="text-sm text-muted-foreground">Loading existing issues...</p>
               ) : issues.length > 0 ? (
                 <div className="space-y-3">
-                  {issues.map((issue) => (
-                    <GenericIssueCard
-                      key={issue.id}
-                      issue={issue}
-                      onResolve={() => handleResolveIssue(issue)}
-                      onEdit={() => handleEditIssue(issue)}
-                      onRefresh={fetchIssues}
-                    />
-                  ))}
+                   {issues.map((issue) => (
+                     <GenericIssueCard
+                       key={issue.id}
+                       issue={issue}
+                       onResolve={() => handleResolveIssue(issue)}
+                       onEdit={() => handleEditIssue(issue)}
+                       onRefresh={fetchIssues}
+                       showContext={false}
+                       enableScorecard={true}
+                       enableActions={true}
+                     />
+                   ))}
                 </div>
               ) : (
                 <div className="text-center py-8">

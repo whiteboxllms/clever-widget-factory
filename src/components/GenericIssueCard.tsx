@@ -7,7 +7,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { BaseIssue, ContextType, getContextBadgeColor, getContextIcon, getContextLabel, OrderIssue, getOrderIssueTypeLabel } from "@/types/issues";
 import { useGenericIssues } from "@/hooks/useGenericIssues";
+import { useAssetScores } from "@/hooks/useAssetScores";
+import { useIssueActions } from "@/hooks/useIssueActions";
 import { getIssueTypeIcon, getIssueTypeColor, getContextTypeIcon } from "@/lib/issueTypeUtils";
+import { IssueScoreDialog } from "@/components/IssueScoreDialog";
+import { CreateActionFromIssueDialog } from "@/components/CreateActionFromIssueDialog";
+import { ManageIssueActionsDialog } from "@/components/ManageIssueActionsDialog";
 
 interface GenericIssueCardProps {
   issue: BaseIssue;
@@ -15,6 +20,8 @@ interface GenericIssueCardProps {
   onEdit?: (issue: BaseIssue) => void;
   onRefresh: () => void;
   showContext?: boolean;
+  enableScorecard?: boolean;
+  enableActions?: boolean;
 }
 
 export function GenericIssueCard({ 
@@ -22,11 +29,21 @@ export function GenericIssueCard({
   onResolve, 
   onEdit, 
   onRefresh,
-  showContext = true 
+  showContext = true,
+  enableScorecard = false,
+  enableActions = false
 }: GenericIssueCardProps) {
   const [isRemoving, setIsRemoving] = useState(false);
   const [contextEntity, setContextEntity] = useState<any>(null);
+  const [existingScore, setExistingScore] = useState<any>(null);
+  const [existingActions, setExistingActions] = useState<any[]>([]);
+  const [toolForScore, setToolForScore] = useState<any>(null);
+  const [showScoreDialog, setShowScoreDialog] = useState(false);
+  const [showCreateActionDialog, setShowCreateActionDialog] = useState(false);
+  const [showManageActionsDialog, setShowManageActionsDialog] = useState(false);
   const { removeIssue } = useGenericIssues();
+  const { getScoreForIssue } = useAssetScores();
+  const { getActionsForIssue } = useIssueActions();
 
   // Fetch context entity information
   useEffect(() => {
@@ -73,7 +90,30 @@ export function GenericIssueCard({
     }
   }, [issue.context_id, issue.context_type, showContext]);
 
-  // Issue type utilities imported from centralized location
+  // Fetch existing scores and actions when enabled
+  useEffect(() => {
+    const fetchScoreAndActions = async () => {
+      if (enableScorecard && issue.id) {
+        try {
+          const score = await getScoreForIssue(issue.id);
+          setExistingScore(score);
+        } catch (error) {
+          console.error('Error fetching score:', error);
+        }
+      }
+
+      if (enableActions && issue.id) {
+        try {
+          const actions = await getActionsForIssue(issue.id);
+          setExistingActions(actions || []);
+        } catch (error) {
+          console.error('Error fetching actions:', error);
+        }
+      }
+    };
+
+    fetchScoreAndActions();
+  }, [issue.id, enableScorecard, enableActions, getScoreForIssue, getActionsForIssue]);
 
   const handleRemove = async () => {
     setIsRemoving(true);
@@ -90,6 +130,41 @@ export function GenericIssueCard({
       });
     } finally {
       setIsRemoving(false);
+    }
+  };
+
+  const handleAssignScore = async () => {
+    if (issue.context_type === 'tool' && issue.context_id) {
+      try {
+        const { data: tool, error } = await supabase
+          .from('tools')
+          .select('*')
+          .eq('id', issue.context_id)
+          .single();
+
+        if (error) {
+          console.error('Error fetching tool:', error);
+          toast({
+            title: "Error",
+            description: "Failed to fetch tool details.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        setToolForScore(tool);
+        setShowScoreDialog(true);
+      } catch (error) {
+        console.error('Error in handleAssignScore:', error);
+      }
+    }
+  };
+
+  const handleManageActions = () => {
+    if (existingActions.length > 0) {
+      setShowManageActionsDialog(true);
+    } else {
+      setShowCreateActionDialog(true);
     }
   };
 
@@ -141,105 +216,181 @@ export function GenericIssueCard({
   const borderColor = isResolved ? 'border-l-green-500' : 'border-l-primary/20';
   
   return (
-    <Card className={`border-l-4 ${borderColor} ${isResolved ? 'bg-green-50/50 dark:bg-green-950/20' : ''}`}>
-      <CardContent className="p-3">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              {showContext && (
-                <Badge 
-                  variant="outline" 
-                  className={`text-xs ${getContextBadgeColor(issue.context_type)}`}
-                >
-                  {getContextTypeIcon(issue.context_type)}
-                  <span className="ml-1">{getContextLabel(issue.context_type)}</span>
+    <>
+      <Card className={`border-l-4 ${borderColor} ${isResolved ? 'bg-green-50/50 dark:bg-green-950/20' : ''}`}>
+        <CardContent className="p-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                {showContext && (
+                  <Badge 
+                    variant="outline" 
+                    className={`text-xs ${getContextBadgeColor(issue.context_type)}`}
+                  >
+                    {getContextTypeIcon(issue.context_type)}
+                    <span className="ml-1">{getContextLabel(issue.context_type)}</span>
+                  </Badge>
+                )}
+                
+                {getIssueTypeIcon(issue.issue_type, issue.context_type)}
+                <Badge variant={getIssueTypeColor(issue.issue_type, issue.context_type) as any} className="text-xs">
+                  {getDisplayIssueType()}
                 </Badge>
+                 
+                 {isResolved && (
+                    <Badge variant="outline" className="text-xs bg-green-100 text-green-800 border-green-200 dark:bg-green-950 dark:text-green-200 dark:border-green-800">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Resolved
+                    </Badge>
+                  )}
+                {showContext && (
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(issue.reported_at).toLocaleDateString()}
+                  </span>
+                )}
+              </div>
+              
+              {renderContextualInfo()}
+              
+              <p className="text-sm break-words mt-1">{issue.description}</p>
+              
+              {issue.damage_assessment && (
+                <p className="text-sm text-orange-600 mt-1">
+                  <strong>Damage:</strong> {issue.damage_assessment}
+                </p>
               )}
               
-              {getIssueTypeIcon(issue.issue_type, issue.context_type)}
-              <Badge variant={getIssueTypeColor(issue.issue_type, issue.context_type) as any} className="text-xs">
-                {getDisplayIssueType()}
-              </Badge>
-               
-               {isResolved && (
-                 <Badge variant="outline" className="text-xs bg-green-100 text-green-800 border-green-200 dark:bg-green-950 dark:text-green-200 dark:border-green-800">
-                   <CheckCircle className="h-3 w-3 mr-1" />
-                   Resolved
-                 </Badge>
-               )}
-              <span className="text-xs text-muted-foreground">
-                {new Date(issue.reported_at).toLocaleDateString()}
-              </span>
+              {issue.resolution_photo_urls && issue.resolution_photo_urls.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-xs text-muted-foreground mb-1">Resolution Photos:</p>
+                  <div className="flex gap-1 flex-wrap">
+                    {issue.resolution_photo_urls.map((url, index) => (
+                      <img
+                        key={index}
+                        src={url}
+                        alt={`Resolution photo ${index + 1}`}
+                        className="h-12 w-12 object-cover rounded border border-border cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => window.open(url, '_blank')}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             
-            {renderContextualInfo()}
-            
-            <p className="text-sm break-words mt-1">{issue.description}</p>
-            
-            {issue.damage_assessment && (
-              <p className="text-sm text-orange-600 mt-1">
-                <strong>Damage:</strong> {issue.damage_assessment}
-              </p>
-            )}
-            
-            {issue.resolution_photo_urls && issue.resolution_photo_urls.length > 0 && (
-              <div className="mt-2">
-                <p className="text-xs text-muted-foreground mb-1">Resolution Photos:</p>
-                <div className="flex gap-1 flex-wrap">
-                  {issue.resolution_photo_urls.map((url, index) => (
-                    <img
-                      key={index}
-                      src={url}
-                      alt={`Resolution photo ${index + 1}`}
-                      className="h-12 w-12 object-cover rounded border border-border cursor-pointer hover:opacity-80 transition-opacity"
-                      onClick={() => window.open(url, '_blank')}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+            <div className="flex gap-1 flex-shrink-0">
+              {enableScorecard && issue.context_type === 'tool' && !isResolved && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleAssignScore}
+                  className={`h-7 px-2 text-xs ${existingScore ? 'border-green-500 text-green-600' : ''}`}
+                  title={existingScore ? 'View Score' : 'Assign Score'}
+                >
+                  <Target className="h-3 w-3" />
+                </Button>
+              )}
+
+              {enableActions && !isResolved && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleManageActions}
+                  className={`h-7 px-2 text-xs ${
+                    existingActions.length > 0 
+                      ? existingActions.some(action => action.status === 'completed')
+                        ? 'border-green-500 text-green-600'
+                        : 'border-blue-500 text-blue-600'
+                      : ''
+                  }`}
+                  title={existingActions.length > 0 ? `Manage Actions (${existingActions.length})` : 'Create Action'}
+                >
+                  {existingActions.length > 0 ? (
+                    <Zap className="h-3 w-3" />
+                  ) : (
+                    <Plus className="h-3 w-3" />
+                  )}
+                </Button>
+              )}
+
+              {onEdit && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onEdit(issue)}
+                  className="h-7 px-2 text-xs"
+                >
+                  <Edit className="h-3 w-3" />
+                </Button>
+              )}
+              
+              {onResolve && !isResolved && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onResolve(issue)}
+                  className="h-7 px-2 text-xs"
+                  title="Detailed Resolve"
+                >
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Resolve
+                </Button>
+              )}
+              
+              {!isResolved && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleRemove}
+                  disabled={isRemoving}
+                  className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                  title="Remove issue"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
           </div>
-          
-          <div className="flex gap-1 flex-shrink-0">
-            {onEdit && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onEdit(issue)}
-                className="h-7 px-2 text-xs"
-              >
-                <Edit className="h-3 w-3" />
-              </Button>
-            )}
-            
-            {onResolve && !isResolved && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onResolve(issue)}
-                className="h-7 px-2 text-xs"
-                title="Detailed Resolve"
-              >
-                <CheckCircle className="h-3 w-3 mr-1" />
-                Resolve
-              </Button>
-            )}
-            
-            {!isResolved && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleRemove}
-                disabled={isRemoving}
-                className="h-7 px-2 text-xs text-destructive hover:text-destructive"
-                title="Remove issue"
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            )}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      {/* Score Dialog */}
+      {enableScorecard && toolForScore && (
+        <IssueScoreDialog
+          open={showScoreDialog}
+          onOpenChange={setShowScoreDialog}
+          tool={toolForScore}
+          issue={issue as any}
+          existingScore={existingScore}
+          onScoreUpdated={() => {
+            setShowScoreDialog(false);
+            onRefresh();
+          }}
+        />
+      )}
+
+      {/* Create Action Dialog */}
+      {enableActions && (
+        <CreateActionFromIssueDialog
+          open={showCreateActionDialog}
+          onOpenChange={setShowCreateActionDialog}
+          issue={issue as any}
+          onActionCreated={() => {
+            setShowCreateActionDialog(false);
+            onRefresh();
+          }}
+        />
+      )}
+
+      {/* Manage Actions Dialog */}
+      {enableActions && (
+        <ManageIssueActionsDialog
+          open={showManageActionsDialog}
+          onOpenChange={setShowManageActionsDialog}
+          issue={issue as any}
+          onRefresh={onRefresh}
+        />
+      )}
+    </>
   );
 }

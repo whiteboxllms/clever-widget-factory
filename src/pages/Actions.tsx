@@ -57,6 +57,7 @@ export default function Actions() {
       // Fetch tool info for actions with linked_issue_id
       const issueActions = data?.filter(action => action.linked_issue_id) || [];
       let issueToolsData = [];
+      let issueToolsInfo = [];
       if (issueActions.length > 0) {
         const { data: issueTools } = await supabase
           .from('issues')
@@ -68,6 +69,15 @@ export default function Actions() {
           .eq('context_type', 'tool')
           .in('id', issueActions.map(a => a.linked_issue_id));
         issueToolsData = issueTools || [];
+        
+        // Fetch the actual tool information for issue tools
+        if (issueToolsData.length > 0) {
+          const { data: tools } = await supabase
+            .from('tools')
+            .select('id, name, category')
+            .in('id', issueToolsData.map(issue => issue.context_id));
+          issueToolsInfo = tools || [];
+        }
       }
 
       setActions(data?.map(item => ({
@@ -91,7 +101,7 @@ export default function Actions() {
             }
           : null,
         issue_tool: issueToolsData.find(issue => issue.id === item.linked_issue_id) ? 
-          toolsData.find(tool => tool.id === issueToolsData.find(issue => issue.id === item.linked_issue_id)?.context_id) || null : null
+          issueToolsInfo.find(tool => tool.id === issueToolsData.find(issue => issue.id === item.linked_issue_id)?.context_id) || null : null
       })) as unknown as BaseAction[] || []);
     } catch (error) {
       console.error('Error fetching actions:', error);

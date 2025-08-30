@@ -54,7 +54,12 @@ export function ManageIssueActionsDialog({
   // Fetch actions and profiles when dialog opens
   useEffect(() => {
     if (open) {
+      // Clear actions immediately to prevent flashing
+      setActions([]);
       fetchActionsAndProfiles();
+    } else {
+      // Clear actions when dialog closes to prevent next flash
+      setActions([]);
     }
   }, [open, issue.id]);
 

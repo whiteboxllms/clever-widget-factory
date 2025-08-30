@@ -8,10 +8,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle, Circle, Calendar, User, Zap } from "lucide-react";
+import { CheckCircle, Circle, Calendar, User, Zap, Target } from "lucide-react";
 import { useIssueActions } from "@/hooks/useIssueActions";
 import { UnifiedActionDialog } from "./UnifiedActionDialog";
 import { BaseAction, createIssueAction } from "@/types/actions";
+import { ActionScoreDialog } from "./ActionScoreDialog";
+import { useAssetScores } from "@/hooks/useAssetScores";
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -49,9 +51,13 @@ export function ManageIssueActionsDialog({
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [toolName, setToolName] = useState<string>("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showScoreDialog, setShowScoreDialog] = useState(false);
+  const [scoringAction, setScoringAction] = useState<BaseAction | null>(null);
+  const [actionScores, setActionScores] = useState<Record<string, boolean>>({});
   
   const [editingAction, setEditingAction] = useState<BaseAction | null>(null);
   const { getActionsForIssue, markActionComplete, markActionIncomplete, loading } = useIssueActions();
+  const { getScoreForAction } = useAssetScores();
 
   // Fetch actions and profiles when dialog opens
   useEffect(() => {
@@ -64,6 +70,14 @@ export function ManageIssueActionsDialog({
     // Fetch actions for this issue
     const issueActions = await getActionsForIssue(issue.id);
     setActions(issueActions);
+
+    // Fetch scores for all actions
+    const scores: Record<string, boolean> = {};
+    for (const action of issueActions) {
+      const score = await getScoreForAction(action.id);
+      scores[action.id] = !!score;
+    }
+    setActionScores(scores);
 
     // Fetch profiles for display names and tool name
     try {
@@ -138,6 +152,15 @@ export function ManageIssueActionsDialog({
     });
   };
 
+  const handleScoreAction = (action: BaseAction) => {
+    setScoringAction(action);
+    setShowScoreDialog(true);
+  };
+
+  const handleScoreUpdated = () => {
+    fetchActionsAndProfiles(); // Refresh to update score indicators
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -199,6 +222,8 @@ export function ManageIssueActionsDialog({
                     <Card 
                       key={action.id}
                       className={`border-l-4 transition-all duration-200 cursor-pointer ${
+                        actionScores[action.id] ? 'ring-2 ring-green-500 ring-opacity-50' : ''
+                      } ${
                         action.status === 'completed' 
                           ? 'border-l-green-500 bg-green-50 shadow-green-100 shadow-lg hover:shadow-xl' 
                           : 'border-l-blue-500 hover:shadow-md'
@@ -256,11 +281,30 @@ export function ManageIssueActionsDialog({
                             )}
                           </div>
                           
-                          <div className="flex-shrink-0">
+                          <div className="flex-shrink-0 flex gap-2">
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleToggleComplete(action)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleScoreAction(action);
+                              }}
+                              className={`flex items-center gap-2 ${
+                                actionScores[action.id]
+                                  ? 'text-green-700 border-green-500 hover:bg-green-50'
+                                  : 'text-gray-700 border-gray-300 hover:bg-gray-50'
+                              }`}
+                            >
+                              <Target className="h-4 w-4" />
+                              Score
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleComplete(action);
+                              }}
                               className={`flex items-center gap-2 ${
                                 action.status === 'completed'
                                   ? 'text-green-700 border-green-500 hover:bg-green-50'
@@ -326,6 +370,16 @@ export function ManageIssueActionsDialog({
         }}
         isCreating={showCreateDialog}
       />
+
+      {/* Score Action Dialog */}
+      {scoringAction && (
+        <ActionScoreDialog
+          open={showScoreDialog}
+          onOpenChange={setShowScoreDialog}
+          action={scoringAction}
+          onScoreUpdated={handleScoreUpdated}
+        />
+      )}
 
     </>
   );

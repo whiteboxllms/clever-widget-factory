@@ -75,27 +75,15 @@ export function ReceivingDialog({
         noteParts.push(`Order Details: ${order.order_details}`);
       }
       
-      // Add expected delivery date if available
-      if (order.expected_delivery_date) {
-        const formattedDate = new Date(order.expected_delivery_date).toLocaleDateString();
-        noteParts.push(`Expected Delivery: ${formattedDate}`);
-      }
-      
-      // Add supplier information with first URL if available
-      if (order.supplier_name) {
-        let supplierInfo = `Supplier: ${order.supplier_name}`;
-        
-        // Extract first URL from supplier contact_info if available
-        if (order.supplier_contact_info && order.supplier_contact_info.urls && order.supplier_contact_info.urls.length > 0) {
-          supplierInfo += ` - ${order.supplier_contact_info.urls[0]}`;
-        }
-        
-        noteParts.push(supplierInfo);
+      // Add all URLs from supplier contact_info if available
+      if (order.supplier_contact_info && order.supplier_contact_info.urls && order.supplier_contact_info.urls.length > 0) {
+        const urls = order.supplier_contact_info.urls.join('\n');
+        noteParts.push(`URLs:\n${urls}`);
       }
       
       // Combine all parts and add space for additional notes
       if (noteParts.length > 0) {
-        const autoPopulatedNotes = noteParts.join('\n') + '\n\nAdditional Notes:\n';
+        const autoPopulatedNotes = noteParts.join('\n\n') + '\n\nAdditional Notes:\n';
         setReceivingNotes(autoPopulatedNotes);
       }
     } else if (!isOpen) {

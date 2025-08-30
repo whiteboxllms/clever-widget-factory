@@ -17,6 +17,7 @@ import { ToolIssuesSummary } from "./ToolIssuesSummary";
 import { IssueEditDialog } from "./IssueEditDialog";
 import { IssueCard } from "./IssueCard";
 import { IssueQuickResolveDialog } from "./IssueQuickResolveDialog";
+import { getIssueTypeIcon, getIssueTypeColor } from "@/lib/issueTypeUtils";
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -28,23 +29,7 @@ interface IssueReportDialogProps {
   onSuccess?: () => void;
 }
 
-const issueTypeIcons = {
-  safety: Shield,
-  efficiency: Wrench,
-  cosmetic: Bug,
-  preventative_maintenance: AlertTriangle,
-  functionality: AlertTriangle,
-  lifespan: Settings
-};
-
-const issueTypeColors = {
-  safety: "bg-destructive text-destructive-foreground",
-  efficiency: "bg-orange-500 text-white",
-  cosmetic: "bg-blue-500 text-blue-foreground",
-  preventative_maintenance: "bg-yellow-500 text-yellow-foreground",
-  functionality: "bg-purple-500 text-white",
-  lifespan: "bg-teal-500 text-white"
-};
+// Issue type utilities imported from centralized location
 
 export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: IssueReportDialogProps) {
   const [description, setDescription] = useState("");
@@ -184,43 +169,7 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
     }
   };
 
-  const getIssueTypeIcon = (issueType: string) => {
-    switch (issueType) {
-      case 'safety':
-        return <Shield className="h-4 w-4 text-destructive" />;
-      case 'efficiency':
-        return <Wrench className="h-4 w-4 text-orange-500" />;
-      case 'cosmetic':
-        return <Bug className="h-4 w-4 text-blue-500" />;
-      case 'preventative_maintenance':
-        return <AlertTriangle className="h-4 w-4 text-purple-500" />;
-      case 'functionality':
-        return <AlertTriangle className="h-4 w-4 text-indigo-500" />;
-      case 'lifespan':
-        return <Settings className="h-4 w-4 text-teal-500" />;
-      default:
-        return <Clock className="h-4 w-4 text-muted-foreground" />;
-    }
-  };
-
-  const getIssueTypeColor = (issueType: string) => {
-    switch (issueType) {
-      case 'safety':
-        return 'destructive';
-      case 'efficiency':
-        return 'default';
-      case 'cosmetic':
-        return 'secondary';
-      case 'preventative_maintenance':
-        return 'outline';
-      case 'functionality':
-        return 'outline';
-      case 'lifespan':
-        return 'outline';
-      default:
-        return 'secondary';
-    }
-  };
+  // Issue type utilities now imported from centralized location
 
   if (!tool) return null;
 

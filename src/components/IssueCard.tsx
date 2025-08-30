@@ -11,6 +11,7 @@ import { IssueScoreDialog } from "./IssueScoreDialog";
 import { IssueQuickResolveDialog } from "./IssueQuickResolveDialog";
 import { useAssetScores, AssetScore } from "@/hooks/useAssetScores";
 import { useIssueActions } from "@/hooks/useIssueActions";
+import { getIssueTypeIcon, getIssueTypeColor } from "@/lib/issueTypeUtils";
 
 interface ToolIssue {
   id: string;
@@ -46,35 +47,7 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
   const { getScoreForIssue } = useAssetScores();
   const { getActionsForIssue } = useIssueActions();
 
-  const getIssueTypeIcon = (issueType: string) => {
-    switch (issueType) {
-      case 'safety':
-        return <AlertTriangle className="h-4 w-4 text-destructive" />;
-      case 'efficiency':
-        return <AlertTriangle className="h-4 w-4 text-orange-500" />;
-      case 'cosmetic':
-        return <Clock className="h-4 w-4 text-blue-500" />;
-      case 'maintenance':
-        return <Clock className="h-4 w-4 text-purple-500" />;
-      default:
-        return <Clock className="h-4 w-4 text-muted-foreground" />;
-    }
-  };
-
-  const getIssueTypeColor = (issueType: string) => {
-    switch (issueType) {
-      case 'safety':
-        return 'destructive';
-      case 'efficiency':
-        return 'default';
-      case 'cosmetic':
-        return 'secondary';
-      case 'maintenance':
-        return 'outline';
-      default:
-        return 'secondary';
-    }
-  };
+  // Issue type utilities imported from centralized location
 
   const handleRemove = async () => {
     setIsRemoving(true);
@@ -173,8 +146,8 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              {getIssueTypeIcon(issue.issue_type)}
-              <Badge variant={getIssueTypeColor(issue.issue_type) as any} className="text-xs">
+              {getIssueTypeIcon(issue.issue_type, 'tool')}
+            <Badge variant={getIssueTypeColor(issue.issue_type, 'tool') as any} className="text-xs">
                 {issue.issue_type}
               </Badge>
               {issue.blocks_checkout && (

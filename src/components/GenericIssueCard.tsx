@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { BaseIssue, ContextType, getContextBadgeColor, getContextIcon, getContextLabel, OrderIssue, getOrderIssueTypeLabel } from "@/types/issues";
 import { useGenericIssues } from "@/hooks/useGenericIssues";
+import { getIssueTypeIcon, getIssueTypeColor, getContextTypeIcon } from "@/lib/issueTypeUtils";
 
 interface GenericIssueCardProps {
   issue: BaseIssue;
@@ -72,81 +73,7 @@ export function GenericIssueCard({
     }
   }, [issue.context_id, issue.context_type, showContext]);
 
-  const getIssueTypeIcon = (issueType: string, contextType: ContextType) => {
-    if (contextType === 'order') {
-      switch (issueType) {
-        case 'wrong_item':
-        case 'wrong_brand_spec':
-          return <X className="h-4 w-4 text-red-500" />;
-        case 'short_shipment':
-        case 'over_shipped':
-          return <AlertTriangle className="h-4 w-4 text-orange-500" />;
-        case 'damaged_goods':
-          return <AlertTriangle className="h-4 w-4 text-red-500" />;
-        default:
-          return <Clock className="h-4 w-4 text-blue-500" />;
-      }
-    }
-
-    // Tool issue types
-    switch (issueType) {
-      case 'safety':
-        return <AlertTriangle className="h-4 w-4 text-destructive" />;
-      case 'efficiency':
-        return <AlertTriangle className="h-4 w-4 text-orange-500" />;
-      case 'cosmetic':
-        return <Clock className="h-4 w-4 text-blue-500" />;
-      case 'maintenance':
-        return <Clock className="h-4 w-4 text-purple-500" />;
-      default:
-        return <Clock className="h-4 w-4 text-muted-foreground" />;
-    }
-  };
-
-  const getIssueTypeColor = (issueType: string, contextType: ContextType) => {
-    if (contextType === 'order') {
-      switch (issueType) {
-        case 'wrong_item':
-        case 'wrong_brand_spec':
-        case 'damaged_goods':
-          return 'destructive';
-        case 'short_shipment':
-        case 'over_shipped':
-          return 'default';
-        default:
-          return 'secondary';
-      }
-    }
-
-    // Tool issue types
-    switch (issueType) {
-      case 'safety':
-        return 'destructive';
-      case 'efficiency':
-        return 'default';
-      case 'cosmetic':
-        return 'secondary';
-      case 'maintenance':
-        return 'outline';
-      default:
-        return 'secondary';
-    }
-  };
-
-  const getContextTypeIcon = (contextType: ContextType) => {
-    switch (contextType) {
-      case 'tool':
-        return <Wrench className="h-3 w-3" />;
-      case 'order':
-        return <Package className="h-3 w-3" />;
-      case 'inventory':
-        return <FileText className="h-3 w-3" />;
-      case 'facility':
-        return <Home className="h-3 w-3" />;
-      default:
-        return <Clock className="h-3 w-3" />;
-    }
-  };
+  // Issue type utilities imported from centralized location
 
   const handleRemove = async () => {
     setIsRemoving(true);

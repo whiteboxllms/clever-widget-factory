@@ -8,7 +8,8 @@ import { CheckoutHistory, HistoryEntry, IssueHistoryEntry } from "@/hooks/tools/
 import { ToolStatusBadge } from "./ToolStatusBadge";
 import { IssueCard } from "@/components/IssueCard";
 import { ToolIssuesSummary } from "@/components/ToolIssuesSummary";
-import { AlertTriangle, Bug, Shield, Wrench } from "lucide-react";
+import { AlertTriangle, Bug, Shield, Wrench, Clock } from "lucide-react";
+import { getIssueTypeIconName } from "@/lib/issueTypeUtils";
 
 interface ToolDetailsProps {
   tool: Tool;
@@ -39,15 +40,7 @@ export const ToolDetails = ({
     return record.type === 'issue_change';
   };
 
-  const getIssueTypeIcon = (issueType?: string) => {
-    switch (issueType) {
-      case 'safety': return Shield;
-      case 'efficiency': return Wrench;
-      case 'cosmetic': return Bug;
-      case 'maintenance_due': return AlertTriangle;
-      default: return AlertTriangle;
-    }
-  };
+  // Issue type utilities imported from centralized location
 
   const getChangeTypeLabel = (changeType: string) => {
     switch (changeType) {
@@ -220,7 +213,9 @@ export const ToolDetails = ({
                           <div className="flex justify-between items-start mb-2">
                             <div className="flex items-start gap-2">
                               {(() => {
-                                const IconComponent = getIssueTypeIcon(record.issue_type);
+                                const iconName = getIssueTypeIconName(record.issue_type || 'maintenance', 'tool');
+                                const IconComponent = iconName === 'AlertTriangle' ? AlertTriangle : 
+                                                      iconName === 'Clock' ? Clock : AlertTriangle;
                                 return <IconComponent className="h-4 w-4 mt-0.5 text-muted-foreground" />;
                               })()}
                               <div>

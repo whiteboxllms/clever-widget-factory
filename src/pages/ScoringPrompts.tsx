@@ -12,6 +12,64 @@ import { useScoringPrompts, ScoringPrompt } from '@/hooks/useScoringPrompts';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
+interface PromptFormData {
+  name: string;
+  prompt_text: string;
+  is_default: boolean;
+}
+
+interface PromptFormProps {
+  isEdit?: boolean;
+  formData: PromptFormData;
+  setFormData: (data: PromptFormData) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+}
+
+const PromptForm = ({ isEdit = false, formData, setFormData, onSubmit, onCancel }: PromptFormProps) => (
+  <div className="space-y-4">
+    <div className="space-y-2">
+      <Label htmlFor="name">Prompt Name</Label>
+      <Input
+        id="name"
+        value={formData.name}
+        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+        placeholder="Enter prompt name"
+      />
+    </div>
+    
+    <div className="space-y-2">
+      <Label htmlFor="prompt_text">Prompt Text</Label>
+      <Textarea
+        id="prompt_text"
+        value={formData.prompt_text}
+        onChange={(e) => setFormData({ ...formData, prompt_text: e.target.value })}
+        placeholder="Enter the scoring prompt text"
+        rows={15}
+        className="font-mono text-sm"
+      />
+    </div>
+
+    <div className="flex items-center space-x-2">
+      <Switch
+        id="is_default"
+        checked={formData.is_default}
+        onCheckedChange={(checked) => setFormData({ ...formData, is_default: checked })}
+      />
+      <Label htmlFor="is_default">Set as default prompt</Label>
+    </div>
+
+    <div className="flex justify-end space-x-2">
+      <Button variant="outline" onClick={onCancel}>
+        Cancel
+      </Button>
+      <Button onClick={onSubmit}>
+        {isEdit ? 'Update' : 'Create'} Prompt
+      </Button>
+    </div>
+  </div>
+);
+
 export default function ScoringPrompts() {
   const { prompts, isLoading, createPrompt, updatePrompt, setDefaultPrompt } = useScoringPrompts();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -62,56 +120,11 @@ export default function ScoringPrompts() {
     });
   };
 
-  const PromptForm = ({ isEdit = false }: { isEdit?: boolean }) => (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="name">Prompt Name</Label>
-        <Input
-          id="name"
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder="Enter prompt name"
-        />
-      </div>
-      
-      <div className="space-y-2">
-        <Label htmlFor="prompt_text">Prompt Text</Label>
-        <Textarea
-          id="prompt_text"
-          value={formData.prompt_text}
-          onChange={(e) => setFormData({ ...formData, prompt_text: e.target.value })}
-          placeholder="Enter the scoring prompt text"
-          rows={15}
-          className="font-mono text-sm"
-        />
-      </div>
-
-      <div className="flex items-center space-x-2">
-        <Switch
-          id="is_default"
-          checked={formData.is_default}
-          onCheckedChange={(checked) => setFormData({ ...formData, is_default: checked })}
-        />
-        <Label htmlFor="is_default">Set as default prompt</Label>
-      </div>
-
-      <div className="flex justify-end space-x-2">
-        <Button
-          variant="outline"
-          onClick={() => {
-            setIsCreateDialogOpen(false);
-            setEditingPrompt(null);
-            setFormData({ name: '', prompt_text: '', is_default: false });
-          }}
-        >
-          Cancel
-        </Button>
-        <Button onClick={isEdit ? handleEditPrompt : handleCreatePrompt}>
-          {isEdit ? 'Update' : 'Create'} Prompt
-        </Button>
-      </div>
-    </div>
-  );
+  const handleCancel = () => {
+    setIsCreateDialogOpen(false);
+    setEditingPrompt(null);
+    setFormData({ name: '', prompt_text: '', is_default: false });
+  };
 
   if (isLoading) {
     return (
@@ -147,7 +160,12 @@ export default function ScoringPrompts() {
                 Create a new prompt for AI-powered asset scoring
               </DialogDescription>
             </DialogHeader>
-            <PromptForm />
+            <PromptForm 
+              formData={formData}
+              setFormData={setFormData}
+              onSubmit={handleCreatePrompt}
+              onCancel={handleCancel}
+            />
           </DialogContent>
         </Dialog>
       </div>
@@ -199,7 +217,13 @@ export default function ScoringPrompts() {
                           Update the scoring prompt configuration
                         </DialogDescription>
                       </DialogHeader>
-                      <PromptForm isEdit />
+                      <PromptForm 
+                        isEdit
+                        formData={formData}
+                        setFormData={setFormData}
+                        onSubmit={handleEditPrompt}
+                        onCancel={handleCancel}
+                      />
                     </DialogContent>
                   </Dialog>
                 </div>

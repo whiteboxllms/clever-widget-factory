@@ -25,6 +25,8 @@ interface PendingOrder {
   expected_delivery_date?: string;
   estimated_cost?: number;
   notes?: string;
+  order_details?: string;
+  supplier_contact_info?: any;
 }
 
 interface Part {
@@ -62,6 +64,45 @@ export function ReceivingDialog({
       setActualQuantity(quantityToReceive);
     }
   }, [order, part, actualQuantity, isOpen]);
+
+  // Auto-populate receiving notes with order information
+  React.useEffect(() => {
+    if (isOpen && order) {
+      const noteParts = [];
+      
+      // Add order details if available
+      if (order.order_details && order.order_details.trim()) {
+        noteParts.push(`Order Details: ${order.order_details}`);
+      }
+      
+      // Add expected delivery date if available
+      if (order.expected_delivery_date) {
+        const formattedDate = new Date(order.expected_delivery_date).toLocaleDateString();
+        noteParts.push(`Expected Delivery: ${formattedDate}`);
+      }
+      
+      // Add supplier information with first URL if available
+      if (order.supplier_name) {
+        let supplierInfo = `Supplier: ${order.supplier_name}`;
+        
+        // Extract first URL from supplier contact_info if available
+        if (order.supplier_contact_info && order.supplier_contact_info.urls && order.supplier_contact_info.urls.length > 0) {
+          supplierInfo += ` - ${order.supplier_contact_info.urls[0]}`;
+        }
+        
+        noteParts.push(supplierInfo);
+      }
+      
+      // Combine all parts and add space for additional notes
+      if (noteParts.length > 0) {
+        const autoPopulatedNotes = noteParts.join('\n') + '\n\nAdditional Notes:\n';
+        setReceivingNotes(autoPopulatedNotes);
+      }
+    } else if (!isOpen) {
+      // Clear notes when dialog closes
+      setReceivingNotes("");
+    }
+  }, [isOpen, order]);
 
   if (!order || !part) return null;
 

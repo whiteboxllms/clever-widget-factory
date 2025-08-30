@@ -58,6 +58,7 @@ interface PendingOrder {
   expected_delivery_date?: string;
   estimated_cost?: number;
   status: string;
+  supplier_contact_info?: any;
 }
 
 
@@ -205,17 +206,37 @@ export default function Inventory() {
 
   const fetchPendingOrders = async () => {
     try {
-      const { data, error } = await supabase
+      // First fetch orders
+      const { data: orders, error: ordersError } = await supabase
         .from('parts_orders')
         .select('*')
         .in('status', ['pending', 'partially_received'])
         .order('ordered_at', { ascending: false });
 
-      if (error) throw error;
+      if (ordersError) throw ordersError;
+
+      // Fetch supplier contact info for orders with supplier_id
+      const ordersWithSupplierInfo = await Promise.all(
+        (orders || []).map(async (order) => {
+          if (order.supplier_id) {
+            const { data: supplier } = await supabase
+              .from('suppliers')
+              .select('contact_info')
+              .eq('id', order.supplier_id)
+              .single();
+            
+            return {
+              ...order,
+              supplier_contact_info: supplier?.contact_info || null
+            };
+          }
+          return order;
+        })
+      );
 
       // Group orders by part_id
       const ordersByPart: Record<string, PendingOrder[]> = {};
-      (data || []).forEach(order => {
+      ordersWithSupplierInfo.forEach(order => {
         if (!ordersByPart[order.part_id]) {
           ordersByPart[order.part_id] = [];
         }

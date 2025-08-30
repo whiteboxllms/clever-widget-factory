@@ -213,11 +213,11 @@ export function GenericIssueCard({
   };
 
   const isResolved = issue.status === 'resolved';
-  const borderColor = isResolved ? 'border-l-green-500' : 'border-l-primary/20';
+  const borderColor = isResolved ? 'border-l-[hsl(var(--task-complete-border))]' : 'border-l-blue-500';
   
   return (
     <>
-      <Card className={`border-l-4 ${borderColor} ${isResolved ? 'bg-green-50/50 dark:bg-green-950/20' : ''}`}>
+      <Card className={`border-l-4 ${borderColor} ${isResolved ? 'bg-[hsl(var(--task-complete-bg))]' : ''}`}>
         <CardContent className="p-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">

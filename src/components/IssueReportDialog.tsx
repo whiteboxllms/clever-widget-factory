@@ -16,6 +16,7 @@ import { useImageUpload, ImageUploadResult } from "@/hooks/useImageUpload";
 import { ToolIssuesSummary } from "./ToolIssuesSummary";
 import { IssueEditDialog } from "./IssueEditDialog";
 import { IssueCard } from "./IssueCard";
+import { IssueQuickResolveDialog } from "./IssueQuickResolveDialog";
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -57,6 +58,7 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingIssue, setEditingIssue] = useState<ToolIssue | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isResolveDialogOpen, setIsResolveDialogOpen] = useState(false);
   const [showReportForm, setShowReportForm] = useState(false);
 
   const { issues, isLoading, createIssue, fetchIssues, updateIssue } = useToolIssues(tool?.id || null);
@@ -139,10 +141,8 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
   };
 
   const handleResolveIssue = (issue: ToolIssue) => {
-    toast({
-      title: "Resolve Issue",
-      description: "Issue resolution functionality will be available soon.",
-    });
+    setEditingIssue(issue);
+    setIsResolveDialogOpen(true);
   };
 
   const handleRemoveIssue = async (issue: ToolIssue) => {
@@ -491,6 +491,18 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
           onOpenChange={setIsEditDialogOpen}
           onUpdate={updateIssue}
           onSuccess={handleEditSuccess}
+        />
+
+        {/* Resolve Issue Dialog */}
+        <IssueQuickResolveDialog
+          open={isResolveDialogOpen}
+          onOpenChange={setIsResolveDialogOpen}
+          issue={editingIssue}
+          onSuccess={() => {
+            fetchIssues();
+            setIsResolveDialogOpen(false);
+            setEditingIssue(null);
+          }}
         />
 
       </DialogContent>

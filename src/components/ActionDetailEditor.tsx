@@ -120,7 +120,7 @@ export function ActionDetailEditor({
       if (action.linked_issue_id) {
         try {
           const { data, error } = await supabase
-            .from('tool_issues')
+            .from('issues')
             .select('*')
             .eq('id', action.linked_issue_id)
             .single();
@@ -252,7 +252,7 @@ export function ActionDetailEditor({
           if (allCompleted) {
             // Mark the issue as resolved
             const { error: issueError } = await supabase
-              .from('tool_issues')
+              .from('issues')
               .update({
                 status: 'resolved',
                 resolved_at: new Date().toISOString(),
@@ -314,7 +314,7 @@ export function ActionDetailEditor({
           if (allCompleted) {
             // Mark the issue as resolved
             const { error: issueError } = await supabase
-              .from('tool_issues')
+              .from('issues')
               .update({
                 status: 'resolved',
                 resolved_at: new Date().toISOString(),

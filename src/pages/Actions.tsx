@@ -59,12 +59,13 @@ export default function Actions() {
       let issueToolsData = [];
       if (issueActions.length > 0) {
         const { data: issueTools } = await supabase
-          .from('tool_issues')
+          .from('issues')
           .select(`
             id,
-            tool_id,
-            tool:tools(name, category)
+            context_id,
+            context_type
           `)
+          .eq('context_type', 'tool')
           .in('id', issueActions.map(a => a.linked_issue_id));
         issueToolsData = issueTools || [];
       }
@@ -89,7 +90,8 @@ export default function Actions() {
               status: item.mission.status || ''
             }
           : null,
-        issue_tool: issueToolsData.find(issue => issue.id === item.linked_issue_id)?.tool || null
+        issue_tool: issueToolsData.find(issue => issue.id === item.linked_issue_id) ? 
+          toolsData.find(tool => tool.id === issueToolsData.find(issue => issue.id === item.linked_issue_id)?.context_id) || null : null
       })) as unknown as BaseAction[] || []);
     } catch (error) {
       console.error('Error fetching actions:', error);

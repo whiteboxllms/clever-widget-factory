@@ -55,7 +55,7 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
     try {
       // Update issue status to removed
       const { error: updateError } = await supabase
-        .from('tool_issues')
+        .from('issues')
         .update({
           status: 'removed'
         })
@@ -65,7 +65,7 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
 
       // Create history record
       const { error: historyError } = await supabase
-        .from('tool_issue_history')
+        .from('issue_history')
         .insert({
           issue_id: issue.id,
           old_status: issue.status,

@@ -87,7 +87,7 @@ export const useToolHistory = () => {
 
       // Fetch issue history with issue details
       const { data: issueHistoryData, error: issueHistoryError } = await supabase
-        .from('tool_issue_history')
+        .from('issue_history')
         .select(`
           id,
           issue_id,
@@ -109,9 +109,10 @@ export const useToolHistory = () => {
       if (issueHistoryData && issueHistoryData.length > 0) {
         // Get all issues for this tool
         const { data: toolIssues } = await supabase
-          .from('tool_issues')
+          .from('issues')
           .select('id, description, issue_type')
-          .eq('tool_id', toolId);
+          .eq('context_type', 'tool')
+          .eq('context_id', toolId);
 
         const toolIssueIds = new Set(toolIssues?.map(issue => issue.id) || []);
         

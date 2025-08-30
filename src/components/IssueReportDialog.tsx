@@ -11,7 +11,7 @@ import { Tool } from "@/hooks/tools/useToolsData";
 import { useToolIssues } from "@/hooks/useGenericIssues";
 import { BaseIssue } from "@/types/issues";
 import { useImageUpload, ImageUploadResult } from "@/hooks/useImageUpload";
-import { ToolIssuesSummary } from "./ToolIssuesSummary";
+
 import { IssueEditDialog } from "./IssueEditDialog";
 import { GenericIssueCard } from "./GenericIssueCard";
 import { IssueQuickResolveDialog } from "./IssueQuickResolveDialog";

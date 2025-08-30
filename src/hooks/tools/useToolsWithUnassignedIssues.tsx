@@ -10,8 +10,9 @@ export const useToolsWithUnassignedIssues = () => {
     try {
       // Get all active issues that are unassigned
       const { data: issuesData, error } = await supabase
-        .from('tool_issues')
-        .select('id, tool_id')
+        .from('issues')
+        .select('id, context_id')
+        .eq('context_type', 'tool')
         .eq('status', 'active')
         .is('assigned_to', null);
 
@@ -50,7 +51,7 @@ export const useToolsWithUnassignedIssues = () => {
         return false;
       });
 
-      const toolIdsWithUnassignedIssues = new Set(toolsNeedingAction.map(issue => issue.tool_id));
+      const toolIdsWithUnassignedIssues = new Set(toolsNeedingAction.map(issue => issue.context_id));
       setToolsWithUnassignedIssues(toolIdsWithUnassignedIssues);
     } catch (error) {
       console.error('Error fetching tools with unassigned issues:', error);

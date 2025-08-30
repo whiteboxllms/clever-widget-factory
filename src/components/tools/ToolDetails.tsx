@@ -7,7 +7,7 @@ import { Tool } from "@/hooks/tools/useToolsData";
 import { CheckoutHistory, HistoryEntry, IssueHistoryEntry } from "@/hooks/tools/useToolHistory";
 import { ToolStatusBadge } from "./ToolStatusBadge";
 import { IssueCard } from "@/components/IssueCard";
-import { ToolIssuesSummary } from "@/components/ToolIssuesSummary";
+
 import { AlertTriangle, Bug, Shield, Wrench, Clock } from "lucide-react";
 import { getIssueTypeIconName } from "@/lib/issueTypeUtils";
 

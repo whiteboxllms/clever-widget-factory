@@ -126,7 +126,7 @@ export function IssueResolutionDialog({
 
       // Update issue as resolved
       const { error: updateError } = await supabase
-        .from('tool_issues')
+        .from('issues')
         .update({
           status: 'resolved',
           resolved_by: (await supabase.auth.getUser()).data.user?.id,
@@ -141,7 +141,7 @@ export function IssueResolutionDialog({
 
       // Create history record
       const { error: historyError } = await supabase
-        .from('tool_issue_history')
+        .from('issue_history')
         .insert({
           issue_id: issue.id,
           old_status: 'active',

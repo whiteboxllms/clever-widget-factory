@@ -1,42 +1,10 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { BaseIssue } from "@/types/issues";
 
-export interface ToolIssue {
-  id: string;
-  tool_id: string;
-  description: string;
-  issue_type: 'safety' | 'efficiency' | 'cosmetic' | 'preventative_maintenance' | 'functionality' | 'lifespan';
-  status: 'active' | 'resolved' | 'removed';
-  reported_by: string;
-  reported_at: string;
-  resolved_by?: string;
-  resolved_at?: string;
-  root_cause?: string;
-  resolution_notes?: string;
-  resolution_photo_urls?: string[];
-  report_photo_urls?: string[];
-  
-  is_misuse?: boolean;
-  related_checkout_id?: string;
-  damage_assessment?: string;
-  responsibility_assigned?: boolean;
-  efficiency_loss_percentage?: number;
-  // Original workflow fields
-  action_required?: 'repair' | 'replace_part' | 'not_fixable' | 'remove';
-  workflow_status: 'reported' | 'diagnosed' | 'in_progress' | 'completed';
-  diagnosed_by?: string;
-  diagnosed_at?: string;
-  // New attribute/level system fields
-  assigned_to?: string;
-  ready_to_work?: boolean;
-  ai_analysis?: string;
-  materials_needed?: any[];
-  work_progress?: string;
-  can_self_claim?: boolean;
-  estimated_hours?: number;
-  actual_hours?: number;
-  next_steps?: string;
+export interface ToolIssue extends BaseIssue {
+  context_type: 'tool';
 }
 
 export function useToolIssues(toolId: string | null) {
@@ -52,9 +20,10 @@ export function useToolIssues(toolId: string | null) {
     setIsLoading(true);
     try {
       const { data, error } = await supabase
-        .from('tool_issues')
+        .from('issues')
         .select('*')
-        .eq('tool_id', toolId)
+        .eq('context_type', 'tool')
+        .eq('context_id', toolId)
         .eq('status', 'active')
         .order('reported_at', { ascending: false });
 
@@ -93,9 +62,10 @@ export function useToolIssues(toolId: string | null) {
       if (!user.data.user) throw new Error('Not authenticated');
 
       const { data, error } = await supabase
-        .from('tool_issues')
+        .from('issues')
         .insert({
-          tool_id: toolId,
+          context_type: 'tool',
+          context_id: toolId,
           description: description.trim(),
           issue_type: issueType,
           damage_assessment: damageAssessment,
@@ -110,7 +80,7 @@ export function useToolIssues(toolId: string | null) {
 
       // Create history record
       await supabase
-        .from('tool_issue_history')
+        .from('issue_history')
         .insert({
           issue_id: data.id,
           old_status: null,
@@ -180,7 +150,7 @@ export function useToolIssues(toolId: string | null) {
 
       // Get current issue data to track changes
       const { data: currentIssue, error: fetchError } = await supabase
-        .from('tool_issues')
+        .from('issues')
         .select('*')
         .eq('id', issueId)
         .single();
@@ -189,7 +159,7 @@ export function useToolIssues(toolId: string | null) {
 
       // Update the issue
       const { error: updateError } = await supabase
-        .from('tool_issues')
+        .from('issues')
         .update(updates)
         .eq('id', issueId);
 
@@ -205,7 +175,7 @@ export function useToolIssues(toolId: string | null) {
         if (oldValue !== newValue) {
           historyPromises.push(
             supabase
-              .from('tool_issue_history')
+              .from('issue_history')
               .insert({
                 issue_id: issueId,
                 old_status: currentIssue.status,

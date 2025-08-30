@@ -95,13 +95,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "mission_actions_linked_issue_id_fkey"
-            columns: ["linked_issue_id"]
-            isOneToOne: false
-            referencedRelation: "tool_issues"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "mission_tasks_assigned_to_fkey"
             columns: ["assigned_to"]
             isOneToOne: false
@@ -419,15 +412,7 @@ export type Database = {
           issue_id?: string | null
           required_level?: number
         }
-        Relationships: [
-          {
-            foreignKeyName: "issue_requirements_issue_id_fkey"
-            columns: ["issue_id"]
-            isOneToOne: false
-            referencedRelation: "tool_issues"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       issues: {
         Row: {
@@ -1088,177 +1073,6 @@ export type Database = {
           },
         ]
       }
-      tool_issue_history: {
-        Row: {
-          changed_at: string
-          changed_by: string
-          created_at: string
-          field_changed: string | null
-          id: string
-          issue_id: string
-          new_status: string
-          new_value: string | null
-          notes: string | null
-          old_status: string | null
-          old_value: string | null
-        }
-        Insert: {
-          changed_at?: string
-          changed_by: string
-          created_at?: string
-          field_changed?: string | null
-          id?: string
-          issue_id: string
-          new_status: string
-          new_value?: string | null
-          notes?: string | null
-          old_status?: string | null
-          old_value?: string | null
-        }
-        Update: {
-          changed_at?: string
-          changed_by?: string
-          created_at?: string
-          field_changed?: string | null
-          id?: string
-          issue_id?: string
-          new_status?: string
-          new_value?: string | null
-          notes?: string | null
-          old_status?: string | null
-          old_value?: string | null
-        }
-        Relationships: []
-      }
-      tool_issues: {
-        Row: {
-          action_required:
-            | Database["public"]["Enums"]["action_required_type"]
-            | null
-          actual_hours: number | null
-          ai_analysis: string | null
-          assigned_to: string | null
-          can_self_claim: boolean | null
-          created_at: string
-          damage_assessment: string | null
-          description: string
-          diagnosed_at: string | null
-          diagnosed_by: string | null
-          efficiency_loss_percentage: number | null
-          estimated_hours: number | null
-          id: string
-          is_misuse: boolean
-          issue_type: string
-          materials_needed: Json | null
-          next_steps: string | null
-          ready_to_work: boolean | null
-          related_checkout_id: string | null
-          report_photo_urls: string[] | null
-          reported_at: string
-          reported_by: string
-          resolution_notes: string | null
-          resolution_photo_urls: string[] | null
-          resolved_at: string | null
-          resolved_by: string | null
-          responsibility_assigned: boolean
-          root_cause: string | null
-          status: string
-          tool_id: string
-          updated_at: string
-          work_progress: string | null
-          workflow_status: Database["public"]["Enums"]["workflow_status_type"]
-        }
-        Insert: {
-          action_required?:
-            | Database["public"]["Enums"]["action_required_type"]
-            | null
-          actual_hours?: number | null
-          ai_analysis?: string | null
-          assigned_to?: string | null
-          can_self_claim?: boolean | null
-          created_at?: string
-          damage_assessment?: string | null
-          description: string
-          diagnosed_at?: string | null
-          diagnosed_by?: string | null
-          efficiency_loss_percentage?: number | null
-          estimated_hours?: number | null
-          id?: string
-          is_misuse?: boolean
-          issue_type?: string
-          materials_needed?: Json | null
-          next_steps?: string | null
-          ready_to_work?: boolean | null
-          related_checkout_id?: string | null
-          report_photo_urls?: string[] | null
-          reported_at?: string
-          reported_by: string
-          resolution_notes?: string | null
-          resolution_photo_urls?: string[] | null
-          resolved_at?: string | null
-          resolved_by?: string | null
-          responsibility_assigned?: boolean
-          root_cause?: string | null
-          status?: string
-          tool_id: string
-          updated_at?: string
-          work_progress?: string | null
-          workflow_status?: Database["public"]["Enums"]["workflow_status_type"]
-        }
-        Update: {
-          action_required?:
-            | Database["public"]["Enums"]["action_required_type"]
-            | null
-          actual_hours?: number | null
-          ai_analysis?: string | null
-          assigned_to?: string | null
-          can_self_claim?: boolean | null
-          created_at?: string
-          damage_assessment?: string | null
-          description?: string
-          diagnosed_at?: string | null
-          diagnosed_by?: string | null
-          efficiency_loss_percentage?: number | null
-          estimated_hours?: number | null
-          id?: string
-          is_misuse?: boolean
-          issue_type?: string
-          materials_needed?: Json | null
-          next_steps?: string | null
-          ready_to_work?: boolean | null
-          related_checkout_id?: string | null
-          report_photo_urls?: string[] | null
-          reported_at?: string
-          reported_by?: string
-          resolution_notes?: string | null
-          resolution_photo_urls?: string[] | null
-          resolved_at?: string | null
-          resolved_by?: string | null
-          responsibility_assigned?: boolean
-          root_cause?: string | null
-          status?: string
-          tool_id?: string
-          updated_at?: string
-          work_progress?: string | null
-          workflow_status?: Database["public"]["Enums"]["workflow_status_type"]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tool_issues_assigned_to_fkey"
-            columns: ["assigned_to"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "tool_issues_related_checkout_id_fkey"
-            columns: ["related_checkout_id"]
-            isOneToOne: false
-            referencedRelation: "checkouts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       tools: {
         Row: {
           actual_location: string | null
@@ -1410,13 +1224,6 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "worker_performance_issue_id_fkey"
-            columns: ["issue_id"]
-            isOneToOne: false
-            referencedRelation: "tool_issues"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "worker_performance_user_id_fkey"
             columns: ["user_id"]

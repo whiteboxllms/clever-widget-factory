@@ -56,8 +56,9 @@ export function WorkerSelector({
   const fetchWorkloads = async () => {
     try {
       const { data, error } = await supabase
-        .from('tool_issues')
+        .from('issues')
         .select('assigned_to')
+        .eq('context_type', 'tool')
         .eq('status', 'active')
         .in('workflow_status', ['diagnosed', 'in_progress']);
 

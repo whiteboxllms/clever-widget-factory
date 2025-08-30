@@ -65,8 +65,9 @@ export default function Worker() {
 
     try {
       const { data, error } = await supabase
-        .from('tool_issues')
+        .from('issues')
         .select('*')
+        .eq('context_type', 'tool')
         .eq('assigned_to', user.id)
         .eq('status', 'active')
         .order('reported_at', { ascending: false });
@@ -79,7 +80,7 @@ export default function Worker() {
       }
 
       // Get unique tool IDs
-      const toolIds = [...new Set(data.map(issue => issue.tool_id))];
+      const toolIds = [...new Set(data.map(issue => issue.context_id))];
       
       // Fetch tool information separately
       const { data: toolsData, error: toolsError } = await supabase
@@ -102,7 +103,7 @@ export default function Worker() {
             .select('*')
             .eq('issue_id', issue.id);
 
-          const tool = toolsMap.get(issue.tool_id);
+          const tool = toolsMap.get(issue.context_id);
 
           return {
             ...issue,
@@ -124,8 +125,9 @@ export default function Worker() {
 
     try {
       const { data, error } = await supabase
-        .from('tool_issues')
+        .from('issues')
         .select('*')
+        .eq('context_type', 'tool')
         .eq('can_self_claim', true)
         .eq('workflow_status', 'diagnosed')
         .eq('status', 'active')
@@ -140,7 +142,7 @@ export default function Worker() {
       }
 
       // Get unique tool IDs
-      const toolIds = [...new Set(data.map(issue => issue.tool_id))];
+      const toolIds = [...new Set(data.map(issue => issue.context_id))];
       
       // Fetch tool information separately
       const { data: toolsData, error: toolsError } = await supabase
@@ -163,7 +165,7 @@ export default function Worker() {
             .select('*')
             .eq('issue_id', issue.id);
 
-          const tool = toolsMap.get(issue.tool_id);
+          const tool = toolsMap.get(issue.context_id);
 
           return {
             ...issue,
@@ -203,7 +205,7 @@ export default function Worker() {
   const handleClaimIssue = async (issueId: string) => {
     try {
       const { error } = await supabase
-        .from('tool_issues')
+        .from('issues')
         .update({ 
           assigned_to: user?.id,
           can_self_claim: false 
@@ -222,7 +224,7 @@ export default function Worker() {
   const handleIssueUpdate = async (issueId: string, updates: Partial<ToolIssue>) => {
     try {
       const { error } = await supabase
-        .from('tool_issues')
+        .from('issues')
         .update(updates)
         .eq('id', issueId);
 

@@ -234,6 +234,27 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
 
       if (toolError) throw toolError;
 
+      // Create issue record if pre-existing issues were reported
+      if (form.preCheckoutIssues && form.preCheckoutIssues.trim()) {
+        const { error: issueError } = await supabase
+          .from('issues')
+          .insert({
+            context_type: 'tool',
+            context_id: tool.id,
+            reported_by: user?.id,
+            description: form.preCheckoutIssues.trim(),
+            issue_type: 'general',
+            status: 'active',
+            related_checkout_id: checkoutData.id,
+            report_photo_urls: beforeImageUrl ? [beforeImageUrl] : []
+          });
+
+        if (issueError) {
+          console.error('Error creating issue from pre-checkout inspection:', issueError);
+          // Don't fail the checkout if issue creation fails
+        }
+      }
+
       toast({
         title: "Success",
         description: `${tool.name} has been checked out successfully${missionId ? ' for mission' : ''}`

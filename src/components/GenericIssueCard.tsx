@@ -113,7 +113,7 @@ export function GenericIssueCard({
     };
 
     fetchScoreAndActions();
-  }, [issue.id, enableScorecard, enableActions, getScoreForIssue, getActionsForIssue]);
+  }, [issue.id, enableScorecard, enableActions]); // Removed function dependencies that cause infinite loop
 
   const handleRemove = async () => {
     setIsRemoving(true);

@@ -1,4 +1,4 @@
-import { Search, X } from "lucide-react";
+import { Search, X, User, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -41,12 +41,16 @@ export const ToolFilters = ({
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
         <div className="flex items-center space-x-2">
           <Switch id="show-checked-out" checked={showMyCheckedOut} onCheckedChange={onShowMyCheckedOutChange} />
-          <Label htmlFor="show-checked-out" className="text-sm">Checked out by me</Label>
+          <Label htmlFor="show-checked-out" className="text-sm flex items-center gap-1" aria-label="Checked out by me">
+            <User className="h-4 w-4" />
+          </Label>
         </div>
         
         <div className="flex items-center space-x-2">
           <Switch id="show-issues" checked={showToolsWithIssues} onCheckedChange={onShowToolsWithIssuesChange} />
-          <Label htmlFor="show-issues" className="text-sm">Show assets with issues</Label>
+          <Label htmlFor="show-issues" className="text-sm flex items-center gap-1" aria-label="Show assets with issues">
+            <AlertTriangle className="h-4 w-4" />
+          </Label>
         </div>
         
         <div className="flex items-center space-x-2">

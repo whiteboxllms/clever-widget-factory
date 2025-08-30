@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Clock, User, Upload, Image, ChevronDown, ChevronRight, Save, X, Link, Target } from 'lucide-react';
+import { CheckCircle, Circle, Clock, User, Upload, Image, ChevronDown, ChevronRight, Save, X, Link, Target } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -53,9 +53,11 @@ interface ActionCardProps {
   onCancel?: () => void;
   onEdit?: () => void;
   tempPhotoStorage?: ReturnType<typeof useTempPhotoStorage>;
+  compact?: boolean;
+  onToggleComplete?: (action: any) => void;
 }
 
-export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSave, onCancel, onEdit, tempPhotoStorage }: ActionCardProps) {
+export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSave, onCancel, onEdit, tempPhotoStorage, compact = false, onToggleComplete }: ActionCardProps) {
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
   const { getScoreForAction } = useAssetScores();
@@ -932,7 +934,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
             </div>
 
             {/* Action Buttons */}
-            {action.status !== 'completed' && (
+            {!compact && action.status !== 'completed' && (
               <div className="flex justify-end pt-4 border-t">
                 <Button 
                   onClick={handleCompleteAction}
@@ -941,6 +943,37 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                 >
                   <CheckCircle className="w-4 h-4 mr-2" />
                   {isCompleting ? 'Completing...' : 'Mark Complete'}
+                </Button>
+              </div>
+            )}
+
+            {/* Compact mode buttons */}
+            {compact && (
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleComplete?.(action);
+                  }}
+                  className={`flex items-center gap-2 ${
+                    action.status === 'completed'
+                      ? 'text-green-700 border-green-500 hover:bg-green-50'
+                      : 'text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {action.status === 'completed' ? (
+                    <>
+                      <CheckCircle className="h-4 w-4" />
+                      Mark Incomplete
+                    </>
+                  ) : (
+                    <>
+                      <Circle className="h-4 w-4" />
+                      Mark Complete
+                    </>
+                  )}
                 </Button>
               </div>
             )}

@@ -6,14 +6,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle, Circle, Calendar, User, Zap, Target } from "lucide-react";
+import { Calendar, Zap } from "lucide-react";
 import { useIssueActions } from "@/hooks/useIssueActions";
 import { UnifiedActionDialog } from "./UnifiedActionDialog";
 import { BaseAction, createIssueAction } from "@/types/actions";
-import { ActionScoreDialog } from "./ActionScoreDialog";
-import { useAssetScores } from "@/hooks/useAssetScores";
+import { ActionCard } from "./ActionCard";
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -51,13 +48,8 @@ export function ManageIssueActionsDialog({
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [toolName, setToolName] = useState<string>("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showScoreDialog, setShowScoreDialog] = useState(false);
-  const [scoringAction, setScoringAction] = useState<BaseAction | null>(null);
-  const [actionScores, setActionScores] = useState<Record<string, boolean>>({});
-  
   const [editingAction, setEditingAction] = useState<BaseAction | null>(null);
   const { getActionsForIssue, markActionComplete, markActionIncomplete, loading } = useIssueActions();
-  const { getScoreForAction } = useAssetScores();
 
   // Fetch actions and profiles when dialog opens
   useEffect(() => {
@@ -70,14 +62,6 @@ export function ManageIssueActionsDialog({
     // Fetch actions for this issue
     const issueActions = await getActionsForIssue(issue.id);
     setActions(issueActions);
-
-    // Fetch scores for all actions
-    const scores: Record<string, boolean> = {};
-    for (const action of issueActions) {
-      const score = await getScoreForAction(action.id);
-      scores[action.id] = !!score;
-    }
-    setActionScores(scores);
 
     // Fetch profiles for display names and tool name
     try {
@@ -112,25 +96,6 @@ export function ManageIssueActionsDialog({
     }
   };
 
-  const getAssigneeName = (userId?: string) => {
-    if (!userId) return 'Unassigned';
-    const profile = profiles.find(p => p.user_id === userId);
-    return profile?.full_name || 'Unknown User';
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'in_progress':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'not_started':
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
   const handleToggleComplete = async (action: BaseAction) => {
     const isCompleted = action.status === 'completed';
     const success = isCompleted 
@@ -150,15 +115,6 @@ export function ManageIssueActionsDialog({
       title: "Success",
       description: "Action created successfully"
     });
-  };
-
-  const handleScoreAction = (action: BaseAction) => {
-    setScoringAction(action);
-    setShowScoreDialog(true);
-  };
-
-  const handleScoreUpdated = () => {
-    fetchActionsAndProfiles(); // Refresh to update score indicators
   };
 
   return (
@@ -219,114 +175,14 @@ export function ManageIssueActionsDialog({
               ) : (
                 <div className="space-y-3">
                   {actions.map((action) => (
-                    <Card 
+                    <ActionCard
                       key={action.id}
-                      className={`border-l-4 transition-all duration-200 cursor-pointer ${
-                        actionScores[action.id] ? 'ring-2 ring-green-500 ring-opacity-50' : ''
-                      } ${
-                        action.status === 'completed' 
-                          ? 'border-l-green-500 bg-green-50 shadow-green-100 shadow-lg hover:shadow-xl' 
-                          : 'border-l-blue-500 hover:shadow-md'
-                      }`}
-                      onClick={() => setEditingAction(action)}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2">
-                              <h5 className="font-semibold text-sm">{action.title}</h5>
-                              <Badge className={getStatusColor(action.status)}>
-                                {action.status.replace('_', ' ')}
-                              </Badge>
-                            </div>
-                            
-                            {action.description && (
-                              <p className="text-sm text-muted-foreground mb-2">
-                                {action.description}
-                              </p>
-                            )}
-                            
-                            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                              <div className="flex items-center gap-1">
-                                <User className="h-3 w-3" />
-                                <span>{getAssigneeName(action.assigned_to)}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                <span>Created: {new Date(action.created_at).toLocaleDateString()}</span>
-                              </div>
-                              {action.completed_at && (
-                                <div className="flex items-center gap-1">
-                                  <CheckCircle className="h-3 w-3" />
-                                  <span>Completed: {new Date(action.completed_at).toLocaleDateString()}</span>
-                                </div>
-                              )}
-                            </div>
-
-                            {action.attachments && action.attachments.length > 0 && (
-                              <div className="mt-2">
-                                <p className="text-xs text-muted-foreground mb-1">Attachments:</p>
-                                <div className="flex gap-1 flex-wrap">
-                                  {action.attachments.map((url, index) => (
-                                    <img
-                                      key={index}
-                                      src={url}
-                                      alt={`Attachment ${index + 1}`}
-                                      className="h-12 w-12 object-cover rounded border border-border cursor-pointer hover:opacity-80 transition-opacity"
-                                      onClick={() => window.open(url, '_blank')}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                          
-                          <div className="flex-shrink-0 flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleScoreAction(action);
-                              }}
-                              className={`flex items-center gap-2 ${
-                                actionScores[action.id]
-                                  ? 'text-green-700 border-green-500 hover:bg-green-50'
-                                  : 'text-gray-700 border-gray-300 hover:bg-gray-50'
-                              }`}
-                            >
-                              <Target className="h-4 w-4" />
-                              Score
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleToggleComplete(action);
-                              }}
-                              className={`flex items-center gap-2 ${
-                                action.status === 'completed'
-                                  ? 'text-green-700 border-green-500 hover:bg-green-50'
-                                  : 'text-gray-700 border-gray-300 hover:bg-gray-50'
-                              }`}
-                            >
-                              {action.status === 'completed' ? (
-                                <>
-                                  <CheckCircle className="h-4 w-4" />
-                                  Mark Incomplete
-                                </>
-                              ) : (
-                                <>
-                                  <Circle className="h-4 w-4" />
-                                  Mark Complete
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                      action={action}
+                      profiles={profiles}
+                      onUpdate={fetchActionsAndProfiles}
+                      compact={true}
+                      onToggleComplete={handleToggleComplete}
+                    />
                   ))}
                 </div>
               )}
@@ -370,16 +226,6 @@ export function ManageIssueActionsDialog({
         }}
         isCreating={showCreateDialog}
       />
-
-      {/* Score Action Dialog */}
-      {scoringAction && (
-        <ActionScoreDialog
-          open={showScoreDialog}
-          onOpenChange={setShowScoreDialog}
-          action={scoringAction}
-          onScoreUpdated={handleScoreUpdated}
-        />
-      )}
 
     </>
   );

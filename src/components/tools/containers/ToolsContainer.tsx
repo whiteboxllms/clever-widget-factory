@@ -55,7 +55,7 @@ export const ToolsContainer = () => {
   const { tools, loading, activeCheckouts, fetchTools, createTool, updateTool } = useToolsData(showRemovedItems);
   const { toolsWithIssues, fetchToolsWithIssues } = useToolsWithIssues();
   const { toolsWithUnassignedIssues, fetchToolsWithUnassignedIssues } = useToolsWithUnassignedIssues();
-  const { filteredTools, searchTerm, setSearchTerm, showMyCheckedOut, setShowMyCheckedOut, showToolsWithIssues, setShowToolsWithIssues, showToolkeeperActionNeeded, setShowToolkeeperActionNeeded } = useToolFilters(tools, toolsWithIssues, toolsWithUnassignedIssues, activeCheckouts, user?.id || null);
+  const { filteredTools, searchTerm, setSearchTerm, showMyCheckedOut, setShowMyCheckedOut, showToolsWithIssues, setShowToolsWithIssues } = useToolFilters(tools, toolsWithIssues, activeCheckouts, user?.id || null);
   const { toolHistory, currentCheckout, fetchToolHistory } = useToolHistory();
   const { issues, fetchIssues, updateIssue } = useToolIssues(selectedTool?.id || null);
 
@@ -83,12 +83,6 @@ export const ToolsContainer = () => {
     }
   }, [showToolsWithIssues]);
 
-  // Fetch tools with unassigned issues when filter is enabled  
-  useEffect(() => {
-    if (showToolkeeperActionNeeded) {
-      fetchToolsWithUnassignedIssues();
-    }
-  }, [showToolkeeperActionNeeded]);
 
   // Handle editing from URL parameter
   useEffect(() => {
@@ -258,8 +252,6 @@ export const ToolsContainer = () => {
           onShowMyCheckedOutChange={setShowMyCheckedOut}
           showToolsWithIssues={showToolsWithIssues}
           onShowToolsWithIssuesChange={setShowToolsWithIssues}
-          showToolkeeperActionNeeded={showToolkeeperActionNeeded}
-          onShowToolkeeperActionNeededChange={setShowToolkeeperActionNeeded}
           showRemovedItems={showRemovedItems}
           onShowRemovedItemsChange={setShowRemovedItems}
           actionButton={canEditTools && (

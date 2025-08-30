@@ -158,7 +158,7 @@ export function ReceivingDialog({
             old_quantity: part.current_quantity,
             new_quantity: part.current_quantity + receivedQty,
             quantity_change: receivedQty,
-            change_type: 'received',
+            change_type: 'quantity_add',
             change_reason: `Order received: ${order.supplier_name || 'Unknown supplier'}`,
             changed_by: user.data.user.id,
             order_id: order.id,

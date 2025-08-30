@@ -8,18 +8,12 @@ import { useToast } from '@/hooks/use-toast';
 import { useImageUpload } from '@/hooks/useImageUpload';
 import { Paperclip, CheckCircle } from 'lucide-react';
 
-interface ToolIssue {
-  id: string;
-  description: string;
-  issue_type: string;
-  status: string;
-  tool_id: string;
-}
+import { BaseIssue } from "@/types/issues";
 
 interface IssueQuickResolveDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  issue: ToolIssue | null;
+  issue: BaseIssue | null;
   onSuccess: () => void;
 }
 
@@ -87,7 +81,7 @@ export function IssueQuickResolveDialog({
     
     try {
       const { error: updateError } = await supabase
-        .from('tool_issues')
+        .from('issues')
         .update({
           status: 'resolved',
           root_cause: formData.rootCause,
@@ -101,7 +95,7 @@ export function IssueQuickResolveDialog({
 
       // Log the resolution in history
       const { error: historyError } = await supabase
-        .from('tool_issue_history')
+        .from('issue_history')
         .insert({
           issue_id: issue.id,
           changed_by: (await supabase.auth.getUser()).data.user?.id,

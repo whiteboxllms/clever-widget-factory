@@ -11,11 +11,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Bug, Wrench, Shield, CheckCircle, ImagePlus, X, Edit, Settings, Plus, Clock } from "lucide-react";
 import { Tool } from "@/hooks/tools/useToolsData";
-import { useToolIssues, ToolIssue } from "@/hooks/useToolIssues";
+import { useToolIssues } from "@/hooks/useGenericIssues";
+import { BaseIssue } from "@/types/issues";
 import { useImageUpload, ImageUploadResult } from "@/hooks/useImageUpload";
 import { ToolIssuesSummary } from "./ToolIssuesSummary";
 import { IssueEditDialog } from "./IssueEditDialog";
-import { IssueCard } from "./IssueCard";
+import { GenericIssueCard } from "./GenericIssueCard";
 import { IssueQuickResolveDialog } from "./IssueQuickResolveDialog";
 import { getIssueTypeIcon, getIssueTypeColor } from "@/lib/issueTypeUtils";
 
@@ -41,7 +42,7 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [uploadedImages, setUploadedImages] = useState<ImageUploadResult[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [editingIssue, setEditingIssue] = useState<ToolIssue | null>(null);
+  const [editingIssue, setEditingIssue] = useState<BaseIssue | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isResolveDialogOpen, setIsResolveDialogOpen] = useState(false);
   const [showReportForm, setShowReportForm] = useState(false);
@@ -79,11 +80,13 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
       }
 
         await createIssue({
+          context_type: 'tool',
+          context_id: tool.id,
           description,
-          issueType,
-          damageAssessment: incidentDescription || undefined,
-          efficiencyLoss: efficiencyLoss ? parseFloat(efficiencyLoss) : undefined,
-          photoUrls
+          issue_type: issueType,
+          damage_assessment: incidentDescription || undefined,
+          efficiency_loss_percentage: efficiencyLoss ? parseFloat(efficiencyLoss) : undefined,
+          report_photo_urls: photoUrls
         });
 
         // Reset form
@@ -114,7 +117,7 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
     setSelectedImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleEditIssue = (issue: ToolIssue) => {
+  const handleEditIssue = (issue: BaseIssue) => {
     setEditingIssue(issue);
     setIsEditDialogOpen(true);
   };
@@ -125,15 +128,15 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
     setEditingIssue(null);
   };
 
-  const handleResolveIssue = (issue: ToolIssue) => {
+  const handleResolveIssue = (issue: BaseIssue) => {
     setEditingIssue(issue);
     setIsResolveDialogOpen(true);
   };
 
-  const handleRemoveIssue = async (issue: ToolIssue) => {
+  const handleRemoveIssue = async (issue: BaseIssue) => {
     try {
       const { error: updateError } = await supabase
-        .from('tool_issues')
+        .from('issues')
         .update({
           status: 'removed'
         })
@@ -142,7 +145,7 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
       if (updateError) throw updateError;
 
       const { error: historyError } = await supabase
-        .from('tool_issue_history')
+        .from('issue_history')
         .insert({
           issue_id: issue.id,
           old_status: issue.status,
@@ -213,7 +216,7 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
               ) : issues.length > 0 ? (
                 <div className="space-y-3">
                   {issues.map((issue) => (
-                    <IssueCard
+                    <GenericIssueCard
                       key={issue.id}
                       issue={issue}
                       onResolve={() => handleResolveIssue(issue)}

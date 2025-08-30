@@ -298,7 +298,7 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
       <IssueQuickResolveDialog
         open={showQuickResolveDialog}
         onOpenChange={setShowQuickResolveDialog}
-        issue={issue}
+        issue={issue as any}
         onSuccess={onRefresh}
       />
     </Card>

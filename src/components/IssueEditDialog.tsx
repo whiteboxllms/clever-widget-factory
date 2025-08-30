@@ -11,14 +11,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Edit, Shield, Wrench, Bug, AlertTriangle, ImagePlus, X } from "lucide-react";
 import { useImageUpload, ImageUploadResult } from "@/hooks/useImageUpload";
-import { ToolIssue } from "@/hooks/useToolIssues";
+import { BaseIssue } from "@/types/issues";
 
 interface IssueEditDialogProps {
-  issue: ToolIssue | null;
+  issue: BaseIssue | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
-  onUpdate: (issueId: string, updates: Partial<ToolIssue>) => Promise<boolean>;
+  onUpdate: (issueId: string, updates: Partial<BaseIssue>) => Promise<boolean>;
 }
 
 const issueTypeIcons = {
@@ -47,7 +47,7 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
   useEffect(() => {
     if (issue) {
       setDescription(issue.description || "");
-      setIssueType(issue.issue_type || "efficiency");
+      setIssueType((issue.issue_type as any) || "efficiency");
       
       setDamageAssessment(issue.damage_assessment || "");
       setEfficiencyLoss(issue.efficiency_loss_percentage?.toString() || "");
@@ -84,7 +84,7 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
         }
       }
 
-      const updates: Partial<ToolIssue> = {
+      const updates: Partial<BaseIssue> = {
         description: description.trim(),
         issue_type: issueType,
         

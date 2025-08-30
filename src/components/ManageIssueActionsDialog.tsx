@@ -67,23 +67,32 @@ export function ManageIssueActionsDialog({
 
     // Fetch profiles for display names and tool name
     try {
-      const [profilesResponse, toolResponse] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select('id, user_id, full_name, role')
-          .order('full_name'),
-        supabase
+      // Always fetch profiles
+      const profilesResponse = await supabase
+        .from('profiles')
+        .select('id, user_id, full_name, role')
+        .order('full_name');
+      
+      if (profilesResponse.error) throw profilesResponse.error;
+      setProfiles(profilesResponse.data || []);
+
+      // Only fetch tool if tool_id exists
+      if (issue.tool_id) {
+        const toolResponse = await supabase
           .from('tools')
           .select('name')
           .eq('id', issue.tool_id)
-          .single()
-      ]);
-      
-      if (profilesResponse.error) throw profilesResponse.error;
-      if (toolResponse.error) throw toolResponse.error;
-      
-      setProfiles(profilesResponse.data || []);
-      setToolName(toolResponse.data?.name || "Unknown Tool");
+          .single();
+        
+        if (toolResponse.error) {
+          console.warn('Could not fetch tool name:', toolResponse.error);
+          setToolName("Unknown Tool");
+        } else {
+          setToolName(toolResponse.data?.name || "Unknown Tool");
+        }
+      } else {
+        setToolName("N/A");
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     }

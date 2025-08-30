@@ -15,6 +15,13 @@ import { ScoreDisplayCard } from "./ScoreDisplayCard";
 import { supabase } from "@/integrations/supabase/client";
 import { BaseAction } from "@/types/actions";
 
+// Utility function to strip HTML tags and decode entities
+const stripHtml = (html: string | null | undefined): string => {
+  if (!html) return '';
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return doc.body.textContent || '';
+};
+
 interface ActionScoreDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -321,13 +328,13 @@ export function ActionScoreDialog({
                 {action.plan && (
                   <div>
                     <Label className="text-sm font-semibold">Plan</Label>
-                    <p className="text-sm mt-1">{action.plan}</p>
+                    <p className="text-sm mt-1">{stripHtml(action.plan)}</p>
                   </div>
                 )}
                 {action.observations && (
                   <div>
                     <Label className="text-sm font-semibold">Observations</Label>
-                    <p className="text-sm mt-1">{action.observations}</p>
+                    <p className="text-sm mt-1">{stripHtml(action.observations)}</p>
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-4">

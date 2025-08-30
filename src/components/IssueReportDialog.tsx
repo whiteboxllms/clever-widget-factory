@@ -4,12 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Bug, Wrench, Shield, CheckCircle, ImagePlus, X, Edit, Settings, Plus, Clock } from "lucide-react";
+import { CheckCircle, ImagePlus, X, Settings, Plus } from "lucide-react";
 import { Tool } from "@/hooks/tools/useToolsData";
 import { useToolIssues } from "@/hooks/useGenericIssues";
 import { BaseIssue } from "@/types/issues";
@@ -18,7 +15,7 @@ import { ToolIssuesSummary } from "./ToolIssuesSummary";
 import { IssueEditDialog } from "./IssueEditDialog";
 import { GenericIssueCard } from "./GenericIssueCard";
 import { IssueQuickResolveDialog } from "./IssueQuickResolveDialog";
-import { getIssueTypeIcon, getIssueTypeColor } from "@/lib/issueTypeUtils";
+
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -34,11 +31,8 @@ interface IssueReportDialogProps {
 
 export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: IssueReportDialogProps) {
   const [description, setDescription] = useState("");
-  const [issueType, setIssueType] = useState<"safety" | "efficiency" | "cosmetic" | "preventative_maintenance" | "functionality" | "lifespan">("efficiency");
-  
   const [damageDuringUse, setDamageDuringUse] = useState(false);
   const [incidentDescription, setIncidentDescription] = useState("");
-  const [efficiencyLoss, setEfficiencyLoss] = useState("");
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [uploadedImages, setUploadedImages] = useState<ImageUploadResult[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -83,19 +77,15 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
           context_type: 'tool',
           context_id: tool.id,
           description,
-          issue_type: issueType,
+          issue_type: 'general',
           damage_assessment: incidentDescription || undefined,
-          efficiency_loss_percentage: efficiencyLoss ? parseFloat(efficiencyLoss) : undefined,
           report_photo_urls: photoUrls
         });
 
         // Reset form
         setDescription("");
-        setIssueType("efficiency");
-        
         setDamageDuringUse(false);
         setIncidentDescription("");
-        setEfficiencyLoss("");
         setSelectedImages([]);
         setUploadedImages([]);
       
@@ -285,53 +275,6 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
-                    <Label htmlFor="issueType">Issue Type *</Label>
-                    <Select value={issueType} onValueChange={(value: any) => setIssueType(value)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="safety">
-                          <div className="flex items-center gap-2">
-                            <Shield className="h-4 w-4 text-red-500" />
-                            Safety Issue
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="efficiency">
-                          <div className="flex items-center gap-2">
-                            <Wrench className="h-4 w-4 text-orange-500" />
-                            Efficiency
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="cosmetic">
-                          <div className="flex items-center gap-2">
-                            <Bug className="h-4 w-4 text-blue-500" />
-                            Cosmetic
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="preventative_maintenance">
-                          <div className="flex items-center gap-2">
-                            <AlertTriangle className="h-4 w-4 text-purple-500" />
-                            Preventative Maintenance
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="functionality">
-                          <div className="flex items-center gap-2">
-                            <AlertTriangle className="h-4 w-4 text-indigo-500" />
-                            Functionality
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="lifespan">
-                          <div className="flex items-center gap-2">
-                            <Settings className="h-4 w-4 text-teal-500" />
-                            Lifespan
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
                     <Label htmlFor="description">Issue Description *</Label>
                     <Textarea
                       id="description"
@@ -343,38 +286,21 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
                     />
                   </div>
 
-                  {/* Damage During Use and Efficiency Loss */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Card className="bg-muted/50">
-                      <CardContent className="pt-4">
-                        <div className="flex items-center justify-between">
-                            <Label htmlFor="damageDuringUse" className="text-sm font-medium">
-                              Do the issue start while you were using it.?
-                            </Label>
-                          <Switch
-                            id="damageDuringUse"
-                            checked={damageDuringUse}
-                            onCheckedChange={setDamageDuringUse}
-                          />
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    {issueType === "efficiency" && (
-                      <div>
-                        <Label htmlFor="efficiencyLoss">Efficiency Loss %</Label>
-                        <Input
-                          id="efficiencyLoss"
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={efficiencyLoss}
-                          onChange={(e) => setEfficiencyLoss(e.target.value)}
-                          placeholder="e.g., 25"
+                  {/* Damage During Use */}
+                  <Card className="bg-muted/50">
+                    <CardContent className="pt-4">
+                      <div className="flex items-center justify-between">
+                          <Label htmlFor="damageDuringUse" className="text-sm font-medium">
+                            Did the issue start while you were using it?
+                          </Label>
+                        <Switch
+                          id="damageDuringUse"
+                          checked={damageDuringUse}
+                          onCheckedChange={setDamageDuringUse}
                         />
                       </div>
-                    )}
-                  </div>
+                    </CardContent>
+                  </Card>
 
                   {damageDuringUse && (
                     <div>

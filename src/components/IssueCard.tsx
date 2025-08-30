@@ -146,10 +146,6 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              {getIssueTypeIcon(issue.issue_type, 'tool')}
-            <Badge variant={getIssueTypeColor(issue.issue_type, 'tool') as any} className="text-xs">
-                {issue.issue_type}
-              </Badge>
               {issue.blocks_checkout && (
                 <Badge variant="destructive" className="text-xs">
                   OFFLINE

@@ -31,8 +31,7 @@ export function Issues() {
 
   // Filter issues by search query
   const filteredIssues = issues.filter(issue => 
-    issue.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    issue.issue_type.toLowerCase().includes(searchQuery.toLowerCase())
+    issue.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Group issues by context type
@@ -131,10 +130,10 @@ export function Issues() {
         
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-red-600">
-              {filteredIssues.filter(i => i.issue_type === 'safety').length}
+            <div className="text-2xl font-bold text-orange-600">
+              {filteredIssues.filter(i => i.status === 'active').length}
             </div>
-            <p className="text-xs text-muted-foreground">Safety Issues</p>
+            <p className="text-xs text-muted-foreground">Active Issues</p>
           </CardContent>
         </Card>
         

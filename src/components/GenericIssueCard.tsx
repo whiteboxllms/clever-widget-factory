@@ -232,10 +232,6 @@ export function GenericIssueCard({
                   </Badge>
                 )}
                 
-                {getIssueTypeIcon(issue.issue_type, issue.context_type)}
-                <Badge variant={getIssueTypeColor(issue.issue_type, issue.context_type) as any} className="text-xs">
-                  {getDisplayIssueType()}
-                </Badge>
                  
                  {isResolved && (
                     <Badge variant="outline" className="text-xs bg-green-100 text-green-800 border-green-200 dark:bg-green-950 dark:text-green-200 dark:border-green-800">

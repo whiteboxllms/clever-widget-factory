@@ -12,7 +12,7 @@ import { CheckCircle, Circle, Calendar, User, Zap } from "lucide-react";
 import { useIssueActions } from "@/hooks/useIssueActions";
 import { UnifiedActionDialog } from "./UnifiedActionDialog";
 import { BaseAction, createIssueAction } from "@/types/actions";
-import { IssueQuickResolveDialog } from "./IssueQuickResolveDialog";
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
@@ -49,7 +49,7 @@ export function ManageIssueActionsDialog({
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [toolName, setToolName] = useState<string>("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showResolveDialog, setShowResolveDialog] = useState(false);
+  
   const [editingAction, setEditingAction] = useState<BaseAction | null>(null);
   const { getActionsForIssue, markActionComplete, markActionIncomplete, loading } = useIssueActions();
 
@@ -157,15 +157,6 @@ export function ManageIssueActionsDialog({
               <div className="flex items-center justify-between">
                 <h4 className="font-semibold">Actions ({actions.length})</h4>
                 <div className="flex gap-2">
-                  <Button
-                    onClick={() => setShowResolveDialog(true)}
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-2 text-green-700 border-green-500 hover:bg-green-50"
-                  >
-                    <CheckCircle className="h-4 w-4" />
-                    Resolve Issue
-                  </Button>
                   <Button
                     onClick={() => setShowCreateDialog(true)}
                     size="sm"
@@ -327,16 +318,6 @@ export function ManageIssueActionsDialog({
         isCreating={showCreateDialog}
       />
 
-      {/* Quick Resolve Issue Dialog */}
-      <IssueQuickResolveDialog
-        open={showResolveDialog}
-        onOpenChange={setShowResolveDialog}
-        issue={issue}
-        onSuccess={() => {
-          onRefresh();
-          onOpenChange(false);
-        }}
-      />
     </>
   );
 }

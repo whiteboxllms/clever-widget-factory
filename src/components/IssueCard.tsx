@@ -263,10 +263,10 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
               variant="outline"
               onClick={() => onResolve(issue)}
               className="h-7 px-2 text-xs"
-              title="Detailed Resolve"
+              title="Resolve this issue with details"
             >
               <CheckCircle className="h-3 w-3 mr-1" />
-              Resolve
+              Resolve Issue
             </Button>
             <Button
               size="sm"

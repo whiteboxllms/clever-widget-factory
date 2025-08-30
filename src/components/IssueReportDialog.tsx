@@ -213,29 +213,60 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
             <CardContent>
               {isLoading ? (
                 <p className="text-sm text-muted-foreground">Loading existing issues...</p>
-              ) : issues.length > 0 ? (
-                <div className="space-y-3">
-                   {issues.map((issue) => (
-                     <GenericIssueCard
-                       key={issue.id}
-                       issue={issue}
-                       onResolve={() => handleResolveIssue(issue)}
-                       onEdit={() => handleEditIssue(issue)}
-                       onRefresh={fetchIssues}
-                       showContext={false}
-                       enableScorecard={true}
-                       enableActions={true}
-                     />
-                   ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <CheckCircle className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">No active issues reported</p>
-                </div>
-              )}
+              ) : (() => {
+                const activeIssues = issues.filter(issue => issue.status !== 'resolved');
+                return activeIssues.length > 0 ? (
+                  <div className="space-y-3">
+                     {activeIssues.map((issue) => (
+                       <GenericIssueCard
+                         key={issue.id}
+                         issue={issue}
+                         onResolve={() => handleResolveIssue(issue)}
+                         onEdit={() => handleEditIssue(issue)}
+                         onRefresh={fetchIssues}
+                         showContext={false}
+                         enableScorecard={true}
+                         enableActions={true}
+                       />
+                     ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <CheckCircle className="h-8 w-8 text-green-600 mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">No active issues reported</p>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
+
+          {/* Resolved Issues */}
+          {(() => {
+            const resolvedIssues = issues.filter(issue => issue.status === 'resolved');
+            return resolvedIssues.length > 0 ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium">Resolved Issues</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {resolvedIssues.map((issue) => (
+                      <GenericIssueCard
+                        key={issue.id}
+                        issue={issue}
+                        onResolve={() => handleResolveIssue(issue)}
+                        onEdit={() => handleEditIssue(issue)}
+                        onRefresh={fetchIssues}
+                        showContext={false}
+                        enableScorecard={true}
+                        enableActions={true}
+                      />
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ) : null;
+          })()}
 
           {/* Report New Issue Form (Collapsible) */}
           {showReportForm && (

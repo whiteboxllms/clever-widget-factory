@@ -31,8 +31,13 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
       if (filters.status) {
         query = query.eq('status', filters.status);
       } else {
-        // Default to active issues only
-        query = query.eq('status', 'active');
+        // For tool issues, include both active and resolved for management view
+        if (filters.contextType === 'tool') {
+          query = query.in('status', ['active', 'resolved']);
+        } else {
+          // Default to active issues only for other contexts
+          query = query.eq('status', 'active');
+        }
       }
 
       const { data, error } = await query;
@@ -217,7 +222,9 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
 export function useToolIssues(toolId: string | null) {
   return useGenericIssues({ 
     contextType: 'tool', 
-    contextId: toolId || undefined 
+    contextId: toolId || undefined,
+    // Include both active and resolved issues for tool management
+    status: undefined // This will bypass the default active-only filter
   });
 }
 

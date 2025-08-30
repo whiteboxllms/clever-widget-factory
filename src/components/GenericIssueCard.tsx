@@ -137,8 +137,11 @@ export function GenericIssueCard({
     return issue.issue_type;
   };
 
+  const isResolved = issue.status === 'resolved';
+  const borderColor = isResolved ? 'border-l-green-500' : 'border-l-primary/20';
+  
   return (
-    <Card className="border-l-4 border-l-primary/20">
+    <Card className={`border-l-4 ${borderColor} ${isResolved ? 'bg-green-50/50 dark:bg-green-950/20' : ''}`}>
       <CardContent className="p-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
@@ -157,7 +160,13 @@ export function GenericIssueCard({
               <Badge variant={getIssueTypeColor(issue.issue_type, issue.context_type) as any} className="text-xs">
                 {getDisplayIssueType()}
               </Badge>
-              
+               
+               {isResolved && (
+                 <Badge variant="outline" className="text-xs bg-green-100 text-green-800 border-green-200 dark:bg-green-950 dark:text-green-200 dark:border-green-800">
+                   <CheckCircle className="h-3 w-3 mr-1" />
+                   Resolved
+                 </Badge>
+               )}
               <span className="text-xs text-muted-foreground">
                 {new Date(issue.reported_at).toLocaleDateString()}
               </span>
@@ -203,7 +212,7 @@ export function GenericIssueCard({
               </Button>
             )}
             
-            {onResolve && (
+            {onResolve && !isResolved && (
               <Button
                 size="sm"
                 variant="outline"
@@ -216,16 +225,18 @@ export function GenericIssueCard({
               </Button>
             )}
             
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleRemove}
-              disabled={isRemoving}
-              className="h-7 px-2 text-xs text-destructive hover:text-destructive"
-              title="Remove issue"
-            >
-              <X className="h-3 w-3" />
-            </Button>
+            {!isResolved && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleRemove}
+                disabled={isRemoving}
+                className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                title="Remove issue"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            )}
           </div>
         </div>
       </CardContent>

@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Copy, User, Calendar, Wrench, AlertTriangle } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Copy, User, Calendar, Wrench, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useScoringPrompts } from "@/hooks/useScoringPrompts";
 import { useAssetScores, AssetScore } from "@/hooks/useAssetScores";
@@ -36,6 +37,7 @@ export function ActionScoreDialog({
   const [isEditMode, setIsEditMode] = useState(false);
   const [asset, setAsset] = useState<any>(null);
   const [assetName, setAssetName] = useState<string>("");
+  const [linkedIssue, setLinkedIssue] = useState<any>(null);
 
   const { toast } = useToast();
   const { prompts } = useScoringPrompts();
@@ -66,20 +68,24 @@ export function ActionScoreDialog({
         if (action.linked_issue_id) {
           const { data: issueData } = await supabase
             .from('issues')
-            .select('context_id, context_type')
+            .select('*')
             .eq('id', action.linked_issue_id)
             .single();
           
-          if (issueData && issueData.context_type === 'tool') {
-            const { data: toolData } = await supabase
-              .from('tools')
-              .select('*')
-              .eq('id', issueData.context_id)
-              .single();
-            if (toolData) {
-              setAsset(toolData);
-              setAssetName(toolData.name);
-              return;
+          if (issueData) {
+            setLinkedIssue(issueData);
+            
+            if (issueData.context_type === 'tool') {
+              const { data: toolData } = await supabase
+                .from('tools')
+                .select('*')
+                .eq('id', issueData.context_id)
+                .single();
+              if (toolData) {
+                setAsset(toolData);
+                setAssetName(toolData.name);
+                return;
+              }
             }
           }
         }
@@ -135,12 +141,43 @@ export function ActionScoreDialog({
   const generatePrompt = () => {
     if (!selectedPrompt || !assetName) return "";
     
-    return selectedPrompt.prompt_text
-      .replace(/\{asset_name\}/g, assetName)
-      .replace(/\{action_title\}/g, action.title || "")
-      .replace(/\{action_description\}/g, action.description || "")
-      .replace(/\{action_plan\}/g, action.plan || "")
-      .replace(/\{action_observations\}/g, action.observations || "");
+    // Build comprehensive context JSON similar to IssueScoreDialog
+    const actionContext = {
+      id: action.id,
+      asset: assetName,
+      asset_id: asset?.id || action.asset_id,
+      asset_category: asset?.category,
+      asset_location: asset?.storage_vicinity,
+      serial_number: asset?.serial_number,
+      action: {
+        title: action.title,
+        description: action.description,
+        plan: action.plan,
+        observations: action.observations,
+        status: action.status,
+        created_at: action.created_at,
+        assigned_to: action.assignee?.full_name,
+        estimated_duration: action.estimated_duration,
+        required_tools: action.required_tools,
+        required_stock: action.required_stock,
+        completed_at: action.completed_at,
+        issue_reference: action.issue_reference
+      },
+      ...(linkedIssue && {
+        linked_issue: {
+          description: linkedIssue.description,
+          type: linkedIssue.issue_type,
+          status: linkedIssue.status,
+          reported_at: linkedIssue.reported_at,
+          damage_assessment: linkedIssue.damage_assessment,
+          efficiency_loss_percentage: linkedIssue.efficiency_loss_percentage,
+          root_cause: linkedIssue.root_cause,
+          resolution_notes: linkedIssue.resolution_notes
+        }
+      })
+    };
+
+    return `${selectedPrompt.prompt_text}\n\n${JSON.stringify(actionContext, null, 2)}`;
   };
 
   const handleCopyPrompt = () => {
@@ -210,126 +247,242 @@ export function ActionScoreDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {existingScore ? "Edit Action Score" : "Score Action Performance"}
           </DialogTitle>
+          <DialogDescription>
+            {existingScore
+              ? `Review and edit existing AI scoring for action: ${action.title}`
+              : `Generate AI scoring for action performance on ${assetName}`
+            }
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Action Info */}
+        <div className="space-y-6">
+          {/* Asset Information */}
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Wrench className="h-4 w-4" />
-                Action Information
-              </CardTitle>
+            <CardHeader>
+              <CardTitle className="text-lg">Asset Information</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <div>
-                <strong>Title:</strong> {action.title}
-              </div>
-              <div>
-                <strong>Asset:</strong> {assetName}
-              </div>
-              {action.description && (
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <strong>Description:</strong> {action.description}
+                  <Label className="text-sm font-semibold">Asset Name</Label>
+                  <p>{assetName}</p>
                 </div>
-              )}
-              <div className="flex items-center gap-2">
-                <Badge variant="outline">
-                  {action.status}
-                </Badge>
-                {action.assignee && (
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <User className="h-3 w-3" />
-                    {action.assignee.full_name}
-                  </div>
-                )}
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                  <Calendar className="h-3 w-3" />
-                  {new Date(action.created_at).toLocaleDateString()}
+                <div>
+                  <Label className="text-sm font-semibold">Category</Label>
+                  <p>{asset?.category || 'Uncategorized'}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-semibold">Location</Label>
+                  <p>{asset?.storage_vicinity || 'Not specified'}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-semibold">Serial Number</Label>
+                  <p>{asset?.serial_number || 'Not specified'}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Show existing score if in edit mode */}
-          {isEditMode && existingScore && (
-            <ScoreDisplayCard scores={[existingScore]} assetName={assetName} />
-          )}
-
-          {/* Scoring Prompt Selection */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Select Scoring Prompt</label>
-            <Select value={selectedPromptId} onValueChange={setSelectedPromptId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Choose a scoring prompt..." />
-              </SelectTrigger>
-              <SelectContent>
-                {prompts.map((prompt) => (
-                  <SelectItem key={prompt.id} value={prompt.id}>
-                    {prompt.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Generated Prompt Display */}
-          {selectedPrompt && (
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-sm">Generated Prompt</CardTitle>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={handleCopyPrompt}
-                    className="h-7"
-                  >
-                    <Copy className="h-3 w-3 mr-1" />
-                    Copy
-                  </Button>
+          {/* Action Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Action Details</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Badge variant={action.status === 'completed' ? 'default' : 'outline'}>
+                    {action.status === 'completed' && <CheckCircle className="w-3 h-3 mr-1" />}
+                    {action.status === 'in_progress' && <Clock className="w-3 h-3 mr-1" />}
+                    {action.status}
+                  </Badge>
+                  {action.assignee && (
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                      <User className="h-3 w-3" />
+                      {action.assignee.full_name}
+                    </div>
+                  )}
                 </div>
+                <div>
+                  <Label className="text-sm font-semibold">Title</Label>
+                  <p className="text-sm mt-1">{action.title}</p>
+                </div>
+                {action.description && (
+                  <div>
+                    <Label className="text-sm font-semibold">Description</Label>
+                    <p className="text-sm mt-1">{action.description}</p>
+                  </div>
+                )}
+                {action.plan && (
+                  <div>
+                    <Label className="text-sm font-semibold">Plan</Label>
+                    <p className="text-sm mt-1">{action.plan}</p>
+                  </div>
+                )}
+                {action.observations && (
+                  <div>
+                    <Label className="text-sm font-semibold">Observations</Label>
+                    <p className="text-sm mt-1">{action.observations}</p>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-semibold">Created</Label>
+                    <p className="text-sm mt-1">{new Date(action.created_at).toLocaleDateString()}</p>
+                  </div>
+                  {action.completed_at && (
+                    <div>
+                      <Label className="text-sm font-semibold">Completed</Label>
+                      <p className="text-sm mt-1">{new Date(action.completed_at).toLocaleDateString()}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Linked Issue Information */}
+          {linkedIssue && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Linked Issue Details</CardTitle>
               </CardHeader>
               <CardContent>
-                <pre className="text-xs bg-muted p-3 rounded whitespace-pre-wrap">
-                  {generatePrompt()}
-                </pre>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <Badge variant="outline">{linkedIssue.issue_type}</Badge>
+                    <Badge variant={linkedIssue.status === 'active' ? 'destructive' : 'secondary'}>
+                      {linkedIssue.status}
+                    </Badge>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-semibold">Issue Description</Label>
+                    <p className="text-sm mt-1">{linkedIssue.description}</p>
+                  </div>
+                  {linkedIssue.damage_assessment && (
+                    <div>
+                      <Label className="text-sm font-semibold">Damage Assessment</Label>
+                      <p className="text-sm mt-1">{linkedIssue.damage_assessment}</p>
+                    </div>
+                  )}
+                  {linkedIssue.efficiency_loss_percentage && (
+                    <div>
+                      <Label className="text-sm font-semibold">Efficiency Loss</Label>
+                      <p className="text-sm mt-1">{linkedIssue.efficiency_loss_percentage}%</p>
+                    </div>
+                  )}
+                  {linkedIssue.root_cause && (
+                    <div>
+                      <Label className="text-sm font-semibold">Root Cause</Label>
+                      <p className="text-sm mt-1">{linkedIssue.root_cause}</p>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           )}
 
+          {/* Show existing score if in edit mode */}
+          {isEditMode && existingScore && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Current Score</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScoreDisplayCard scores={[existingScore]} assetName={assetName} />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Scoring Prompt Selection */}
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="prompt-select">Select Scoring Prompt</Label>
+              <Select value={selectedPromptId} onValueChange={setSelectedPromptId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a scoring prompt..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {prompts.map((prompt) => (
+                    <SelectItem key={prompt.id} value={prompt.id}>
+                      {prompt.name} {prompt.is_default && '(Default)'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Generated Prompt Display */}
+            {selectedPrompt && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">AI Prompt with Action Context</CardTitle>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handleCopyPrompt}
+                    >
+                      <Copy className="w-4 h-4 mr-2" />
+                      Copy to Clipboard
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-muted p-4 rounded-lg max-h-64 overflow-y-auto">
+                    <pre className="text-xs whitespace-pre-wrap font-mono">
+                      {generatePrompt()}
+                    </pre>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
           {/* AI Response Input */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Paste AI Response (JSON)</label>
-            <Textarea
-              value={aiResponse}
-              onChange={(e) => setAiResponse(e.target.value)}
-              placeholder="Paste the AI response JSON here..."
-              className="min-h-[100px] font-mono text-xs"
-            />
-            <Button 
-              onClick={handleParseResponse}
-              disabled={!aiResponse}
-              variant="outline"
-              size="sm"
-            >
-              Parse Response
-            </Button>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="ai-response">Paste AI Response (JSON format)</Label>
+              <Textarea
+                id="ai-response"
+                value={aiResponse}
+                onChange={(e) => setAiResponse(e.target.value)}
+                placeholder="Paste the JSON response from your AI tool here..."
+                rows={8}
+                className="font-mono text-sm"
+              />
+            </div>
+            
+            <div className="flex space-x-2">
+              <Button 
+                onClick={handleParseResponse}
+                disabled={!aiResponse.trim()}
+              >
+                Parse & Review Scores
+              </Button>
+            </div>
           </div>
 
           {/* Score Entry Form */}
           {parsedScores && (
-            <ScoreEntryForm
-              initialScores={parsedScores}
-              rootCauses={rootCauses}
-              onSave={handleSaveScore}
-              onCancel={handleClose}
-            />
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Review & Save Scores</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScoreEntryForm
+                  initialScores={parsedScores}
+                  rootCauses={rootCauses}
+                  onSave={handleSaveScore}
+                  onCancel={handleClose}
+                />
+              </CardContent>
+            </Card>
           )}
         </div>
       </DialogContent>

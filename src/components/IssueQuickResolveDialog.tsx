@@ -19,7 +19,7 @@ interface ToolIssue {
 interface IssueQuickResolveDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  issue: ToolIssue;
+  issue: ToolIssue | null;
   onSuccess: () => void;
 }
 
@@ -145,6 +145,10 @@ export function IssueQuickResolveDialog({
       photos: prev.photos.filter((_, i) => i !== index)
     }));
   };
+
+  if (!issue) {
+    return null;
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

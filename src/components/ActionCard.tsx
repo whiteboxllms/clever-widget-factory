@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Clock, User, Upload, Image, ChevronDown, ChevronRight, Save, X, Link } from 'lucide-react';
+import { CheckCircle, Clock, User, Upload, Image, ChevronDown, ChevronRight, Save, X, Link, Target } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +14,8 @@ import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { DEFAULT_DONE_DEFINITION } from "@/lib/constants";
 import { useTempPhotoStorage, type TempPhoto } from "@/hooks/useTempPhotoStorage";
+import { useAssetScores } from "@/hooks/useAssetScores";
+import { ActionScoreDialog } from './ActionScoreDialog';
 import { LexicalEditor } from './LexicalEditor';
 
 interface Profile {
@@ -56,12 +58,15 @@ interface ActionCardProps {
 export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSave, onCancel, onEdit, tempPhotoStorage }: ActionCardProps) {
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
+  const { getScoreForAction } = useAssetScores();
   const planTextareaRef = useRef<HTMLTextAreaElement>(null);
   const implementationTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [isExpanded, setIsExpanded] = useState(true);
   const [photos, setPhotos] = useState<ActionPhoto[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [showScoreDialog, setShowScoreDialog] = useState(false);
+  const [existingScore, setExistingScore] = useState<any>(null);
   
   // Focus tracking states
   const [isPlanFocused, setIsPlanFocused] = useState(false);
@@ -143,6 +148,21 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
 
     return () => clearTimeout(timeoutId);
   }, [editData.observations, hasUnsavedImplementation, isSavingImplementation]);
+
+  // Load photos and scores for actions when component mounts
+  useEffect(() => {
+    if (action.id && !action.id.startsWith('temp-')) {
+      loadPhotos();
+      loadExistingScore();
+    }
+  }, [action.id]);
+
+  const loadExistingScore = async () => {
+    if (action.id && !action.id.startsWith('temp-')) {
+      const score = await getScoreForAction(action.id);
+      setExistingScore(score);
+    }
+  };
 
   // Load photos (only real photos now, temp photos come from storage)
   const loadPhotos = async () => {
@@ -503,6 +523,11 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     }
   };
 
+  const handleAssignScore = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowScoreDialog(true);
+  };
+
   const getActionTheme = () => {
     const hasPlan = action.plan?.trim();
     const hasObservations = action.observations?.trim();
@@ -737,6 +762,16 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                 {getStatusBadge()}
               </div>
               <div className="flex items-center gap-2">
+                {/* Score button */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleAssignScore}
+                  className={`h-7 px-2 text-xs ${existingScore ? 'border-green-500 border-2' : ''}`}
+                  title={existingScore ? "View/Edit Score" : "Assign Score"}
+                >
+                  <Target className="h-3 w-3" />
+                </Button>
                 {/* Auto-save indicators */}
                 {(isSavingPlan || isSavingImplementation) && (
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -912,6 +947,18 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
+
+      <ActionScoreDialog
+        open={showScoreDialog}
+        onOpenChange={setShowScoreDialog}
+        action={{
+          ...action,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }}
+        existingScore={existingScore}
+        onScoreUpdated={loadExistingScore}
+      />
     </Card>
   );
 }

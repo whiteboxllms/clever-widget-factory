@@ -279,7 +279,7 @@ export function GenericIssueCard({
             </div>
             
             <div className="flex gap-1 flex-shrink-0">
-              {enableScorecard && issue.context_type === 'tool' && !isResolved && (
+              {enableScorecard && issue.context_type === 'tool' && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -291,7 +291,7 @@ export function GenericIssueCard({
                 </Button>
               )}
 
-              {enableActions && !isResolved && (
+              {enableActions && (
                 <Button
                   size="sm"
                   variant="outline"

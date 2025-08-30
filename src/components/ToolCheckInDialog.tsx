@@ -64,9 +64,6 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
   const [showValidation, setShowValidation] = useState(false);
   const [selectedIssueForResolution, setSelectedIssueForResolution] = useState<any>(null);
   const [isResolutionDialogOpen, setIsResolutionDialogOpen] = useState(false);
-  const [newIssueType, setNewIssueType] = useState<'safety' | 'efficiency' | 'cosmetic' | 'preventative_maintenance' | 'functionality' | 'lifespan'>('efficiency');
-  
-  const [efficiencyLossPercentage, setEfficiencyLossPercentage] = useState<number | undefined>();
   const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
   const [uploadedPhotoUrls, setUploadedPhotoUrls] = useState<string[]>([]);
   const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
@@ -251,16 +248,25 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
 
       if (updateError) throw updateError;
 
-      // Create structured issues from new issues text with selected severity
+      // Create issues from new issues text using default type
       if (form.tool_issues.trim()) {
-        await createIssuesFromText(
-          form.tool_issues,
-          newIssueType,
-          false, // isMisuse - removed as requested
-          checkout.id,
-          undefined, // damageAssessment - not used for general issues
-          efficiencyLossPercentage
-        );
+        const { error: issueError } = await supabase
+          .from('issues')
+          .insert({
+            context_type: 'tool',
+            context_id: tool.id,
+            reported_by: user?.id,
+            description: form.tool_issues.trim(),
+            issue_type: 'general',
+            status: 'active',
+            related_checkout_id: checkout.id,
+            report_photo_urls: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : []
+          });
+
+        if (issueError) {
+          console.error('Error creating issue from check-in:', issueError);
+          // Don't fail the checkout if issue creation fails
+        }
       }
 
       // Update tool status to available and location
@@ -442,52 +448,68 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
                       onClick={() => {
                         setShowNewIssueForm(false);
                         setForm(prev => ({ ...prev, tool_issues: '' }));
-                        setEfficiencyLossPercentage(undefined);
                       }}
                     >
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <Select value={newIssueType} onValueChange={(value: any) => setNewIssueType(value)}>
-                        <SelectTrigger className="w-fit">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="safety">🚨 Safety</SelectItem>
-                          <SelectItem value="efficiency">⚙️ Efficiency</SelectItem>
-                          <SelectItem value="cosmetic">✨ Cosmetic</SelectItem>
-                          <SelectItem value="preventative_maintenance">🔧 Preventative Maintenance</SelectItem>
-                          <SelectItem value="functionality">⚙️ Functionality</SelectItem>
-                          <SelectItem value="lifespan">🔧 Lifespan</SelectItem>
-                        </SelectContent>
-                      </Select>
-                     </div>
-                     
-                     {newIssueType === 'efficiency' && (
-                       <div>
-                         <Label htmlFor="efficiency_loss">Estimated Efficiency Loss (%)</Label>
-                         <Input
-                           id="efficiency_loss"
-                           type="number"
-                           min="0"
-                           max="100"
-                           value={efficiencyLossPercentage || ''}
-                           onChange={(e) => setEfficiencyLossPercentage(e.target.value ? parseInt(e.target.value) : undefined)}
-                           placeholder="Enter percentage (e.g., 20 for 20% loss)"
-                         />
-                       </div>
-                     )}
-                     
-                     <Textarea
-                       id="tool_issues"
-                       value={form.tool_issues}
-                       onChange={(e) => setForm(prev => ({ ...prev, tool_issues: e.target.value }))}
-                       placeholder="Describe any new problems, damage, or malfunctions discovered during use. Put each issue on a separate line."
-                       rows={3}
-                     />
-                   </div>
+                  
+                  <div className="bg-muted p-4 rounded-lg space-y-3">
+                    <p className="text-sm">
+                      Describe any issues discovered during tool use. Each separate issue should be described clearly.
+                    </p>
+                    
+                    <div className="space-y-2">
+                      <Textarea
+                        id="tool_issues"
+                        value={form.tool_issues}
+                        onChange={(e) => setForm(prev => ({ ...prev, tool_issues: e.target.value }))}
+                        placeholder="Describe any problems, damage, or issues found during use..."
+                        rows={3}
+                      />
+                    </div>
+
+                    {/* Photo Upload */}
+                    <div className="space-y-2">
+                      <Label htmlFor="issuePhotos">Upload Photos of Issues (Optional)</Label>
+                      <div className="space-y-3">
+                        {uploadedPhotoUrls.length > 0 && (
+                          <div className="grid grid-cols-3 gap-2">
+                            {uploadedPhotoUrls.map((url, index) => (
+                              <div key={index} className="relative">
+                                <img 
+                                  src={url} 
+                                  alt={`Issue photo ${index + 1}`} 
+                                  className="w-full h-20 object-cover rounded-lg"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="sm"
+                                  className="absolute -top-2 -right-2 h-5 w-5 p-0"
+                                  onClick={() => removePhoto(index)}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        
+                        <Input
+                          id="issuePhotos"
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handlePhotoUpload}
+                          disabled={isUploadingImages}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Document any damage, wear, or problems with photos (optional)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

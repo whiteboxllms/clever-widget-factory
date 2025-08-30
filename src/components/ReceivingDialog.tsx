@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Package, Calendar, Building2, Hash, AlertTriangle } from "lucide-react";
+import { Package, Calendar, Building2, Minus, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { OrderIssueReportDialog } from "./OrderIssueReportDialog";
@@ -221,7 +221,7 @@ export function ReceivingDialog({
             <div>
               <Label className="text-sm font-medium text-muted-foreground">Expected Quantity</Label>
               <div className="flex items-center gap-1">
-                <Hash className="h-3 w-3 text-muted-foreground" />
+                <Minus className="h-3 w-3 text-muted-foreground" />
                 <p className="text-sm font-semibold">{quantityToReceive} {part.unit}</p>
               </div>
             </div>

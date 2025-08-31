@@ -85,6 +85,7 @@ export function UnifiedActionDialog({
       if (!isSameSession || !isFormInitialized) {
         if (action && !isCreating) {
           // Editing existing action
+          console.log('UnifiedActionDialog: Setting form data for action:', action.id, 'with plan:', action.plan);
           setFormData({
             ...action,
             required_tools: action.required_tools || [],

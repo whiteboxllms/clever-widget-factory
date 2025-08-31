@@ -128,6 +128,7 @@ export default function Actions() {
   };
 
   const handleEditAction = (action: BaseAction) => {
+    console.log('Actions page: Clicking action with ID:', action.id, 'and plan:', action.plan);
     setEditingAction(action);
     setIsCreating(false);
     setIsEditDialogOpen(true);

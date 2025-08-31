@@ -144,32 +144,33 @@ function LoadInitialContentPlugin({ initialHtml }: { initialHtml?: string }) {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // Don't reload if user is actively typing or if it's the same content
-    if (isUserTypingRef.current || initialHtml === lastLoadedHtmlRef.current) {
+    console.log('LoadInitialContentPlugin: Loading HTML:', initialHtml);
+    
+    // Don't reload if user is actively typing
+    if (isUserTypingRef.current) {
+      console.log('LoadInitialContentPlugin: User is typing, skipping reload');
       return;
     }
 
-    // Check if current editor content matches the incoming HTML to avoid unnecessary reloads
-    editor.getEditorState().read(() => {
-      const currentHtml = $generateHtmlFromNodes(editor);
+    // Always update when initialHtml changes, even if it appears the same
+    editor.update(() => {
+      const root = $getRoot();
+      root.clear();
       
-      // Only reload if the content is actually different
-      if (currentHtml !== initialHtml) {
-        editor.update(() => {
-          const root = $getRoot();
-          root.clear();
-          
-          if (initialHtml && initialHtml.trim()) {
-            // Parse HTML and insert nodes
-            const parser = new DOMParser();
-            const dom = parser.parseFromString(initialHtml, 'text/html');
-            const nodes = $generateNodesFromDOM(editor, dom);
-            root.append(...nodes);
-          }
-          
-          lastLoadedHtmlRef.current = initialHtml || '';
-        });
+      if (initialHtml && initialHtml.trim()) {
+        console.log('LoadInitialContentPlugin: Parsing and inserting HTML');
+        try {
+          // Parse HTML and insert nodes
+          const parser = new DOMParser();
+          const dom = parser.parseFromString(initialHtml, 'text/html');
+          const nodes = $generateNodesFromDOM(editor, dom);
+          root.append(...nodes);
+        } catch (error) {
+          console.error('LoadInitialContentPlugin: Error parsing HTML:', error);
+        }
       }
+      
+      lastLoadedHtmlRef.current = initialHtml || '';
     });
   }, [initialHtml, editor]);
 
@@ -209,6 +210,7 @@ interface LexicalEditorProps {
   placeholder?: string;
   className?: string;
   readOnly?: boolean;
+  key?: string; // Add key prop for forcing remounts
 }
 
 export function LexicalEditor({

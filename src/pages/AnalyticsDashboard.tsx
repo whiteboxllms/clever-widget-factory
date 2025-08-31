@@ -37,10 +37,14 @@ export default function AnalyticsDashboard() {
   console.log('Selected user analytics:', selectedUserAnalytics);
   console.log('Selected users:', selectedUsers);
 
-  // Auto-select first 3 users on initial load
+  // Auto-select specific users on initial load: Stefan, Mae, Lester and malone
   useEffect(() => {
     if (allUserAnalytics.length > 0 && selectedUsers.length === 0) {
-      setSelectedUsers(allUserAnalytics.slice(0, 3).map(user => user.userId));
+      const targetUsers = ['Stefan Hamilton', 'Mae Dela Torre', 'Lester  paniel', 'malone'];
+      const selectedUserIds = allUserAnalytics
+        .filter(user => targetUsers.some(target => user.userName.includes(target.trim())))
+        .map(user => user.userId);
+      setSelectedUsers(selectedUserIds);
     }
   }, [allUserAnalytics.length]); // Only depend on length to avoid infinite loops
 

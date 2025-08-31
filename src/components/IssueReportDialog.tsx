@@ -15,6 +15,7 @@ import { useImageUpload, ImageUploadResult } from "@/hooks/useImageUpload";
 import { IssueEditDialog } from "./IssueEditDialog";
 import { GenericIssueCard } from "./GenericIssueCard";
 import { IssueQuickResolveDialog } from "./IssueQuickResolveDialog";
+import { CreateIssueDialog } from "./CreateIssueDialog";
 
 
 import { supabase } from "@/integrations/supabase/client";
@@ -40,6 +41,7 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isResolveDialogOpen, setIsResolveDialogOpen] = useState(false);
   const [showReportForm, setShowReportForm] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   const { issues, isLoading, createIssue, fetchIssues, updateIssue } = useToolIssues(tool?.id || null);
   const { uploadImages, isUploading } = useImageUpload();
@@ -190,7 +192,7 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
               <CardTitle className="text-sm font-medium">Current Issues</CardTitle>
               {!showReportForm && (
                 <Button
-                  onClick={() => setShowReportForm(true)}
+                  onClick={() => setIsCreateDialogOpen(true)}
                   variant="outline"
                   size="sm"
                   className="h-8"
@@ -414,6 +416,18 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
             fetchIssues();
             setIsResolveDialogOpen(false);
             setEditingIssue(null);
+          }}
+        />
+
+        {/* Create Issue Dialog */}
+        <CreateIssueDialog
+          open={isCreateDialogOpen}
+          onOpenChange={setIsCreateDialogOpen}
+          contextType="tool"
+          contextId={tool?.id}
+          onSuccess={() => {
+            fetchIssues();
+            setIsCreateDialogOpen(false);
           }}
         />
 

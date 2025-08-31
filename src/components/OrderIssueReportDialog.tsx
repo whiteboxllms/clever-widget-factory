@@ -22,6 +22,7 @@ import { AlertTriangle, Upload } from "lucide-react";
 import { useGenericIssues } from "@/hooks/useGenericIssues";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { createOrderIssue, getOrderIssueTypeLabel } from "@/types/issues";
+import { CreateIssueDialog } from "./CreateIssueDialog";
 
 interface OrderIssueReportDialogProps {
   isOpen: boolean;
@@ -61,12 +62,26 @@ export function OrderIssueReportDialog({
   const [description, setDescription] = useState('');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [useGenericDialog, setUseGenericDialog] = useState(true);
 
   const { createIssue } = useGenericIssues();
   const { uploadImages, isUploading } = useImageUpload();
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
 
   if (!order || !part) return null;
+
+  // Use the generic dialog by default
+  if (useGenericDialog) {
+    return (
+      <CreateIssueDialog
+        open={isOpen}
+        onOpenChange={onClose}
+        contextType="order"
+        contextId={order.id}
+        onSuccess={onIssueReported}
+      />
+    );
+  }
 
   const isQuantityRelated = ['short_shipment', 'over_shipped'].includes(issueType);
 

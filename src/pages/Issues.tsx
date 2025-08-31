@@ -12,10 +12,13 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { GenericIssueCard } from "@/components/GenericIssueCard";
+import { CreateIssueDialog } from "@/components/CreateIssueDialog";
+import { IssueEditDialog } from "@/components/IssueEditDialog";
+import { IssueQuickResolveDialog } from "@/components/IssueQuickResolveDialog";
 import { useGenericIssues } from "@/hooks/useGenericIssues";
 import { ContextType, BaseIssue, getContextLabel } from "@/types/issues";
 
-export function Issues() {
+export default function Issues() {
   const [contextFilter, setContextFilter] = useState<ContextType | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<'active' | 'resolved' | 'removed' | 'all'>('active');
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,7 +26,8 @@ export function Issues() {
   const { 
     issues, 
     isLoading, 
-    fetchIssues 
+    fetchIssues,
+    updateIssue
   } = useGenericIssues({
     contextType: contextFilter === 'all' ? undefined : contextFilter,
     status: statusFilter === 'all' ? undefined : statusFilter
@@ -42,14 +46,25 @@ export function Issues() {
     return acc;
   }, {} as Record<string, BaseIssue[]>);
 
+  const [createIssueOpen, setCreateIssueOpen] = useState(false);
+  const [editingIssue, setEditingIssue] = useState<BaseIssue | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isResolveDialogOpen, setIsResolveDialogOpen] = useState(false);
+
   const handleIssueResolve = (issue: BaseIssue) => {
-    // TODO: Implement issue resolution dialog
-    console.log('Resolve issue:', issue);
+    setEditingIssue(issue);
+    setIsResolveDialogOpen(true);
   };
 
   const handleIssueEdit = (issue: BaseIssue) => {
-    // TODO: Implement issue edit dialog
-    console.log('Edit issue:', issue);
+    setEditingIssue(issue);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleEditSuccess = async () => {
+    await fetchIssues();
+    setIsEditDialogOpen(false);
+    setEditingIssue(null);
   };
 
   if (isLoading) {
@@ -71,6 +86,10 @@ export function Issues() {
             Manage issues across tools, orders, inventory, and facilities
           </p>
         </div>
+        <Button onClick={() => setCreateIssueOpen(true)} className="bg-primary hover:bg-primary/90">
+          <Plus className="h-4 w-4 mr-2" />
+          Create New Issue
+        </Button>
       </div>
 
       {/* Filters */}
@@ -206,6 +225,34 @@ export function Issues() {
           ))}
         </div>
       )}
+
+      {/* Create Issue Dialog */}
+      <CreateIssueDialog
+        open={createIssueOpen}
+        onOpenChange={setCreateIssueOpen}
+        onSuccess={fetchIssues}
+      />
+
+      {/* Edit Issue Dialog */}
+      <IssueEditDialog
+        issue={editingIssue}
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        onUpdate={updateIssue}
+        onSuccess={handleEditSuccess}
+      />
+
+      {/* Resolve Issue Dialog */}
+      <IssueQuickResolveDialog
+        open={isResolveDialogOpen}
+        onOpenChange={setIsResolveDialogOpen}
+        issue={editingIssue}
+        onSuccess={() => {
+          fetchIssues();
+          setIsResolveDialogOpen(false);
+          setEditingIssue(null);
+        }}
+      />
     </div>
   );
 }

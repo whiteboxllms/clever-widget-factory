@@ -18,6 +18,7 @@ import CheckIn from "./pages/CheckIn";
 import Missions from "./pages/Missions";
 import EditMission from "./pages/EditMission";
 import Actions from "./pages/Actions";
+import Issues from "./pages/Issues";
 import Audit from "./pages/Audit";
 import AuditTool from "./pages/AuditTool";
 import ScoringPrompts from "./pages/ScoringPrompts";
@@ -84,6 +85,11 @@ function AppContent() {
       <Route path="/actions" element={
         <ProtectedRoute>
           <Actions />
+        </ProtectedRoute>
+      } />
+      <Route path="/issues" element={
+        <ProtectedRoute>
+          <Issues />
         </ProtectedRoute>
       } />
       <Route path="/audit" element={

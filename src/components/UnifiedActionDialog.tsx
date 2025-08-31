@@ -32,7 +32,8 @@ import {
   AlertCircle,
   Package,
   Trash2,
-  CheckCircle
+  CheckCircle,
+  Target
 } from "lucide-react";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import TiptapEditor from './TiptapEditor';
@@ -62,6 +63,7 @@ export function UnifiedActionDialog({
 }: UnifiedActionDialogProps) {
   const { toast } = useToast();
   const [formData, setFormData] = useState<Partial<BaseAction>>({});
+  const [missionData, setMissionData] = useState<any>(null);
   const [newTool, setNewTool] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -130,6 +132,34 @@ export function UnifiedActionDialog({
       setCurrentContextType(null);
     }
   }, [open, action?.id, context?.type, isCreating]);
+
+  // Fetch mission data when action has mission_id
+  useEffect(() => {
+    const fetchMissionData = async () => {
+      if (formData.mission_id) {
+        try {
+          const { data, error } = await supabase
+            .from('missions')
+            .select('id, title, problem_statement, mission_number, status')
+            .eq('id', formData.mission_id)
+            .single();
+
+          if (error) {
+            console.error('Error fetching mission data:', error);
+            return;
+          }
+
+          setMissionData(data);
+        } catch (error) {
+          console.error('Error fetching mission data:', error);
+        }
+      } else {
+        setMissionData(null);
+      }
+    };
+
+    fetchMissionData();
+  }, [formData.mission_id]);
 
   const getDialogTitle = () => {
     if (!isCreating && action) {
@@ -395,6 +425,29 @@ export function UnifiedActionDialog({
               <p className="text-sm text-muted-foreground">
                 {formData.issue_reference || `Issue ID: ${formData.linked_issue_id}`}
               </p>
+            </div>
+          )}
+
+          {/* Mission Context Display */}
+          {missionData && (
+            <div className="bg-primary/5 border border-primary/20 p-4 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Target className="h-4 w-4 text-primary" />
+                <h4 className="font-semibold text-sm">Mission Context</h4>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium">
+                  Mission #{missionData.mission_number}: {missionData.title}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {missionData.problem_statement}
+                </p>
+                <div className="flex items-center gap-2 mt-2">
+                  <Badge variant="secondary" className="text-xs">
+                    {missionData.status}
+                  </Badge>
+                </div>
+              </div>
             </div>
           )}
 

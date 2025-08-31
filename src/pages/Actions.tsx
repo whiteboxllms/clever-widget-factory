@@ -234,7 +234,6 @@ export default function Actions() {
     }
   };
 
-
   // Sort actions: in-progress first, then actions with implementation, then others
   const sortedFilteredActions = [...filteredActions].sort((a, b) => {
     // First priority: in-progress status
@@ -381,15 +380,105 @@ export default function Actions() {
                 const hasImplementation = action.observations && action.observations.trim().length > 0;
                 
                 return (
+                  <Card 
+                    key={action.id} 
+                    className={cn(
+                      "hover:shadow-md transition-shadow cursor-pointer",
+                      hasImplementation && "border-2 border-yellow-400",
+                      action.plan_commitment && action.status !== 'completed' && !hasImplementation && "border-2 border-[hsl(var(--action-ready-border))]",
+                      action.status === 'in_progress' && !action.plan_commitment && !hasImplementation && "border-2 border-[hsl(var(--action-progress-border))]",
+                      action.status === 'completed' && "border-2 border-[hsl(var(--action-done-border))]"
+                    )}
+                    onClick={() => handleEditAction(action)}
+                  >
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 space-y-3">
+                          <div className="flex items-center gap-3">
+                            {getStatusIcon(action.status, action)}
+                            <h3 className="text-lg font-semibold">{action.title}</h3>
+                          </div>
+                          
+                          {action.description && (
+                            <p className="text-muted-foreground">{action.description}</p>
+                          )}
+                          
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="outline" className={getStatusColor(action.status, action)}>
+                              {action.plan_commitment && action.status !== 'completed' ? 'Ready to Work' : 
+                               action.status === 'completed' ? 'Done' :
+                               action.status === 'in_progress' ? 'In Progress' :
+                               action.status.replace('_', ' ')}
+                            </Badge>
+                            
+                            {/* Action Type Indicator */}
+                            {action.asset ? (
+                              <Badge variant="outline" className="bg-blue-100 text-blue-800">
+                                Asset: {action.asset.name}
+                              </Badge>
+                            ) : action.issue_tool ? (
+                              <Badge variant="outline" className="bg-orange-100 text-orange-800">
+                                Issue Tool: {action.issue_tool.name}
+                              </Badge>
+                            ) : action.mission ? (
+                              <Badge variant="outline" className="bg-indigo-100 text-indigo-800">
+                                Mission Action
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-gray-100 text-gray-800">
+                                General Action
+                              </Badge>
+                            )}
+                            
+                            {action.mission && (
+                              <Badge variant="outline" className="bg-indigo-100 text-indigo-800">
+                                Mission #{action.mission.mission_number}: {action.mission.title}
+                              </Badge>
+                            )}
+                            
+                            {action.assignee ? (
+                              <Badge variant="outline" className="flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                {action.assignee.full_name}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-orange-600">
+                                Unassigned
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="text-sm text-muted-foreground text-right">
+                          {action.estimated_completion_date && (
+                            <div>Expected: {new Date(action.estimated_completion_date).toLocaleDateString()}</div>
+                          )}
+                          <div>Updated: {new Date(action.updated_at).toLocaleString()}</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+        
+        <TabsContent value="completed" className="space-y-4">
+          {completed.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <CheckCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No completed actions</h3>
+                <p className="text-muted-foreground">No actions have been completed yet or none match your filters.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4">
+              {completed.map(action => (
                 <Card 
                   key={action.id} 
-                  className={cn(
-                    "hover:shadow-md transition-shadow cursor-pointer",
-                    hasImplementation && "border-2 border-yellow-400",
-                    action.plan_commitment && action.status !== 'completed' && !hasImplementation && "border-2 border-[hsl(var(--action-ready-border))]",
-                    action.status === 'in_progress' && !action.plan_commitment && !hasImplementation && "border-2 border-[hsl(var(--action-progress-border))]",
-                    action.status === 'completed' && "border-2 border-[hsl(var(--action-done-border))]"
-                  )}
+                  className="hover:shadow-md transition-shadow cursor-pointer border-2 border-[hsl(var(--action-done-border))]"
                   onClick={() => handleEditAction(action)}
                 >
                   <CardContent className="p-6">
@@ -406,10 +495,7 @@ export default function Actions() {
                         
                         <div className="flex flex-wrap gap-2">
                           <Badge variant="outline" className={getStatusColor(action.status, action)}>
-                            {action.plan_commitment && action.status !== 'completed' ? 'Ready to Work' : 
-                             action.status === 'completed' ? 'Done' :
-                             action.status === 'in_progress' ? 'In Progress' :
-                             action.status.replace('_', ' ')}
+                            Done
                           </Badge>
                           
                           {/* Action Type Indicator */}
@@ -451,8 +537,8 @@ export default function Actions() {
                       </div>
                       
                       <div className="text-sm text-muted-foreground text-right">
-                        {action.estimated_completion_date && (
-                          <div>Expected: {new Date(action.estimated_completion_date).toLocaleDateString()}</div>
+                        {action.completed_at && (
+                          <div>Completed: {new Date(action.completed_at).toLocaleDateString()}</div>
                         )}
                         <div>Updated: {new Date(action.updated_at).toLocaleString()}</div>
                       </div>
@@ -463,115 +549,20 @@ export default function Actions() {
             </div>
           )}
         </TabsContent>
-        
-        <TabsContent value="completed" className="space-y-4">
-          {completed.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <CheckCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No completed actions</h3>
-                <p className="text-muted-foreground">No policy actions have been completed yet.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4">
-              {completed.map(action => (
-                <Card 
-                  key={action.id} 
-                  className={cn(
-                    "hover:shadow-md transition-shadow cursor-pointer",
-                    action.plan_commitment && action.status !== 'completed' && "border-2 border-[hsl(var(--action-ready-border))]",
-                    action.status === 'in_progress' && !action.plan_commitment && "border-2 border-[hsl(var(--action-progress-border))]",
-                    action.status === 'completed' && "border-2 border-[hsl(var(--action-done-border))]"
-                  )}
-                  onClick={() => handleEditAction(action)}
-                >
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 space-y-3">
-                        <div className="flex items-center gap-3">
-                          {getStatusIcon(action.status, action)}
-                          <h3 className="text-lg font-semibold">{action.title}</h3>
-                        </div>
-                        
-                        {action.description && (
-                          <p className="text-muted-foreground">{action.description}</p>
-                        )}
-                        
-                        <div className="flex flex-wrap gap-2">
-                          <Badge variant="outline" className={getStatusColor(action.status, action)}>
-                            {action.plan_commitment && action.status !== 'completed' ? 'Ready to Work' : 
-                             action.status === 'completed' ? 'Done' :
-                             action.status === 'in_progress' ? 'In Progress' :
-                             action.status.replace('_', ' ')}
-                          </Badge>
-                          
-                          {/* Action Type Indicator */}
-                          {action.asset ? (
-                            <Badge variant="outline" className="bg-blue-100 text-blue-800">
-                              Asset: {action.asset.name}
-                            </Badge>
-                          ) : action.issue_tool ? (
-                            <Badge variant="outline" className="bg-orange-100 text-orange-800">
-                              Issue Tool: {action.issue_tool.name}
-                            </Badge>
-                          ) : action.mission ? (
-                            <Badge variant="outline" className="bg-indigo-100 text-indigo-800">
-                              Mission Action
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="bg-gray-100 text-gray-800">
-                              General Action
-                            </Badge>
-                          )}
-                          
-                          {action.score && (
-                            <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
-                              Score: {action.score}
-                            </Badge>
-                          )}
-                          
-                          {action.mission && (
-                            <Badge variant="outline" className="bg-indigo-100 text-indigo-800">
-                              Mission #{action.mission.mission_number}: {action.mission.title}
-                            </Badge>
-                          )}
-                          
-                          {action.assignee && (
-                            <Badge variant="outline" className="flex items-center gap-1">
-                              <User className="h-3 w-3" />
-                              {action.assignee.full_name}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="text-sm text-muted-foreground text-right">
-                        <div>Completed: {action.completed_at ? new Date(action.completed_at).toLocaleString() : 'N/A'}</div>
-                        {action.estimated_completion_date && (
-                          <div>Expected: {new Date(action.estimated_completion_date).toLocaleDateString()}</div>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
       </Tabs>
-      
-      {isEditDialogOpen && (
-        <UnifiedActionDialog
-          open={isEditDialogOpen}
-          onOpenChange={setIsEditDialogOpen}
-          action={editingAction || undefined}
-          context={isCreating ? { type: 'asset' } : undefined}
-          profiles={profiles}
-          onActionSaved={handleSaveAction}
-          isCreating={isCreating}
-        />
-      )}
+
+      {/* Action Dialog */}
+      <UnifiedActionDialog
+        open={isEditDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCancelEdit();
+          }
+        }}
+        action={editingAction || undefined}
+        onActionSaved={handleSaveAction}
+        profiles={profiles}
+      />
     </div>
   );
 }

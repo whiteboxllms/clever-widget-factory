@@ -56,15 +56,11 @@ export function useStrategicAttributes() {
   const fetchAttributes = async (userIds?: string[], startDate?: string, endDate?: string) => {
     try {
       setIsLoading(true);
+      
+      // First, get strategic attributes
       let query = supabase
         .from('worker_strategic_attributes')
-        .select(`
-          *,
-          profiles!worker_strategic_attributes_user_id_fkey (
-            full_name,
-            role
-          )
-        `)
+        .select('*')
         .order('attribute_type');
 
       if (userIds && userIds.length > 0) {
@@ -79,10 +75,38 @@ export function useStrategicAttributes() {
         query = query.lte('earned_at', endDate);
       }
 
-      const { data, error } = await query;
+      const { data: attributesData, error: attributesError } = await query;
+      if (attributesError) throw attributesError;
 
-      if (error) throw error;
-      setAttributes(data || []);
+      // Then, get all unique user IDs from attributes
+      const userIdsFromAttributes = [...new Set(attributesData?.map(attr => attr.user_id) || [])];
+      
+      // Fetch profiles for these users
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, role')
+        .in('user_id', userIdsFromAttributes);
+
+      if (profilesError) {
+        console.warn('Error fetching profiles, continuing without profile data:', profilesError);
+      }
+
+      // Create a map of profiles for easy lookup
+      const profilesMap = new Map();
+      profilesData?.forEach(profile => {
+        profilesMap.set(profile.user_id, profile);
+      });
+
+      // Combine attributes with profile data
+      const enrichedAttributes = attributesData?.map(attr => ({
+        ...attr,
+        profiles: profilesMap.get(attr.user_id) || {
+          full_name: 'Unknown User',
+          role: 'user'
+        }
+      })) || [];
+
+      setAttributes(enrichedAttributes);
     } catch (error) {
       console.error('Error fetching strategic attributes:', error);
       toast({

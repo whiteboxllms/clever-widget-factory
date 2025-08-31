@@ -11,7 +11,7 @@ import { toast } from '@/hooks/use-toast';
 import { Bolt, Plus, Filter, Search, Clock, CheckCircle, Circle, User, AlertTriangle, Wrench, ArrowLeft, Target } from 'lucide-react';
 import { UnifiedActionDialog } from '@/components/UnifiedActionDialog';
 import { ActionScoreDialog } from '@/components/ActionScoreDialog';
-import { useActionScores } from '@/hooks/useActionScores';
+import { useAssetScores } from '@/hooks/useAssetScores';
 import { BaseAction, Profile } from '@/types/actions';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
@@ -35,7 +35,7 @@ export default function Actions() {
   const [scoringAction, setScoringAction] = useState<BaseAction | null>(null);
   const [existingScore, setExistingScore] = useState<any>(null);
 
-  const { hasScore, getActionScore } = useActionScores(actions);
+  const { getScoreForAction } = useAssetScores();
 
   const fetchActions = async () => {
     try {
@@ -166,7 +166,7 @@ export default function Actions() {
     
     // Load existing score if any
     if (action.id) {
-      const score = getActionScore(action.id);
+      const score = await getScoreForAction(action.id);
       setExistingScore(score);
     }
     
@@ -569,8 +569,8 @@ export default function Actions() {
                            variant="outline"
                            size="sm"
                            onClick={(e) => handleScoreAction(action, e)}
-                           className={`h-7 px-2 text-xs ${hasScore(action.id) ? 'border-green-500 border-2' : ''}`}
-                           title={hasScore(action.id) ? "View/Edit Score" : "Assign Score"}
+                           className={`h-7 px-2 text-xs ${action.score ? 'border-green-500 border-2' : ''}`}
+                           title={action.score ? "View/Edit Score" : "Assign Score"}
                          >
                            <Target className="h-3 w-3" />
                          </Button>

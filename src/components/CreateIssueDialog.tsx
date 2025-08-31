@@ -41,41 +41,6 @@ const CONTEXT_TYPES: { value: ContextType; label: string }[] = [
   { value: 'facility', label: 'Facility' },
 ];
 
-const TOOL_ISSUE_TYPES = [
-  { value: 'safety', label: 'Safety' },
-  { value: 'efficiency', label: 'Efficiency' },
-  { value: 'cosmetic', label: 'Cosmetic' },
-  { value: 'preventative_maintenance', label: 'Preventative Maintenance' },
-  { value: 'functionality', label: 'Functionality' },
-  { value: 'lifespan', label: 'Lifespan' },
-];
-
-const ORDER_ISSUE_TYPES = [
-  { value: 'wrong_item', label: 'Wrong Item' },
-  { value: 'wrong_brand_spec', label: 'Wrong Brand/Spec' },
-  { value: 'short_shipment', label: 'Short Shipment' },
-  { value: 'damaged_goods', label: 'Damaged Goods' },
-  { value: 'over_shipped', label: 'Over-shipped' },
-  { value: 'other', label: 'Other' },
-];
-
-const INVENTORY_ISSUE_TYPES = [
-  { value: 'missing', label: 'Missing Stock' },
-  { value: 'damaged', label: 'Damaged Stock' },
-  { value: 'expired', label: 'Expired' },
-  { value: 'quality', label: 'Quality Issue' },
-  { value: 'location', label: 'Wrong Location' },
-  { value: 'other', label: 'Other' },
-];
-
-const FACILITY_ISSUE_TYPES = [
-  { value: 'safety', label: 'Safety Hazard' },
-  { value: 'maintenance', label: 'Maintenance Needed' },
-  { value: 'equipment', label: 'Equipment Issue' },
-  { value: 'environmental', label: 'Environmental' },
-  { value: 'access', label: 'Access Issue' },
-  { value: 'other', label: 'Other' },
-];
 
 export function CreateIssueDialog({
   open,
@@ -86,7 +51,6 @@ export function CreateIssueDialog({
 }: CreateIssueDialogProps) {
   const [contextType, setContextType] = useState<ContextType>(initialContextType || 'tool');
   const [contextId, setContextId] = useState(initialContextId || '');
-  const [issueType, setIssueType] = useState('');
   const [description, setDescription] = useState('');
   const [damageAssessment, setDamageAssessment] = useState('');
   const [actualQuantity, setActualQuantity] = useState<number | ''>('');
@@ -157,26 +121,8 @@ export function CreateIssueDialog({
     }
   }, [initialContextId]);
 
-  const getIssueTypes = () => {
-    switch (contextType) {
-      case 'tool':
-        return TOOL_ISSUE_TYPES;
-      case 'order':
-        return ORDER_ISSUE_TYPES;
-      case 'inventory':
-        return INVENTORY_ISSUE_TYPES;
-      case 'facility':
-        return FACILITY_ISSUE_TYPES;
-      default:
-        return [];
-    }
-  };
-
-  const isQuantityRelated = contextType === 'order' && ['short_shipment', 'over_shipped'].includes(issueType);
-  const showDamageAssessment = contextType === 'tool' && issueType === 'efficiency';
-
   const handleSubmit = async () => {
-    if (!contextType || !contextId || !issueType || !description.trim()) {
+    if (!contextType || !contextId || !description.trim()) {
       return;
     }
 
@@ -200,7 +146,7 @@ export function CreateIssueDialog({
         context_type: contextType,
         context_id: contextId,
         description,
-        issue_type: issueType,
+        issue_type: 'general', // Default type, will be categorized by AI
         status: 'active',
         workflow_status: 'reported',
         report_photo_urls: photoUrls,
@@ -242,7 +188,6 @@ export function CreateIssueDialog({
   const resetForm = () => {
     setContextType(initialContextType || 'tool');
     setContextId(initialContextId || '');
-    setIssueType('');
     setDescription('');
     setDamageAssessment('');
     setActualQuantity('');
@@ -277,7 +222,7 @@ export function CreateIssueDialog({
     }
   };
 
-  const isFormValid = contextType && contextId && issueType && description.trim();
+  const isFormValid = contextType && contextId && description.trim();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -302,7 +247,6 @@ export function CreateIssueDialog({
               <Select value={contextType} onValueChange={(value: ContextType) => {
                 setContextType(value);
                 setContextId('');
-                setIssueType('');
                 setSelectedEntity(null);
               }}>
                 <SelectTrigger>
@@ -360,30 +304,12 @@ export function CreateIssueDialog({
             )}
           </div>
 
-          {/* Issue Type */}
-          <div>
-            <Label htmlFor="issue-type" className="text-sm font-medium">
-              Issue Type *
-            </Label>
-            <Select value={issueType} onValueChange={setIssueType}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select issue type" />
-              </SelectTrigger>
-              <SelectContent>
-                {getIssueTypes().map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    {type.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
-          {/* Quantity fields for order issues */}
-          {isQuantityRelated && selectedEntity && (
+          {/* Quantity fields for order issues - show for all order issues now */}
+          {contextType === 'order' && selectedEntity && (
             <div>
               <Label htmlFor="actual-quantity" className="text-sm font-medium">
-                Actual Quantity Received
+                Actual Quantity Received (if applicable)
               </Label>
               <div className="flex items-center gap-2">
                 <Input
@@ -435,21 +361,19 @@ export function CreateIssueDialog({
                 </CardContent>
               </Card>
 
-              {/* Damage Assessment for efficiency issues */}
-              {showDamageAssessment && (
-                <div>
-                  <Label htmlFor="damage-assessment" className="text-sm font-medium">
-                    Damage Assessment
-                  </Label>
-                  <Textarea
-                    id="damage-assessment"
-                    placeholder="Describe the damage and its impact..."
-                    value={damageAssessment}
-                    onChange={(e) => setDamageAssessment(e.target.value)}
-                    rows={2}
-                  />
-                </div>
-              )}
+              {/* Damage Assessment - show for all tool issues */}
+              <div>
+                <Label htmlFor="damage-assessment" className="text-sm font-medium">
+                  Damage Assessment (if applicable)
+                </Label>
+                <Textarea
+                  id="damage-assessment"
+                  placeholder="Describe any damage and its impact..."
+                  value={damageAssessment}
+                  onChange={(e) => setDamageAssessment(e.target.value)}
+                  rows={2}
+                />
+              </div>
             </>
           )}
 

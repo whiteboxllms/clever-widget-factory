@@ -138,9 +138,9 @@ export function ReceivingDialog({
           updated_at: new Date().toISOString()
         };
 
-        // Update cost if order has estimated cost
-        if (order.estimated_cost && order.estimated_cost > 0) {
-          updateData.cost_per_unit = order.estimated_cost;
+        // Update cost per unit if order has estimated cost
+        if (order.estimated_cost && order.estimated_cost > 0 && receivedQty > 0) {
+          updateData.cost_per_unit = order.estimated_cost / receivedQty;
         }
 
         const { error: partError } = await supabase
@@ -275,10 +275,10 @@ export function ReceivingDialog({
             </div>
           </div>
 
-          {order.estimated_cost && order.estimated_cost > 0 && (
+          {order.estimated_cost && order.estimated_cost > 0 && actualQuantity && actualQuantity > 0 && (
             <div>
-              <Label className="text-sm font-medium text-muted-foreground">Cost per Unit</Label>
-              <p className="text-sm">₱{order.estimated_cost}</p>
+              <Label className="text-sm font-medium text-muted-foreground">Cost per Unit (calculated)</Label>
+              <p className="text-sm">₱{(order.estimated_cost / (typeof actualQuantity === 'number' ? actualQuantity : 1)).toFixed(2)}</p>
             </div>
           )}
 

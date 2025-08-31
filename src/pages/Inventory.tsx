@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Upload, UserPlus, Check, ChevronsUpDown, History, ArrowLeft, Info, BarChart3, ShoppingCart, X } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Upload, UserPlus, Check, ChevronsUpDown, History, ArrowLeft, Info, BarChart3, ShoppingCart, X, Minus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { InventoryHistoryDialog } from '@/components/InventoryHistoryDialog';
 import { OrderDialog } from '@/components/OrderDialog';
@@ -1213,19 +1213,19 @@ export default function Inventory() {
                        <Plus className="h-4 w-4 mr-1" />
                        Add
                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => {
-                          setQuantityPart(part);
-                          setQuantityOperation('remove');
-                          setShowQuantityDialog(true);
-                        }}
-                      >
-                        <Package className="h-4 w-4 mr-1" />
-                        Use
-                      </Button>
+                       <Button
+                         variant="outline"
+                         size="sm"
+                         className="flex-1"
+                         onClick={() => {
+                           setQuantityPart(part);
+                           setQuantityOperation('remove');
+                           setShowQuantityDialog(true);
+                         }}
+                       >
+                         <Minus className="h-4 w-4 mr-1" />
+                         Use
+                       </Button>
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>

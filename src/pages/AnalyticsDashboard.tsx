@@ -11,7 +11,7 @@ import { useScoredActions } from '@/hooks/useScoredActions';
 
 export default function AnalyticsDashboard() {
   const navigate = useNavigate();
-  const { getEnhancedAttributeAnalytics, getEnhancedCompanyAverage, fetchAllData, isLoading: attributesLoading } = useEnhancedStrategicAttributes();
+  const { getEnhancedAttributeAnalytics, getActionAnalytics, getIssueAnalytics, fetchAllData, isLoading: attributesLoading } = useEnhancedStrategicAttributes();
   const { scoredActions, isLoading: isLoadingScoredActions, fetchScoredActions } = useScoredActions();
   
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
@@ -29,12 +29,12 @@ export default function AnalyticsDashboard() {
 
   // Process data for display - get ALL users for selection, not filtered by selectedUsers
   const allUserAnalytics = getEnhancedAttributeAnalytics(); // No filter to get all users
-  const selectedUserAnalytics = getEnhancedAttributeAnalytics(selectedUsers); // Filtered for display
-  const companyAverage = getEnhancedCompanyAverage();
+  const selectedActionAnalytics = getActionAnalytics(selectedUsers); // Filtered for display
+  const [selectedIssueAnalytics, setSelectedIssueAnalytics] = useState<any[]>([]);
 
   // Debug logging to see what's happening with the data
   console.log('All user analytics:', allUserAnalytics);
-  console.log('Selected user analytics:', selectedUserAnalytics);
+  console.log('Selected action analytics:', selectedActionAnalytics);
   console.log('Selected users:', selectedUsers);
 
   // Auto-select specific users on initial load: Stefan, Mae, Lester and malone
@@ -52,7 +52,18 @@ export default function AnalyticsDashboard() {
     // Always fetch ALL data, not filtered by selectedUsers - we want all users available for selection
     await fetchAllData(undefined, startDate, endDate);
     await fetchScoredActions(selectedUsers, startDate, endDate);
+    
+    // Fetch issue analytics for selected users
+    const issueAnalytics = await getIssueAnalytics(selectedUsers, startDate, endDate);
+    setSelectedIssueAnalytics(issueAnalytics);
   };
+
+  // Fetch issue analytics when selected users change
+  useEffect(() => {
+    if (selectedUsers.length > 0) {
+      getIssueAnalytics(selectedUsers, startDate, endDate).then(setSelectedIssueAnalytics);
+    }
+  }, [selectedUsers, startDate, endDate]);
 
 
   if (attributesLoading || isLoadingScoredActions) {
@@ -104,7 +115,7 @@ export default function AnalyticsDashboard() {
         </Card>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -124,20 +135,6 @@ export default function AnalyticsDashboard() {
                 <div>
                   <p className="text-sm text-muted-foreground">Selected for Analysis</p>
                   <p className="text-2xl font-bold">{selectedUsers.length}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <BarChart3 className="h-8 w-8 text-purple-500" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Company Avg (Quality)</p>
-                  <p className="text-2xl font-bold">
-                    {companyAverage.attributes.quality?.toFixed(1) || '0.0'}
-                  </p>
                 </div>
               </div>
             </CardContent>
@@ -165,8 +162,8 @@ export default function AnalyticsDashboard() {
             {/* Radar Chart */}
             {selectedUsers.length > 0 ? (
               <AttributeRadarChart
-                userAnalytics={selectedUserAnalytics}
-                companyAverage={companyAverage}
+                actionAnalytics={selectedActionAnalytics}
+                issueAnalytics={selectedIssueAnalytics}
                 selectedUsers={selectedUsers}
               />
             ) : (

@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useStrategicAttributes, AttributeAnalytics, CompanyAverage, StrategicAttributeType } from './useStrategicAttributes';
 
-interface EnhancedAttributeAnalytics {
+export interface EnhancedAttributeAnalytics {
   userId: string;
   userName: string;
   userRole: string;
@@ -44,7 +44,8 @@ export function useEnhancedStrategicAttributes() {
               full_name
             )
           )
-        `);
+        `)
+        .eq('source_type', 'action');
 
       // Apply date filters if provided
       if (startDate && endDate) {
@@ -79,6 +80,58 @@ export function useEnhancedStrategicAttributes() {
         description: "Failed to fetch action scores",
         variant: "destructive",
       });
+    }
+  };
+
+  const fetchIssueScores = async (userIds?: string[], startDate?: string, endDate?: string): Promise<ActionScore[]> => {
+    try {
+      let query = supabase
+        .from('action_scores')
+        .select(`
+          id,
+          action_id,
+          scores,
+          created_at,
+          actions!inner(
+            id,
+            assigned_to,
+            title,
+            profiles!assigned_to(
+              full_name
+            )
+          )
+        `)
+        .eq('source_type', 'issue');
+
+      // Apply date filters if provided
+      if (startDate && endDate) {
+        query = query.gte('created_at', startDate).lte('created_at', endDate);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      // Transform the data to match our interface
+      const transformedScores: ActionScore[] = (data || []).map((item: any) => ({
+        id: item.id,
+        action_id: item.action_id,
+        assigned_to: item.actions.assigned_to,
+        full_name: item.actions.profiles?.full_name || 'Unknown User',
+        scores: item.scores,
+        created_at: item.created_at
+      })).filter(score => {
+        // Filter by user IDs if provided
+        if (userIds && userIds.length > 0) {
+          return userIds.includes(score.assigned_to);
+        }
+        return true;
+      });
+
+      return transformedScores;
+    } catch (error) {
+      console.error('Error fetching issue scores:', error);
+      return [];
     }
   };
 
@@ -171,22 +224,141 @@ export function useEnhancedStrategicAttributes() {
     }));
   };
 
-  const getEnhancedCompanyAverage = (userIds?: string[]): CompanyAverage => {
-    const enhancedAnalytics = getEnhancedAttributeAnalytics(userIds);
-    const averages: Record<StrategicAttributeType, number> = {} as Record<StrategicAttributeType, number>;
+  const getActionAnalytics = (userIds?: string[]): EnhancedAttributeAnalytics[] => {
+    // Create analytics primarily from action scores
+    const userAnalyticsMap = new Map<string, EnhancedAttributeAnalytics>();
 
-    const allAttributeTypes: StrategicAttributeType[] = [
-      'growth_mindset', 'root_cause_problem_solving', 'teamwork', 'quality',
-      'proactive_documentation', 'safety_focus', 'efficiency', 'asset_stewardship',
-      'financial_impact', 'energy_morale_impact'
-    ];
+    // Process action scores
+    actionScores.forEach(actionScore => {
+      const userId = actionScore.assigned_to;
+      const userName = actionScore.full_name;
 
-    allAttributeTypes.forEach(type => {
-      const sum = enhancedAnalytics.reduce((acc, user) => acc + user.attributes[type], 0);
-      averages[type] = enhancedAnalytics.length > 0 ? sum / enhancedAnalytics.length : 0;
+      if (!userAnalyticsMap.has(userId)) {
+        // Initialize with baseline attributes (all set to 2 as starting point)
+        userAnalyticsMap.set(userId, {
+          userId,
+          userName,
+          userRole: 'user', // Default role for action-based analytics
+          attributes: {
+            growth_mindset: 2,
+            root_cause_problem_solving: 2,
+            teamwork: 2,
+            quality: 2,
+            proactive_documentation: 2,
+            safety_focus: 2,
+            efficiency: 2,
+            asset_stewardship: 2,
+            financial_impact: 2,
+            energy_morale_impact: 2
+          },
+          scoreCount: {
+            growth_mindset: 0,
+            root_cause_problem_solving: 0,
+            teamwork: 0,
+            quality: 0,
+            proactive_documentation: 0,
+            safety_focus: 0,
+            efficiency: 0,
+            asset_stewardship: 0,
+            financial_impact: 0,
+            energy_morale_impact: 0
+          },
+          totalActions: 0
+        });
+      }
+
+      const userAnalytics = userAnalyticsMap.get(userId)!;
+      userAnalytics.totalActions++;
+
+      // Process each score in the action
+      Object.entries(actionScore.scores).forEach(([attribute, scoreData]) => {
+        const mappedAttribute = mapScoredAttributeToStrategic(attribute);
+        
+        if (mappedAttribute) {
+          // Add to running average (scores are -2 to 2 range, shift to 0-4)
+          const currentCount = userAnalytics.scoreCount![mappedAttribute];
+          const currentAvg = userAnalytics.attributes[mappedAttribute];
+          const adjustedScore = Math.max(0, Math.min(4, scoreData.score + 2));
+          
+          // Calculate new average
+          userAnalytics.attributes[mappedAttribute] = 
+            (currentAvg * currentCount + adjustedScore) / (currentCount + 1);
+          userAnalytics.scoreCount![mappedAttribute]++;
+        }
+      });
     });
 
-    return { attributes: averages };
+    // Convert map to array and filter by userIds if provided
+    let result = Array.from(userAnalyticsMap.values());
+    
+    if (userIds && userIds.length > 0) {
+      result = result.filter(analytics => userIds.includes(analytics.userId));
+    }
+
+    return result;
+  };
+
+  const getIssueAnalytics = async (userIds?: string[], startDate?: string, endDate?: string): Promise<EnhancedAttributeAnalytics[]> => {
+    const issueScores = await fetchIssueScores(userIds, startDate, endDate);
+    
+    // Create a map to track user analytics
+    const userAnalyticsMap = new Map<string, EnhancedAttributeAnalytics>();
+
+    issueScores.forEach(issueScore => {
+      const userId = issueScore.assigned_to;
+      const userName = issueScore.full_name;
+
+      if (!userAnalyticsMap.has(userId)) {
+        userAnalyticsMap.set(userId, {
+          userId,
+          userName,
+          userRole: 'user',
+          attributes: {
+            growth_mindset: 2,
+            root_cause_problem_solving: 2,
+            teamwork: 2,
+            quality: 2,
+            proactive_documentation: 2,
+            safety_focus: 2,
+            efficiency: 2,
+            asset_stewardship: 2,
+            financial_impact: 2,
+            energy_morale_impact: 2
+          },
+          scoreCount: {
+            growth_mindset: 0,
+            root_cause_problem_solving: 0,
+            teamwork: 0,
+            quality: 0,
+            proactive_documentation: 0,
+            safety_focus: 0,
+            efficiency: 0,
+            asset_stewardship: 0,
+            financial_impact: 0,
+            energy_morale_impact: 0
+          }
+        });
+      }
+
+      const userAnalytics = userAnalyticsMap.get(userId)!;
+
+      // Process scores
+      Object.entries(issueScore.scores).forEach(([attribute, scoreData]: [string, any]) => {
+        const mappedAttribute = mapScoredAttributeToStrategic(attribute);
+        
+        if (mappedAttribute) {
+          const currentCount = userAnalytics.scoreCount![mappedAttribute];
+          const currentAvg = userAnalytics.attributes[mappedAttribute];
+          const adjustedScore = Math.max(0, Math.min(4, scoreData.score + 2));
+          
+          userAnalytics.attributes[mappedAttribute] = 
+            (currentAvg * currentCount + adjustedScore) / (currentCount + 1);
+          userAnalytics.scoreCount![mappedAttribute]++;
+        }
+      });
+    });
+
+    return Array.from(userAnalyticsMap.values());
   };
 
   // Map scored attributes to strategic attributes
@@ -230,7 +402,8 @@ export function useEnhancedStrategicAttributes() {
     isLoading: isLoading || attributesLoading,
     fetchAllData,
     getEnhancedAttributeAnalytics,
-    getEnhancedCompanyAverage,
+    getActionAnalytics,
+    getIssueAnalytics,
     // Also expose the base methods for compatibility
     fetchAttributes,
     getAttributeAnalytics,

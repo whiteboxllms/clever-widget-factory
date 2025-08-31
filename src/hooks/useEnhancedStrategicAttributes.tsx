@@ -39,10 +39,10 @@ export function useEnhancedStrategicAttributes() {
           actions!inner(
             id,
             assigned_to,
-            title
-          ),
-          profiles!actions_assigned_to_fkey(
-            full_name
+            title,
+            profiles!assigned_to(
+              full_name
+            )
           )
         `);
 
@@ -60,7 +60,7 @@ export function useEnhancedStrategicAttributes() {
         id: item.id,
         action_id: item.action_id,
         assigned_to: item.actions.assigned_to,
-        full_name: item.profiles?.full_name || 'Unknown User',
+        full_name: item.actions.profiles?.full_name || 'Unknown User',
         scores: item.scores,
         created_at: item.created_at
       })).filter(score => {

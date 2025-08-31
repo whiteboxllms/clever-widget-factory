@@ -94,7 +94,7 @@ export function ManageIssueActionsDialog({
           setToolName(toolResponse.data?.name || "Unknown Tool");
         }
       } else {
-        setToolName("N/A");
+        setToolName(""); 
       }
     } catch (error) {
       console.error('Error fetching data:', error);

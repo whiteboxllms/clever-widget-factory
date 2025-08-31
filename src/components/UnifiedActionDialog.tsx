@@ -31,7 +31,8 @@ import {
   Clock,
   AlertCircle,
   Package,
-  Trash2
+  Trash2,
+  CheckCircle
 } from "lucide-react";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { LexicalEditor } from './LexicalEditor';
@@ -63,6 +64,7 @@ export function UnifiedActionDialog({
   const [formData, setFormData] = useState<Partial<BaseAction>>({});
   const [newTool, setNewTool] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
   const [estimatedDate, setEstimatedDate] = useState<Date | undefined>();
   const [isFormInitialized, setIsFormInitialized] = useState(false);
   const [currentActionId, setCurrentActionId] = useState<string | null>(null);
@@ -146,6 +148,58 @@ export function UnifiedActionDialog({
 
   const showIssueReference = () => {
     return formData.linked_issue_id || formData.issue_reference;
+  };
+
+  // Helper to check if observations (implementation notes) have content
+  const hasImplementationNotes = () => {
+    if (!formData.observations) return false;
+    // Strip HTML tags and check if there's actual text content
+    const textContent = formData.observations.replace(/<[^>]*>/g, '').trim();
+    return textContent.length > 0;
+  };
+
+  const handleReadyForReview = async () => {
+    if (!action?.id) return;
+    
+    if (!hasImplementationNotes()) {
+      toast({
+        title: "Error",
+        description: "Please add implementation notes before marking as ready for review",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsCompleting(true);
+    
+    try {
+      const { error } = await supabase
+        .from('actions')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', action.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Action marked as ready for review"
+      });
+
+      onActionSaved();
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error completing action:', error);
+      toast({
+        title: "Error",
+        description: "Failed to mark action as ready for review",
+        variant: "destructive"
+      });
+    } finally {
+      setIsCompleting(false);
+    }
   };
 
 
@@ -597,6 +651,16 @@ export function UnifiedActionDialog({
             >
               Cancel
             </Button>
+            {!isCreating && action?.id && action.status !== 'completed' && (
+              <Button
+                onClick={handleReadyForReview}
+                disabled={!hasImplementationNotes() || isCompleting || isSubmitting}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                {isCompleting ? 'Marking Complete...' : 'Ready for Review'}
+              </Button>
+            )}
             <Button
               onClick={handleSubmit}
               disabled={isSubmitting || isUploading}

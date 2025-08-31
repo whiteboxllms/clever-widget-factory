@@ -5,10 +5,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { format } from 'date-fns';
+import { ActionScore } from '@/hooks/useActionScores';
 import { AssetScore } from '@/hooks/useAssetScores';
 
+type Score = ActionScore | AssetScore;
+
 interface ScoreDisplayCardProps {
-  scores: AssetScore[];
+  scores: Score[];
   assetName: string;
 }
 
@@ -62,12 +65,12 @@ export function ScoreDisplayCard({ scores, assetName }: ScoreDisplayCardProps) {
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">Performance Scores for {assetName}</h3>
       
-      {scores.map((assetScore) => {
-        const averageScore = calculateAverageScore(assetScore.scores);
-        const isExpanded = expandedScores.has(assetScore.id);
+      {scores.map((score) => {
+        const averageScore = calculateAverageScore(score.scores);
+        const isExpanded = expandedScores.has(score.id);
         
         return (
-          <Card key={assetScore.id}>
+          <Card key={score.id}>
             <Collapsible>
               <CollapsibleTrigger asChild>
                 <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
@@ -75,22 +78,22 @@ export function ScoreDisplayCard({ scores, assetName }: ScoreDisplayCardProps) {
                     <div className="space-y-1">
                       <div className="flex items-center space-x-2">
                         <CardTitle className="text-base">
-                          {format(new Date(assetScore.created_at), 'MMM d, yyyy')}
+                          {format(new Date(score.created_at), 'MMM d, yyyy')}
                         </CardTitle>
                         <Badge variant="outline">
-                          {getSourceTypeLabel(assetScore.source_type)}
+                          {getSourceTypeLabel(score.source_type)}
                         </Badge>
                       </div>
                       <CardDescription className="flex items-center space-x-4">
                         <span className="flex items-center space-x-1">
                           <Calendar className="w-3 h-3" />
-                          <span>{format(new Date(assetScore.created_at), 'h:mm a')}</span>
+                          <span>{format(new Date(score.created_at), 'h:mm a')}</span>
                         </span>
                         <span className="flex items-center space-x-1">
                           {getScoreIcon(averageScore)}
                           <span>Avg: {averageScore.toFixed(1)}</span>
                         </span>
-                        <span>{Object.keys(assetScore.scores).length} attributes</span>
+                        <span>{Object.keys(score.scores).length} attributes</span>
                       </CardDescription>
                     </div>
                     
@@ -101,7 +104,7 @@ export function ScoreDisplayCard({ scores, assetName }: ScoreDisplayCardProps) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => toggleExpanded(assetScore.id)}
+                        onClick={() => toggleExpanded(score.id)}
                       >
                         {isExpanded ? (
                           <ChevronUp className="w-4 h-4" />
@@ -117,11 +120,11 @@ export function ScoreDisplayCard({ scores, assetName }: ScoreDisplayCardProps) {
               <CollapsibleContent>
                 <CardContent className="pt-0">
                   <div className="space-y-3">
-                    {assetScore.likely_root_causes && assetScore.likely_root_causes.length > 0 && (
+                    {score.likely_root_causes && score.likely_root_causes.length > 0 && (
                       <div className="p-3 bg-blue-50 rounded-lg">
                         <h4 className="text-sm font-semibold mb-2">Root Causes Identified:</h4>
                         <ul className="space-y-1">
-                          {assetScore.likely_root_causes.map((cause, idx) => (
+                          {score.likely_root_causes.map((cause, idx) => (
                             <li key={idx} className="text-xs text-blue-700 flex items-start">
                               <span className="mr-2">•</span>
                               <span>{cause}</span>
@@ -131,7 +134,7 @@ export function ScoreDisplayCard({ scores, assetName }: ScoreDisplayCardProps) {
                       </div>
                     )}
                     
-                    {Object.entries(assetScore.scores).map(([attribute, data]) => (
+                    {Object.entries(score.scores).map(([attribute, data]) => (
                       <div key={attribute} className="flex items-start justify-between p-3 bg-muted rounded-lg">
                         <div className="flex-1">
                           <div className="flex items-center space-x-2 mb-1">

@@ -12,7 +12,7 @@ import { Bolt, Plus, Filter, Search, Clock, CheckCircle, Circle, User, AlertTria
 import { UnifiedActionDialog } from '@/components/UnifiedActionDialog';
 import { ActionScoreDialog } from '@/components/ActionScoreDialog';
 import { ScoreButton } from '@/components/ScoreButton';
-import { useAssetScores } from '@/hooks/useAssetScores';
+import { useActionScores } from '@/hooks/useActionScores';
 import { BaseAction, Profile } from '@/types/actions';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
@@ -36,7 +36,7 @@ export default function Actions() {
   const [scoringAction, setScoringAction] = useState<BaseAction | null>(null);
   const [existingScore, setExistingScore] = useState<any>(null);
 
-  const { getScoreForAction } = useAssetScores();
+  const { getScoreForAction } = useActionScores();
 
   const fetchActions = async () => {
     try {

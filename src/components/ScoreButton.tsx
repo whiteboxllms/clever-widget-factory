@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Target } from 'lucide-react';
-import { useAssetScores, AssetScore } from '@/hooks/useAssetScores';
+import { useActionScores, ActionScore } from '@/hooks/useActionScores';
 import { BaseAction } from '@/types/actions';
 
 interface ScoreButtonProps {
@@ -10,8 +10,8 @@ interface ScoreButtonProps {
 }
 
 export function ScoreButton({ action, onScoreAction }: ScoreButtonProps) {
-  const [existingScore, setExistingScore] = useState<AssetScore | null>(null);
-  const { getScoreForAction } = useAssetScores();
+  const [existingScore, setExistingScore] = useState<ActionScore | null>(null);
+  const { getScoreForAction } = useActionScores();
 
   useEffect(() => {
     const checkExistingScore = async () => {

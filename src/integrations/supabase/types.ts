@@ -14,6 +14,62 @@ export type Database = {
   }
   public: {
     Tables: {
+      action_scores: {
+        Row: {
+          action_id: string
+          ai_response: Json | null
+          asset_context_id: string | null
+          asset_context_name: string | null
+          created_at: string
+          id: string
+          likely_root_causes: string[] | null
+          prompt_id: string
+          prompt_text: string
+          scores: Json
+          source_id: string
+          source_type: string
+          updated_at: string
+        }
+        Insert: {
+          action_id: string
+          ai_response?: Json | null
+          asset_context_id?: string | null
+          asset_context_name?: string | null
+          created_at?: string
+          id?: string
+          likely_root_causes?: string[] | null
+          prompt_id: string
+          prompt_text: string
+          scores?: Json
+          source_id: string
+          source_type?: string
+          updated_at?: string
+        }
+        Update: {
+          action_id?: string
+          ai_response?: Json | null
+          asset_context_id?: string | null
+          asset_context_name?: string | null
+          created_at?: string
+          id?: string
+          likely_root_causes?: string[] | null
+          prompt_id?: string
+          prompt_text?: string
+          scores?: Json
+          source_id?: string
+          source_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "action_scores_action_id_fkey"
+            columns: ["action_id"]
+            isOneToOne: false
+            referencedRelation: "actions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       actions: {
         Row: {
           actual_duration: string | null

@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Copy, User, Calendar, Wrench, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useScoringPrompts } from "@/hooks/useScoringPrompts";
-import { useAssetScores, AssetScore } from "@/hooks/useAssetScores";
+import { useActionScores, ActionScore } from "@/hooks/useActionScores";
 import { ScoreEntryForm } from "./ScoreEntryForm";
 import { ScoreDisplayCard } from "./ScoreDisplayCard";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,7 +27,7 @@ interface ActionScoreDialogProps {
   onOpenChange: (open: boolean) => void;
   action: BaseAction;
   onScoreUpdated: () => void;
-  existingScore?: AssetScore | null;
+  existingScore?: ActionScore | null;
 }
 
 export function ActionScoreDialog({ 
@@ -48,7 +48,7 @@ export function ActionScoreDialog({
 
   const { toast } = useToast();
   const { prompts } = useScoringPrompts();
-  const { createScore, updateScore } = useAssetScores();
+  const { createScore, updateScore } = useActionScores();
 
   // Determine asset context for the action
   useEffect(() => {
@@ -219,15 +219,14 @@ export function ActionScoreDialog({
 
     try {
       const scoreData = {
-        asset_id: asset?.id || action.asset_id || action.linked_issue_id || action.id,
-        asset_name: assetName,
-        source_type: 'action' as const,
-        source_id: action.id,
+        action_id: action.id!,
         prompt_id: selectedPromptId,
         prompt_text: selectedPrompt.prompt_text,
         scores: finalScores,
         ai_response: aiResponse ? JSON.parse(aiResponse) : undefined,
         likely_root_causes: rootCauses,
+        asset_context_id: asset?.id || action.asset_id,
+        asset_context_name: assetName,
       };
 
       if (existingScore) {

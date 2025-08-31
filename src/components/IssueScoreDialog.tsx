@@ -12,6 +12,7 @@ import { useAssetScores, AssetScore } from '@/hooks/useAssetScores';
 import { useToast } from '@/hooks/use-toast';
 import { ScoreEntryForm } from './ScoreEntryForm';
 import { ScoreDisplayCard } from './ScoreDisplayCard';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ToolIssue {
   id: string;
@@ -163,23 +164,8 @@ export function IssueScoreDialog({ open, onOpenChange, issue, tool, existingScor
           description: "Asset score updated successfully",
         });
       } else {
-        // Create new score
-        await createScore({
-          asset_id: tool.id,
-          asset_name: tool.name,
-          source_type: 'issue',
-          source_id: issue.id,
-          prompt_id: selectedPrompt.id,
-          prompt_text: selectedPrompt.prompt_text,
-          scores,
-          ai_response: fullAiResponse,
-          likely_root_causes: parsedRootCauses,
-        });
-
-        toast({
-          title: "Success",
-          description: "Asset score saved successfully",
-        });
+        // Create issue scores for both reporter and responsible party
+        await createIssueScores(scores);
       }
       
       onScoreUpdated?.();
@@ -187,6 +173,93 @@ export function IssueScoreDialog({ open, onOpenChange, issue, tool, existingScor
     } catch (error) {
       // Error handled in hook
     }
+  };
+
+  const createIssueScores = async (scores: Record<string, { score: number; reason: string }>) => {
+    // Get issue details and find the last user who checked out the tool
+    const { data: issueData, error: issueError } = await supabase
+      .from('issues')
+      .select('reported_by, reported_at, context_id')
+      .eq('id', issue.id)
+      .single();
+
+    if (issueError) {
+      console.error('Error fetching issue data:', issueError);
+      return;
+    }
+
+    // Find the last checkout before the issue was reported
+    const { data: lastCheckout, error: checkoutError } = await supabase
+      .from('checkouts')
+      .select('user_id')
+      .eq('tool_id', tool.id)
+      .lt('checkout_date', issueData.reported_at)
+      .order('checkout_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (checkoutError) {
+      console.error('Error fetching checkout data:', checkoutError);
+    }
+
+    // 1. Create positive score for the reporter
+    await createScore({
+      asset_id: tool.id,
+      asset_name: tool.name,
+      source_type: 'issue',
+      source_id: issue.id,
+      prompt_id: selectedPrompt.id,
+      prompt_text: selectedPrompt.prompt_text,
+      scores: makeScoresPositive(scores),
+      ai_response: fullAiResponse,
+      likely_root_causes: parsedRootCauses,
+      score_attribution_type: 'issue_reporter',
+      user_id: issueData.reported_by,
+    });
+
+    // 2. Create negative score for responsible party (if different from reporter)
+    if (lastCheckout?.user_id && lastCheckout.user_id !== issueData.reported_by) {
+      await createScore({
+        asset_id: tool.id,
+        asset_name: tool.name,
+        source_type: 'issue',
+        source_id: issue.id,
+        prompt_id: selectedPrompt.id,
+        prompt_text: selectedPrompt.prompt_text,
+        scores: makeScoresNegative(scores),
+        ai_response: fullAiResponse,
+        likely_root_causes: parsedRootCauses,
+        score_attribution_type: 'issue_responsible',
+        user_id: lastCheckout.user_id,
+      });
+    }
+
+    toast({
+      title: "Success",
+      description: "Issue scores created for reporter and responsible party",
+    });
+  };
+
+  const makeScoresPositive = (scores: Record<string, { score: number; reason: string }>) => {
+    const positiveScores = { ...scores };
+    Object.keys(positiveScores).forEach(key => {
+      positiveScores[key] = {
+        ...positiveScores[key],
+        score: Math.abs(positiveScores[key].score)
+      };
+    });
+    return positiveScores;
+  };
+
+  const makeScoresNegative = (scores: Record<string, { score: number; reason: string }>) => {
+    const negativeScores = { ...scores };
+    Object.keys(negativeScores).forEach(key => {
+      negativeScores[key] = {
+        ...negativeScores[key],
+        score: -Math.abs(negativeScores[key].score)
+      };
+    });
+    return negativeScores;
   };
 
   const handleClose = () => {

@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Calendar, User, Target, Star } from 'lucide-react';
+import { Calendar, User, Target, Star, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react';
 import { ScoredAction } from '@/hooks/useScoredActions';
 
 interface ScoredActionsListProps {
@@ -35,6 +35,39 @@ export function ScoredActionsList({ scoredActions, isLoading }: ScoredActionsLis
       day: 'numeric',
       year: 'numeric'
     });
+  };
+
+  const getAttributionIcon = (attributionType: string) => {
+    switch (attributionType) {
+      case 'issue_reporter':
+        return <TrendingUp className="h-3 w-3 text-green-600" />;
+      case 'issue_responsible':
+        return <TrendingDown className="h-3 w-3 text-red-600" />;
+      default:
+        return <Star className="h-3 w-3 text-blue-600" />;
+    }
+  };
+
+  const getAttributionLabel = (attributionType: string) => {
+    switch (attributionType) {
+      case 'issue_reporter':
+        return 'Issue Reporter';
+      case 'issue_responsible':
+        return 'Issue Responsible';
+      default:
+        return 'Action Score';
+    }
+  };
+
+  const getAttributionColor = (attributionType: string) => {
+    switch (attributionType) {
+      case 'issue_reporter':
+        return 'bg-green-100 text-green-800';
+      case 'issue_responsible':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-blue-100 text-blue-800';
+    }
   };
 
   if (isLoading) {
@@ -104,7 +137,7 @@ export function ScoredActionsList({ scoredActions, isLoading }: ScoredActionsLis
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1">
-                    <Star className="h-3 w-3 text-yellow-500" />
+                    {getAttributionIcon(scoredAction.score_attribution_type)}
                     <span className="text-xs font-medium">
                       {getAverageScore(scoredAction.scores).toFixed(1)}
                     </span>
@@ -113,6 +146,14 @@ export function ScoredActionsList({ scoredActions, isLoading }: ScoredActionsLis
               </div>
 
               <div className="flex flex-wrap gap-2 mb-3">
+                <Badge 
+                  variant="outline" 
+                  className={getAttributionColor(scoredAction.score_attribution_type)}
+                >
+                  {getAttributionIcon(scoredAction.score_attribution_type)}
+                  <span className="ml-1">{getAttributionLabel(scoredAction.score_attribution_type)}</span>
+                </Badge>
+
                 <Badge 
                   variant="outline" 
                   className={getStatusColor(scoredAction.action?.status || 'unknown')}
@@ -127,7 +168,7 @@ export function ScoredActionsList({ scoredActions, isLoading }: ScoredActionsLis
                 )}
 
                 {scoredAction.action?.assignee && (
-                  <Badge variant="outline" className="bg-blue-100 text-blue-800">
+                  <Badge variant="outline" className="bg-gray-100 text-gray-800">
                     <User className="h-3 w-3 mr-1" />
                     {scoredAction.action.assignee.full_name}
                   </Badge>

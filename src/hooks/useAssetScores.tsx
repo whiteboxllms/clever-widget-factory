@@ -13,6 +13,7 @@ export interface AssetScore {
   scores: Record<string, { score: number; reason: string }>;
   ai_response?: Record<string, any>;
   likely_root_causes?: string[];
+  score_attribution_type?: 'action' | 'issue_reporter' | 'issue_responsible';
   created_at: string;
   updated_at: string;
 }
@@ -73,6 +74,8 @@ export const useAssetScores = (assetId?: string) => {
     scores: Record<string, { score: number; reason: string }>;
     ai_response?: Record<string, any>;
     likely_root_causes?: string[];
+    score_attribution_type?: 'action' | 'issue_reporter' | 'issue_responsible';
+    user_id?: string;
   }) => {
     try {
       const { data, error } = await supabase
@@ -87,7 +90,8 @@ export const useAssetScores = (assetId?: string) => {
           prompt_text: scoreData.prompt_text,
           scores: scoreData.scores,
           ai_response: scoreData.ai_response,
-          likely_root_causes: scoreData.likely_root_causes || []
+          likely_root_causes: scoreData.likely_root_causes || [],
+          score_attribution_type: scoreData.score_attribution_type || 'action'
         })
         .select()
         .single();

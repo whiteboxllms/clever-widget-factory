@@ -35,7 +35,21 @@ export const useActionScores = (actionId?: string) => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setScores((data || []) as ActionScore[]);
+      setScores((data || []).map(item => ({
+        id: item.id,
+        action_id: item.action_id,
+        source_type: 'action' as const,
+        source_id: item.source_id,
+        prompt_id: item.prompt_id,
+        prompt_text: item.prompt_text,
+        scores: item.scores as Record<string, { score: number; reason: string }>,
+        ai_response: item.ai_response as Record<string, any>,
+        likely_root_causes: item.likely_root_causes || [],
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+        asset_context_id: item.asset_context_id,
+        asset_context_name: item.asset_context_name
+      })));
     } catch (error) {
       console.error('Error fetching action scores:', error);
       toast({
@@ -122,7 +136,24 @@ export const useActionScores = (actionId?: string) => {
         .maybeSingle();
 
       if (error) throw error;
-      return data as ActionScore | null;
+      
+      if (!data) return null;
+      
+      return {
+        id: data.id,
+        action_id: data.action_id,
+        source_type: 'action' as const,
+        source_id: data.source_id,
+        prompt_id: data.prompt_id,
+        prompt_text: data.prompt_text,
+        scores: data.scores as Record<string, { score: number; reason: string }>,
+        ai_response: data.ai_response as Record<string, any>,
+        likely_root_causes: data.likely_root_causes || [],
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        asset_context_id: data.asset_context_id,
+        asset_context_name: data.asset_context_name
+      } as ActionScore;
     } catch (error) {
       console.error('Error fetching score for action:', error);
       return null;

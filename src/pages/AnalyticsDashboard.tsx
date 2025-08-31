@@ -6,12 +6,12 @@ import { ArrowLeft, TrendingUp, Users, BarChart3 } from 'lucide-react';
 import { AttributeRadarChart } from '@/components/AttributeRadarChart';
 import { AttributeFilters } from '@/components/AttributeFilters';
 import { ScoredActionsList } from '@/components/ScoredActionsList';
-import { useStrategicAttributes } from '@/hooks/useStrategicAttributes';
+import { useEnhancedStrategicAttributes } from '@/hooks/useEnhancedStrategicAttributes';
 import { useScoredActions } from '@/hooks/useScoredActions';
 
 export default function AnalyticsDashboard() {
   const navigate = useNavigate();
-  const { attributes, isLoading, fetchAttributes, getAttributeAnalytics, getCompanyAverage } = useStrategicAttributes();
+  const { getEnhancedAttributeAnalytics, getEnhancedCompanyAverage, fetchAllData, isLoading: attributesLoading } = useEnhancedStrategicAttributes();
   const { scoredActions, isLoading: isLoadingScoredActions, fetchScoredActions } = useScoredActions();
   
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
@@ -27,8 +27,9 @@ export default function AnalyticsDashboard() {
     setStartDate(thirtyDaysAgo.toISOString().split('T')[0]);
   }, []);
 
-  const userAnalytics = getAttributeAnalytics();
-  const companyAverage = getCompanyAverage();
+  // Process data for display
+  const userAnalytics = getEnhancedAttributeAnalytics(selectedUsers);
+  const companyAverage = getEnhancedCompanyAverage();
 
   // Auto-select first 3 users on initial load
   useEffect(() => {
@@ -37,22 +38,14 @@ export default function AnalyticsDashboard() {
     }
   }, [userAnalytics]);
 
-  const handleApplyFilters = () => {
-    fetchAttributes(
-      selectedUsers.length > 0 ? selectedUsers : undefined,
-      startDate,
-      endDate
-    );
-    fetchScoredActions(
-      selectedUsers.length > 0 ? selectedUsers : undefined,
-      startDate,
-      endDate
-    );
+  const handleApplyFilters = async () => {
+    await fetchAllData(selectedUsers, startDate, endDate);
+    await fetchScoredActions(selectedUsers, startDate, endDate);
   };
 
   const selectedUserAnalytics = userAnalytics.filter(user => selectedUsers.includes(user.userId));
 
-  if (isLoading || isLoadingScoredActions) {
+  if (attributesLoading || isLoadingScoredActions) {
     return (
       <div className="min-h-screen bg-gray-50 p-4">
         <div className="max-w-7xl mx-auto space-y-6">

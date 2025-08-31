@@ -25,6 +25,7 @@ export type Database = {
           likely_root_causes: string[] | null
           prompt_id: string
           prompt_text: string
+          score_attribution_type: string | null
           scores: Json
           source_id: string
           source_type: string
@@ -40,6 +41,7 @@ export type Database = {
           likely_root_causes?: string[] | null
           prompt_id: string
           prompt_text: string
+          score_attribution_type?: string | null
           scores?: Json
           source_id: string
           source_type?: string
@@ -55,6 +57,7 @@ export type Database = {
           likely_root_causes?: string[] | null
           prompt_id?: string
           prompt_text?: string
+          score_attribution_type?: string | null
           scores?: Json
           source_id?: string
           source_type?: string

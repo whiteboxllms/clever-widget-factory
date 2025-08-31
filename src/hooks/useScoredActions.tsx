@@ -13,6 +13,7 @@ export interface ScoredAction {
   scores: Record<string, { score: number; reason: string }>;
   ai_response: any;
   likely_root_causes: string[];
+  score_attribution_type: string;
   created_at: string;
   updated_at: string;
   // Related action data
@@ -86,6 +87,7 @@ export function useScoredActions() {
         scores: item.scores as Record<string, { score: number; reason: string }>,
         ai_response: item.ai_response,
         likely_root_causes: item.likely_root_causes || [],
+        score_attribution_type: item.score_attribution_type || 'action',
         created_at: item.created_at,
         updated_at: item.updated_at,
         action: item.actions ? {

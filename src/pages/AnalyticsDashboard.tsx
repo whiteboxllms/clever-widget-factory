@@ -27,23 +27,23 @@ export default function AnalyticsDashboard() {
     setStartDate(thirtyDaysAgo.toISOString().split('T')[0]);
   }, []);
 
-  // Process data for display
-  const userAnalytics = getEnhancedAttributeAnalytics(selectedUsers);
+  // Process data for display - get ALL users for selection, not filtered by selectedUsers
+  const allUserAnalytics = getEnhancedAttributeAnalytics(); // No filter to get all users
+  const selectedUserAnalytics = getEnhancedAttributeAnalytics(selectedUsers); // Filtered for display
   const companyAverage = getEnhancedCompanyAverage();
 
   // Auto-select first 3 users on initial load
   useEffect(() => {
-    if (userAnalytics.length > 0 && selectedUsers.length === 0) {
-      setSelectedUsers(userAnalytics.slice(0, 3).map(user => user.userId));
+    if (allUserAnalytics.length > 0 && selectedUsers.length === 0) {
+      setSelectedUsers(allUserAnalytics.slice(0, 3).map(user => user.userId));
     }
-  }, [userAnalytics]);
+  }, [allUserAnalytics.length]); // Only depend on length to avoid infinite loops
 
   const handleApplyFilters = async () => {
     await fetchAllData(selectedUsers, startDate, endDate);
     await fetchScoredActions(selectedUsers, startDate, endDate);
   };
 
-  const selectedUserAnalytics = userAnalytics.filter(user => selectedUsers.includes(user.userId));
 
   if (attributesLoading || isLoadingScoredActions) {
     return (
@@ -101,7 +101,7 @@ export default function AnalyticsDashboard() {
                 <Users className="h-8 w-8 text-blue-500" />
                 <div>
                   <p className="text-sm text-muted-foreground">Total Users</p>
-                  <p className="text-2xl font-bold">{userAnalytics.length}</p>
+                  <p className="text-2xl font-bold">{allUserAnalytics.length}</p>
                 </div>
               </div>
             </CardContent>
@@ -139,7 +139,7 @@ export default function AnalyticsDashboard() {
           {/* Filters Sidebar */}
           <div className="lg:col-span-1">
             <AttributeFilters
-              userAnalytics={userAnalytics}
+              userAnalytics={allUserAnalytics}
               selectedUsers={selectedUsers}
               onSelectedUsersChange={setSelectedUsers}
               startDate={startDate}

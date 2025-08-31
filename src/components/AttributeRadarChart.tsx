@@ -54,9 +54,9 @@ export function AttributeRadarChart({ userAnalytics, companyAverage, selectedUse
               />
               <PolarRadiusAxis 
                 angle={90} 
-                domain={[0, 5]} 
+                domain={[0, 4]} 
                 tick={{ fontSize: 10 }}
-                tickCount={6}
+                tickCount={5}
               />
               {dataKeys.map((key, index) => (
                 <Radar
@@ -77,7 +77,7 @@ export function AttributeRadarChart({ userAnalytics, companyAverage, selectedUse
           </ResponsiveContainer>
         </div>
         <div className="mt-4 text-sm text-muted-foreground">
-          <p>Scale: 0-5 where 5 represents highest proficiency</p>
+          <p>Scale: 0-4 where 4 represents highest proficiency</p>
           <p>Company average shown as baseline for comparison</p>
         </div>
       </CardContent>

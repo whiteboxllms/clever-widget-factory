@@ -107,16 +107,16 @@ export function useEnhancedStrategicAttributes() {
           userName,
           userRole: 'user', // Default role for action-based analytics
           attributes: {
-            growth_mindset: 1,
-            root_cause_problem_solving: 1,
-            teamwork: 1,
-            quality: 1,
-            proactive_documentation: 1,
-            safety_focus: 1,
-            efficiency: 1,
-            asset_stewardship: 1,
-            financial_impact: 1,
-            energy_morale_impact: 1
+            growth_mindset: 2,
+            root_cause_problem_solving: 2,
+            teamwork: 2,
+            quality: 2,
+            proactive_documentation: 2,
+            safety_focus: 2,
+            efficiency: 2,
+            asset_stewardship: 2,
+            financial_impact: 2,
+            energy_morale_impact: 2
           },
           scoreCount: {
             growth_mindset: 0,
@@ -142,14 +142,14 @@ export function useEnhancedStrategicAttributes() {
         const mappedAttribute = mapScoredAttributeToStrategic(attribute);
         
         if (mappedAttribute) {
-          // Add to running average (scores are 0-5 range)
+          // Add to running average (scores are -2 to 2 range, shift to 0-4)
           const currentCount = userAnalytics.scoreCount![mappedAttribute];
           const currentAvg = userAnalytics.attributes[mappedAttribute];
-          const newScore = Math.max(0, Math.min(5, scoreData.score));
+          const adjustedScore = Math.max(0, Math.min(4, scoreData.score + 2));
           
           // Calculate new average
           userAnalytics.attributes[mappedAttribute] = 
-            (currentAvg * currentCount + newScore) / (currentCount + 1);
+            (currentAvg * currentCount + adjustedScore) / (currentCount + 1);
           userAnalytics.scoreCount![mappedAttribute]++;
         }
       });

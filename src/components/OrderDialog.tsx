@@ -168,14 +168,14 @@ export function OrderDialog({
 
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <Label htmlFor="estimatedCost">Product Cost</Label>
+              <Label htmlFor="estimatedCost">Total price</Label>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Info className="h-4 w-4 text-muted-foreground cursor-help" />
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Product price only - do not include shipping costs</p>
+                    <p>This is the total cost of the purchase (not per unit price)</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

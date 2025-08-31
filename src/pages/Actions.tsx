@@ -11,6 +11,7 @@ import { toast } from '@/hooks/use-toast';
 import { Bolt, Plus, Filter, Search, Clock, CheckCircle, Circle, User, AlertTriangle, Wrench, ArrowLeft, Target } from 'lucide-react';
 import { UnifiedActionDialog } from '@/components/UnifiedActionDialog';
 import { ActionScoreDialog } from '@/components/ActionScoreDialog';
+import { ScoreButton } from '@/components/ScoreButton';
 import { useAssetScores } from '@/hooks/useAssetScores';
 import { BaseAction, Profile } from '@/types/actions';
 import { cn } from '@/lib/utils';
@@ -564,16 +565,8 @@ export default function Actions() {
                         </div>
                        </div>
                        
-                       <div className="flex items-center gap-2">
-                         <Button
-                           variant="outline"
-                           size="sm"
-                           onClick={(e) => handleScoreAction(action, e)}
-                           className={`h-7 px-2 text-xs ${action.score ? 'border-green-500 border-2' : ''}`}
-                           title={action.score ? "View/Edit Score" : "Assign Score"}
-                         >
-                           <Target className="h-3 w-3" />
-                         </Button>
+                        <div className="flex items-center gap-2">
+                          <ScoreButton action={action} onScoreAction={handleScoreAction} />
                          
                          <div className="text-sm text-muted-foreground text-right">
                            {action.completed_at && (

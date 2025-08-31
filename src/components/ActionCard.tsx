@@ -16,7 +16,7 @@ import { DEFAULT_DONE_DEFINITION } from "@/lib/constants";
 import { useTempPhotoStorage, type TempPhoto } from "@/hooks/useTempPhotoStorage";
 import { useAssetScores } from "@/hooks/useAssetScores";
 import { ActionScoreDialog } from './ActionScoreDialog';
-import { LexicalEditor } from './LexicalEditor';
+import TiptapEditor from './TiptapEditor';
 
 interface Profile {
   id: string;
@@ -829,13 +829,13 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                 )}
               </div>
               <div className="border rounded-lg min-h-[120px]">
-                <LexicalEditor
-                  value={editData.plan}
-                  onChange={handlePlanChange}
-                  onFocus={handlePlanFocus}
-                  onBlur={handlePlanBlur}
-                  placeholder="Describe the plan for this action..."
-                />
+                 <TiptapEditor
+                   value={editData.plan}
+                   onChange={handlePlanChange}
+                   onFocus={handlePlanFocus}
+                   onBlur={handlePlanBlur}
+                   placeholder="Describe the plan for this action..."
+                 />
               </div>
             </div>
 
@@ -857,13 +857,13 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                 )}
               </div>
               <div className="border rounded-lg min-h-[120px]">
-                <LexicalEditor
-                  value={editData.observations}
-                  onChange={handleImplementationChange}
-                  onFocus={handleImplementationFocus}
-                  onBlur={handleImplementationBlur}
-                  placeholder="Document implementation progress and observations..."
-                />
+                 <TiptapEditor
+                   value={editData.observations}
+                   onChange={handleImplementationChange}
+                   onFocus={handleImplementationFocus}
+                   onBlur={handleImplementationBlur}
+                   placeholder="Document implementation progress and observations..."
+                 />
               </div>
             </div>
 

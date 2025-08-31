@@ -30,7 +30,7 @@ import {
   Clock
 } from "lucide-react";
 import { useImageUpload } from "@/hooks/useImageUpload";
-import { LexicalEditor } from './LexicalEditor';
+import TiptapEditor from './TiptapEditor';
 import { cn } from "@/lib/utils";
 
 interface ToolIssue {
@@ -397,16 +397,16 @@ export function CreateActionFromIssueDialog({
               <div>
                 <Label>Action Plan</Label>
                 <div className="mt-2 border rounded-lg">
-                  <LexicalEditor
-                    value={formData.plan}
-                    onChange={(value) => setFormData(prev => ({ ...prev, plan: value }))}
-                    placeholder="Describe the plan for this action..."
-                    onFocus={() => {
-                      if (formData.plan === defaultPlan) {
-                        setFormData(prev => ({ ...prev, plan: '' }));
-                      }
-                    }}
-                  />
+                   <TiptapEditor
+                     value={formData.plan}
+                     onChange={(value) => setFormData(prev => ({ ...prev, plan: value }))}
+                     placeholder="Describe the plan for this action..."
+                     onFocus={() => {
+                       if (formData.plan === defaultPlan) {
+                         setFormData(prev => ({ ...prev, plan: '' }));
+                       }
+                     }}
+                   />
                 </div>
               </div>
             </TabsContent>
@@ -415,11 +415,11 @@ export function CreateActionFromIssueDialog({
               <div>
                 <Label>Implementation Notes</Label>
                 <div className="mt-2 border rounded-lg">
-                  <LexicalEditor
-                    value={formData.observations}
-                    onChange={(value) => setFormData(prev => ({ ...prev, observations: value }))}
-                    placeholder="Document the implementation progress and observations..."
-                  />
+                   <TiptapEditor
+                     value={formData.observations}
+                     onChange={(value) => setFormData(prev => ({ ...prev, observations: value }))}
+                     placeholder="Document the implementation progress and observations..."
+                   />
                 </div>
               </div>
             </TabsContent>

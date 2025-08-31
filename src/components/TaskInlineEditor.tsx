@@ -12,7 +12,7 @@ import {
   User,
   CheckCircle2
 } from 'lucide-react';
-import { LexicalEditor } from './LexicalEditor';
+import TiptapEditor from './TiptapEditor';
 
 interface Profile {
   id: string;
@@ -128,11 +128,11 @@ export function TaskInlineEditor({
       <div className="space-y-2">
         {isRichText ? (
           <div className="border rounded-lg">
-            <LexicalEditor
-              value={value}
-              onChange={setValue}
-              placeholder={`Enter ${getFieldLabel().toLowerCase()}...`}
-            />
+             <TiptapEditor
+               value={value}
+               onChange={setValue}
+               placeholder={`Enter ${getFieldLabel().toLowerCase()}...`}
+             />
           </div>
         ) : (
           <Input

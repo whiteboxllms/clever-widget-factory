@@ -14,7 +14,7 @@ import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { DEFAULT_DONE_DEFINITION } from "@/lib/constants";
 import { useTempPhotoStorage, type TempPhoto } from "@/hooks/useTempPhotoStorage";
-import { useAssetScores } from "@/hooks/useAssetScores";
+import { useActionScores } from "@/hooks/useActionScores";
 import { ActionScoreDialog } from './ActionScoreDialog';
 import TiptapEditor from './TiptapEditor';
 
@@ -60,7 +60,7 @@ interface ActionCardProps {
 export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSave, onCancel, onEdit, tempPhotoStorage, compact = false, onToggleComplete }: ActionCardProps) {
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
-  const { getScoreForAction } = useAssetScores();
+  const { getActionScore, hasScore } = useActionScores([action]);
   const planTextareaRef = useRef<HTMLTextAreaElement>(null);
   const implementationTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [isExpanded, setIsExpanded] = useState(true);
@@ -159,9 +159,9 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     }
   }, [action.id]);
 
-  const loadExistingScore = async () => {
+  const loadExistingScore = () => {
     if (action.id && !action.id.startsWith('temp-')) {
-      const score = await getScoreForAction(action.id);
+      const score = getActionScore(action.id);
       setExistingScore(score);
     }
   };
@@ -769,8 +769,8 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                   size="sm"
                   variant="outline"
                   onClick={handleAssignScore}
-                  className={`h-7 px-2 text-xs ${existingScore ? 'border-green-500 border-2' : ''}`}
-                  title={existingScore ? "View/Edit Score" : "Assign Score"}
+                  className={`h-7 px-2 text-xs ${hasScore(action.id) ? 'border-green-500 border-2' : ''}`}
+                  title={hasScore(action.id) ? "View/Edit Score" : "Assign Score"}
                 >
                   <Target className="h-3 w-3" />
                 </Button>

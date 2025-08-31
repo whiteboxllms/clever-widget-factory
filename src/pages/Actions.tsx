@@ -8,8 +8,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
-import { Bolt, Plus, Filter, Search, Clock, CheckCircle, Circle, User, AlertTriangle, Wrench, ArrowLeft } from 'lucide-react';
+import { Bolt, Plus, Filter, Search, Clock, CheckCircle, Circle, User, AlertTriangle, Wrench, ArrowLeft, Star } from 'lucide-react';
 import { UnifiedActionDialog } from '@/components/UnifiedActionDialog';
+import { ActionScoreDialog } from '@/components/ActionScoreDialog';
+import { useAssetScores } from '@/hooks/useAssetScores';
 import { BaseAction, Profile } from '@/types/actions';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
@@ -29,6 +31,11 @@ export default function Actions() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [showScoreDialog, setShowScoreDialog] = useState(false);
+  const [scoringAction, setScoringAction] = useState<BaseAction | null>(null);
+  const [existingScore, setExistingScore] = useState<any>(null);
+
+  const { getScoreForAction } = useAssetScores();
 
   const fetchActions = async () => {
     try {
@@ -151,6 +158,26 @@ export default function Actions() {
     setEditingAction(null);
     setIsCreating(true);
     setIsEditDialogOpen(true);
+  };
+
+  const handleScoreAction = async (action: BaseAction, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
+    setScoringAction(action);
+    
+    // Load existing score if any
+    if (action.id) {
+      const score = await getScoreForAction(action.id);
+      setExistingScore(score);
+    }
+    
+    setShowScoreDialog(true);
+  };
+
+  const handleScoreUpdated = () => {
+    setShowScoreDialog(false);
+    setScoringAction(null);
+    setExistingScore(null);
+    fetchActions(); // Refresh to show updated scores
   };
 
   useEffect(() => {
@@ -535,35 +562,58 @@ export default function Actions() {
                             </Badge>
                           )}
                         </div>
-                      </div>
-                      
-                      <div className="text-sm text-muted-foreground text-right">
-                        {action.completed_at && (
-                          <div>Completed: {new Date(action.completed_at).toLocaleDateString()}</div>
-                        )}
-                        <div>Updated: {new Date(action.updated_at).toLocaleString()}</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+                       </div>
+                       
+                       <div className="flex items-center gap-2">
+                         <Button
+                           variant="outline"
+                           size="sm"
+                           onClick={(e) => handleScoreAction(action, e)}
+                           className="flex items-center gap-1"
+                         >
+                           <Star className="h-4 w-4" />
+                           {action.score ? 'View Score' : 'Score Action'}
+                         </Button>
+                         
+                         <div className="text-sm text-muted-foreground text-right">
+                           {action.completed_at && (
+                             <div>Completed: {new Date(action.completed_at).toLocaleDateString()}</div>
+                           )}
+                           <div>Updated: {new Date(action.updated_at).toLocaleString()}</div>
+                         </div>
+                       </div>
+                     </div>
+                   </CardContent>
+                 </Card>
+               ))}
+             </div>
+           )}
+         </TabsContent>
+       </Tabs>
 
-      {/* Action Dialog */}
-      <UnifiedActionDialog
-        open={isEditDialogOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            handleCancelEdit();
-          }
-        }}
-        action={editingAction || undefined}
-        onActionSaved={handleSaveAction}
-        profiles={profiles}
-      />
+       {/* Action Dialog */}
+       <UnifiedActionDialog
+         open={isEditDialogOpen}
+         onOpenChange={(open) => {
+           if (!open) {
+             handleCancelEdit();
+           }
+         }}
+         action={editingAction || undefined}
+         onActionSaved={handleSaveAction}
+         profiles={profiles}
+       />
+
+       {/* Score Dialog */}
+       {scoringAction && (
+         <ActionScoreDialog
+           open={showScoreDialog}
+           onOpenChange={setShowScoreDialog}
+           action={scoringAction}
+           existingScore={existingScore}
+           onScoreUpdated={handleScoreUpdated}
+         />
+       )}
     </div>
   );
 }

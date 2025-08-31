@@ -136,33 +136,19 @@ function AutoLinkPlugin() {
   return null;
 }
 
-// Plugin to load initial HTML content into the editor
+// Simplified plugin to load initial HTML content into the editor
 function LoadInitialContentPlugin({ initialHtml }: { initialHtml?: string }) {
   const [editor] = useLexicalComposerContext();
-  const lastLoadedHtmlRef = useRef<string>('');
-  const isUserTypingRef = useRef<boolean>(false);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    console.log('LoadInitialContentPlugin: Loading HTML:', initialHtml);
-    
-    // Don't reload if user is actively typing
-    if (isUserTypingRef.current) {
-      console.log('LoadInitialContentPlugin: User is typing, skipping reload');
-      return;
-    }
-
-    // Always update when initialHtml changes, forcing content reload for action switching
-    console.log('LoadInitialContentPlugin: Updating content for', { initialHtml: initialHtml?.substring(0, 50) });
+    console.log('LoadInitialContentPlugin: Loading content:', initialHtml?.substring(0, 100));
 
     editor.update(() => {
       const root = $getRoot();
       root.clear();
       
       if (initialHtml && initialHtml.trim()) {
-        console.log('LoadInitialContentPlugin: Parsing and inserting HTML');
         try {
-          // Parse HTML and insert nodes
           const parser = new DOMParser();
           const dom = parser.parseFromString(initialHtml, 'text/html');
           const nodes = $generateNodesFromDOM(editor, dom);
@@ -173,35 +159,8 @@ function LoadInitialContentPlugin({ initialHtml }: { initialHtml?: string }) {
           console.error('LoadInitialContentPlugin: Error parsing HTML:', error);
         }
       }
-      
-      lastLoadedHtmlRef.current = initialHtml || '';
     });
   }, [initialHtml, editor]);
-
-  // Track when user starts typing to prevent content reloading during input
-  useEffect(() => {
-    const removeListener = editor.registerTextContentListener(() => {
-      isUserTypingRef.current = true;
-      
-      // Clear any existing timeout
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-      
-      // Reset the typing flag after a short delay
-      typingTimeoutRef.current = setTimeout(() => {
-        isUserTypingRef.current = false;
-      }, 100);
-    });
-
-    return () => {
-      removeListener();
-      // Clean up timeout on unmount
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-    };
-  }, [editor]);
 
   return null;
 }

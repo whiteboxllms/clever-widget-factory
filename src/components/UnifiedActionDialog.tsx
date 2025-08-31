@@ -557,7 +557,7 @@ export function UnifiedActionDialog({
                 <Label>Action Plan</Label>
                 <div className="mt-2 border rounded-lg">
                 <LexicalEditor
-                  key={`plan-${action?.id || 'new'}-${Date.now()}`}
+                  key={`plan-${action?.id || 'new'}`}
                   value={formData.plan || ''}
                   onChange={(value) => setFormData(prev => ({ ...prev, plan: value }))}
                   placeholder="Describe the plan for this action..."
@@ -571,7 +571,7 @@ export function UnifiedActionDialog({
                 <Label>Implementation Notes</Label>
                 <div className="mt-2 border rounded-lg">
                 <LexicalEditor
-                  key={`observations-${action?.id || 'new'}-${Date.now()}`}
+                  key={`observations-${action?.id || 'new'}`}
                   value={formData.observations || ''}
                   onChange={(value) => setFormData(prev => ({ ...prev, observations: value }))}
                   placeholder="Document the implementation progress and observations..."

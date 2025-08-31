@@ -5,11 +5,14 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, TrendingUp, Users, BarChart3 } from 'lucide-react';
 import { AttributeRadarChart } from '@/components/AttributeRadarChart';
 import { AttributeFilters } from '@/components/AttributeFilters';
+import { ScoredActionsList } from '@/components/ScoredActionsList';
 import { useStrategicAttributes } from '@/hooks/useStrategicAttributes';
+import { useScoredActions } from '@/hooks/useScoredActions';
 
 export default function AnalyticsDashboard() {
   const navigate = useNavigate();
   const { attributes, isLoading, fetchAttributes, getAttributeAnalytics, getCompanyAverage } = useStrategicAttributes();
+  const { scoredActions, isLoading: isLoadingScoredActions, fetchScoredActions } = useScoredActions();
   
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [startDate, setStartDate] = useState('');
@@ -40,11 +43,16 @@ export default function AnalyticsDashboard() {
       startDate,
       endDate
     );
+    fetchScoredActions(
+      selectedUsers.length > 0 ? selectedUsers : undefined,
+      startDate,
+      endDate
+    );
   };
 
   const selectedUserAnalytics = userAnalytics.filter(user => selectedUsers.includes(user.userId));
 
-  if (isLoading) {
+  if (isLoading || isLoadingScoredActions) {
     return (
       <div className="min-h-screen bg-gray-50 p-4">
         <div className="max-w-7xl mx-auto space-y-6">
@@ -149,8 +157,9 @@ export default function AnalyticsDashboard() {
             />
           </div>
 
-          {/* Radar Chart */}
-          <div className="lg:col-span-3">
+          {/* Charts and Actions */}
+          <div className="lg:col-span-3 space-y-6">
+            {/* Radar Chart */}
             {selectedUsers.length > 0 ? (
               <AttributeRadarChart
                 userAnalytics={selectedUserAnalytics}
@@ -168,6 +177,12 @@ export default function AnalyticsDashboard() {
                 </CardContent>
               </Card>
             )}
+
+            {/* Scored Actions List */}
+            <ScoredActionsList 
+              scoredActions={scoredActions}
+              isLoading={isLoadingScoredActions}
+            />
           </div>
         </div>
       </div>

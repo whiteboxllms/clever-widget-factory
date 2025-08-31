@@ -23,6 +23,7 @@ import Audit from "./pages/Audit";
 import AuditTool from "./pages/AuditTool";
 import ScoringPrompts from "./pages/ScoringPrompts";
 import NotFound from "./pages/NotFound";
+import AnalyticsDashboard from "./pages/AnalyticsDashboard";
 
 const queryClient = new QueryClient();
 
@@ -105,6 +106,11 @@ function AppContent() {
       <Route path="/prompts" element={
         <ProtectedRoute>
           <ScoringPrompts />
+        </ProtectedRoute>
+      } />
+      <Route path="/dashboard/analytics" element={
+        <ProtectedRoute>
+          <AnalyticsDashboard />
         </ProtectedRoute>
       } />
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

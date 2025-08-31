@@ -28,15 +28,29 @@ export const useAssetScores = (assetId?: string) => {
     try {
       setIsLoading(true);
       let query = supabase
-        .from('asset_scores')
+        .from('action_scores')
         .select('*')
-        .eq('asset_id', targetAssetId || assetId)
+        .eq('asset_context_id', targetAssetId || assetId)
         .order('created_at', { ascending: false });
 
       const { data, error } = await query;
 
       if (error) throw error;
-      setScores((data || []) as AssetScore[]);
+      
+      setScores((data || []).map(item => ({
+        id: item.id,
+        asset_id: item.asset_context_id || '',
+        asset_name: item.asset_context_name || 'Unknown Asset',
+        source_type: item.source_type as 'action' | 'issue',
+        source_id: item.source_id,
+        prompt_id: item.prompt_id,
+        prompt_text: item.prompt_text,
+        scores: item.scores as Record<string, { score: number; reason: string }>,
+        ai_response: item.ai_response as Record<string, any>,
+        likely_root_causes: item.likely_root_causes || [],
+        created_at: item.created_at,
+        updated_at: item.updated_at
+      })));
     } catch (error) {
       console.error('Error fetching asset scores:', error);
       toast({
@@ -62,8 +76,19 @@ export const useAssetScores = (assetId?: string) => {
   }) => {
     try {
       const { data, error } = await supabase
-        .from('asset_scores')
-        .insert(scoreData)
+        .from('action_scores')
+        .insert({
+          action_id: scoreData.source_id,
+          asset_context_id: scoreData.asset_id,
+          asset_context_name: scoreData.asset_name,
+          source_type: scoreData.source_type,
+          source_id: scoreData.source_id,
+          prompt_id: scoreData.prompt_id,
+          prompt_text: scoreData.prompt_text,
+          scores: scoreData.scores,
+          ai_response: scoreData.ai_response,
+          likely_root_causes: scoreData.likely_root_causes || []
+        })
         .select()
         .single();
 
@@ -89,8 +114,12 @@ export const useAssetScores = (assetId?: string) => {
   const updateScore = async (id: string, updates: Partial<AssetScore>) => {
     try {
       const { error } = await supabase
-        .from('asset_scores')
-        .update(updates)
+        .from('action_scores')
+        .update({
+          scores: updates.scores,
+          ai_response: updates.ai_response,
+          likely_root_causes: updates.likely_root_causes
+        })
         .eq('id', id);
 
       if (error) throw error;
@@ -114,14 +143,30 @@ export const useAssetScores = (assetId?: string) => {
   const getScoreForIssue = async (issueId: string) => {
     try {
       const { data, error } = await supabase
-        .from('asset_scores')
+        .from('action_scores')
         .select('*')
         .eq('source_id', issueId)
         .eq('source_type', 'issue')
         .maybeSingle();
 
       if (error) throw error;
-      return data as AssetScore | null;
+      
+      if (!data) return null;
+      
+      return {
+        id: data.id,
+        asset_id: data.asset_context_id || '',
+        asset_name: data.asset_context_name || 'Unknown Asset',
+        source_type: data.source_type as 'action' | 'issue',
+        source_id: data.source_id,
+        prompt_id: data.prompt_id,
+        prompt_text: data.prompt_text,
+        scores: data.scores as Record<string, { score: number; reason: string }>,
+        ai_response: data.ai_response as Record<string, any>,
+        likely_root_causes: data.likely_root_causes || [],
+        created_at: data.created_at,
+        updated_at: data.updated_at
+      } as AssetScore;
     } catch (error) {
       console.error('Error fetching score for issue:', error);
       return null;
@@ -131,14 +176,30 @@ export const useAssetScores = (assetId?: string) => {
   const getScoreForAction = async (actionId: string) => {
     try {
       const { data, error } = await supabase
-        .from('asset_scores')
+        .from('action_scores')
         .select('*')
         .eq('source_id', actionId)
         .eq('source_type', 'action')
         .maybeSingle();
 
       if (error) throw error;
-      return data as AssetScore | null;
+      
+      if (!data) return null;
+      
+      return {
+        id: data.id,
+        asset_id: data.asset_context_id || '',
+        asset_name: data.asset_context_name || 'Unknown Asset',
+        source_type: data.source_type as 'action' | 'issue',
+        source_id: data.source_id,
+        prompt_id: data.prompt_id,
+        prompt_text: data.prompt_text,
+        scores: data.scores as Record<string, { score: number; reason: string }>,
+        ai_response: data.ai_response as Record<string, any>,
+        likely_root_causes: data.likely_root_causes || [],
+        created_at: data.created_at,
+        updated_at: data.updated_at
+      } as AssetScore;
     } catch (error) {
       console.error('Error fetching score for action:', error);
       return null;

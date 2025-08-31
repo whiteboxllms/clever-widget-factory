@@ -1229,6 +1229,36 @@ export type Database = {
           },
         ]
       }
+      worker_strategic_attributes: {
+        Row: {
+          attribute_type: Database["public"]["Enums"]["strategic_attribute_type"]
+          created_at: string | null
+          earned_at: string | null
+          id: string
+          level: number | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          attribute_type: Database["public"]["Enums"]["strategic_attribute_type"]
+          created_at?: string | null
+          earned_at?: string | null
+          id?: string
+          level?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          attribute_type?: Database["public"]["Enums"]["strategic_attribute_type"]
+          created_at?: string | null
+          earned_at?: string | null
+          id?: string
+          level?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -1266,6 +1296,17 @@ export type Database = {
         | "welding"
         | "fabrication"
       context_type: "tool" | "order" | "inventory" | "facility"
+      strategic_attribute_type:
+        | "growth_mindset"
+        | "root_cause_problem_solving"
+        | "teamwork"
+        | "quality"
+        | "proactive_documentation"
+        | "safety_focus"
+        | "efficiency"
+        | "asset_stewardship"
+        | "financial_impact"
+        | "energy_morale_impact"
       tool_status:
         | "available"
         | "checked_out"
@@ -1421,6 +1462,18 @@ export const Constants = {
         "fabrication",
       ],
       context_type: ["tool", "order", "inventory", "facility"],
+      strategic_attribute_type: [
+        "growth_mindset",
+        "root_cause_problem_solving",
+        "teamwork",
+        "quality",
+        "proactive_documentation",
+        "safety_focus",
+        "efficiency",
+        "asset_stewardship",
+        "financial_impact",
+        "energy_morale_impact",
+      ],
       tool_status: [
         "available",
         "checked_out",

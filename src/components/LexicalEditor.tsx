@@ -143,17 +143,22 @@ function LoadInitialContentPlugin({ initialHtml }: { initialHtml?: string }) {
   const hasLoadedRef = useRef(false);
 
   useEffect(() => {
+    // Store the previous content before checking
+    const previousContent = lastLoadedContentRef.current;
+    
     // Only load if this is truly new content, not user editing
-    if (initialHtml !== lastLoadedContentRef.current && initialHtml && initialHtml.trim()) {
+    if (initialHtml !== previousContent && initialHtml && initialHtml.trim()) {
       console.log('LoadInitialContentPlugin: Loading new content:', initialHtml?.substring(0, 100));
+      console.log('LoadInitialContentPlugin: Previous content:', previousContent?.substring(0, 100));
+      
+      // Reset loading state when switching to different content
+      hasLoadedRef.current = false;
       lastLoadedContentRef.current = initialHtml;
 
       editor.update(() => {
         const root = $getRoot();
-        // Only clear if we're loading different content
-        if (!hasLoadedRef.current || initialHtml !== lastLoadedContentRef.current) {
-          root.clear();
-        }
+        // Always clear when loading new content
+        root.clear();
         
         try {
           const parser = new DOMParser();

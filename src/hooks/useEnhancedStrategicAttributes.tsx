@@ -3,30 +3,80 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useStrategicAttributes, AttributeAnalytics, CompanyAverage, StrategicAttributeType } from './useStrategicAttributes';
 
-interface IssueScore {
+interface EnhancedAttributeAnalytics {
+  userId: string;
+  userName: string;
+  userRole: string;
+  attributes: Record<StrategicAttributeType, number>;
+  scoreCount?: Record<StrategicAttributeType, number>;
+  totalActions?: number;
+}
+
+interface ActionScore {
   id: string;
-  user_id: string;
+  action_id: string;
+  assigned_to: string;
+  full_name: string;
   scores: Record<string, { score: number; reason: string }>;
-  score_attribution_type: 'issue_reporter' | 'issue_responsible';
   created_at: string;
 }
 
 export function useEnhancedStrategicAttributes() {
   const { attributes, isLoading: attributesLoading, fetchAttributes, getAttributeAnalytics, getCompanyAverage } = useStrategicAttributes();
-  const [issueScores, setIssueScores] = useState<IssueScore[]>([]);
+  const [actionScores, setActionScores] = useState<ActionScore[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  const fetchIssueScores = async (userIds?: string[], startDate?: string, endDate?: string) => {
+  const fetchActionScores = async (userIds?: string[], startDate?: string, endDate?: string) => {
     try {
-      // For now, return empty array since we need to implement proper user linking
-      // This will be enhanced when the database structure supports direct user linking
-      setIssueScores([]);
+      let query = supabase
+        .from('action_scores')
+        .select(`
+          id,
+          action_id,
+          scores,
+          created_at,
+          actions!inner(
+            id,
+            assigned_to,
+            title
+          ),
+          profiles!actions_assigned_to_fkey(
+            full_name
+          )
+        `);
+
+      // Apply date filters if provided
+      if (startDate && endDate) {
+        query = query.gte('created_at', startDate).lte('created_at', endDate);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      // Transform the data to match our interface
+      const transformedScores: ActionScore[] = (data || []).map((item: any) => ({
+        id: item.id,
+        action_id: item.action_id,
+        assigned_to: item.actions.assigned_to,
+        full_name: item.profiles?.full_name || 'Unknown User',
+        scores: item.scores,
+        created_at: item.created_at
+      })).filter(score => {
+        // Filter by user IDs if provided
+        if (userIds && userIds.length > 0) {
+          return userIds.includes(score.assigned_to);
+        }
+        return true;
+      });
+
+      setActionScores(transformedScores);
     } catch (error) {
-      console.error('Error fetching issue scores:', error);
+      console.error('Error fetching action scores:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch issue scores",
+        description: "Failed to fetch action scores",
         variant: "destructive",
       });
     }
@@ -36,49 +86,89 @@ export function useEnhancedStrategicAttributes() {
     setIsLoading(true);
     await Promise.all([
       fetchAttributes(userIds, startDate, endDate),
-      fetchIssueScores(userIds, startDate, endDate)
+      fetchActionScores(userIds, startDate, endDate)
     ]);
     setIsLoading(false);
   };
 
   const getEnhancedAttributeAnalytics = (userIds?: string[]): AttributeAnalytics[] => {
-    const baseAnalytics = getAttributeAnalytics(userIds);
-    
-    // Add issue scoring data to each user
-    baseAnalytics.forEach(userAnalytics => {
-      const userIssueScores = issueScores.filter(score => score.user_id === userAnalytics.userId);
-      
-      if (userIssueScores.length > 0) {
-        // Calculate average scores for each strategic attribute from issue scores
-        const attributeScoreSums: Record<string, { sum: number; count: number }> = {};
-        
-        userIssueScores.forEach(issueScore => {
-          Object.entries(issueScore.scores).forEach(([attribute, scoreData]) => {
-            if (!attributeScoreSums[attribute]) {
-              attributeScoreSums[attribute] = { sum: 0, count: 0 };
-            }
-            attributeScoreSums[attribute].sum += scoreData.score;
-            attributeScoreSums[attribute].count += 1;
-          });
-        });
+    // Create analytics primarily from action scores
+    const userAnalyticsMap = new Map<string, EnhancedAttributeAnalytics>();
 
-        // Map scored attributes to strategic attributes and add to base levels
-        Object.entries(attributeScoreSums).forEach(([attribute, data]) => {
-          const avgScore = data.sum / data.count;
-          const mappedAttribute = mapScoredAttributeToStrategic(attribute);
-          
-          if (mappedAttribute) {
-            // Normalize score impact (assuming scores range from -5 to +5)
-            const normalizedImpact = Math.max(-2, Math.min(2, avgScore / 2.5));
-            userAnalytics.attributes[mappedAttribute] = Math.max(0, Math.min(5, 
-              userAnalytics.attributes[mappedAttribute] + normalizedImpact
-            ));
-          }
+    // Process action scores
+    actionScores.forEach(actionScore => {
+      const userId = actionScore.assigned_to;
+      const userName = actionScore.full_name;
+
+      if (!userAnalyticsMap.has(userId)) {
+        // Initialize with baseline attributes (all set to 1 as starting point)
+        userAnalyticsMap.set(userId, {
+          userId,
+          userName,
+          userRole: 'user', // Default role for action-based analytics
+          attributes: {
+            growth_mindset: 1,
+            root_cause_problem_solving: 1,
+            teamwork: 1,
+            quality: 1,
+            proactive_documentation: 1,
+            safety_focus: 1,
+            efficiency: 1,
+            asset_stewardship: 1,
+            financial_impact: 1,
+            energy_morale_impact: 1
+          },
+          scoreCount: {
+            growth_mindset: 0,
+            root_cause_problem_solving: 0,
+            teamwork: 0,
+            quality: 0,
+            proactive_documentation: 0,
+            safety_focus: 0,
+            efficiency: 0,
+            asset_stewardship: 0,
+            financial_impact: 0,
+            energy_morale_impact: 0
+          },
+          totalActions: 0
         });
       }
+
+      const userAnalytics = userAnalyticsMap.get(userId)!;
+      userAnalytics.totalActions++;
+
+      // Process each score in the action
+      Object.entries(actionScore.scores).forEach(([attribute, scoreData]) => {
+        const mappedAttribute = mapScoredAttributeToStrategic(attribute);
+        
+        if (mappedAttribute) {
+          // Add to running average (scores are 0-5 range)
+          const currentCount = userAnalytics.scoreCount![mappedAttribute];
+          const currentAvg = userAnalytics.attributes[mappedAttribute];
+          const newScore = Math.max(0, Math.min(5, scoreData.score));
+          
+          // Calculate new average
+          userAnalytics.attributes[mappedAttribute] = 
+            (currentAvg * currentCount + newScore) / (currentCount + 1);
+          userAnalytics.scoreCount![mappedAttribute]++;
+        }
+      });
     });
 
-    return baseAnalytics;
+    // Convert map to array and filter by userIds if provided
+    let result = Array.from(userAnalyticsMap.values());
+    
+    if (userIds && userIds.length > 0) {
+      result = result.filter(analytics => userIds.includes(analytics.userId));
+    }
+
+    // Convert to AttributeAnalytics format (remove extra properties)
+    return result.map(analytics => ({
+      userId: analytics.userId,
+      userName: analytics.userName,
+      userRole: analytics.userRole,
+      attributes: analytics.attributes
+    }));
   };
 
   const getEnhancedCompanyAverage = (userIds?: string[]): CompanyAverage => {
@@ -102,22 +192,27 @@ export function useEnhancedStrategicAttributes() {
   // Map scored attributes to strategic attributes
   const mapScoredAttributeToStrategic = (scoredAttribute: string): StrategicAttributeType | null => {
     const mapping: Record<string, StrategicAttributeType> = {
-      'quality': 'quality',
-      'efficiency': 'efficiency',
-      'safety': 'safety_focus',
-      'teamwork': 'teamwork',
-      'problem_solving': 'root_cause_problem_solving',
-      'documentation': 'proactive_documentation',
-      'asset_care': 'asset_stewardship',
-      'financial_impact': 'financial_impact',
-      'morale': 'energy_morale_impact',
-      'growth': 'growth_mindset'
+      'Quality': 'quality',
+      'Efficiency': 'efficiency',
+      'Safety Focus': 'safety_focus',
+      'Teamwork and Transparent Communication': 'teamwork',
+      'Root Cause Problem Solving': 'root_cause_problem_solving',
+      'Proactive Documentation': 'proactive_documentation',
+      'Asset Stewardship': 'asset_stewardship',
+      'Financial Impact': 'financial_impact',
+      'Energy & Morale Impact': 'energy_morale_impact',
+      'Growth Mindset': 'growth_mindset'
     };
 
-    // Find the best match (case-insensitive, partial matching)
+    // Exact match first
+    if (mapping[scoredAttribute]) {
+      return mapping[scoredAttribute];
+    }
+
+    // Fallback to partial matching
     const lowerCaseAttribute = scoredAttribute.toLowerCase();
     for (const [key, value] of Object.entries(mapping)) {
-      if (lowerCaseAttribute.includes(key) || key.includes(lowerCaseAttribute)) {
+      if (lowerCaseAttribute.includes(key.toLowerCase()) || key.toLowerCase().includes(lowerCaseAttribute)) {
         return value;
       }
     }
@@ -131,7 +226,7 @@ export function useEnhancedStrategicAttributes() {
 
   return {
     attributes,
-    issueScores,
+    actionScores,
     isLoading: isLoading || attributesLoading,
     fetchAllData,
     getEnhancedAttributeAnalytics,

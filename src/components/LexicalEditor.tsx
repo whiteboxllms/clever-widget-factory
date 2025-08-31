@@ -12,7 +12,7 @@ import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html';
 import { HeadingNode, QuoteNode } from '@lexical/rich-text';
 import { ListItemNode, ListNode } from '@lexical/list';
 import { AutoLinkNode, LinkNode } from '@lexical/link';
-import { $getRoot, EditorState, LexicalEditor as LexicalEditorType, $insertNodes } from 'lexical';
+import { $getRoot, EditorState, LexicalEditor as LexicalEditorType, $insertNodes, $createParagraphNode, $createTextNode } from 'lexical';
 import { cn } from '@/lib/utils';
 import { Bold, Italic, List, ListOrdered, Link } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -136,13 +136,12 @@ function AutoLinkPlugin() {
   return null;
 }
 
-// Simplified plugin to load initial HTML content into the editor
+// Enhanced plugin to load initial HTML content with text fallback
 function LoadInitialContentPlugin({ initialHtml }: { initialHtml?: string }) {
   const [editor] = useLexicalComposerContext();
 
   useEffect(() => {
     console.log('LoadInitialContentPlugin: Loading content:', initialHtml?.substring(0, 100));
-    console.log('LoadInitialContentPlugin: Full content:', initialHtml);
 
     editor.update(() => {
       const root = $getRoot();
@@ -153,11 +152,48 @@ function LoadInitialContentPlugin({ initialHtml }: { initialHtml?: string }) {
           const parser = new DOMParser();
           const dom = parser.parseFromString(initialHtml, 'text/html');
           const nodes = $generateNodesFromDOM(editor, dom);
+          
+          console.log('LoadInitialContentPlugin: Generated nodes count:', nodes.length);
+          
           if (nodes.length > 0) {
             root.append(...nodes);
+            console.log('LoadInitialContentPlugin: Successfully inserted HTML nodes');
+          } else {
+            // Fallback 1: Extract text content from parsed DOM
+            const text = dom.body.textContent || '';
+            console.log('LoadInitialContentPlugin: No nodes generated, trying text fallback:', text.substring(0, 50));
+            
+            if (text.trim()) {
+              const paragraph = $createParagraphNode();
+              const textNode = $createTextNode(text);
+              paragraph.append(textNode);
+              root.append(paragraph);
+              console.log('LoadInitialContentPlugin: Inserted text content as fallback');
+            } else {
+              // Fallback 2: Strip HTML tags and insert as plain text
+              const plainText = initialHtml.replace(/<[^>]*>/g, '').trim();
+              console.log('LoadInitialContentPlugin: Using final fallback, plain text:', plainText.substring(0, 50));
+              
+              if (plainText) {
+                const paragraph = $createParagraphNode();
+                const textNode = $createTextNode(plainText);
+                paragraph.append(textNode);
+                root.append(paragraph);
+                console.log('LoadInitialContentPlugin: Inserted plain text as final fallback');
+              }
+            }
           }
         } catch (error) {
           console.error('LoadInitialContentPlugin: Error parsing HTML:', error);
+          // Emergency fallback: strip HTML and insert as plain text
+          const plainText = initialHtml.replace(/<[^>]*>/g, '').trim();
+          if (plainText) {
+            const paragraph = $createParagraphNode();
+            const textNode = $createTextNode(plainText);
+            paragraph.append(textNode);
+            root.append(paragraph);
+            console.log('LoadInitialContentPlugin: Used emergency text fallback due to error');
+          }
         }
       }
     });

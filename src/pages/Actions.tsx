@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
-import { Bolt, Plus, Filter, Search, Clock, CheckCircle, Circle, User, AlertTriangle, Wrench, ArrowLeft, Star } from 'lucide-react';
+import { Bolt, Plus, Filter, Search, Clock, CheckCircle, Circle, User, AlertTriangle, Wrench, ArrowLeft, Target } from 'lucide-react';
 import { UnifiedActionDialog } from '@/components/UnifiedActionDialog';
 import { ActionScoreDialog } from '@/components/ActionScoreDialog';
 import { useAssetScores } from '@/hooks/useAssetScores';
@@ -569,10 +569,10 @@ export default function Actions() {
                            variant="outline"
                            size="sm"
                            onClick={(e) => handleScoreAction(action, e)}
-                           className="flex items-center gap-1"
+                           className={`h-7 px-2 text-xs ${action.score ? 'border-green-500 border-2' : ''}`}
+                           title={action.score ? "View/Edit Score" : "Assign Score"}
                          >
-                           <Star className="h-4 w-4" />
-                           {action.score ? 'View Score' : 'Score Action'}
+                           <Target className="h-3 w-3" />
                          </Button>
                          
                          <div className="text-sm text-muted-foreground text-right">

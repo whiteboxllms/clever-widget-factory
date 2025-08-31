@@ -235,8 +235,15 @@ export default function Actions() {
   };
 
 
-  const unresolved = filteredActions.filter(a => a.status !== 'completed');
-  const completed = filteredActions.filter(a => a.status === 'completed');
+  // Sort actions to show in-progress at the top
+  const sortedFilteredActions = [...filteredActions].sort((a, b) => {
+    if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
+    if (b.status === 'in_progress' && a.status !== 'in_progress') return 1;
+    return 0;
+  });
+
+  const unresolved = sortedFilteredActions.filter(a => a.status !== 'completed');
+  const completed = sortedFilteredActions.filter(a => a.status === 'completed');
   
   // Get unique assignees from actions
   const uniqueAssignees = Array.from(

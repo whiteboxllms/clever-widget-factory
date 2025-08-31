@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Save, X, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,12 @@ interface ScoreEntryFormProps {
 export function ScoreEntryForm({ initialScores = {}, rootCauses = [], onSave, onCancel }: ScoreEntryFormProps) {
   const [scores, setScores] = useState<Record<string, ScoreEntry>>(initialScores);
   const [newAttributeName, setNewAttributeName] = useState('');
+
+  // Update local state when initialScores prop changes
+  useEffect(() => {
+    console.log('ScoreEntryForm: initialScores prop changed:', initialScores);
+    setScores(initialScores);
+  }, [initialScores]);
 
   const handleScoreChange = (attribute: string, field: 'score' | 'reason', value: string | number) => {
     setScores(prev => ({

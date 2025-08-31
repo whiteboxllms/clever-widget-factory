@@ -8,6 +8,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { AppSettingsProvider } from "@/hooks/useAppSettings";
 import { useSessionMonitor } from "@/hooks/useSessionMonitor";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import LeadershipRoute from "@/components/LeadershipRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -109,9 +110,9 @@ function AppContent() {
         </ProtectedRoute>
       } />
       <Route path="/dashboard/analytics" element={
-        <ProtectedRoute>
+        <LeadershipRoute>
           <AnalyticsDashboard />
-        </ProtectedRoute>
+        </LeadershipRoute>
       } />
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
       <Route path="*" element={<NotFound />} />

@@ -8,7 +8,7 @@ import { DebugModeToggle } from '@/components/DebugModeToggle';
 import { AuthDiagnostics } from '@/components/AuthDiagnostics';
 
 export default function Dashboard() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, isLeadership } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -102,7 +102,7 @@ export default function Dashboard() {
       {/* Main Content */}
       <main className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {menuItems.map((item) => {
+          {menuItems.filter(item => item.path !== "/dashboard/analytics" || isLeadership).map((item) => {
             const Icon = item.icon;
             return (
               <Card

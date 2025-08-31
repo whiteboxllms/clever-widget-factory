@@ -60,7 +60,7 @@ export function useStrategicAttributes() {
         .from('worker_strategic_attributes')
         .select(`
           *,
-          profiles:user_id (
+          profiles!worker_strategic_attributes_user_id_fkey (
             full_name,
             role
           )

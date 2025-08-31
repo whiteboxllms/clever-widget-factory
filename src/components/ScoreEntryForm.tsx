@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Save, X, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,11 +22,19 @@ interface ScoreEntryFormProps {
 export function ScoreEntryForm({ initialScores = {}, rootCauses = [], onSave, onCancel }: ScoreEntryFormProps) {
   const [scores, setScores] = useState<Record<string, ScoreEntry>>(initialScores);
   const [newAttributeName, setNewAttributeName] = useState('');
+  const prevInitialScoresRef = useRef<Record<string, ScoreEntry>>();
 
-  // Update local state when initialScores prop changes
+  // Update local state when initialScores prop changes - but only if content actually changed
   useEffect(() => {
-    console.log('ScoreEntryForm: initialScores prop changed:', initialScores);
-    setScores(initialScores);
+    // Deep comparison to avoid infinite loops from object reference changes
+    const hasChanged = !prevInitialScoresRef.current || 
+                      JSON.stringify(prevInitialScoresRef.current) !== JSON.stringify(initialScores);
+    
+    if (hasChanged) {
+      console.log('ScoreEntryForm: initialScores content changed:', initialScores);
+      setScores(initialScores);
+      prevInitialScoresRef.current = initialScores;
+    }
   }, [initialScores]);
 
   const handleScoreChange = (attribute: string, field: 'score' | 'reason', value: string | number) => {

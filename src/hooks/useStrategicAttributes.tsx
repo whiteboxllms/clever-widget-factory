@@ -123,7 +123,7 @@ export function useStrategicAttributes() {
     const userMap = new Map<string, AttributeAnalytics>();
 
     attributes.forEach(attr => {
-      if (userIds && !userIds.includes(attr.user_id)) return;
+      if (userIds && userIds.length > 0 && !userIds.includes(attr.user_id)) return;
 
       if (!userMap.has(attr.user_id)) {
         userMap.set(attr.user_id, {

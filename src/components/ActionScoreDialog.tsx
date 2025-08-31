@@ -198,14 +198,23 @@ export function ActionScoreDialog({
 
   const handleParseResponse = () => {
     try {
+      console.log('Parsing AI response:', aiResponse);
       const parsed = JSON.parse(aiResponse);
+      console.log('Parsed data:', parsed);
+      console.log('Extracted scores:', parsed.scores);
+      console.log('Extracted root causes:', parsed.likely_root_causes);
+      
       setParsedScores(parsed.scores || {});
       setRootCauses(parsed.likely_root_causes || []);
+      
+      console.log('State should be updated - parsedScores:', parsed.scores || {});
+      
       toast({
         title: "Response parsed successfully",
         description: "You can now review and adjust the scores."
       });
     } catch (error) {
+      console.error('Parse error:', error);
       toast({
         title: "Invalid JSON",
         description: "Please check your AI response format.",

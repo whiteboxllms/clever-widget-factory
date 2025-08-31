@@ -166,66 +166,6 @@ export type Database = {
           },
         ]
       }
-      asset_scores: {
-        Row: {
-          ai_response: Json | null
-          asset_id: string
-          asset_name: string
-          created_at: string
-          id: string
-          likely_root_causes: string[] | null
-          prompt_id: string
-          prompt_text: string
-          scores: Json
-          source_id: string
-          source_type: string
-          updated_at: string
-        }
-        Insert: {
-          ai_response?: Json | null
-          asset_id: string
-          asset_name: string
-          created_at?: string
-          id?: string
-          likely_root_causes?: string[] | null
-          prompt_id: string
-          prompt_text: string
-          scores?: Json
-          source_id: string
-          source_type: string
-          updated_at?: string
-        }
-        Update: {
-          ai_response?: Json | null
-          asset_id?: string
-          asset_name?: string
-          created_at?: string
-          id?: string
-          likely_root_causes?: string[] | null
-          prompt_id?: string
-          prompt_text?: string
-          scores?: Json
-          source_id?: string
-          source_type?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_asset_scores_prompt_id"
-            columns: ["prompt_id"]
-            isOneToOne: false
-            referencedRelation: "scoring_prompts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_asset_scores_tool_id"
-            columns: ["asset_id"]
-            isOneToOne: false
-            referencedRelation: "tools"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       checkins: {
         Row: {
           after_image_urls: string[] | null

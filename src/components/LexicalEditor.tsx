@@ -152,11 +152,8 @@ function LoadInitialContentPlugin({ initialHtml }: { initialHtml?: string }) {
       return;
     }
 
-    // Only update if content has actually changed
-    if (initialHtml === lastLoadedHtmlRef.current) {
-      console.log('LoadInitialContentPlugin: Content unchanged, skipping reload');
-      return;
-    }
+    // Always update when initialHtml changes, forcing content reload for action switching
+    console.log('LoadInitialContentPlugin: Updating content for', { initialHtml: initialHtml?.substring(0, 50) });
 
     editor.update(() => {
       const root = $getRoot();

@@ -135,6 +135,10 @@ export function useEnhancedStrategicAttributes() {
     isLoading: isLoading || attributesLoading,
     fetchAllData,
     getEnhancedAttributeAnalytics,
-    getEnhancedCompanyAverage
+    getEnhancedCompanyAverage,
+    // Also expose the base methods for compatibility
+    fetchAttributes,
+    getAttributeAnalytics,
+    getCompanyAverage
   };
 }

@@ -162,10 +162,25 @@ export default function Actions() {
 
     // Search filter
     if (searchTerm) {
-      filtered = filtered.filter(action =>
-        action.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        action.description?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter(action => {
+        // Helper function to strip HTML and search
+        const stripHtmlAndSearch = (html: string | null | undefined): boolean => {
+          if (!html) return false;
+          const doc = new DOMParser().parseFromString(html, 'text/html');
+          const text = doc.body.textContent || '';
+          return text.toLowerCase().includes(searchLower);
+        };
+
+        return action.title.toLowerCase().includes(searchLower) ||
+               action.description?.toLowerCase().includes(searchLower) ||
+               stripHtmlAndSearch(action.plan) ||
+               stripHtmlAndSearch(action.observations) ||
+               action.issue_reference?.toLowerCase().includes(searchLower) ||
+               action.asset?.name?.toLowerCase().includes(searchLower) ||
+               action.issue_tool?.name?.toLowerCase().includes(searchLower) ||
+               action.mission?.title?.toLowerCase().includes(searchLower);
+      });
     }
 
     // Status filter

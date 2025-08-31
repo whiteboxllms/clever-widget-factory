@@ -235,10 +235,19 @@ export default function Actions() {
   };
 
 
-  // Sort actions to show in-progress at the top
+  // Sort actions: in-progress first, then actions with implementation, then others
   const sortedFilteredActions = [...filteredActions].sort((a, b) => {
+    // First priority: in-progress status
     if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
     if (b.status === 'in_progress' && a.status !== 'in_progress') return 1;
+    
+    // Second priority: actions with implementation text (observations field)
+    const aHasImplementation = a.observations && a.observations.trim().length > 0;
+    const bHasImplementation = b.observations && b.observations.trim().length > 0;
+    
+    if (aHasImplementation && !bHasImplementation) return -1;
+    if (bHasImplementation && !aHasImplementation) return 1;
+    
     return 0;
   });
 
@@ -368,13 +377,17 @@ export default function Actions() {
             </Card>
           ) : (
             <div className="grid gap-4">
-              {unresolved.map(action => (
+              {unresolved.map(action => {
+                const hasImplementation = action.observations && action.observations.trim().length > 0;
+                
+                return (
                 <Card 
                   key={action.id} 
                   className={cn(
                     "hover:shadow-md transition-shadow cursor-pointer",
-                    action.plan_commitment && status !== 'completed' && "border-2 border-[hsl(var(--action-ready-border))]",
-                    action.status === 'in_progress' && !action.plan_commitment && "border-2 border-[hsl(var(--action-progress-border))]",
+                    hasImplementation && "border-2 border-yellow-400",
+                    action.plan_commitment && action.status !== 'completed' && !hasImplementation && "border-2 border-[hsl(var(--action-ready-border))]",
+                    action.status === 'in_progress' && !action.plan_commitment && !hasImplementation && "border-2 border-[hsl(var(--action-progress-border))]",
                     action.status === 'completed' && "border-2 border-[hsl(var(--action-done-border))]"
                   )}
                   onClick={() => handleEditAction(action)}

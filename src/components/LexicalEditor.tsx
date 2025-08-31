@@ -142,6 +142,7 @@ function LoadInitialContentPlugin({ initialHtml }: { initialHtml?: string }) {
 
   useEffect(() => {
     console.log('LoadInitialContentPlugin: Loading content:', initialHtml?.substring(0, 100));
+    console.log('LoadInitialContentPlugin: Full content:', initialHtml);
 
     editor.update(() => {
       const root = $getRoot();

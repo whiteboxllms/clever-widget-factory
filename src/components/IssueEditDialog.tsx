@@ -1,15 +1,11 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Edit, Shield, Wrench, Bug, AlertTriangle, ImagePlus, X } from "lucide-react";
+import { Edit, ImagePlus, X } from "lucide-react";
 import { useImageUpload, ImageUploadResult } from "@/hooks/useImageUpload";
 import { BaseIssue } from "@/types/issues";
 
@@ -21,22 +17,9 @@ interface IssueEditDialogProps {
   onUpdate: (issueId: string, updates: Partial<BaseIssue>) => Promise<boolean>;
 }
 
-const issueTypeIcons = {
-  safety: Shield,
-  efficiency: Wrench,
-  cosmetic: Bug,
-  preventative_maintenance: AlertTriangle,
-  functionality: AlertTriangle,
-  lifespan: Edit
-};
-
 export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate }: IssueEditDialogProps) {
   const [description, setDescription] = useState("");
-  const [issueType, setIssueType] = useState<"safety" | "efficiency" | "cosmetic" | "preventative_maintenance" | "functionality" | "lifespan">("efficiency");
-  
-  
   const [damageAssessment, setDamageAssessment] = useState("");
-  const [efficiencyLoss, setEfficiencyLoss] = useState("");
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -47,10 +30,7 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
   useEffect(() => {
     if (issue) {
       setDescription(issue.description || "");
-      setIssueType((issue.issue_type as any) || "efficiency");
-      
       setDamageAssessment(issue.damage_assessment || "");
-      setEfficiencyLoss(issue.efficiency_loss_percentage?.toString() || "");
       setExistingImages(issue.report_photo_urls || []);
       setSelectedImages([]);
     }
@@ -86,10 +66,7 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
 
       const updates: Partial<BaseIssue> = {
         description: description.trim(),
-        issue_type: issueType,
-        
         damage_assessment: damageAssessment || undefined,
-        efficiency_loss_percentage: efficiencyLoss ? parseFloat(efficiencyLoss) : undefined,
         report_photo_urls: photoUrls
       };
 
@@ -119,8 +96,6 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
 
   if (!issue) return null;
 
-  const IconComponent = issueTypeIcons[issue.issue_type];
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -128,63 +103,12 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
           <DialogTitle className="flex items-center gap-2">
             <Edit className="h-5 w-5" />
             <span>Edit Issue</span>
-            <Badge variant="secondary" className="ml-2">
-              <IconComponent className="h-3 w-3 mr-1" />
-              {issue.issue_type}
-            </Badge>
           </DialogTitle>
         </DialogHeader>
 
         <Card>
           <CardContent className="pt-6">
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="issueType">Issue Type *</Label>
-                <Select value={issueType} onValueChange={(value: any) => setIssueType(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="safety">
-                      <div className="flex items-center gap-2">
-                        <Shield className="h-4 w-4 text-red-500" />
-                        Safety Issue
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="efficiency">
-                      <div className="flex items-center gap-2">
-                        <Wrench className="h-4 w-4 text-orange-500" />
-                        Efficiency
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="cosmetic">
-                      <div className="flex items-center gap-2">
-                        <Bug className="h-4 w-4 text-blue-500" />
-                        Cosmetic
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="preventative_maintenance">
-                      <div className="flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4 text-purple-500" />
-                        Preventative Maintenance
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="functionality">
-                      <div className="flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4 text-indigo-500" />
-                        Functionality
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="lifespan">
-                      <div className="flex items-center gap-2">
-                        <Edit className="h-4 w-4 text-teal-500" />
-                        Lifespan
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               <div>
                 <Label htmlFor="description">Issue Description *</Label>
                 <Textarea
@@ -227,20 +151,6 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
                 />
               </div>
 
-              {issueType === "efficiency" && (
-                <div>
-                  <Label htmlFor="efficiencyLoss">Efficiency Loss %</Label>
-                  <Input
-                    id="efficiencyLoss"
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={efficiencyLoss}
-                    onChange={(e) => setEfficiencyLoss(e.target.value)}
-                    placeholder="e.g., 25"
-                  />
-                </div>
-              )}
 
               {/* Existing Images */}
               {existingImages.length > 0 && (

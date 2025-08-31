@@ -139,15 +139,22 @@ function AutoLinkPlugin() {
 // Enhanced plugin to load initial HTML content with text fallback
 function LoadInitialContentPlugin({ initialHtml }: { initialHtml?: string }) {
   const [editor] = useLexicalComposerContext();
+  const lastLoadedContentRef = useRef<string>('');
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
-    console.log('LoadInitialContentPlugin: Loading content:', initialHtml?.substring(0, 100));
+    // Only load if this is truly new content, not user editing
+    if (initialHtml !== lastLoadedContentRef.current && initialHtml && initialHtml.trim()) {
+      console.log('LoadInitialContentPlugin: Loading new content:', initialHtml?.substring(0, 100));
+      lastLoadedContentRef.current = initialHtml;
 
-    editor.update(() => {
-      const root = $getRoot();
-      root.clear();
-      
-      if (initialHtml && initialHtml.trim()) {
+      editor.update(() => {
+        const root = $getRoot();
+        // Only clear if we're loading different content
+        if (!hasLoadedRef.current || initialHtml !== lastLoadedContentRef.current) {
+          root.clear();
+        }
+        
         try {
           const parser = new DOMParser();
           const dom = parser.parseFromString(initialHtml, 'text/html');
@@ -183,6 +190,7 @@ function LoadInitialContentPlugin({ initialHtml }: { initialHtml?: string }) {
               }
             }
           }
+          hasLoadedRef.current = true;
         } catch (error) {
           console.error('LoadInitialContentPlugin: Error parsing HTML:', error);
           // Emergency fallback: strip HTML and insert as plain text
@@ -194,9 +202,10 @@ function LoadInitialContentPlugin({ initialHtml }: { initialHtml?: string }) {
             root.append(paragraph);
             console.log('LoadInitialContentPlugin: Used emergency text fallback due to error');
           }
+          hasLoadedRef.current = true;
         }
-      }
-    });
+      });
+    }
   }, [initialHtml, editor]);
 
   return null;

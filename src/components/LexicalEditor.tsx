@@ -152,7 +152,12 @@ function LoadInitialContentPlugin({ initialHtml }: { initialHtml?: string }) {
       return;
     }
 
-    // Always update when initialHtml changes, even if it appears the same
+    // Only update if content has actually changed
+    if (initialHtml === lastLoadedHtmlRef.current) {
+      console.log('LoadInitialContentPlugin: Content unchanged, skipping reload');
+      return;
+    }
+
     editor.update(() => {
       const root = $getRoot();
       root.clear();
@@ -164,7 +169,9 @@ function LoadInitialContentPlugin({ initialHtml }: { initialHtml?: string }) {
           const parser = new DOMParser();
           const dom = parser.parseFromString(initialHtml, 'text/html');
           const nodes = $generateNodesFromDOM(editor, dom);
-          root.append(...nodes);
+          if (nodes.length > 0) {
+            root.append(...nodes);
+          }
         } catch (error) {
           console.error('LoadInitialContentPlugin: Error parsing HTML:', error);
         }

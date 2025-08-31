@@ -213,11 +213,21 @@ export function GenericIssueCard({
   };
 
   const isResolved = issue.status === 'resolved';
-  const borderColor = isResolved ? 'border-l-[hsl(var(--task-complete-border))]' : 'border-l-blue-500';
+  const isRemoved = issue.status === 'removed';
+  
+  const getCardStyles = () => {
+    if (isResolved) {
+      return 'border-l-[hsl(var(--task-complete-border))] bg-[hsl(var(--task-complete))/0.05]';
+    }
+    if (isRemoved) {
+      return 'border-l-[hsl(var(--destructive))] bg-[hsl(var(--destructive))/0.05] opacity-60';
+    }
+    return 'border-l-[hsl(var(--primary))]';
+  };
   
   return (
     <>
-      <Card className={`border-l-4 ${borderColor} ${isResolved ? 'bg-[hsl(var(--task-complete-bg))]' : ''}`}>
+      <Card className={`border-l-4 ${getCardStyles()}`}>
         <CardContent className="p-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">

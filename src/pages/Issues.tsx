@@ -204,6 +204,8 @@ export default function Issues() {
                     onEdit={handleIssueEdit}
                     onRefresh={fetchIssues}
                     showContext={false}
+                    enableScorecard={true}
+                    enableActions={true}
                   />
                 ))}
               </CardContent>
@@ -221,6 +223,8 @@ export default function Issues() {
               onEdit={handleIssueEdit}
               onRefresh={fetchIssues}
               showContext={false}
+              enableScorecard={true}
+              enableActions={true}
             />
           ))}
         </div>

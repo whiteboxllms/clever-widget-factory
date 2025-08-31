@@ -32,6 +32,11 @@ export default function AnalyticsDashboard() {
   const selectedUserAnalytics = getEnhancedAttributeAnalytics(selectedUsers); // Filtered for display
   const companyAverage = getEnhancedCompanyAverage();
 
+  // Debug logging to see what's happening with the data
+  console.log('All user analytics:', allUserAnalytics);
+  console.log('Selected user analytics:', selectedUserAnalytics);
+  console.log('Selected users:', selectedUsers);
+
   // Auto-select first 3 users on initial load
   useEffect(() => {
     if (allUserAnalytics.length > 0 && selectedUsers.length === 0) {
@@ -40,7 +45,8 @@ export default function AnalyticsDashboard() {
   }, [allUserAnalytics.length]); // Only depend on length to avoid infinite loops
 
   const handleApplyFilters = async () => {
-    await fetchAllData(selectedUsers, startDate, endDate);
+    // Always fetch ALL data, not filtered by selectedUsers - we want all users available for selection
+    await fetchAllData(undefined, startDate, endDate);
     await fetchScoredActions(selectedUsers, startDate, endDate);
   };
 

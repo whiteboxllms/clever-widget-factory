@@ -123,9 +123,10 @@ export function StockSelector({ selectedStock, onStockChange }: StockSelectorPro
               <div className="flex items-center gap-2">
                 <Input
                   type="number"
-                  min="1"
+                  min="0.01"
+                  step="0.01"
                   value={stockItem.quantity}
-                  onChange={(e) => updateQuantity(stockItem.part_id, parseInt(e.target.value) || 1)}
+                  onChange={(e) => updateQuantity(stockItem.part_id, parseFloat(e.target.value) || 0.01)}
                   className="w-20"
                 />
                 <Button

@@ -1,7 +1,10 @@
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Legend } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { strategicAttributeLabels } from '@/hooks/useStrategicAttributes';
 import { EnhancedAttributeAnalytics } from '@/hooks/useEnhancedStrategicAttributes';
+import { useState } from 'react';
 
 interface AttributeRadarChartProps {
   actionAnalytics: EnhancedAttributeAnalytics[];
@@ -15,6 +18,8 @@ const COLORS = [
 ];
 
 export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedUsers }: AttributeRadarChartProps) {
+  const [showImpact, setShowImpact] = useState(false);
+
   // Transform data for radar chart
   const chartData = Object.entries(strategicAttributeLabels).map(([key, label]) => {
     const dataPoint: any = {
@@ -24,19 +29,32 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
     // Add selected users' action scores
     actionAnalytics.forEach((user) => {
       if (selectedUsers.includes(user.userId)) {
-        dataPoint[`${user.userName} (Actions)`] = user.attributes[key as keyof typeof strategicAttributeLabels];
+        const attributeValue = user.attributes[key as keyof typeof strategicAttributeLabels] || 0;
+        const actionCount = user.scoreCount?.[key as keyof typeof strategicAttributeLabels] || 0;
+        dataPoint[`${user.userName} (Actions)`] = showImpact ? attributeValue * actionCount : attributeValue;
       }
     });
 
     // Add selected users' issue scores
     issueAnalytics.forEach((user) => {
       if (selectedUsers.includes(user.userId)) {
-        dataPoint[`${user.userName} (Issues)`] = user.attributes[key as keyof typeof strategicAttributeLabels];
+        const attributeValue = user.attributes[key as keyof typeof strategicAttributeLabels] || 0;
+        const issueCount = user.scoreCount?.[key as keyof typeof strategicAttributeLabels] || 0;
+        dataPoint[`${user.userName} (Issues)`] = showImpact ? attributeValue * issueCount : attributeValue;
       }
     });
 
     return dataPoint;
   });
+
+  // Calculate dynamic domain for impact mode
+  const maxValue = showImpact 
+    ? Math.max(...chartData.flatMap(data => 
+        dataKeys.map(key => data[key] || 0)
+      ))
+    : 4;
+
+  const domain = showImpact ? [0, Math.ceil(maxValue * 1.1)] : [0, 4];
 
   // Get keys for rendering (actions + issues for selected users)
   const actionKeys = actionAnalytics
@@ -52,7 +70,19 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle>Strategic Attributes Radar Chart</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle>Strategic Attributes Radar Chart</CardTitle>
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="impact-switch" className="text-sm font-medium">
+              Impact
+            </Label>
+            <Switch
+              id="impact-switch"
+              checked={showImpact}
+              onCheckedChange={setShowImpact}
+            />
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="h-[500px] w-full">
@@ -66,9 +96,9 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
               />
               <PolarRadiusAxis 
                 angle={90} 
-                domain={[0, 4]} 
+                domain={domain} 
                 tick={{ fontSize: 10 }}
-                tickCount={5}
+                tickCount={showImpact ? 6 : 5}
               />
               {dataKeys.map((key, index) => (
                 <Radar
@@ -89,7 +119,12 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
           </ResponsiveContainer>
         </div>
         <div className="mt-4 text-sm text-muted-foreground">
-          <p>Scale: 0-4 where 4 represents highest proficiency</p>
+          <p>
+            {showImpact 
+              ? "Scale: Impact (Average Score × Number of Actions/Issues)" 
+              : "Scale: 0-4 where 4 represents highest proficiency"
+            }
+          </p>
           <p>Actions vs Issues comparison for selected users</p>
         </div>
       </CardContent>

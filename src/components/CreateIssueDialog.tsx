@@ -80,7 +80,6 @@ export function CreateIssueDialog({
               .select('id, name, serial_number, status')
               .neq('status', 'removed')
               .order('name');
-            console.log('Loaded tools:', toolsData);
             setTools(toolsData || []);
             break;
           
@@ -117,13 +116,6 @@ export function CreateIssueDialog({
 
   // Set initial context ID and selected entity if provided
   useEffect(() => {
-    console.log('CreateIssueDialog - Setting initial context:', { 
-      initialContextId, 
-      contextType, 
-      toolsLength: tools.length,
-      tools: tools.map(t => ({ id: t.id, name: t.name }))
-    });
-    
     if (initialContextId) {
       setContextId(initialContextId);
       
@@ -132,7 +124,6 @@ export function CreateIssueDialog({
         switch (contextType) {
           case 'tool':
             const tool = tools.find(t => t.id === initialContextId);
-            console.log('Found tool:', tool);
             if (tool) setSelectedEntity(tool);
             break;
           case 'order':

@@ -37,7 +37,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 const CustomLabel = ({ value, viewBox }: any) => {
-  if (value < 15) return null; // Don't show label if segment is too small
+  if (value < 10) return null; // Don't show label if segment is too small
   
   const { x, y, width, height } = viewBox;
   const cx = x + width / 2;
@@ -50,7 +50,7 @@ const CustomLabel = ({ value, viewBox }: any) => {
       fill="white" 
       textAnchor="middle" 
       dominantBaseline="middle"
-      fontSize={14}
+      fontSize={12}
       fontWeight="bold"
     >
       {`${value.toFixed(0)}%`}
@@ -144,11 +144,7 @@ export function ProactiveVsReactiveChart({ data, isLoading }: ProactiveVsReactiv
                 <YAxis 
                   domain={[0, 100]}
                   tick={{ fontSize: 12 }}
-                  label={{ 
-                    value: 'Percentage (%)', 
-                    angle: -90, 
-                    position: 'insideLeft' 
-                  }}
+                  tickFormatter={(value) => `${value}%`}
                 />
                 <Tooltip content={<CustomTooltip />} />
                 

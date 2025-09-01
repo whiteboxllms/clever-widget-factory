@@ -78,10 +78,50 @@ export const useAssetScores = (assetId?: string) => {
     user_id?: string;
   }) => {
     try {
+      let actionId = scoreData.source_id;
+
+      // If this is an issue-based score, we need to create a placeholder action first
+      if (scoreData.source_type === 'issue') {
+        // Check if an action already exists for this issue
+        const { data: existingAction, error: actionCheckError } = await supabase
+          .from('actions')
+          .select('id')
+          .eq('linked_issue_id', scoreData.source_id)
+          .maybeSingle();
+
+        if (actionCheckError) {
+          console.error('Error checking for existing action:', actionCheckError);
+        }
+
+        if (existingAction) {
+          actionId = existingAction.id;
+        } else {
+          // Create a placeholder action for this issue
+          const { data: newAction, error: createActionError } = await supabase
+            .from('actions')
+            .insert({
+              title: `Score tracking for issue`,
+              description: `Automatically created action for issue score tracking`,
+              status: 'not_started',
+              linked_issue_id: scoreData.source_id,
+              asset_id: scoreData.asset_id
+            })
+            .select('id')
+            .single();
+
+          if (createActionError) {
+            console.error('Error creating placeholder action:', createActionError);
+            throw createActionError;
+          }
+
+          actionId = newAction.id;
+        }
+      }
+
       const { data, error } = await supabase
         .from('action_scores')
         .insert({
-          action_id: scoreData.source_id,
+          action_id: actionId,
           asset_context_id: scoreData.asset_id,
           asset_context_name: scoreData.asset_name,
           source_type: scoreData.source_type,

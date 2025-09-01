@@ -63,7 +63,7 @@ export function ProactiveVsReactiveChart({ data, isLoading }: ProactiveVsReactiv
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Driving Improvements vs Responding to Problems</CardTitle>
+          <CardTitle>Driving Improvements vs Responding to Issues</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-64 flex items-center justify-center">
@@ -78,7 +78,7 @@ export function ProactiveVsReactiveChart({ data, isLoading }: ProactiveVsReactiv
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Driving Improvements vs Responding to Problems</CardTitle>
+          <CardTitle>Driving Improvements vs Responding to Issues</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-64 flex items-center justify-center text-muted-foreground">
@@ -106,7 +106,7 @@ export function ProactiveVsReactiveChart({ data, isLoading }: ProactiveVsReactiv
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Driving Improvements vs Responding to Problems</CardTitle>
+            <CardTitle>Driving Improvements vs Responding to Issues</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
               Company-wide balance between proactive work and reactive issue resolution
             </p>
@@ -114,70 +114,74 @@ export function ProactiveVsReactiveChart({ data, isLoading }: ProactiveVsReactiv
           <div className="text-right">
             <p className={`text-sm font-medium ${status.color}`}>{status.text}</p>
             <p className="text-xs text-muted-foreground">{totalData.totalActions} total actions</p>
+            <p className="text-xs text-muted-foreground">{totalData.reactive.toFixed(1)}% reactive</p>
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={data}
-              margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey="name" 
-                tick={{ fontSize: 12 }}
-                interval={0}
-                angle={-45}
-                textAnchor="end"
-                height={80}
-              />
-              <YAxis 
-                domain={[0, 100]}
-                tick={{ fontSize: 12 }}
-                label={{ 
-                  value: 'Percentage (%)', 
-                  angle: -90, 
-                  position: 'insideLeft' 
-                }}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              
-              {/* Proactive (green) bar - shown first so it appears at the top */}
-              <Bar 
-                dataKey="proactive" 
-                stackId="actions" 
-                fill="hsl(var(--chart-2))"
-                stroke="hsl(var(--chart-2))"
-                strokeWidth={1}
+        <div className="flex gap-4">
+          {/* Chart */}
+          <div className="flex-1 h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={data}
+                margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
               >
-                <LabelList content={<CustomLabel />} />
-              </Bar>
-              
-              {/* Reactive (red) bar - shown second so it appears at the bottom */}
-              <Bar 
-                dataKey="reactive" 
-                stackId="actions" 
-                fill="hsl(var(--destructive))"
-                stroke="hsl(var(--destructive))"
-                strokeWidth={1}
-              >
-                <LabelList content={<CustomLabel />} />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        
-        {/* Legend */}
-        <div className="flex justify-center gap-6 mt-4">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-green-500 rounded"></div>
-            <span className="text-sm">Proactive (Driving Improvements)</span>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="name" 
+                  tick={{ fontSize: 12 }}
+                  interval={0}
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
+                />
+                <YAxis 
+                  domain={[0, 100]}
+                  tick={{ fontSize: 12 }}
+                  label={{ 
+                    value: 'Percentage (%)', 
+                    angle: -90, 
+                    position: 'insideLeft' 
+                  }}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                
+                {/* Proactive (green) bar - shown first so it appears at the top */}
+                <Bar 
+                  dataKey="proactive" 
+                  stackId="actions" 
+                  fill="hsl(142, 76%, 36%)"
+                  stroke="hsl(142, 76%, 36%)"
+                  strokeWidth={1}
+                >
+                  <LabelList content={<CustomLabel />} />
+                </Bar>
+                
+                {/* Reactive (red) bar - shown second so it appears at the bottom */}
+                <Bar 
+                  dataKey="reactive" 
+                  stackId="actions" 
+                  fill="hsl(0, 84%, 60%)"
+                  stroke="hsl(0, 84%, 60%)"
+                  strokeWidth={1}
+                >
+                  <LabelList content={<CustomLabel />} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-red-500 rounded"></div>
-            <span className="text-sm">Reactive (Responding to Problems)</span>
+          
+          {/* Legend */}
+          <div className="flex flex-col justify-center gap-4 min-w-48">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded" style={{ backgroundColor: "hsl(142, 76%, 36%)" }}></div>
+              <span className="text-sm">Proactive (Driving Improvements)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded" style={{ backgroundColor: "hsl(0, 84%, 60%)" }}></div>
+              <span className="text-sm">Reactive (Responding to Issues)</span>
+            </div>
           </div>
         </div>
       </CardContent>

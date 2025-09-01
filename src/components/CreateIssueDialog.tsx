@@ -299,9 +299,11 @@ export function CreateIssueDialog({
                 onChange={(e) => setContextId(e.target.value)}
               />
             ) : (
-              <Select value={contextId} onValueChange={handleEntitySelect}>
+              <Select value={contextId} onValueChange={handleEntitySelect} disabled={!!initialContextId}>
                 <SelectTrigger>
-                  <SelectValue placeholder={`Select ${contextType}`} />
+                  <SelectValue 
+                    placeholder={initialContextId ? (selectedEntity?.name || "Loading...") : `Select ${contextType}`} 
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {contextType === 'tool' && tools.map((tool) => (

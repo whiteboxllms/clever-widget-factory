@@ -36,10 +36,10 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         <p className="font-medium">{label}</p>
         <div className="space-y-1 text-sm">
           <p className="text-green-600">
-            Gawa Agad: {data.proactiveCount} ({data.proactive.toFixed(1)}%)
+            Proactive: {data.proactiveCount} ({data.proactive.toFixed(1)}%)
           </p>
           <p className="text-red-600">
-            Bahala Na: {data.reactiveCount} ({data.reactive.toFixed(1)}%)
+            Reactive: {data.reactiveCount} ({data.reactive.toFixed(1)}%)
           </p>
           <p className="font-medium">Total Actions: {data.totalActions}</p>
         </div>
@@ -97,7 +97,7 @@ export function ProactiveVsReactiveChart({ data, isLoading, onDayClick }: Proact
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Gawa Agad vs. Bahala Na</CardTitle>
+          <CardTitle>Proactive vs. Reactive</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-64 flex items-center justify-center">
@@ -112,7 +112,7 @@ export function ProactiveVsReactiveChart({ data, isLoading, onDayClick }: Proact
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Gawa Agad vs. Bahala Na</CardTitle>
+          <CardTitle>Proactive vs. Reactive</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-64 flex items-center justify-center text-muted-foreground">
@@ -133,8 +133,8 @@ export function ProactiveVsReactiveChart({ data, isLoading, onDayClick }: Proact
   const overallReactivePercent = totalActionsAcrossWeeks > 0 ? (totalReactiveAcrossWeeks / totalActionsAcrossWeeks) * 100 : 0;
 
   const getStatusMessage = (reactivePercent: number) => {
-    if (reactivePercent > 70) return { text: "Primarily Bahala Na", color: "text-red-600" };
-    if (reactivePercent < 30) return { text: "Primarily Gawa Agad", color: "text-green-600" };
+    if (reactivePercent > 70) return { text: "Primarily Reactive", color: "text-red-600" };
+    if (reactivePercent < 30) return { text: "Primarily Proactive", color: "text-green-600" };
     return { text: "", color: "" };
   };
 
@@ -145,15 +145,15 @@ export function ProactiveVsReactiveChart({ data, isLoading, onDayClick }: Proact
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Gawa Agad vs. Bahala Na</CardTitle>
+            <CardTitle>Proactive vs. Reactive</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              Daily breakdown of immediate action vs reactive response
+              Daily breakdown of proactive action vs reactive response
             </p>
           </div>
           <div className="text-right">
             {status.text && <p className={`text-sm font-medium ${status.color}`}>{status.text}</p>}
             <p className="text-xs text-muted-foreground">{totalActionsAcrossWeeks} total actions</p>
-            <p className="text-xs text-muted-foreground">{overallReactivePercent.toFixed(1)}% bahala na overall</p>
+            <p className="text-xs text-muted-foreground">{overallReactivePercent.toFixed(1)}% reactive overall</p>
           </div>
         </div>
       </CardHeader>
@@ -211,11 +211,11 @@ export function ProactiveVsReactiveChart({ data, isLoading, onDayClick }: Proact
           <div className="flex flex-col justify-start pt-8 gap-4 min-w-48">
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded" style={{ backgroundColor: "hsl(142, 76%, 36%)" }}></div>
-              <span className="text-sm">Gawa Agad</span>
+              <span className="text-sm">Proactive</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded" style={{ backgroundColor: "hsl(0, 84%, 60%)" }}></div>
-              <span className="text-sm">Bahala Na</span>
+              <span className="text-sm">Reactive</span>
             </div>
           </div>
         </div>
@@ -245,11 +245,11 @@ export function ProactiveVsReactiveChart({ data, isLoading, onDayClick }: Proact
                     <div className="ml-2">
                       {action.linked_issue_id ? (
                         <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs">
-                          Bahala Na
+                          Reactive
                         </span>
                       ) : (
                         <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
-                          Gawa Agad
+                          Proactive
                         </span>
                       )}
                     </div>

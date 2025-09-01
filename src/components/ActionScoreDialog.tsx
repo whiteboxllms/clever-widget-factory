@@ -227,6 +227,22 @@ export function ActionScoreDialog({
     if (!selectedPrompt) return;
 
     try {
+      // First verify the action exists in the database
+      const { data: actionExists, error: actionError } = await supabase
+        .from('actions')
+        .select('id')
+        .eq('id', action.id!)
+        .single();
+
+      if (actionError || !actionExists) {
+        toast({
+          title: "Error",
+          description: "Action not found in database. Cannot create score.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const scoreData = {
         action_id: action.id!,
         prompt_id: selectedPromptId,
@@ -248,6 +264,11 @@ export function ActionScoreDialog({
       handleClose();
     } catch (error) {
       console.error('Error saving score:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save action score. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 

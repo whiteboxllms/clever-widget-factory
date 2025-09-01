@@ -110,10 +110,22 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
 
   const handleAssignScore = async () => {
     try {
+      // Use context_id when context_type is 'tool', fallback to tool_id for backward compatibility
+      const toolId = (issue as any).context_type === 'tool' ? (issue as any).context_id : issue.tool_id;
+      
+      if (!toolId) {
+        toast({
+          title: "Error",
+          description: "Tool information not available for this issue",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const { data: toolData, error } = await supabase
         .from('tools')
         .select('*')
-        .eq('id', issue.tool_id)
+        .eq('id', toolId)
         .single();
 
       if (error) throw error;

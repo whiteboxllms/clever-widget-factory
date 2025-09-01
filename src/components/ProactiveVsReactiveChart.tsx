@@ -93,9 +93,9 @@ export function ProactiveVsReactiveChart({ data, isLoading }: ProactiveVsReactiv
   }
 
   // Calculate overall stats for the header
-  const totalActionsAcrossWeeks = data.reduce((sum, week) => sum + week.totalActions, 0);
-  const totalProactiveAcrossWeeks = data.reduce((sum, week) => sum + week.proactiveCount, 0);
-  const totalReactiveAcrossWeeks = data.reduce((sum, week) => sum + week.reactiveCount, 0);
+  const totalActionsAcrossWeeks = data.reduce((sum, day) => sum + day.totalActions, 0);
+  const totalProactiveAcrossWeeks = data.reduce((sum, day) => sum + day.proactiveCount, 0);
+  const totalReactiveAcrossWeeks = data.reduce((sum, day) => sum + day.reactiveCount, 0);
   const overallReactivePercent = totalActionsAcrossWeeks > 0 ? (totalReactiveAcrossWeeks / totalActionsAcrossWeeks) * 100 : 0;
 
   const getStatusMessage = (reactivePercent: number) => {
@@ -113,7 +113,7 @@ export function ProactiveVsReactiveChart({ data, isLoading }: ProactiveVsReactiv
           <div>
             <CardTitle>Driving Improvements vs Responding to Issues</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              Weekly breakdown of proactive work vs reactive issue resolution
+              Daily breakdown of proactive work vs reactive issue resolution
             </p>
           </div>
           <div className="text-right">
@@ -177,8 +177,8 @@ export function ProactiveVsReactiveChart({ data, isLoading }: ProactiveVsReactiv
             </ResponsiveContainer>
           </div>
           
-          {/* Legend */}
-          <div className="flex flex-col justify-center gap-4 min-w-48">
+          {/* Legend - positioned to be level with the chart */}
+          <div className="flex flex-col justify-start pt-8 gap-4 min-w-48">
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded" style={{ backgroundColor: "hsl(142, 76%, 36%)" }}></div>
               <span className="text-sm">Proactive (Driving Improvements)</span>

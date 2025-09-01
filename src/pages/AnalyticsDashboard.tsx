@@ -21,13 +21,13 @@ export default function AnalyticsDashboard() {
   const [proactiveVsReactiveData, setProactiveVsReactiveData] = useState<any[]>([]);
   const [isLoadingProactiveData, setIsLoadingProactiveData] = useState(false);
 
-  // Set default dates (last 30 days)
+  // Set default dates (last 2 weeks)
   useEffect(() => {
     const today = new Date();
-    const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const twoWeeksAgo = new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000);
     
     setEndDate(today.toISOString().split('T')[0]);
-    setStartDate(thirtyDaysAgo.toISOString().split('T')[0]);
+    setStartDate(twoWeeksAgo.toISOString().split('T')[0]);
   }, []);
 
   // Process data for display - get ALL users for selection, not filtered by selectedUsers

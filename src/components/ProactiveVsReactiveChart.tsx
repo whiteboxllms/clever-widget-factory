@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 
@@ -8,11 +9,23 @@ interface ProactiveVsReactiveData {
   totalActions: number;
   proactiveCount: number;
   reactiveCount: number;
+  dayKey: string;
+}
+
+interface ActionItem {
+  id: string;
+  title: string;
+  status: string;
+  linked_issue_id: string | null;
+  assignee?: {
+    full_name: string;
+  } | null;
 }
 
 interface ProactiveVsReactiveChartProps {
   data: ProactiveVsReactiveData[];
   isLoading?: boolean;
+  onDayClick?: (dayKey: string) => Promise<ActionItem[]>;
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -58,7 +71,28 @@ const CustomLabel = ({ value, viewBox }: any) => {
   );
 };
 
-export function ProactiveVsReactiveChart({ data, isLoading }: ProactiveVsReactiveChartProps) {
+export function ProactiveVsReactiveChart({ data, isLoading, onDayClick }: ProactiveVsReactiveChartProps) {
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [selectedDayActions, setSelectedDayActions] = useState<ActionItem[]>([]);
+  const [loadingActions, setLoadingActions] = useState(false);
+
+  const handleBarClick = async (data: any, index: number) => {
+    if (!onDayClick) return;
+    
+    const dayData = data.payload;
+    setSelectedDay(dayData.dayKey);
+    setLoadingActions(true);
+    
+    try {
+      const actions = await onDayClick(dayData.dayKey);
+      setSelectedDayActions(actions);
+    } catch (error) {
+      console.error('Error fetching day actions:', error);
+      setSelectedDayActions([]);
+    } finally {
+      setLoadingActions(false);
+    }
+  };
   if (isLoading) {
     return (
       <Card>
@@ -123,7 +157,7 @@ export function ProactiveVsReactiveChart({ data, isLoading }: ProactiveVsReactiv
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
         <div className="flex gap-4">
           {/* Chart */}
           <div className="flex-1 h-64">
@@ -131,6 +165,8 @@ export function ProactiveVsReactiveChart({ data, isLoading }: ProactiveVsReactiv
               <BarChart
                 data={data}
                 margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                onClick={handleBarClick}
+                style={{ cursor: onDayClick ? 'pointer' : 'default' }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
@@ -181,6 +217,48 @@ export function ProactiveVsReactiveChart({ data, isLoading }: ProactiveVsReactiv
             </div>
           </div>
         </div>
+
+        {/* Selected Day Actions */}
+        {selectedDay && (
+          <div className="border-t pt-4">
+            <h4 className="text-sm font-medium mb-3">
+              Actions for {data.find(d => d.dayKey === selectedDay)?.name}
+              {loadingActions && <span className="ml-2 text-muted-foreground">(Loading...)</span>}
+            </h4>
+            
+            {loadingActions ? (
+              <div className="flex items-center justify-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+              </div>
+            ) : selectedDayActions.length > 0 ? (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {selectedDayActions.map((action) => (
+                  <div key={action.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
+                    <div className="flex-1">
+                      <div className="font-medium">{action.title}</div>
+                      <div className="text-muted-foreground text-xs">
+                        {action.assignee?.full_name || 'Unassigned'} • {action.status}
+                      </div>
+                    </div>
+                    <div className="ml-2">
+                      {action.linked_issue_id ? (
+                        <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs">
+                          Reactive
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
+                          Proactive
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-sm py-4">No actions found for this day.</p>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

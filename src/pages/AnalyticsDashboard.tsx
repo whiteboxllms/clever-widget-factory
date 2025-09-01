@@ -12,7 +12,7 @@ import { useScoredActions } from '@/hooks/useScoredActions';
 
 export default function AnalyticsDashboard() {
   const navigate = useNavigate();
-  const { getEnhancedAttributeAnalytics, getActionAnalytics, getIssueAnalytics, getProactiveVsReactiveData, fetchAllData, isLoading: attributesLoading } = useEnhancedStrategicAttributes();
+  const { getEnhancedAttributeAnalytics, getActionAnalytics, getIssueAnalytics, getProactiveVsReactiveData, getDayActions, fetchAllData, isLoading: attributesLoading } = useEnhancedStrategicAttributes();
   const { scoredActions, isLoading: isLoadingScoredActions, fetchScoredActions } = useScoredActions();
   
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
@@ -204,6 +204,7 @@ export default function AnalyticsDashboard() {
             <ProactiveVsReactiveChart 
               data={proactiveVsReactiveData}
               isLoading={isLoadingProactiveData}
+              onDayClick={getDayActions}
             />
 
             {/* Scored Actions List */}

@@ -472,6 +472,43 @@ export function useEnhancedStrategicAttributes() {
     }
   };
 
+  const getDayActions = async (dayKey: string) => {
+    try {
+      const startOfDay = new Date(dayKey);
+      const endOfDay = new Date(dayKey);
+      endOfDay.setDate(endOfDay.getDate() + 1);
+      
+      const { data, error } = await supabase
+        .from('actions')
+        .select(`
+          id,
+          title,
+          status,
+          linked_issue_id,
+          created_at,
+          profiles!assigned_to(
+            full_name
+          )
+        `)
+        .gte('created_at', startOfDay.toISOString())
+        .lt('created_at', endOfDay.toISOString())
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      return (data || []).map((action: any) => ({
+        id: action.id,
+        title: action.title,
+        status: action.status,
+        linked_issue_id: action.linked_issue_id,
+        assignee: action.profiles
+      }));
+    } catch (error) {
+      console.error('Error fetching day actions:', error);
+      return [];
+    }
+  };
+
   return {
     attributes,
     actionScores,
@@ -481,6 +518,7 @@ export function useEnhancedStrategicAttributes() {
     getActionAnalytics,
     getIssueAnalytics,
     getProactiveVsReactiveData,
+    getDayActions,
     // Also expose the base methods for compatibility
     fetchAttributes,
     getAttributeAnalytics,

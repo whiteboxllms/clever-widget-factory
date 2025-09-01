@@ -47,15 +47,6 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
     return dataPoint;
   });
 
-  // Calculate dynamic domain for impact mode
-  const maxValue = showImpact 
-    ? Math.max(...chartData.flatMap(data => 
-        dataKeys.map(key => data[key] || 0)
-      ))
-    : 4;
-
-  const domain = showImpact ? [0, Math.ceil(maxValue * 1.1)] : [0, 4];
-
   // Get keys for rendering (actions + issues for selected users)
   const actionKeys = actionAnalytics
     .filter(user => selectedUsers.includes(user.userId))
@@ -66,6 +57,15 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
     .map(user => `${user.userName} (Issues)`);
   
   const dataKeys = [...actionKeys, ...issueKeys];
+
+  // Calculate dynamic domain for impact mode
+  const maxValue = showImpact 
+    ? Math.max(...chartData.flatMap(data => 
+        dataKeys.map(key => data[key] || 0)
+      ))
+    : 4;
+
+  const domain = showImpact ? [0, Math.ceil(maxValue * 1.1)] : [0, 4];
 
   return (
     <Card className="w-full">

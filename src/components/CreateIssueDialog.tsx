@@ -114,12 +114,32 @@ export function CreateIssueDialog({
     loadEntities();
   }, [contextType, open]);
 
-  // Set initial context ID if provided
+  // Set initial context ID and selected entity if provided
   useEffect(() => {
     if (initialContextId) {
       setContextId(initialContextId);
+      
+      // Also set the selected entity based on the context type and ID
+      const findAndSetEntity = () => {
+        switch (contextType) {
+          case 'tool':
+            const tool = tools.find(t => t.id === initialContextId);
+            if (tool) setSelectedEntity(tool);
+            break;
+          case 'order':
+            const order = orders.find(o => o.id === initialContextId);
+            if (order) setSelectedEntity(order);
+            break;
+          case 'inventory':
+            const part = parts.find(p => p.id === initialContextId);
+            if (part) setSelectedEntity(part);
+            break;
+        }
+      };
+      
+      findAndSetEntity();
     }
-  }, [initialContextId]);
+  }, [initialContextId, contextType, tools, orders, parts]);
 
   const handleSubmit = async () => {
     if (!contextType || !contextId || !description.trim()) {

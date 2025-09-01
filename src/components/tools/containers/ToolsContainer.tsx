@@ -20,6 +20,7 @@ import { EditToolForm } from "../forms/EditToolForm";
 import { ToolCheckoutDialog } from "@/components/ToolCheckoutDialog";
 import { ToolCheckInDialog } from "@/components/ToolCheckInDialog";
 import { IssueResolutionDialog } from "@/components/IssueResolutionDialog";
+import { IssueReportDialog } from "@/components/IssueReportDialog";
 import { CreateIssueDialog } from "@/components/CreateIssueDialog";
 import { IssueEditDialog } from "@/components/IssueEditDialog";
 import { IssueWorkflowDialog } from "@/components/IssueWorkflowDialog";
@@ -43,6 +44,7 @@ export const ToolsContainer = () => {
   const [resolveIssue, setResolveIssue] = useState(null);
   const [isResolveDialogOpen, setIsResolveDialogOpen] = useState(false);
   const [reportIssueTool, setReportIssueTool] = useState(null);
+  const [isReportIssueDialogOpen, setIsReportIssueDialogOpen] = useState(false);
   const [isCreateIssueDialogOpen, setIsCreateIssueDialogOpen] = useState(false);
   const [editIssue, setEditIssue] = useState(null);
   const [isEditIssueDialogOpen, setIsEditIssueDialogOpen] = useState(false);
@@ -159,7 +161,7 @@ export const ToolsContainer = () => {
 
   const handleReportIssue = (tool) => {
     setReportIssueTool(tool);
-    setIsCreateIssueDialogOpen(true);
+    setIsReportIssueDialogOpen(true);
   };
 
   const handleAddTool = async (toolData) => {
@@ -332,11 +334,10 @@ export const ToolsContainer = () => {
         }}
       />
 
-      <CreateIssueDialog
-        open={isCreateIssueDialogOpen}
-        onOpenChange={setIsCreateIssueDialogOpen}
-        contextType="tool"
-        contextId={reportIssueTool?.id}
+      <IssueReportDialog
+        tool={reportIssueTool}
+        open={isReportIssueDialogOpen}
+        onOpenChange={setIsReportIssueDialogOpen}
         onSuccess={() => {
           fetchTools();
           fetchToolsWithIssues();
@@ -344,7 +345,7 @@ export const ToolsContainer = () => {
           if (reportIssueTool) {
             fetchToolHistory(reportIssueTool.id);
           }
-          setIsCreateIssueDialogOpen(false);
+          setIsReportIssueDialogOpen(false);
           setReportIssueTool(null);
         }}
       />

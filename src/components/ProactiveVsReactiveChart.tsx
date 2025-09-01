@@ -92,14 +92,19 @@ export function ProactiveVsReactiveChart({ data, isLoading }: ProactiveVsReactiv
     );
   }
 
-  const totalData = data[0];
+  // Calculate overall stats for the header
+  const totalActionsAcrossWeeks = data.reduce((sum, week) => sum + week.totalActions, 0);
+  const totalProactiveAcrossWeeks = data.reduce((sum, week) => sum + week.proactiveCount, 0);
+  const totalReactiveAcrossWeeks = data.reduce((sum, week) => sum + week.reactiveCount, 0);
+  const overallReactivePercent = totalActionsAcrossWeeks > 0 ? (totalReactiveAcrossWeeks / totalActionsAcrossWeeks) * 100 : 0;
+
   const getStatusMessage = (reactivePercent: number) => {
     if (reactivePercent > 70) return { text: "Primarily Reactive", color: "text-red-600" };
     if (reactivePercent < 30) return { text: "Primarily Proactive", color: "text-green-600" };
     return { text: "Balanced Approach", color: "text-blue-600" };
   };
 
-  const status = getStatusMessage(totalData.reactive);
+  const status = getStatusMessage(overallReactivePercent);
 
   return (
     <Card>
@@ -108,13 +113,13 @@ export function ProactiveVsReactiveChart({ data, isLoading }: ProactiveVsReactiv
           <div>
             <CardTitle>Driving Improvements vs Responding to Issues</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              Company-wide balance between proactive work and reactive issue resolution
+              Weekly breakdown of proactive work vs reactive issue resolution
             </p>
           </div>
           <div className="text-right">
             <p className={`text-sm font-medium ${status.color}`}>{status.text}</p>
-            <p className="text-xs text-muted-foreground">{totalData.totalActions} total actions</p>
-            <p className="text-xs text-muted-foreground">{totalData.reactive.toFixed(1)}% reactive</p>
+            <p className="text-xs text-muted-foreground">{totalActionsAcrossWeeks} total actions</p>
+            <p className="text-xs text-muted-foreground">{overallReactivePercent.toFixed(1)}% reactive overall</p>
           </div>
         </div>
       </CardHeader>
@@ -130,11 +135,11 @@ export function ProactiveVsReactiveChart({ data, isLoading }: ProactiveVsReactiv
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
                   dataKey="name" 
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: 10 }}
                   interval={0}
                   angle={-45}
                   textAnchor="end"
-                  height={80}
+                  height={100}
                 />
                 <YAxis 
                   domain={[0, 100]}

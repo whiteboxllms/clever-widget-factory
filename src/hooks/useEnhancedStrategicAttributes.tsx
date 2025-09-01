@@ -398,23 +398,10 @@ export function useEnhancedStrategicAttributes() {
 
   const getProactiveVsReactiveData = async (startDate?: string, endDate?: string) => {
     try {
-      let query = supabase
-        .from('actions')
-        .select('id, linked_issue_id, created_at')
-        .not('linked_issue_id', 'is', null);
-
-      // Apply date filters if provided
-      if (startDate && endDate) {
-        query = query.gte('created_at', startDate).lte('created_at', endDate);
-      }
-
-      const { data: reactiveActions, error: reactiveError } = await query;
-      if (reactiveError) throw reactiveError;
-
-      // Get all actions in the same period
+      // Get all actions in the date range
       let allActionsQuery = supabase
         .from('actions')
-        .select('id, created_at');
+        .select('id, linked_issue_id, created_at');
 
       if (startDate && endDate) {
         allActionsQuery = allActionsQuery.gte('created_at', startDate).lte('created_at', endDate);
@@ -423,21 +410,66 @@ export function useEnhancedStrategicAttributes() {
       const { data: allActions, error: allError } = await allActionsQuery;
       if (allError) throw allError;
 
-      const totalActions = allActions?.length || 0;
-      const reactiveCount = reactiveActions?.length || 0;
-      const proactiveCount = totalActions - reactiveCount;
+      if (!allActions || allActions.length === 0) {
+        return [];
+      }
 
-      const proactivePercent = totalActions > 0 ? (proactiveCount / totalActions) * 100 : 0;
-      const reactivePercent = totalActions > 0 ? (reactiveCount / totalActions) * 100 : 0;
+      // Group actions by week
+      const weeklyData = new Map<string, { proactive: number; reactive: number; total: number }>();
 
-      return [{
-        name: 'Company Overall',
-        proactive: proactivePercent,
-        reactive: reactivePercent,
-        totalActions,
-        proactiveCount,
-        reactiveCount
-      }];
+      allActions.forEach(action => {
+        const date = new Date(action.created_at);
+        // Get the start of the week (Monday)
+        const startOfWeek = new Date(date);
+        const day = startOfWeek.getDay();
+        const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+        startOfWeek.setDate(diff);
+        startOfWeek.setHours(0, 0, 0, 0);
+        
+        const weekKey = startOfWeek.toISOString().split('T')[0];
+        
+        if (!weeklyData.has(weekKey)) {
+          weeklyData.set(weekKey, { proactive: 0, reactive: 0, total: 0 });
+        }
+        
+        const weekData = weeklyData.get(weekKey)!;
+        weekData.total++;
+        
+        if (action.linked_issue_id) {
+          weekData.reactive++;
+        } else {
+          weekData.proactive++;
+        }
+      });
+
+      // Convert to chart data format and sort by date
+      const chartData = Array.from(weeklyData.entries())
+        .map(([weekStart, data]) => {
+          const proactivePercent = data.total > 0 ? (data.proactive / data.total) * 100 : 0;
+          const reactivePercent = data.total > 0 ? (data.reactive / data.total) * 100 : 0;
+          
+          // Format week for display
+          const weekDate = new Date(weekStart);
+          const weekEnd = new Date(weekDate);
+          weekEnd.setDate(weekEnd.getDate() + 6);
+          
+          const formatDate = (date: Date) => {
+            return `${date.getMonth() + 1}/${date.getDate()}`;
+          };
+          
+          return {
+            name: `${formatDate(weekDate)} - ${formatDate(weekEnd)}`,
+            proactive: proactivePercent,
+            reactive: reactivePercent,
+            totalActions: data.total,
+            proactiveCount: data.proactive,
+            reactiveCount: data.reactive,
+            weekStart
+          };
+        })
+        .sort((a, b) => new Date(a.weekStart).getTime() - new Date(b.weekStart).getTime());
+
+      return chartData;
     } catch (error) {
       console.error('Error fetching proactive vs reactive data:', error);
       toast({

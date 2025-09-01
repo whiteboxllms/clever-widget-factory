@@ -155,9 +155,7 @@ export function ProactiveVsReactiveChart({ data, isLoading }: ProactiveVsReactiv
                   fill="hsl(142, 76%, 36%)"
                   stroke="hsl(142, 76%, 36%)"
                   strokeWidth={1}
-                >
-                  <LabelList content={<CustomLabel />} />
-                </Bar>
+                />
                 
                 {/* Reactive (red) bar - shown second so it appears at the bottom */}
                 <Bar 
@@ -166,9 +164,7 @@ export function ProactiveVsReactiveChart({ data, isLoading }: ProactiveVsReactiv
                   fill="hsl(0, 84%, 60%)"
                   stroke="hsl(0, 84%, 60%)"
                   strokeWidth={1}
-                >
-                  <LabelList content={<CustomLabel />} />
-                </Bar>
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>

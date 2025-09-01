@@ -227,7 +227,7 @@ export function ActionScoreDialog({
     if (!selectedPrompt) return;
 
     try {
-      // First verify the action exists in the database
+      // First verify the action exists in the database, if not create it
       const { data: actionExists, error: actionError } = await supabase
         .from('actions')
         .select('id')
@@ -235,12 +235,44 @@ export function ActionScoreDialog({
         .single();
 
       if (actionError || !actionExists) {
+        // Action doesn't exist, create it first
+        const actionData = {
+          id: action.id,
+          title: action.title,
+          description: action.description || null,
+          plan: action.plan || null,
+          observations: action.observations || null,
+          status: action.status || 'not_started',
+          assigned_to: action.assigned_to || null,
+          mission_id: action.mission_id || null,
+          asset_id: action.asset_id || null,
+          linked_issue_id: action.linked_issue_id || null,
+          issue_reference: action.issue_reference || null,
+          estimated_duration: action.estimated_duration || null,
+          required_tools: action.required_tools || [],
+          required_stock: action.required_stock || [],
+          attachments: action.attachments || [],
+          plan_commitment: action.plan_commitment || false
+        };
+
+        const { error: createError } = await supabase
+          .from('actions')
+          .insert(actionData);
+
+        if (createError) {
+          console.error('Error creating action:', createError);
+          toast({
+            title: "Error",
+            description: "Failed to save action before scoring. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+
         toast({
-          title: "Error",
-          description: "Action not found in database. Cannot create score.",
-          variant: "destructive",
+          title: "Action Saved",
+          description: "Action was automatically saved before scoring.",
         });
-        return;
       }
 
       const scoreData = {

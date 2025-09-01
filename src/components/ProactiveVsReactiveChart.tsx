@@ -148,21 +148,21 @@ export function ProactiveVsReactiveChart({ data, isLoading }: ProactiveVsReactiv
                 />
                 <Tooltip content={<CustomTooltip />} />
                 
-                {/* Proactive (green) bar - shown first so it appears at the top */}
-                <Bar 
-                  dataKey="proactive" 
-                  stackId="actions" 
-                  fill="hsl(142, 76%, 36%)"
-                  stroke="hsl(142, 76%, 36%)"
-                  strokeWidth={1}
-                />
-                
-                {/* Reactive (red) bar - shown second so it appears at the bottom */}
+                {/* Reactive (red) bar - shown first so it appears at the bottom */}
                 <Bar 
                   dataKey="reactive" 
                   stackId="actions" 
                   fill="hsl(0, 84%, 60%)"
                   stroke="hsl(0, 84%, 60%)"
+                  strokeWidth={1}
+                />
+                
+                {/* Proactive (green) bar - shown second so it appears at the top */}
+                <Bar 
+                  dataKey="proactive" 
+                  stackId="actions" 
+                  fill="hsl(142, 76%, 36%)"
+                  stroke="hsl(142, 76%, 36%)"
                   strokeWidth={1}
                 />
               </BarChart>

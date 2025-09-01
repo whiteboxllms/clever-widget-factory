@@ -6,17 +6,20 @@ import { ArrowLeft, TrendingUp, Users, BarChart3 } from 'lucide-react';
 import { AttributeRadarChart } from '@/components/AttributeRadarChart';
 import { AttributeFilters } from '@/components/AttributeFilters';
 import { ScoredActionsList } from '@/components/ScoredActionsList';
+import { ProactiveVsReactiveChart } from '@/components/ProactiveVsReactiveChart';
 import { useEnhancedStrategicAttributes } from '@/hooks/useEnhancedStrategicAttributes';
 import { useScoredActions } from '@/hooks/useScoredActions';
 
 export default function AnalyticsDashboard() {
   const navigate = useNavigate();
-  const { getEnhancedAttributeAnalytics, getActionAnalytics, getIssueAnalytics, fetchAllData, isLoading: attributesLoading } = useEnhancedStrategicAttributes();
+  const { getEnhancedAttributeAnalytics, getActionAnalytics, getIssueAnalytics, getProactiveVsReactiveData, fetchAllData, isLoading: attributesLoading } = useEnhancedStrategicAttributes();
   const { scoredActions, isLoading: isLoadingScoredActions, fetchScoredActions } = useScoredActions();
   
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [proactiveVsReactiveData, setProactiveVsReactiveData] = useState<any[]>([]);
+  const [isLoadingProactiveData, setIsLoadingProactiveData] = useState(false);
 
   // Set default dates (last 30 days)
   useEffect(() => {
@@ -49,6 +52,8 @@ export default function AnalyticsDashboard() {
   }, [allUserAnalytics.length]); // Only depend on length to avoid infinite loops
 
   const handleApplyFilters = async () => {
+    setIsLoadingProactiveData(true);
+    
     // Always fetch ALL data, not filtered by selectedUsers - we want all users available for selection
     await fetchAllData(undefined, startDate, endDate);
     await fetchScoredActions(selectedUsers, startDate, endDate);
@@ -56,13 +61,30 @@ export default function AnalyticsDashboard() {
     // Fetch issue analytics for selected users
     const issueAnalytics = await getIssueAnalytics(selectedUsers, startDate, endDate);
     setSelectedIssueAnalytics(issueAnalytics);
+    
+    // Fetch proactive vs reactive data
+    const proactiveData = await getProactiveVsReactiveData(startDate, endDate);
+    setProactiveVsReactiveData(proactiveData);
+    setIsLoadingProactiveData(false);
   };
 
-  // Fetch issue analytics when selected users change
+  // Fetch issue analytics and proactive data when dates change
   useEffect(() => {
-    if (selectedUsers.length > 0) {
-      getIssueAnalytics(selectedUsers, startDate, endDate).then(setSelectedIssueAnalytics);
-    }
+    const fetchData = async () => {
+      if (selectedUsers.length > 0) {
+        const issueAnalytics = await getIssueAnalytics(selectedUsers, startDate, endDate);
+        setSelectedIssueAnalytics(issueAnalytics);
+      }
+      
+      if (startDate && endDate) {
+        setIsLoadingProactiveData(true);
+        const proactiveData = await getProactiveVsReactiveData(startDate, endDate);
+        setProactiveVsReactiveData(proactiveData);
+        setIsLoadingProactiveData(false);
+      }
+    };
+    
+    fetchData();
   }, [selectedUsers, startDate, endDate]);
 
 
@@ -177,6 +199,12 @@ export default function AnalyticsDashboard() {
                 </CardContent>
               </Card>
             )}
+
+            {/* Proactive vs Reactive Chart */}
+            <ProactiveVsReactiveChart 
+              data={proactiveVsReactiveData}
+              isLoading={isLoadingProactiveData}
+            />
 
             {/* Scored Actions List */}
             <ScoredActionsList 

@@ -396,6 +396,59 @@ export function useEnhancedStrategicAttributes() {
     fetchAllData();
   }, []);
 
+  const getProactiveVsReactiveData = async (startDate?: string, endDate?: string) => {
+    try {
+      let query = supabase
+        .from('actions')
+        .select('id, linked_issue_id, created_at')
+        .not('linked_issue_id', 'is', null);
+
+      // Apply date filters if provided
+      if (startDate && endDate) {
+        query = query.gte('created_at', startDate).lte('created_at', endDate);
+      }
+
+      const { data: reactiveActions, error: reactiveError } = await query;
+      if (reactiveError) throw reactiveError;
+
+      // Get all actions in the same period
+      let allActionsQuery = supabase
+        .from('actions')
+        .select('id, created_at');
+
+      if (startDate && endDate) {
+        allActionsQuery = allActionsQuery.gte('created_at', startDate).lte('created_at', endDate);
+      }
+
+      const { data: allActions, error: allError } = await allActionsQuery;
+      if (allError) throw allError;
+
+      const totalActions = allActions?.length || 0;
+      const reactiveCount = reactiveActions?.length || 0;
+      const proactiveCount = totalActions - reactiveCount;
+
+      const proactivePercent = totalActions > 0 ? (proactiveCount / totalActions) * 100 : 0;
+      const reactivePercent = totalActions > 0 ? (reactiveCount / totalActions) * 100 : 0;
+
+      return [{
+        name: 'Company Overall',
+        proactive: proactivePercent,
+        reactive: reactivePercent,
+        totalActions,
+        proactiveCount,
+        reactiveCount
+      }];
+    } catch (error) {
+      console.error('Error fetching proactive vs reactive data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch proactive vs reactive data",
+        variant: "destructive",
+      });
+      return [];
+    }
+  };
+
   return {
     attributes,
     actionScores,
@@ -404,6 +457,7 @@ export function useEnhancedStrategicAttributes() {
     getEnhancedAttributeAnalytics,
     getActionAnalytics,
     getIssueAnalytics,
+    getProactiveVsReactiveData,
     // Also expose the base methods for compatibility
     fetchAttributes,
     getAttributeAnalytics,

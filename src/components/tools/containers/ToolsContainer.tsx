@@ -257,23 +257,13 @@ export const ToolsContainer = () => {
           showRemovedItems={showRemovedItems}
           onShowRemovedItemsChange={setShowRemovedItems}
           actionButton={canEditTools && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  onClick={() => setIsAddDialogOpen(true)}
-                  disabled={!searchTerm.trim()}
-                  className="w-full sm:w-auto flex-shrink-0"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Asset
-                </Button>
-              </TooltipTrigger>
-              {!searchTerm.trim() && (
-                <TooltipContent>
-                  <p>Search for an asset first to avoid duplicates</p>
-                </TooltipContent>
-              )}
-            </Tooltip>
+            <Button 
+              onClick={() => setIsAddDialogOpen(true)}
+              className="w-full sm:w-auto flex-shrink-0"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Asset
+            </Button>
           )}
         />
 

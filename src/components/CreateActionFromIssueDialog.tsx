@@ -71,7 +71,7 @@ export function CreateActionFromIssueDialog({
 }: CreateActionFromIssueDialogProps) {
   const [formData, setFormData] = useState({
     title: '',
-    plan: '',
+    policy: '',
     observations: '',
     assigned_to: '',
     estimated_completion_date: undefined as Date | undefined,
@@ -79,7 +79,7 @@ export function CreateActionFromIssueDialog({
     attachments: [] as string[]
   });
   const [defaultTitle, setDefaultTitle] = useState('');
-  const [defaultPlan, setDefaultPlan] = useState('');
+  const [defaultPolicy, setDefaultPolicy] = useState('');
   const [newTool, setNewTool] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -111,14 +111,14 @@ export function CreateActionFromIssueDialog({
   useEffect(() => {
     if (open && issue) {
       const defaultTitleText = `Resolve ${issue.issue_type} issue`;
-      const defaultPlanText = `Action needed to address issue: ${issue.description}`;
+      const defaultPolicyText = `Action needed to address issue: ${issue.description}`;
       
       setDefaultTitle(defaultTitleText);
-      setDefaultPlan(defaultPlanText);
+      setDefaultPolicy(defaultPolicyText);
       
       setFormData({
         title: defaultTitleText,
-        plan: defaultPlanText,
+        policy: defaultPolicyText,
         observations: '',
         assigned_to: '',
         estimated_completion_date: undefined,
@@ -222,7 +222,7 @@ export function CreateActionFromIssueDialog({
 
       setFormData({
         title: '',
-        plan: '',
+        policy: '',
         observations: '',
         assigned_to: '',
         estimated_completion_date: undefined,
@@ -389,21 +389,21 @@ export function CreateActionFromIssueDialog({
           {/* Rich Text Content */}
           <Tabs defaultValue="plan" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="plan">Plan</TabsTrigger>
+              <TabsTrigger value="plan">Policy</TabsTrigger>
               <TabsTrigger value="observations">Implementation</TabsTrigger>
             </TabsList>
             
             <TabsContent value="plan" className="mt-4">
               <div>
-                <Label>Action Plan</Label>
+                <Label>Action Policy</Label>
                 <div className="mt-2 border rounded-lg">
                    <TiptapEditor
-                     value={formData.plan}
-                     onChange={(value) => setFormData(prev => ({ ...prev, plan: value }))}
-                     placeholder="Describe the plan for this action..."
+                     value={formData.policy}
+                     onChange={(value) => setFormData(prev => ({ ...prev, policy: value }))}
+                     placeholder="Describe the policy for this action..."
                      onFocus={() => {
-                       if (formData.plan === defaultPlan) {
-                         setFormData(prev => ({ ...prev, plan: '' }));
+                       if (formData.policy === defaultPolicy) {
+                         setFormData(prev => ({ ...prev, policy: '' }));
                        }
                      }}
                    />

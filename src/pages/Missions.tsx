@@ -38,7 +38,7 @@ interface Mission {
   qa_name?: string;
   task_count?: number;
   completed_task_count?: number;
-  tasks_with_plans_count?: number;
+  tasks_with_policies_count?: number;
   tasks_with_implementation_count?: number;
 }
 interface Profile {
@@ -49,7 +49,7 @@ interface Profile {
 }
 interface Task {
   title: string;
-  plan?: string;
+  policy?: string;
   observations?: string;
   assigned_to: string | null;
 }
@@ -114,7 +114,7 @@ const Missions = () => {
     // Default to current user
     actions: [{
       title: '',
-      plan: '',
+      policy: '',
       observations: '',
       assigned_to: null
     }] as Task[]
@@ -159,7 +159,7 @@ const Missions = () => {
     }
 
     // Priority 3: If any tasks have plans but no implementation, show blue
-    if (mission.tasks_with_plans_count && mission.tasks_with_plans_count > 0) {
+    if (mission.tasks_with_policies_count && mission.tasks_with_policies_count > 0) {
       return {
         bg: 'bg-card',
         text: 'text-card-foreground',
@@ -187,7 +187,7 @@ const Missions = () => {
           ...mission,
           task_count: tasks.length,
           completed_task_count: completedTasks.length,
-          tasks_with_plans_count: tasksWithPlans.length,
+          tasks_with_policies_count: tasksWithPolicies.length,
           tasks_with_implementation_count: tasksWithImplementation.length
         };
       });
@@ -279,7 +279,7 @@ const Missions = () => {
         actions(
           id,
           status, 
-          plan, 
+          policy,
           observations,
           linked_issue_id,
           issue_reference
@@ -305,7 +305,7 @@ const Missions = () => {
           qa_name: mission.qa_person?.full_name || 'Unassigned',
           task_count: tasks.length,
           completed_task_count: completedTasks.length,
-          tasks_with_plans_count: tasksWithPlans.length,
+          tasks_with_policies_count: tasksWithPolicies.length,
           tasks_with_implementation_count: tasksWithImplementation.length
         };
       }) || [];
@@ -353,7 +353,7 @@ const Missions = () => {
         assigned_to: null
       })) : [{
         title: '',
-        plan: '',
+        policy: '',
         observations: '',
         assigned_to: null
       }]
@@ -490,7 +490,7 @@ const Missions = () => {
       // Default to current user
       actions: [{
         title: '',
-        plan: '',
+        policy: '',
         observations: '',
         assigned_to: null
       }]

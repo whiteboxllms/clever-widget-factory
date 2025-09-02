@@ -280,7 +280,19 @@ export default function Actions() {
   });
 
   const unresolved = sortedFilteredActions.filter(a => a.status !== 'completed');
-  const completed = sortedFilteredActions.filter(a => a.status === 'completed');
+  const completed = sortedFilteredActions
+    .filter(a => a.status === 'completed')
+    .sort((a, b) => {
+      // Sort completed actions by completion date (most recent first)
+      if (a.completed_at && b.completed_at) {
+        return new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime();
+      }
+      // If one doesn't have a completion date, prioritize the one that does
+      if (a.completed_at && !b.completed_at) return -1;
+      if (!a.completed_at && b.completed_at) return 1;
+      // If neither has a completion date, sort by updated_at (fallback)
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+    });
   
   // Get unique assignees from actions
   const uniqueAssignees = Array.from(

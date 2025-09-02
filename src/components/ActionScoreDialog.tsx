@@ -159,7 +159,7 @@ export function ActionScoreDialog({
       action: {
         title: action.title,
         description: action.description,
-        plan: action.plan,
+        policy: action.policy,
         observations: action.observations,
         status: action.status,
         created_at: action.created_at,
@@ -240,7 +240,7 @@ export function ActionScoreDialog({
           id: action.id,
           title: action.title,
           description: action.description || null,
-          plan: action.plan || null,
+          policy: action.policy || null,
           observations: action.observations || null,
           status: action.status || 'not_started',
           assigned_to: action.assigned_to || null,
@@ -386,10 +386,10 @@ export function ActionScoreDialog({
                     <p className="text-sm mt-1">{action.description}</p>
                   </div>
                 )}
-                {action.plan && (
+                {action.policy && (
                   <div>
-                    <Label className="text-sm font-semibold">Plan</Label>
-                    <p className="text-sm mt-1">{stripHtml(action.plan)}</p>
+                    <Label className="text-sm font-semibold">Policy</Label>
+                    <p className="text-sm mt-1">{stripHtml(action.policy)}</p>
                   </div>
                 )}
                 {action.observations && (

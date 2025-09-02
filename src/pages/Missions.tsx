@@ -181,7 +181,7 @@ const Missions = () => {
       return prevMissions.map(mission => {
         if (mission.id !== missionId) return mission;
         const completedTasks = tasks.filter((task: any) => task.status === 'completed');
-        const tasksWithPlans = tasks.filter((task: any) => task.plan && task.plan.trim());
+        const tasksWithPolicies = tasks.filter((task: any) => task.policy && task.policy.trim());
         const tasksWithImplementation = tasks.filter((task: any) => task.observations && task.observations.trim());
         return {
           ...mission,
@@ -297,7 +297,7 @@ const Missions = () => {
       const missionsWithNames = data?.map(mission => {
         const tasks = mission.actions || [];
         const completedTasks = tasks.filter((task: any) => task.status === 'completed');
-        const tasksWithPlans = tasks.filter((task: any) => task.plan && task.plan.trim());
+        const tasksWithPolicies = tasks.filter((task: any) => task.policy && task.policy.trim());
         const tasksWithImplementation = tasks.filter((task: any) => task.observations && task.observations.trim());
         return {
           ...mission,
@@ -348,7 +348,7 @@ const Missions = () => {
       // Default to current user
       actions: template.defaultTasks.length > 0 ? template.defaultTasks.map((task: any) => ({
         title: task.title,
-        plan: task.plan || '',
+        policy: task.policy || '',
         observations: task.observations || '',
         assigned_to: null
       })) : [{
@@ -417,7 +417,7 @@ const Missions = () => {
             .insert(tasksToCreate.map(task => ({
               mission_id: missionData.id,
               title: task.title,
-              plan: task.plan || null,
+              policy: task.policy || null,
               observations: task.observations || null,
               assigned_to: task.assigned_to || null
             })))

@@ -150,7 +150,7 @@ export default function EditMission() {
         actions: tasksData?.map(task => ({
           id: task.id, // Include the task ID for proper edit detection
           title: task.title,
-          plan: task.plan || '',
+          policy: task.policy || '',
           observations: task.observations || '',
           assigned_to: task.assigned_to,
           status: task.status,

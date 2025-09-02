@@ -87,7 +87,7 @@ export function UnifiedActionDialog({
       if (!isSameSession || !isFormInitialized) {
         if (action && !isCreating) {
           // Editing existing action
-          console.log('UnifiedActionDialog: Setting form data for action:', action.id, 'with plan:', action.plan);
+          console.log('UnifiedActionDialog: Setting form data for action:', action.id, 'with policy:', action.policy);
           console.log('UnifiedActionDialog: Full action object:', action);
           setFormData({
             ...action,
@@ -111,7 +111,7 @@ export function UnifiedActionDialog({
           setFormData({
             title: '',
             description: '',
-            plan: '',
+            policy: '',
             observations: '',
             assigned_to: null,
             status: 'not_started',
@@ -347,7 +347,7 @@ export function UnifiedActionDialog({
       const actionData: any = {
         title: formData.title.trim(),
         description: formData.description || null,
-        plan: formData.plan || null,
+        policy: formData.policy || null,
         observations: formData.observations || null,
         assigned_to: formData.assigned_to === 'unassigned' ? null : formData.assigned_to || null,
         estimated_duration: estimatedDuration,
@@ -602,19 +602,19 @@ export function UnifiedActionDialog({
           {/* Rich Text Content */}
           <Tabs defaultValue="plan" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="plan">Plan</TabsTrigger>
+              <TabsTrigger value="plan">Policy</TabsTrigger>
               <TabsTrigger value="observations">Implementation</TabsTrigger>
             </TabsList>
             
             <TabsContent value="plan" className="mt-4">
               <div>
-                <Label>Action Plan</Label>
+                <Label>Action Policy</Label>
                 <div className="mt-2 border rounded-lg">
                  <TiptapEditor
                    key={`plan-${action?.id || 'new'}`}
-                   value={formData.plan || ''}
-                   onChange={(value) => setFormData(prev => ({ ...prev, plan: value }))}
-                   placeholder="Describe the plan for this action..."
+                   value={formData.policy || ''}
+                   onChange={(value) => setFormData(prev => ({ ...prev, policy: value }))}
+                   placeholder="Describe the policy for this action..."
                  />
                 </div>
               </div>

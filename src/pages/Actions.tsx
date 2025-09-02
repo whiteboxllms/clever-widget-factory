@@ -136,7 +136,7 @@ export default function Actions() {
   };
 
   const handleEditAction = (action: BaseAction) => {
-    console.log('Actions page: Clicking action with ID:', action.id, 'and plan:', action.plan);
+    console.log('Actions page: Clicking action with ID:', action.id, 'and policy:', action.policy);
     setEditingAction(action);
     setIsCreating(false);
     setIsEditDialogOpen(true);
@@ -203,7 +203,7 @@ export default function Actions() {
 
         return action.title.toLowerCase().includes(searchLower) ||
                action.description?.toLowerCase().includes(searchLower) ||
-               stripHtmlAndSearch(action.plan) ||
+               stripHtmlAndSearch(action.policy) ||
                stripHtmlAndSearch(action.observations) ||
                action.issue_reference?.toLowerCase().includes(searchLower) ||
                action.asset?.name?.toLowerCase().includes(searchLower) ||

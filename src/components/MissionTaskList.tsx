@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 interface Action {
   id: string;
   title: string;
-  plan?: string;
+  policy?: string;
   observations?: string;
   assigned_to: string | null;
   status: string;
@@ -75,7 +75,7 @@ export function MissionTaskList({ missionId, profiles, canEdit = false, missionN
         .insert({
           mission_id: missionId,
           title: actionData.title,
-          plan: actionData.plan,
+          policy: actionData.policy,
           observations: actionData.observations,
           assigned_to: actionData.assigned_to || null
         })
@@ -126,7 +126,7 @@ export function MissionTaskList({ missionId, profiles, canEdit = false, missionN
           action={{
             id: 'new',
             title: '',
-            plan: '',
+            policy: '',
             observations: '',
             assigned_to: null,
             status: 'not_started',

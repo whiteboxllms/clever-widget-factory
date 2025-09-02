@@ -201,7 +201,7 @@ export function CreateActionFromIssueDialog({
         .from('actions')
         .insert({
           title: formData.title,
-          plan: formData.plan || null,
+          policy: formData.policy || null,
           observations: formData.observations || null,
           assigned_to: formData.assigned_to === 'unassigned' ? null : formData.assigned_to || null,
           estimated_duration: estimatedDuration,

@@ -24,7 +24,7 @@ import { createMissionAction, BaseAction, ActionCreationContext } from '@/types/
 interface Task {
   id?: string; // Add optional id field
   title: string;
-  plan?: string;
+  policy?: string;
   observations?: string;
   assigned_to: string | null;
   status?: string; // Add optional status field
@@ -112,7 +112,7 @@ export function SimpleMissionForm({
       const updatedTasks = tasksData?.map(task => ({
         id: task.id,
         title: task.title,
-        plan: task.plan || '',
+        policy: task.policy || '',
         observations: task.observations || '',
         assigned_to: task.assigned_to,
         status: task.status,
@@ -197,7 +197,7 @@ export function SimpleMissionForm({
       ...prev,
       actions: standardTasks.map(task => ({
         title: task.title,
-        plan: task.description,
+        policy: task.description,
         observations: '',
         assigned_to: null,
         estimated_completion_date: undefined,
@@ -596,7 +596,7 @@ export function SimpleMissionForm({
               id: formData.actions[editingTaskIndex].id || '',
               title: formData.actions[editingTaskIndex].title,
               description: '',
-              plan: formData.actions[editingTaskIndex].plan,
+              policy: formData.actions[editingTaskIndex].policy,
               observations: formData.actions[editingTaskIndex].observations,
               assigned_to: formData.actions[editingTaskIndex].assigned_to,
               status: formData.actions[editingTaskIndex].status || 'not_started',
@@ -632,7 +632,7 @@ export function SimpleMissionForm({
           {formData.actions.map((task, index) => {
             // Determine border color based on action status
             const getActionBorderColor = () => {
-              const hasPlan = task.plan?.trim();
+              const hasPolicy = task.policy?.trim();
               
               // Green border for completed actions  
               if (task.status === 'completed') {
@@ -640,7 +640,7 @@ export function SimpleMissionForm({
               }
               
               // Yellow border when there's a plan and plan commitment is true
-              if (hasPlan) {
+              if (hasPolicy) {
                 return 'border-yellow-500 border-2 shadow-yellow-200 shadow-lg';
               }
               
@@ -682,12 +682,12 @@ export function SimpleMissionForm({
                     </div>
                   </div>
 
-                  {task.plan && (
+                  {task.policy && (
                     <div className="mt-2">
-                      <p className="text-sm text-muted-foreground font-medium">Plan:</p>
+                      <p className="text-sm text-muted-foreground font-medium">Policy:</p>
                       <div 
                         className="text-sm prose prose-sm max-w-none line-clamp-2"
-                        dangerouslySetInnerHTML={{ __html: task.plan }}
+                        dangerouslySetInnerHTML={{ __html: task.policy }}
                       />
                     </div>
                   )}

@@ -4,7 +4,7 @@ export interface BaseAction {
   id: string;
   title: string;
   description?: string;
-  plan?: string;
+  policy?: string;
   observations?: string;
   status: string;
   assigned_to?: string | null;
@@ -73,7 +73,7 @@ export const createMissionAction = (missionId: string): Partial<BaseAction> => (
   status: 'not_started',
   title: '',
   description: '',
-  plan: '',
+  policy: '',
   observations: '',
   assigned_to: null,
   required_tools: [],
@@ -86,7 +86,7 @@ export const createIssueAction = (issueId: string, issueDescription?: string): P
   status: 'not_started',
   title: issueDescription ? `Resolve ${issueDescription}` : '',
   description: '',
-  plan: issueDescription ? `Action needed to address issue: ${issueDescription}` : '',
+  policy: issueDescription ? `Action needed to address issue: ${issueDescription}` : '',
   observations: '',
   assigned_to: null,
   required_tools: [],
@@ -100,7 +100,7 @@ export const createAssetAction = (assetId: string): Partial<BaseAction> => ({
   status: 'not_started',
   title: '',
   description: '',
-  plan: '',
+  policy: '',
   observations: '',
   assigned_to: null,
   required_tools: [],

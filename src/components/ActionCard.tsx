@@ -35,7 +35,7 @@ interface ActionCardProps {
   action: {
     id: string;
     title: string;
-    plan?: string;
+    policy?: string;
     observations?: string;
     assigned_to?: string | null;
     status: string;
@@ -71,20 +71,20 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
   const [existingScore, setExistingScore] = useState<any>(null);
   
   // Focus tracking states
-  const [isPlanFocused, setIsPlanFocused] = useState(false);
+  const [isPolicyFocused, setIsPolicyFocused] = useState(false);
   const [isImplementationFocused, setIsImplementationFocused] = useState(false);
   
   // Unsaved changes tracking
-  const [hasUnsavedPlan, setHasUnsavedPlan] = useState(false);
+  const [hasUnsavedPolicy, setHasUnsavedPolicy] = useState(false);
   const [hasUnsavedImplementation, setHasUnsavedImplementation] = useState(false);
   
   // Auto-save states
-  const [isSavingPlan, setIsSavingPlan] = useState(false);
+  const [isSavingPolicy, setIsSavingPolicy] = useState(false);
   const [isSavingImplementation, setIsSavingImplementation] = useState(false);
   
   const [editData, setEditData] = useState({
     title: action.title,
-    plan: action.plan || '',
+    policy: action.policy || '',
     observations: action.observations || '',
     assigned_to: action.assigned_to
   });
@@ -98,23 +98,23 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
   useEffect(() => {
     setEditData(prev => ({
       title: action.title,
-      plan: isPlanFocused ? prev.plan : (action.plan || ''),
+      policy: isPolicyFocused ? prev.policy : (action.policy || ''),
       observations: isImplementationFocused ? prev.observations : (action.observations || ''),
       assigned_to: action.assigned_to
     }));
     
     // Reset unsaved flags when action updates from external source
-    if (!isPlanFocused) setHasUnsavedPlan(false);
+    if (!isPolicyFocused) setHasUnsavedPolicy(false);
     if (!isImplementationFocused) setHasUnsavedImplementation(false);
-  }, [action.title, action.plan, action.observations, action.assigned_to, isPlanFocused, isImplementationFocused]);
+  }, [action.title, action.policy, action.observations, action.assigned_to, isPolicyFocused, isImplementationFocused]);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === 's') {
         e.preventDefault();
-        if (isPlanFocused && hasUnsavedPlan) {
-          savePlan();
+        if (isPolicyFocused && hasUnsavedPolicy) {
+          savePolicy();
         } else if (isImplementationFocused && hasUnsavedImplementation) {
           saveImplementation();
         }
@@ -123,20 +123,20 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isPlanFocused, isImplementationFocused, hasUnsavedPlan, hasUnsavedImplementation]);
+  }, [isPolicyFocused, isImplementationFocused, hasUnsavedPolicy, hasUnsavedImplementation]);
 
   // Auto-save implementation for plan field
   useEffect(() => {
-    if (!hasUnsavedPlan || isSavingPlan) return;
+    if (!hasUnsavedPolicy || isSavingPolicy) return;
     
     const timeoutId = setTimeout(async () => {
-      setIsSavingPlan(true);
-      await savePlan();
-      setIsSavingPlan(false);
+      setIsSavingPolicy(true);
+      await savePolicy();
+      setIsSavingPolicy(false);
     }, 5000); // Save after 5 seconds of inactivity
 
     return () => clearTimeout(timeoutId);
-  }, [editData.plan, hasUnsavedPlan, isSavingPlan]);
+  }, [editData.policy, hasUnsavedPolicy, isSavingPolicy]);
 
   // Auto-save implementation for implementation field
   useEffect(() => {
@@ -200,11 +200,11 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
   }, [isEditing]);
 
   // Save plan to database
-  const savePlan = async () => {
+  const savePolicy = async () => {
     if (action.status === 'completed') return;
     
     try {
-      const updateData: { plan: string; assigned_to?: string } = { plan: editData.plan };
+      const updateData: { policy: string; assigned_to?: string } = { policy: editData.policy };
       
       // If action is unassigned, assign it to the current user
       if (!action.assigned_to) {
@@ -221,20 +221,20 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
 
       if (error) throw error;
       
-      setHasUnsavedPlan(false);
+      setHasUnsavedPolicy(false);
       // Don't call onUpdate() here to prevent disruptive refreshes
       
       // Show subtle success feedback
       toast({
-        title: "Plan saved",
-        description: "Your plan has been automatically saved",
+        title: "Policy saved",
+        description: "Your policy has been automatically saved",
         duration: 2000,
       });
     } catch (error) {
-      console.error('Error updating action plan:', error);
+      console.error('Error updating action policy:', error);
       toast({
         title: "Error",
-        description: "Failed to save plan",
+        description: "Failed to save policy",
         variant: "destructive",
       });
     }
@@ -287,9 +287,9 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
   };
 
   // Plan change handler - just update local state
-  const handlePlanChange = (value: string) => {
-    setEditData(prev => ({ ...prev, plan: value }));
-    setHasUnsavedPlan(value !== (action.plan || ''));
+  const handlePolicyChange = (value: string) => {
+    setEditData(prev => ({ ...prev, policy: value }));
+    setHasUnsavedPolicy(value !== (action.policy || ''));
   };
 
   // Implementation change handler - just update local state
@@ -299,12 +299,12 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
   };
 
   // Focus handlers
-  const handlePlanFocus = () => {
-    setIsPlanFocused(true);
+  const handlePolicyFocus = () => {
+    setIsPolicyFocused(true);
   };
 
-  const handlePlanBlur = () => {
-    setIsPlanFocused(false);
+  const handlePolicyBlur = () => {
+    setIsPolicyFocused(false);
     // Don't auto-save on blur to prevent focus loss when switching fields
     // Save will happen on manual save or when leaving edit mode
   };
@@ -475,10 +475,10 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
 
   const handleCompleteAction = async () => {
     // Check if plan has content
-    if (!action.plan || !action.plan.trim()) {
+    if (!action.policy || !action.policy.trim()) {
       toast({
-        title: "Plan Required",
-        description: "Please add a plan before completing the action",
+        title: "Policy Required",
+        description: "Please add a policy before completing the action",
         variant: "destructive",
       });
       return;
@@ -531,7 +531,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
   };
 
   const getActionTheme = () => {
-    const hasPlan = action.plan?.trim();
+    const hasPolicy = action.policy?.trim();
     const hasObservations = action.observations?.trim();
     const isAssigned = Boolean(action.assigned_to);
     
@@ -544,8 +544,8 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
       };
     }
     
-    // Yellow border when there's a plan
-    if (hasPlan) {
+    // Yellow border when there's a policy
+    if (hasPolicy) {
       return {
         bgColor: 'bg-yellow-50 dark:bg-yellow-950',
         borderColor: 'border-yellow-500 border-2 shadow-yellow-200 shadow-lg dark:border-yellow-600 dark:shadow-yellow-900',
@@ -553,7 +553,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
       };
     }
     
-    // Blue for assigned with observations but no plan
+    // Blue for assigned with observations but no policy
     if (hasObservations && isAssigned) {
       return {
         bgColor: 'bg-blue-50 dark:bg-blue-950',
@@ -584,7 +584,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     }
     
     const isAssigned = Boolean(action.assigned_to);
-    const hasContent = action.plan?.trim() || action.observations?.trim();
+    const hasContent = action.policy?.trim() || action.observations?.trim();
     
     if (isAssigned && hasContent) {
       return <Clock className="w-4 h-4 text-blue-600" />;
@@ -603,7 +603,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     }
     
     const isAssigned = Boolean(action.assigned_to);
-    const hasContent = action.plan?.trim() || action.observations?.trim();
+    const hasContent = action.policy?.trim() || action.observations?.trim();
     
     if (isAssigned && hasContent) {
       return <Badge variant="default" className="bg-blue-600 text-white">In Progress</Badge>;
@@ -637,12 +637,12 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
           </div>
 
           <div>
-            <Label htmlFor="plan">Plan</Label>
+            <Label htmlFor="policy">Policy</Label>
             <Textarea
-              id="plan"
-              value={editData.plan}
-              onChange={(e) => setEditData(prev => ({ ...prev, plan: e.target.value }))}
-              placeholder="Describe the plan for this action..."
+              id="policy"
+              value={editData.policy}
+              onChange={(e) => setEditData(prev => ({ ...prev, policy: e.target.value }))}
+              placeholder="Describe the policy for this action..."
               className="mt-1 min-h-[100px]"
             />
           </div>
@@ -775,13 +775,13 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                   <Target className="h-3 w-3" />
                 </Button>
                 {/* Auto-save indicators */}
-                {(isSavingPlan || isSavingImplementation) && (
+                {(isSavingPolicy || isSavingImplementation) && (
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Save className="w-3 h-3 animate-pulse" />
                     Saving...
                   </div>
                 )}
-                {(hasUnsavedPlan || hasUnsavedImplementation) && !(isSavingPlan || isSavingImplementation) && (
+                {(hasUnsavedPolicy || hasUnsavedImplementation) && !(isSavingPolicy || isSavingImplementation) && (
                   <div className="flex items-center gap-1 text-xs text-amber-600">
                     <Save className="w-3 h-3" />
                     Unsaved
@@ -815,25 +815,25 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
             <div>
               <div className="flex items-center justify-between mb-2">
                 <Label className="text-sm font-medium">Plan</Label>
-                {hasUnsavedPlan && (
+                {hasUnsavedPolicy && (
                   <Button 
                     size="sm" 
                     variant="outline" 
-                    onClick={savePlan}
-                    disabled={isSavingPlan}
+                    onClick={savePolicy}
+                    disabled={isSavingPolicy}
                     className="h-6 text-xs"
                   >
                     <Save className="w-3 h-3 mr-1" />
-                    {isSavingPlan ? 'Saving...' : 'Save'}
+                    {isSavingPolicy ? 'Saving...' : 'Save'}
                   </Button>
                 )}
               </div>
               <div className="border rounded-lg min-h-[120px]">
                  <TiptapEditor
-                   value={editData.plan}
-                   onChange={handlePlanChange}
-                   onFocus={handlePlanFocus}
-                   onBlur={handlePlanBlur}
+                    value={editData.policy}
+                    onChange={handlePolicyChange}
+                    onFocus={handlePolicyFocus}
+                    onBlur={handlePolicyBlur}
                    placeholder="Describe the plan for this action..."
                  />
               </div>
@@ -938,7 +938,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
               <div className="flex justify-end pt-4 border-t">
                 <Button 
                   onClick={handleCompleteAction}
-                  disabled={isCompleting || !action.plan?.trim() || !action.observations?.trim()}
+                  disabled={isCompleting || !action.policy?.trim() || !action.observations?.trim()}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
                   <CheckCircle className="w-4 h-4 mr-2" />

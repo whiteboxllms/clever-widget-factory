@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle, X, Clock, Edit, Plus, Target, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { CreateActionFromIssueDialog } from "./CreateActionFromIssueDialog";
+import { UnifiedActionDialog } from "./UnifiedActionDialog";
+import { createIssueAction } from "@/types/actions";
 import { ManageIssueActionsDialog } from "./ManageIssueActionsDialog";
 import { IssueScoreDialog } from "./IssueScoreDialog";
 import { IssueQuickResolveDialog } from "./IssueQuickResolveDialog";
@@ -44,6 +45,7 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
   const [tool, setTool] = useState<any>(null);
   const [existingScore, setExistingScore] = useState<AssetScore | null>(null);
   const [existingActions, setExistingActions] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<any[]>([]);
   const { getScoreForIssue } = useAssetScores();
   const { getActionsForIssue } = useIssueActions();
 
@@ -94,6 +96,25 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
       setIsRemoving(false);
     }
   };
+
+  // Fetch profiles data
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, user_id, full_name, role')
+          .order('full_name');
+        
+        if (error) throw error;
+        setProfiles(data || []);
+      } catch (error) {
+        console.error('Error fetching profiles:', error);
+      }
+    };
+
+    fetchProfiles();
+  }, []);
 
   // Check for existing score and actions when component mounts
   useEffect(() => {
@@ -263,19 +284,27 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
         </div>
       </CardContent>
 
-      <CreateActionFromIssueDialog
+      <UnifiedActionDialog
         open={showCreateActionDialog}
         onOpenChange={setShowCreateActionDialog}
-        issue={issue}
-        onActionCreated={() => {
+        context={{
+          type: 'issue',
+          parentId: issue.id,
+          parentTitle: issue.description,
+          prefilledData: createIssueAction(issue.id, issue.description)
+        }}
+        profiles={profiles}
+        onActionSaved={() => {
           toast({
             title: "Success",
             description: "Action created successfully from issue"
           });
+          setShowCreateActionDialog(false);
           onRefresh();
           // Refresh actions data
           getActionsForIssue(issue.id).then(setExistingActions);
         }}
+        isCreating={true}
       />
 
       <ManageIssueActionsDialog

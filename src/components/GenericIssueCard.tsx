@@ -11,7 +11,8 @@ import { useAssetScores } from "@/hooks/useAssetScores";
 import { useIssueActions } from "@/hooks/useIssueActions";
 import { getIssueTypeIcon, getIssueTypeColor, getContextTypeIcon } from "@/lib/issueTypeUtils";
 import { IssueScoreDialog } from "@/components/IssueScoreDialog";
-import { CreateActionFromIssueDialog } from "@/components/CreateActionFromIssueDialog";
+import { UnifiedActionDialog } from "@/components/UnifiedActionDialog";
+import { createIssueAction } from "@/types/actions";
 import { ManageIssueActionsDialog } from "@/components/ManageIssueActionsDialog";
 
 interface GenericIssueCardProps {
@@ -41,9 +42,29 @@ export function GenericIssueCard({
   const [showScoreDialog, setShowScoreDialog] = useState(false);
   const [showCreateActionDialog, setShowCreateActionDialog] = useState(false);
   const [showManageActionsDialog, setShowManageActionsDialog] = useState(false);
+  const [profiles, setProfiles] = useState<any[]>([]);
   const { removeIssue } = useGenericIssues();
   const { getScoreForIssue } = useAssetScores();
   const { getActionsForIssue } = useIssueActions();
+
+  // Fetch profiles data
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, user_id, full_name, role')
+          .order('full_name');
+        
+        if (error) throw error;
+        setProfiles(data || []);
+      } catch (error) {
+        console.error('Error fetching profiles:', error);
+      }
+    };
+
+    fetchProfiles();
+  }, []);
 
   // Fetch context entity information
   useEffect(() => {
@@ -377,14 +398,21 @@ export function GenericIssueCard({
 
       {/* Create Action Dialog */}
       {enableActions && (
-        <CreateActionFromIssueDialog
+        <UnifiedActionDialog
           open={showCreateActionDialog}
           onOpenChange={setShowCreateActionDialog}
-          issue={issue as any}
-          onActionCreated={() => {
+          context={{
+            type: 'issue',
+            parentId: issue.id,
+            parentTitle: issue.description,
+            prefilledData: createIssueAction(issue.id, issue.description)
+          }}
+          profiles={profiles}
+          onActionSaved={() => {
             setShowCreateActionDialog(false);
             onRefresh();
           }}
+          isCreating={true}
         />
       )}
 

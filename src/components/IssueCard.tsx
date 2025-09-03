@@ -247,7 +247,7 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
               {existingActions.length > 0 ? (
                 <Zap className="h-3 w-3" />
               ) : (
-                <Plus className="h-3 w-3" />
+                <Zap className="h-3 w-3" />
               )}
             </Button>
             {onEdit && (

@@ -335,7 +335,7 @@ export function GenericIssueCard({
                   {existingActions.length > 0 ? (
                     <Zap className="h-3 w-3" />
                   ) : (
-                    <Plus className="h-3 w-3" />
+                    <Zap className="h-3 w-3" />
                   )}
                 </Button>
               )}

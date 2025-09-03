@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle, X, Clock, Edit, Plus, Target, Zap } from "lucide-react";
+import { AlertTriangle, CheckCircle, X, Clock, Edit, Plus, Target, Swords } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { UnifiedActionDialog } from "./UnifiedActionDialog";
@@ -245,9 +245,9 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
               }
             >
               {existingActions.length > 0 ? (
-                <Zap className="h-3 w-3" />
+                <Swords className="h-3 w-3" />
               ) : (
-                <Zap className="h-3 w-3" />
+                <Swords className="h-3 w-3" />
               )}
             </Button>
             {onEdit && (

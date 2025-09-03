@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle, X, Clock, Edit, Plus, Target, Zap, Package, Wrench, Home, FileText } from "lucide-react";
+import { AlertTriangle, CheckCircle, X, Clock, Edit, Plus, Target, Swords, Package, Wrench, Home, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { BaseIssue, ContextType, getContextBadgeColor, getContextIcon, getContextLabel, OrderIssue, getOrderIssueTypeLabel } from "@/types/issues";
@@ -333,9 +333,9 @@ export function GenericIssueCard({
                   title={existingActions.length > 0 ? `Manage Actions (${existingActions.length})` : 'Create Action'}
                 >
                   {existingActions.length > 0 ? (
-                    <Zap className="h-3 w-3" />
+                    <Swords className="h-3 w-3" />
                   ) : (
-                    <Zap className="h-3 w-3" />
+                    <Swords className="h-3 w-3" />
                   )}
                 </Button>
               )}

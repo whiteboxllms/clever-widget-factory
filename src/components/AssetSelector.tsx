@@ -10,10 +10,10 @@ import { useToast } from "@/hooks/use-toast";
 interface Asset {
   id: string;
   name: string;
-  category?: string;
   status?: string;
   storage_vicinity?: string;
   serial_number?: string;
+  storage_location?: string;
 }
 
 interface AssetSelectorProps {
@@ -37,7 +37,7 @@ export function AssetSelector({ selectedAssets, onAssetsChange }: AssetSelectorP
     try {
       const { data, error } = await supabase
         .from('tools')
-        .select('id, name, category, status, storage_vicinity, serial_number')
+        .select('id, name, status, storage_vicinity, serial_number, storage_location')
         .neq('status', 'removed')
         .order('name');
 
@@ -57,7 +57,7 @@ export function AssetSelector({ selectedAssets, onAssetsChange }: AssetSelectorP
 
   const filteredAssets = assets.filter(asset =>
     asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (asset.category && asset.category.toLowerCase().includes(searchTerm.toLowerCase()))
+    (asset.serial_number && asset.serial_number.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const addAsset = (asset: Asset) => {
@@ -127,8 +127,8 @@ export function AssetSelector({ selectedAssets, onAssetsChange }: AssetSelectorP
             
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search assets by name or category..."
+               <Input
+                placeholder="Search assets by name or serial number..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -151,20 +151,20 @@ export function AssetSelector({ selectedAssets, onAssetsChange }: AssetSelectorP
                       onClick={() => addAsset(asset)}
                     >
                       <div className="flex-1">
-                        <p className="font-medium">{asset.name}</p>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          {asset.category && (
-                            <Badge variant="outline" className="text-xs">
-                              {asset.category}
-                            </Badge>
-                          )}
+                        <p className="font-medium">
+                          {asset.name}
                           {asset.serial_number && (
-                            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                              SN: {asset.serial_number}
-                            </Badge>
+                            <span className="text-xs text-muted-foreground ml-2">
+                              #{asset.serial_number}
+                            </span>
                           )}
+                        </p>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           {asset.storage_vicinity && (
                             <span>{asset.storage_vicinity}</span>
+                          )}
+                          {asset.storage_location && (
+                            <span>• {asset.storage_location}</span>
                           )}
                         </div>
                       </div>

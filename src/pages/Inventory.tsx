@@ -545,7 +545,7 @@ export default function Inventory() {
 
       if (error) throw error;
 
-      // Log the update to history
+      // Log the update to history - including quantity changes
       try {
         // Get the current authenticated user ID from the session
         const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -555,16 +555,34 @@ export default function Inventory() {
           throw new Error('User must be authenticated to update stock items');
         }
         
+        // Check if quantity changed
+        const oldQuantity = editingPart.current_quantity;
+        const newQuantity = formData.current_quantity;
+        const quantityChanged = oldQuantity !== newQuantity;
+        
+        let changeType = 'update';
+        let changeReason = 'Item details updated';
+        
+        if (quantityChanged) {
+          if (newQuantity > oldQuantity) {
+            changeType = 'quantity_add';
+            changeReason = `Manual stock addition (+${newQuantity - oldQuantity})`;
+          } else if (newQuantity < oldQuantity) {
+            changeType = 'quantity_remove';
+            changeReason = `Manual stock reduction (-${oldQuantity - newQuantity})`;
+          }
+        }
+        
         const { error: historyError } = await supabase
           .from('parts_history')
           .insert([{
             part_id: editingPart.id,
-            change_type: 'update',
-            old_quantity: null,
-            new_quantity: null,
-            quantity_change: null,
+            change_type: changeType,
+            old_quantity: quantityChanged ? oldQuantity : null,
+            new_quantity: quantityChanged ? newQuantity : null,
+            quantity_change: quantityChanged ? (newQuantity - oldQuantity) : null,
             changed_by: currentUser.id,
-            change_reason: 'Item details updated'
+            change_reason: changeReason
           }]);
 
         if (historyError) {

@@ -304,9 +304,10 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
   };
 
   const handlePolicyBlur = () => {
-    setIsPolicyFocused(false);
-    // Don't auto-save on blur to prevent focus loss when switching fields
-    // Save will happen on manual save or when leaving edit mode
+    // Small delay to prevent immediate clearing when switching between editor elements
+    setTimeout(() => {
+      setIsPolicyFocused(false);
+    }, 100);
   };
 
   const handleImplementationFocus = () => {
@@ -314,9 +315,10 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
   };
 
   const handleImplementationBlur = () => {
-    setIsImplementationFocused(false);
-    // Don't auto-save on blur to prevent focus loss
-    // Save will happen on manual save or when leaving edit mode
+    // Small delay to prevent immediate clearing when switching between editor elements
+    setTimeout(() => {
+      setIsImplementationFocused(false);
+    }, 100);
   };
 
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -553,12 +555,12 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
       };
     }
     
-    // Blue for assigned with observations but no policy
-    if (hasObservations && isAssigned) {
+    // Blue border when there's implementation text (regardless of assignment)
+    if (hasObservations) {
       return {
-        bgColor: 'bg-blue-50 dark:bg-blue-950',
-        borderColor: 'border-blue-200 dark:border-blue-800',
-        textColor: 'text-blue-900 dark:text-blue-100'
+        bgColor: '',
+        borderColor: 'border-blue-500 border-2 shadow-blue-200 shadow-lg dark:border-blue-600 dark:shadow-blue-900',
+        textColor: ''
       };
     }
     
@@ -813,20 +815,8 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
           <CardContent className="pt-0 space-y-6">
             {/* Plan Section */}
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center mb-2">
                 <Label className="text-sm font-medium">Plan</Label>
-                {hasUnsavedPolicy && (
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    onClick={savePolicy}
-                    disabled={isSavingPolicy}
-                    className="h-6 text-xs"
-                  >
-                    <Save className="w-3 h-3 mr-1" />
-                    {isSavingPolicy ? 'Saving...' : 'Save'}
-                  </Button>
-                )}
               </div>
               <div className="border rounded-lg min-h-[120px]">
                  <TiptapEditor
@@ -841,20 +831,8 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
 
             {/* Implementation Section */}
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center mb-2">
                 <Label className="text-sm font-medium">Implementation</Label>
-                {hasUnsavedImplementation && (
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    onClick={saveImplementation}
-                    disabled={isSavingImplementation}
-                    className="h-6 text-xs"
-                  >
-                    <Save className="w-3 h-3 mr-1" />
-                    {isSavingImplementation ? 'Saving...' : 'Save'}
-                  </Button>
-                )}
               </div>
               <div className="border rounded-lg min-h-[120px]">
                  <TiptapEditor
@@ -933,9 +911,35 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
               )}
             </div>
 
-            {/* Action Buttons */}
+            {/* Save and Action Buttons */}
             {!compact && action.status !== 'completed' && (
-              <div className="flex justify-end pt-4 border-t">
+              <div className="flex justify-between items-center pt-4 border-t">
+                <div className="flex gap-2">
+                  {hasUnsavedPolicy && (
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={savePolicy}
+                      disabled={isSavingPolicy}
+                      className="h-8 text-xs"
+                    >
+                      <Save className="w-3 h-3 mr-1" />
+                      {isSavingPolicy ? 'Saving Plan...' : 'Save Plan'}
+                    </Button>
+                  )}
+                  {hasUnsavedImplementation && (
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={saveImplementation}
+                      disabled={isSavingImplementation}
+                      className="h-8 text-xs"
+                    >
+                      <Save className="w-3 h-3 mr-1" />
+                      {isSavingImplementation ? 'Saving Implementation...' : 'Save Implementation'}
+                    </Button>
+                  )}
+                </div>
                 <Button 
                   onClick={handleCompleteAction}
                   disabled={isCompleting || !action.policy?.trim() || !action.observations?.trim()}

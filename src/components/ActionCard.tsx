@@ -544,12 +544,12 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
       };
     }
     
-    // Yellow border when there's a policy
+    // Yellow border when there's a policy (no background color)
     if (hasPolicy) {
       return {
-        bgColor: 'bg-yellow-50 dark:bg-yellow-950',
+        bgColor: '', // Remove yellow background
         borderColor: 'border-yellow-500 border-2 shadow-yellow-200 shadow-lg dark:border-yellow-600 dark:shadow-yellow-900',
-        textColor: 'text-yellow-900 dark:text-yellow-100'
+        textColor: '' // Remove yellow text color
       };
     }
     

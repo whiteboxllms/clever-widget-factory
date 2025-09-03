@@ -84,9 +84,9 @@ export const createMissionAction = (missionId: string): Partial<BaseAction> => (
 export const createIssueAction = (issueId: string, issueDescription?: string): Partial<BaseAction> => ({
   linked_issue_id: issueId,
   status: 'not_started',
-  title: issueDescription ? `Resolve ${issueDescription}` : '',
+  title: '',
   description: '',
-  policy: issueDescription ? `Action needed to address issue: ${issueDescription}` : '',
+  policy: '',
   observations: '',
   assigned_to: null,
   required_tools: [],

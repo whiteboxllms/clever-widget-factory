@@ -205,7 +205,29 @@ export function UnifiedActionDialog({
     setIsCompleting(true);
     
     try {
-      const { error } = await supabase
+      // First save any pending changes
+      const updateData = {
+        title: formData.title,
+        description: formData.description,
+        policy: formData.policy,
+        observations: formData.observations,
+        assigned_to: formData.assigned_to,
+        estimated_duration: formData.estimated_duration,
+        required_tools: formData.required_tools,
+        required_stock: formData.required_stock,
+        attachments: formData.attachments,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error: saveError } = await supabase
+        .from('actions')
+        .update(updateData)
+        .eq('id', action.id);
+
+      if (saveError) throw saveError;
+
+      // Then mark as completed
+      const { error: completeError } = await supabase
         .from('actions')
         .update({
           status: 'completed',
@@ -213,11 +235,11 @@ export function UnifiedActionDialog({
         })
         .eq('id', action.id);
 
-      if (error) throw error;
+      if (completeError) throw completeError;
 
       toast({
         title: "Success",
-        description: "Action marked as ready for review"
+        description: "Action saved and marked as ready for review"
       });
 
       onActionSaved();
@@ -226,7 +248,7 @@ export function UnifiedActionDialog({
       console.error('Error completing action:', error);
       toast({
         title: "Error",
-        description: "Failed to mark action as ready for review",
+        description: "Failed to save and mark action as ready for review",
         variant: "destructive"
       });
     } finally {

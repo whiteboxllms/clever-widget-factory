@@ -155,7 +155,7 @@ export function AssetSelector({ selectedAssets, onAssetsChange }: AssetSelectorP
                           {asset.name}
                           {asset.serial_number && (
                             <span className="text-xs text-muted-foreground ml-2">
-                              #{asset.serial_number}
+                              {asset.serial_number}
                             </span>
                           )}
                         </p>

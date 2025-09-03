@@ -427,8 +427,8 @@ export default function Actions() {
                     className={cn(
                       "hover:shadow-md transition-shadow cursor-pointer",
                       action.status === 'completed' && "border-2 border-[hsl(var(--action-done-border))]",
-                      hasPolicy && action.status !== 'completed' && "border-2 border-yellow-400",
-                      hasImplementation && action.status !== 'completed' && "border-2 border-blue-500 shadow-blue-200 shadow-lg",
+                      hasPolicy && action.status !== 'completed' && "border-2 border-blue-500 shadow-blue-200 shadow-lg",
+                      hasImplementation && action.status !== 'completed' && "border-2 border-yellow-400",
                       action.plan_commitment && action.status !== 'completed' && !hasImplementation && !hasPolicy && "border-2 border-[hsl(var(--action-ready-border))]",
                       action.status === 'in_progress' && !action.plan_commitment && !hasImplementation && !hasPolicy && "border-2 border-[hsl(var(--action-progress-border))]"
                     )}

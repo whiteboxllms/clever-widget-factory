@@ -639,14 +639,14 @@ export function SimpleMissionForm({
                 return 'border-emerald-500 border-2 shadow-emerald-200 shadow-lg';
               }
               
-              // Yellow border when there's a plan and plan commitment is true
+              // Blue border when there's a plan (ready to work)
               if (hasPolicy) {
-                return 'border-yellow-500 border-2 shadow-yellow-200 shadow-lg';
+                return 'border-blue-500 border-2 shadow-blue-200 shadow-lg';
               }
               
-              // Blue border when assigned but no plan yet
+              // Yellow border when assigned but no plan yet (in progress)
               if (task.assigned_to) {
-                return 'border-blue-500 border-2 shadow-blue-200 shadow-lg';
+                return 'border-yellow-500 border-2 shadow-yellow-200 shadow-lg';
               }
               
               // Default border

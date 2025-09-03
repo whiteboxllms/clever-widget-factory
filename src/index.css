@@ -79,13 +79,13 @@ All colors MUST be HSL.
     --task-complete-border: 142 76% 36%;
 
     /* Action Status Colors */
-    --action-ready: 217 91% 60%;
-    --action-ready-foreground: 210 40% 98%;
-    --action-ready-border: 217 91% 60%;
+    --action-ready: 43 96% 56%;
+    --action-ready-foreground: 222.2 47.4% 11.2%;
+    --action-ready-border: 43 96% 56%;
     
-    --action-progress: 43 96% 56%;
-    --action-progress-foreground: 222.2 47.4% 11.2%;
-    --action-progress-border: 43 96% 56%;
+    --action-progress: 217 91% 60%;
+    --action-progress-foreground: 210 40% 98%;
+    --action-progress-border: 217 91% 60%;
     
     --action-done: 142 76% 36%;
     --action-done-foreground: 210 40% 98%;
@@ -154,13 +154,13 @@ All colors MUST be HSL.
     --task-complete-border: 142 76% 36%;
 
     /* Action Status Colors - Dark mode */
-    --action-ready: 217 91% 60%;
+    --action-ready: 43 96% 56%;
     --action-ready-foreground: 222.2 47.4% 11.2%;
-    --action-ready-border: 217 91% 60%;
+    --action-ready-border: 43 96% 56%;
     
-    --action-progress: 43 96% 56%;
+    --action-progress: 217 91% 60%;
     --action-progress-foreground: 222.2 47.4% 11.2%;
-    --action-progress-border: 43 96% 56%;
+    --action-progress-border: 217 91% 60%;
     
     --action-done: 142 76% 36%;
     --action-done-foreground: 210 40% 98%;

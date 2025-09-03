@@ -546,20 +546,20 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
       };
     }
     
-    // Yellow border when there's a policy (no background color)
+    // Blue border when there's a policy (ready to work)
     if (hasPolicy) {
       return {
-        bgColor: '', // Remove yellow background
-        borderColor: 'border-yellow-500 border-2 shadow-yellow-200 shadow-lg dark:border-yellow-600 dark:shadow-yellow-900',
-        textColor: '' // Remove yellow text color
+        bgColor: '', // Remove background
+        borderColor: 'border-blue-500 border-2 shadow-blue-200 shadow-lg dark:border-blue-600 dark:shadow-blue-900',
+        textColor: '' // Remove text color
       };
     }
     
-    // Blue border when there's implementation text (regardless of assignment)
+    // Yellow border when there's implementation text (in progress)
     if (hasObservations) {
       return {
         bgColor: '',
-        borderColor: 'border-blue-500 border-2 shadow-blue-200 shadow-lg dark:border-blue-600 dark:shadow-blue-900',
+        borderColor: 'border-yellow-500 border-2 shadow-yellow-200 shadow-lg dark:border-yellow-600 dark:shadow-yellow-900',
         textColor: ''
       };
     }

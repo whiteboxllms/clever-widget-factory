@@ -67,6 +67,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     }
   };
 
+  const toggleOrderedList = () => {
+    editor.chain().focus().toggleOrderedList().run();
+  };
+
+  const toggleBulletList = () => {
+    editor.chain().focus().toggleBulletList().run();
+  };
+
   return (
     <div className={cn('border rounded-md', className)}>
       {!readOnly && (
@@ -108,7 +116,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => editor.chain().focus().toggleBulletList().run()}
+            onClick={toggleBulletList}
             className={cn('h-8 w-8 p-0', {
               'bg-muted': editor.isActive('bulletList'),
             })}
@@ -119,7 +127,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => editor.chain().focus().toggleOrderedList().run()}
+            onClick={toggleOrderedList}
             className={cn('h-8 w-8 p-0', {
               'bg-muted': editor.isActive('orderedList'),
             })}

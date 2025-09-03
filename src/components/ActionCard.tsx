@@ -17,6 +17,7 @@ import { useTempPhotoStorage, type TempPhoto } from "@/hooks/useTempPhotoStorage
 import { useAssetScores } from "@/hooks/useAssetScores";
 import { ActionScoreDialog } from './ActionScoreDialog';
 import TiptapEditor from './TiptapEditor';
+import { hasActualContent } from '@/lib/utils';
 
 interface Profile {
   id: string;
@@ -533,8 +534,8 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
   };
 
   const getActionTheme = () => {
-    const hasPolicy = action.policy?.trim();
-    const hasObservations = action.observations?.trim();
+    const hasPolicy = hasActualContent(action.policy);
+    const hasObservations = hasActualContent(action.observations);
     const isAssigned = Boolean(action.assigned_to);
     
     // Green border for completed actions

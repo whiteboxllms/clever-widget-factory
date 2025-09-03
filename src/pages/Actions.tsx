@@ -14,7 +14,7 @@ import { ActionScoreDialog } from '@/components/ActionScoreDialog';
 import { ScoreButton } from '@/components/ScoreButton';
 import { useActionScores } from '@/hooks/useActionScores';
 import { BaseAction, Profile } from '@/types/actions';
-import { cn } from '@/lib/utils';
+import { cn, hasActualContent } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 
 // Using unified BaseAction interface from types/actions.ts

@@ -419,16 +419,18 @@ export default function Actions() {
             <div className="grid gap-4">
               {unresolved.map(action => {
                 const hasImplementation = action.observations && action.observations.trim().length > 0;
+                const hasPolicy = action.policy && action.policy.trim().length > 0;
                 
                 return (
                   <Card 
                     key={action.id} 
                     className={cn(
                       "hover:shadow-md transition-shadow cursor-pointer",
-                      hasImplementation && "border-2 border-yellow-400",
-                      action.plan_commitment && action.status !== 'completed' && !hasImplementation && "border-2 border-[hsl(var(--action-ready-border))]",
-                      action.status === 'in_progress' && !action.plan_commitment && !hasImplementation && "border-2 border-[hsl(var(--action-progress-border))]",
-                      action.status === 'completed' && "border-2 border-[hsl(var(--action-done-border))]"
+                      action.status === 'completed' && "border-2 border-[hsl(var(--action-done-border))]",
+                      hasPolicy && action.status !== 'completed' && "border-2 border-yellow-400",
+                      hasImplementation && action.status !== 'completed' && "border-2 border-blue-500 shadow-blue-200 shadow-lg",
+                      action.plan_commitment && action.status !== 'completed' && !hasImplementation && !hasPolicy && "border-2 border-[hsl(var(--action-ready-border))]",
+                      action.status === 'in_progress' && !action.plan_commitment && !hasImplementation && !hasPolicy && "border-2 border-[hsl(var(--action-progress-border))]"
                     )}
                     onClick={() => handleEditAction(action)}
                   >

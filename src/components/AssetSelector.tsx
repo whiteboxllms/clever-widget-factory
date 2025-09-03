@@ -13,6 +13,7 @@ interface Asset {
   category?: string;
   status?: string;
   storage_vicinity?: string;
+  serial_number?: string;
 }
 
 interface AssetSelectorProps {
@@ -36,7 +37,7 @@ export function AssetSelector({ selectedAssets, onAssetsChange }: AssetSelectorP
     try {
       const { data, error } = await supabase
         .from('tools')
-        .select('id, name, category, status, storage_vicinity')
+        .select('id, name, category, status, storage_vicinity, serial_number')
         .neq('status', 'removed')
         .order('name');
 
@@ -155,6 +156,11 @@ export function AssetSelector({ selectedAssets, onAssetsChange }: AssetSelectorP
                           {asset.category && (
                             <Badge variant="outline" className="text-xs">
                               {asset.category}
+                            </Badge>
+                          )}
+                          {asset.serial_number && (
+                            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                              SN: {asset.serial_number}
                             </Badge>
                           )}
                           {asset.storage_vicinity && (

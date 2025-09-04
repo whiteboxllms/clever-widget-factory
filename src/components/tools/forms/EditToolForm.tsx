@@ -175,8 +175,8 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit }: EditToolFormPr
             </div>
           </div>
 
-          {/* Legacy Storage Vicinity - Read Only for Reference */}
-          {tool.legacy_storage_vicinity && (
+          {/* Legacy Storage Vicinity - Read Only for Reference - Only show if no area is set */}
+          {tool.legacy_storage_vicinity && !tool.parent_structure_id && (
             <div>
               <Label>Legacy Location (Reference)</Label>
               <Input

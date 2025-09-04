@@ -14,7 +14,7 @@ import { ActionScoreDialog } from '@/components/ActionScoreDialog';
 import { ScoreButton } from '@/components/ScoreButton';
 import { useActionScores } from '@/hooks/useActionScores';
 import { BaseAction, Profile } from '@/types/actions';
-import { cn, hasActualContent } from '@/lib/utils';
+import { cn, hasActualContent, getActionBorderStyle } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 
 // Using unified BaseAction interface from types/actions.ts
@@ -440,14 +440,16 @@ export default function Actions() {
                 const hasImplementation = hasActualContent(action.observations);
                 const hasPolicy = hasActualContent(action.policy);
                 
+                const borderStyle = getActionBorderStyle(action);
+                
                 return (
                   <Card 
                     key={action.id} 
                     className={cn(
                       "hover:shadow-md transition-shadow cursor-pointer",
-                      action.status === 'completed' && "border-2 border-emerald-500 shadow-emerald-200 shadow-lg",
-                      hasPolicy && action.status !== 'completed' && "border-2 border-blue-500 shadow-blue-200 shadow-lg",
-                      !hasPolicy && hasImplementation && action.status !== 'completed' && "border-2 border-yellow-500 shadow-yellow-200 shadow-lg"
+                      borderStyle.borderColor,
+                      borderStyle.bgColor,
+                      borderStyle.textColor
                     )}
                     onClick={() => handleEditAction(action)}
                   >

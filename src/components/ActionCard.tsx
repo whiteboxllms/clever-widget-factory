@@ -17,7 +17,7 @@ import { useTempPhotoStorage, type TempPhoto } from "@/hooks/useTempPhotoStorage
 import { useAssetScores } from "@/hooks/useAssetScores";
 import { ActionScoreDialog } from './ActionScoreDialog';
 import TiptapEditor from './TiptapEditor';
-import { hasActualContent } from '@/lib/utils';
+import { hasActualContent, getActionBorderStyle } from '@/lib/utils';
 
 interface Profile {
   id: string;
@@ -541,51 +541,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
   };
 
   const getActionTheme = () => {
-    const hasPolicy = hasActualContent(action.policy);
-    const hasObservations = hasActualContent(action.observations);
-    const isAssigned = Boolean(action.assigned_to);
-    
-    // Green border for completed actions
-    if (action.status === 'completed') {
-      return {
-        bgColor: '', // Remove background
-        borderColor: 'border-emerald-500 border-2 shadow-emerald-200 shadow-lg dark:border-emerald-600 dark:shadow-emerald-900',
-        textColor: '' // Remove text color
-      };
-    }
-    
-    // Blue border when there's a policy (ready to work)
-    if (hasPolicy) {
-      return {
-        bgColor: '', // Remove background
-        borderColor: 'border-blue-500 border-2 shadow-blue-200 shadow-lg dark:border-blue-600 dark:shadow-blue-900',
-        textColor: '' // Remove text color
-      };
-    }
-    
-    // Yellow border when there's implementation text (in progress)
-    if (hasObservations) {
-      return {
-        bgColor: '',
-        borderColor: 'border-yellow-500 border-2 shadow-yellow-200 shadow-lg dark:border-yellow-600 dark:shadow-yellow-900',
-        textColor: ''
-      };
-    }
-    
-    // Amber for assigned but no content
-    if (isAssigned) {
-      return {
-        bgColor: 'bg-amber-50 dark:bg-amber-950',
-        borderColor: 'border-amber-200 dark:border-amber-800',
-        textColor: 'text-amber-900 dark:text-amber-100'
-      };
-    }
-    
-    return {
-      bgColor: 'bg-background',
-      borderColor: 'border-border',
-      textColor: 'text-foreground'
-    };
+    return getActionBorderStyle(action);
   };
 
   const getStatusIcon = () => {

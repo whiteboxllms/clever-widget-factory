@@ -11,6 +11,7 @@ import { useToolHistory, HistoryEntry } from "@/hooks/tools/useToolHistory";
 import { useToolsWithIssues } from "@/hooks/tools/useToolsWithIssues";
 import { useToolsWithUnassignedIssues } from "@/hooks/tools/useToolsWithUnassignedIssues";
 import { useToolIssues } from "@/hooks/useToolIssues";
+import { useParentStructures } from "@/hooks/tools/useParentStructures";
 import { toolsService } from "@/services/toolsService";
 import { ToolFilters } from "../ToolFilters";
 import { ToolGrid } from "../ToolGrid";
@@ -60,6 +61,7 @@ export const ToolsContainer = () => {
   const { filteredTools, searchTerm, setSearchTerm, showMyCheckedOut, setShowMyCheckedOut, showToolsWithIssues, setShowToolsWithIssues } = useToolFilters(tools, toolsWithIssues, activeCheckouts, user?.id || null);
   const { toolHistory, currentCheckout, fetchToolHistory } = useToolHistory();
   const { issues, fetchIssues, updateIssue } = useToolIssues(selectedTool?.id || null);
+  const { refetch: refetchParentStructures } = useParentStructures();
 
   // Fetch storage vicinities for form
   useEffect(() => {
@@ -167,6 +169,11 @@ export const ToolsContainer = () => {
   const handleAddTool = async (toolData) => {
     await createTool(toolData);
     await fetchTools();
+    
+    // If we added Infrastructure or Container, refresh parent structures list
+    if (toolData.category === 'Infrastructure' || toolData.category === 'Container') {
+      await refetchParentStructures();
+    }
   };
 
   const handleUpdateTool = async (toolId: string, updates: any) => {

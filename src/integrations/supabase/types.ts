@@ -1088,13 +1088,14 @@ export type Database = {
           known_issues: string | null
           last_audited_at: string | null
           last_maintenance: string | null
+          legacy_storage_vicinity: string
           manual_url: string | null
           name: string
+          parent_structure_id: string | null
           serial_number: string | null
           stargazer_sop: string | null
           status: Database["public"]["Enums"]["tool_status"]
           storage_location: string | null
-          storage_vicinity: string
           updated_at: string
         }
         Insert: {
@@ -1109,13 +1110,14 @@ export type Database = {
           known_issues?: string | null
           last_audited_at?: string | null
           last_maintenance?: string | null
+          legacy_storage_vicinity: string
           manual_url?: string | null
           name: string
+          parent_structure_id?: string | null
           serial_number?: string | null
           stargazer_sop?: string | null
           status?: Database["public"]["Enums"]["tool_status"]
           storage_location?: string | null
-          storage_vicinity: string
           updated_at?: string
         }
         Update: {
@@ -1130,16 +1132,25 @@ export type Database = {
           known_issues?: string | null
           last_audited_at?: string | null
           last_maintenance?: string | null
+          legacy_storage_vicinity?: string
           manual_url?: string | null
           name?: string
+          parent_structure_id?: string | null
           serial_number?: string | null
           stargazer_sop?: string | null
           status?: Database["public"]["Enums"]["tool_status"]
           storage_location?: string | null
-          storage_vicinity?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tools_parent_structure_id_fkey"
+            columns: ["parent_structure_id"]
+            isOneToOne: false
+            referencedRelation: "tools"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       worker_attributes: {
         Row: {

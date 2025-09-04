@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Upload, X } from "lucide-react";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useToast } from "@/hooks/use-toast";
+import { useParentStructures } from "@/hooks/tools/useParentStructures";
 import { TOOL_CATEGORY_OPTIONS } from "@/lib/constants";
 
 interface NewToolForm {
@@ -15,7 +16,7 @@ interface NewToolForm {
   description: string;
   category: string;
   status: string;
-  storage_vicinity: string;
+  parent_structure_id: string;
   storage_location: string;
   serial_number: string;
   image_file: File | null;
@@ -24,30 +25,31 @@ interface NewToolForm {
 interface AddToolFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (toolData: any) => Promise<void>;
-  storageVicinities: Array<{ id: string; name: string }>;
+  onSubmit: (toolData: any) => Promise<any>;
   initialName?: string;
 }
 
-export const AddToolForm = ({ isOpen, onClose, onSubmit, storageVicinities, initialName = "" }: AddToolFormProps) => {
+export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: AddToolFormProps) => {
   const [newTool, setNewTool] = useState<NewToolForm>({
     name: initialName,
     description: "",
     category: "",
     status: "available",
-    storage_vicinity: "",
+    parent_structure_id: "",
     storage_location: "",
     serial_number: "",
-    image_file: null
+    image_file: null,
   });
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const { uploadImages, isUploading } = useImageUpload();
+  const { parentStructures } = useParentStructures();
 
-  // Update the name field when initialName changes
   useEffect(() => {
-    setNewTool(prev => ({ ...prev, name: initialName }));
+    if (initialName) {
+      setNewTool(prev => ({ ...prev, name: initialName }));
+    }
   }, [initialName]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -86,7 +88,7 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, storageVicinities, init
         description: newTool.description || null,
         category: newTool.category || null,
         status: newTool.status,
-        storage_vicinity: newTool.storage_vicinity,
+        parent_structure_id: newTool.parent_structure_id || null,
         storage_location: newTool.storage_location || null,
         serial_number: newTool.serial_number || null,
         image_url: imageUrl
@@ -96,14 +98,14 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, storageVicinities, init
 
       // Reset form
       setNewTool({
-        name: initialName,
+        name: "",
         description: "",
         category: "",
         status: "available",
-        storage_vicinity: "",
+        parent_structure_id: "",
         storage_location: "",
         serial_number: "",
-        image_file: null
+        image_file: null,
       });
       setImagePreview(null);
       onClose();
@@ -182,20 +184,21 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, storageVicinities, init
             </div>
           </div>
 
+          {/* Parent Structure Dropdown */}
           <div>
-            <Label htmlFor="storage-vicinity">Storage Vicinity *</Label>
+            <Label htmlFor="parent-structure">Parent Structure</Label>
             <Select
-              value={newTool.storage_vicinity}
-              onValueChange={(value) => setNewTool(prev => ({ ...prev, storage_vicinity: value }))}
-              required
+              value={newTool.parent_structure_id}
+              onValueChange={(value) => setNewTool(prev => ({ ...prev, parent_structure_id: value }))}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select storage vicinity" />
+                <SelectValue placeholder="Select parent structure (optional)" />
               </SelectTrigger>
               <SelectContent>
-                {storageVicinities.map((vicinity) => (
-                  <SelectItem key={vicinity.id} value={vicinity.name}>
-                    {vicinity.name}
+                <SelectItem value="">None</SelectItem>
+                {parentStructures.map((structure) => (
+                  <SelectItem key={structure.id} value={structure.id}>
+                    {structure.name} ({structure.category})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -230,7 +233,7 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, storageVicinities, init
           </div>
 
           <div>
-            <Label>Tool Image</Label>
+            <Label>Asset Image</Label>
             <div className="mt-2">
               <input
                 type="file"
@@ -252,7 +255,7 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, storageVicinities, init
               <div className="mt-4 relative">
                 <img
                   src={imagePreview}
-                  alt="Preview"
+                  alt="Asset preview"
                   className="w-32 h-32 object-cover rounded-md border"
                 />
                 <Button
@@ -275,8 +278,11 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, storageVicinities, init
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || isUploading || !newTool.name.trim()}>
-              {isSubmitting || isUploading ? "Adding..." : "Add Asset"}
+            <Button 
+              type="submit" 
+              disabled={isSubmitting || isUploading || !newTool.name.trim()}
+            >
+              {isSubmitting ? "Adding..." : "Add Asset"}
             </Button>
           </div>
         </form>

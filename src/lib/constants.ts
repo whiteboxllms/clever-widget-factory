@@ -65,8 +65,7 @@ export const TOOL_CATEGORY_OPTIONS = [
   { value: 'Vehicle', label: 'Vehicle' },
   { value: 'Recreation', label: 'Recreation' },
   { value: 'Container', label: 'Container' },
-  { value: 'Structure', label: 'Structure' },
-  { value: 'Infrastructure System', label: 'Infrastructure System' }
+  { value: 'Infrastructure', label: 'Infrastructure' }
 ] as const;
 
 

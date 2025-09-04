@@ -9,6 +9,7 @@ import { Upload, X } from "lucide-react";
 import { Tool } from "@/hooks/tools/useToolsData";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useToast } from "@/hooks/use-toast";
+import { useParentStructures } from "@/hooks/tools/useParentStructures";
 import { TOOL_CATEGORY_OPTIONS } from "@/lib/constants";
 
 interface EditToolFormProps {
@@ -16,16 +17,15 @@ interface EditToolFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (toolId: string, updates: any) => Promise<void>;
-  storageVicinities: Array<{ id: string; name: string }>;
 }
 
-export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, storageVicinities }: EditToolFormProps) => {
+export const EditToolForm = ({ tool, isOpen, onClose, onSubmit }: EditToolFormProps) => {
   const [editData, setEditData] = useState({
     name: tool?.name || "",
     description: tool?.description || "",
     category: tool?.category || "",
     status: tool?.status || "available",
-    storage_vicinity: tool?.storage_vicinity || "",
+    parent_structure_id: tool?.parent_structure_id || "",
     storage_location: tool?.storage_location || "",
     serial_number: tool?.serial_number || "",
     image_file: null as File | null,
@@ -34,6 +34,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, storageVicinitie
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const { uploadImages, isUploading } = useImageUpload();
+  const { parentStructures } = useParentStructures();
 
   // Update form data when tool changes
   useEffect(() => {
@@ -43,7 +44,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, storageVicinitie
         description: tool.description || "",
         category: tool.category || "",
         status: tool.status || "available",
-        storage_vicinity: tool.storage_vicinity || "",
+        parent_structure_id: tool.parent_structure_id || "",
         storage_location: tool.storage_location || "",
         serial_number: tool.serial_number || "",
         image_file: null,
@@ -89,7 +90,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, storageVicinitie
         description: editData.description || null,
         category: editData.category || null,
         status: editData.status,
-        storage_vicinity: editData.storage_vicinity,
+        parent_structure_id: editData.parent_structure_id || null,
         storage_location: editData.storage_location || null,
         serial_number: editData.serial_number || null,
         image_url: imageUrl
@@ -174,20 +175,33 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, storageVicinitie
             </div>
           </div>
 
+          {/* Legacy Storage Vicinity - Read Only for Reference */}
+          {tool.legacy_storage_vicinity && (
+            <div>
+              <Label>Legacy Location (Reference)</Label>
+              <Input
+                value={tool.legacy_storage_vicinity}
+                disabled
+                className="bg-muted text-muted-foreground"
+              />
+            </div>
+          )}
+
+          {/* Parent Structure Dropdown */}
           <div>
-            <Label htmlFor="edit-storage-vicinity">Storage Vicinity *</Label>
+            <Label htmlFor="edit-parent-structure">Parent Structure</Label>
             <Select
-              value={editData.storage_vicinity}
-              onValueChange={(value) => setEditData(prev => ({ ...prev, storage_vicinity: value }))}
-              required
+              value={editData.parent_structure_id}
+              onValueChange={(value) => setEditData(prev => ({ ...prev, parent_structure_id: value }))}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select storage vicinity" />
+                <SelectValue placeholder="Select parent structure (optional)" />
               </SelectTrigger>
               <SelectContent>
-                {storageVicinities.map((vicinity) => (
-                  <SelectItem key={vicinity.id} value={vicinity.name}>
-                    {vicinity.name}
+                <SelectItem value="">None</SelectItem>
+                {parentStructures.map((structure) => (
+                  <SelectItem key={structure.id} value={structure.id}>
+                    {structure.name} ({structure.category})
                   </SelectItem>
                 ))}
               </SelectContent>

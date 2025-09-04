@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 interface Tool {
   id: string;
   name: string;
-  storage_vicinity: string;
+  legacy_storage_vicinity?: string;
   storage_location: string;
   last_audited_at: string | null;
   audit_info?: {
@@ -65,7 +65,7 @@ const Audit = () => {
       // Get updated tool data
       const { data: updatedTools, error: toolsError } = await supabase
         .from('tools')
-        .select('id, name, storage_vicinity, storage_location, last_audited_at')
+        .select('id, name, legacy_storage_vicinity, storage_location, last_audited_at')
         .in('id', toolIds);
 
       if (toolsError) throw toolsError;
@@ -149,7 +149,7 @@ const Audit = () => {
       if (selectedType === 'tools') {
         const { data, error } = await supabase
           .from('tools')
-          .select('storage_vicinity')
+          .select('legacy_storage_vicinity')
           .eq('status', 'available');
         
         if (error) throw error;
@@ -157,7 +157,7 @@ const Audit = () => {
         // Get unique vicinities with counts
         const vicinityMap = new Map<string, number>();
         data.forEach((item) => {
-          const vicinity = item.storage_vicinity;
+          const vicinity = item.legacy_storage_vicinity;
           vicinityMap.set(vicinity, (vicinityMap.get(vicinity) || 0) + 1);
         });
         
@@ -177,8 +177,8 @@ const Audit = () => {
       // Get tools from selected vicinity, prioritizing never audited, then least recently audited
       const { data: tools, error } = await supabase
         .from('tools')
-        .select('id, name, storage_vicinity, storage_location, last_audited_at')
-        .eq('storage_vicinity', selectedVicinity)
+        .select('id, name, legacy_storage_vicinity, storage_location, last_audited_at')
+        .eq('legacy_storage_vicinity', selectedVicinity)
         .eq('status', 'available')
         .order('last_audited_at', { ascending: true, nullsFirst: true })
         .limit(50); // Get more than needed for randomization
@@ -464,7 +464,7 @@ const Audit = () => {
                             )}
                           </CardTitle>
                           <CardDescription>
-                            Expected: {tool.storage_vicinity} → {tool.storage_location || 'No specific location'}
+                            Expected: {tool.legacy_storage_vicinity} → {tool.storage_location || 'No specific location'}
                           </CardDescription>
                         </div>
                         <div className="text-sm text-muted-foreground">

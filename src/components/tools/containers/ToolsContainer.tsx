@@ -286,7 +286,7 @@ export const ToolsContainer = () => {
         isOpen={isAddDialogOpen}
         onClose={() => setIsAddDialogOpen(false)}
         onSubmit={handleAddTool}
-        storageVicinities={storageVicinities}
+        
         initialName={searchTerm}
       />
 
@@ -299,7 +299,6 @@ export const ToolsContainer = () => {
           navigate('/tools');
         }}
         onSubmit={handleUpdateTool}
-        storageVicinities={storageVicinities}
       />
 
       <ToolCheckoutDialog

@@ -9,7 +9,8 @@ export interface Tool {
   category?: string;
   status: string;
   image_url?: string;
-  storage_vicinity: string;
+  legacy_storage_vicinity?: string;
+  parent_structure_id?: string;
   storage_location: string | null;
   actual_location?: string;
   serial_number?: string;
@@ -41,7 +42,8 @@ export const useToolsData = (showRemovedItems: boolean = false) => {
           category,
           status,
           image_url,
-          storage_vicinity,
+          legacy_storage_vicinity,
+          parent_structure_id,
           storage_location,
           actual_location,
           serial_number,

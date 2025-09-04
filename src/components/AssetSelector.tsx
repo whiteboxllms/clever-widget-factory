@@ -11,7 +11,7 @@ interface Asset {
   id: string;
   name: string;
   status?: string;
-  storage_vicinity?: string;
+  legacy_storage_vicinity?: string;
   serial_number?: string;
   storage_location?: string;
 }
@@ -37,7 +37,7 @@ export function AssetSelector({ selectedAssets, onAssetsChange }: AssetSelectorP
     try {
       const { data, error } = await supabase
         .from('tools')
-        .select('id, name, status, storage_vicinity, serial_number, storage_location')
+        .select('id, name, status, legacy_storage_vicinity, serial_number, storage_location')
         .neq('status', 'removed')
         .order('name');
 
@@ -160,8 +160,8 @@ export function AssetSelector({ selectedAssets, onAssetsChange }: AssetSelectorP
                           )}
                         </p>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          {asset.storage_vicinity && (
-                            <span>{asset.storage_vicinity}</span>
+                          {asset.legacy_storage_vicinity && (
+                            <span>{asset.legacy_storage_vicinity}</span>
                           )}
                           {asset.storage_location && (
                             <span>• {asset.storage_location}</span>

@@ -85,7 +85,7 @@ export default function Worker() {
       // Fetch tool information separately
       const { data: toolsData, error: toolsError } = await supabase
         .from('tools')
-        .select('id, name, storage_vicinity, storage_location')
+        .select('id, name, legacy_storage_vicinity, storage_location')
         .in('id', toolIds);
 
       if (toolsError) throw toolsError;
@@ -108,7 +108,7 @@ export default function Worker() {
           return {
             ...issue,
             tool_name: tool?.name || 'Unknown Tool',
-            tool_location: `${tool?.storage_vicinity || ''} ${tool?.storage_location || ''}`.trim() || 'Unknown Location',
+            tool_location: `${tool?.legacy_storage_vicinity || ''} ${tool?.storage_location || ''}`.trim() || 'Unknown Location',
             requirements: requirements || []
           };
         })
@@ -147,7 +147,7 @@ export default function Worker() {
       // Fetch tool information separately
       const { data: toolsData, error: toolsError } = await supabase
         .from('tools')
-        .select('id, name, storage_vicinity, storage_location')
+        .select('id, name, legacy_storage_vicinity, storage_location')
         .in('id', toolIds);
 
       if (toolsError) throw toolsError;
@@ -170,7 +170,7 @@ export default function Worker() {
           return {
             ...issue,
             tool_name: tool?.name || 'Unknown Tool',
-            tool_location: `${tool?.storage_vicinity || ''} ${tool?.storage_location || ''}`.trim() || 'Unknown Location',
+            tool_location: `${tool?.legacy_storage_vicinity || ''} ${tool?.storage_location || ''}`.trim() || 'Unknown Location',
             requirements: requirements || [],
             canClaim: checkQualification(user.id, requirements || [])
           };

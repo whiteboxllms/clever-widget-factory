@@ -274,7 +274,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         .from('tools')
         .update({ 
           status: 'available',
-          actual_location: tool.storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : '')
+          actual_location: tool.legacy_storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : '')
         })
         .eq('id', tool.id);
 
@@ -574,7 +574,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
                 className="rounded border-gray-300"
               />
               <Label htmlFor="returned_to_correct_location">
-                Tool was returned to its correct storage location: {tool.storage_vicinity}{tool.storage_location ? ` - ${tool.storage_location}` : ''}
+                Tool was returned to its correct storage location: {tool.legacy_storage_vicinity}{tool.storage_location ? ` - ${tool.storage_location}` : ''}
               </Label>
             </div>
 

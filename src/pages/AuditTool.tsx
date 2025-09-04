@@ -20,7 +20,7 @@ interface Tool {
   id: string;
   name: string;
   description: string;
-  storage_vicinity: string;
+  legacy_storage_vicinity?: string;
   storage_location: string;
   status: string;
   serial_number?: string;
@@ -240,7 +240,7 @@ const AuditTool = () => {
             <div>
               <h1 className="text-2xl font-bold">Audit: {tool.name}</h1>
               <p className="text-muted-foreground">
-                Expected Location: {tool.storage_vicinity} → {tool.storage_location || 'No specific location'}
+                Expected Location: {tool.legacy_storage_vicinity} → {tool.storage_location || 'No specific location'}
               </p>
             </div>
           </div>
@@ -276,7 +276,7 @@ const AuditTool = () => {
                 </div>
                 <div>
                   <Label className="font-semibold">Expected Vicinity</Label>
-                  <p>{tool.storage_vicinity}</p>
+                  <p>{tool.legacy_storage_vicinity}</p>
                 </div>
                 <div>
                   <Label className="font-semibold">Expected Location</Label>
@@ -352,7 +352,7 @@ const AuditTool = () => {
                   <div>
                     <Label htmlFor="found-vicinity">Found in expected Storage Vicinity?</Label>
                     <p className="text-sm text-muted-foreground">
-                      Is the tool in {tool.storage_vicinity}?
+                      Is the tool in {tool.legacy_storage_vicinity}?
                     </p>
                   </div>
                   <Switch

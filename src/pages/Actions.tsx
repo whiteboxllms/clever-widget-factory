@@ -269,7 +269,7 @@ export default function Actions() {
   const getStatusColor = (status: string, action?: BaseAction) => {
     // Blue: Ready to work (when plan_commitment is true)
     if (action?.plan_commitment && status !== 'completed') {
-      return 'bg-[hsl(var(--action-ready)/0.1)] text-[hsl(var(--action-ready))] border-[hsl(var(--action-ready)/0.2)]';
+      return 'bg-background text-[hsl(var(--action-ready))] border-[hsl(var(--action-ready)/0.2)]';
     }
     
     switch (status) {

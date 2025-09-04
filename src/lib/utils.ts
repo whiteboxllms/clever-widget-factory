@@ -59,9 +59,9 @@ export function getActionBorderStyle(action: {
   // Yellow border when there's implementation text but no policy (work in progress)
   if (hasObservations) {
     return {
-      bgColor: '',
+      bgColor: 'bg-background',
       borderColor: 'border-yellow-500 border-2 shadow-yellow-200 shadow-lg dark:border-yellow-600 dark:shadow-yellow-900',
-      textColor: ''
+      textColor: 'text-foreground'
     };
   }
   

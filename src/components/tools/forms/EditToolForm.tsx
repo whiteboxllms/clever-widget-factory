@@ -9,8 +9,8 @@ import { Upload, X } from "lucide-react";
 import { Tool } from "@/hooks/tools/useToolsData";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useToast } from "@/hooks/use-toast";
-import { useParentStructures } from "@/hooks/tools/useParentStructures";
 import { TOOL_CATEGORY_OPTIONS } from "@/lib/constants";
+import { LocationFieldsGroup } from "@/components/shared/LocationFieldsGroup";
 
 interface EditToolFormProps {
   tool: Tool | null;
@@ -34,7 +34,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit }: EditToolFormPr
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const { uploadImages, isUploading } = useImageUpload();
-  const { parentStructures } = useParentStructures();
+  
 
   // Update form data when tool changes
   useEffect(() => {
@@ -175,48 +175,18 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit }: EditToolFormPr
             </div>
           </div>
 
-          {/* Legacy Storage Vicinity - Read Only for Reference - Only show if no area is set */}
-          {tool.legacy_storage_vicinity && !tool.parent_structure_id && (
-            <div>
-              <Label>Legacy Location (Reference)</Label>
-              <Input
-                value={tool.legacy_storage_vicinity}
-                disabled
-                className="bg-muted text-muted-foreground"
-              />
-            </div>
-          )}
-
-          {/* Parent Structure Dropdown */}
-          <div>
-            <Label htmlFor="edit-parent-structure">Area</Label>
-            <Select
-              value={editData.parent_structure_id}
-              onValueChange={(value) => setEditData(prev => ({ ...prev, parent_structure_id: value }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select parent structure (optional)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {parentStructures.map((structure) => (
-                  <SelectItem key={structure.id} value={structure.id}>
-                    {structure.name} ({structure.category})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label htmlFor="edit-storage-location">Specific Location</Label>
-            <Input
-              id="edit-storage-location"
-              value={editData.storage_location}
-              onChange={(e) => setEditData(prev => ({ ...prev, storage_location: e.target.value }))}
-              placeholder="e.g., Shelf A2, Drawer 3"
-            />
-          </div>
+          {/* Location Fields */}
+          <LocationFieldsGroup
+            legacyLocation={tool.legacy_storage_vicinity}
+            areaValue={editData.parent_structure_id}
+            specificLocation={editData.storage_location}
+            onAreaChange={(value) => setEditData(prev => ({ ...prev, parent_structure_id: value }))}
+            onSpecificLocationChange={(value) => setEditData(prev => ({ ...prev, storage_location: value }))}
+            showLegacyField={!!(tool.legacy_storage_vicinity && !tool.parent_structure_id)}
+            areaDataSource="parent_structures"
+            areaFieldLabel="Area"
+            specificLocationPlaceholder="e.g., Shelf A2, Drawer 3"
+          />
 
           <div>
             <Label htmlFor="edit-status">Status</Label>

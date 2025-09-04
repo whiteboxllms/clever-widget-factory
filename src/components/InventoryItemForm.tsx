@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Upload, Info } from 'lucide-react';
+import { LocationFieldsGroup } from '@/components/shared/LocationFieldsGroup';
 
 // Supplier interface removed - supplier tracking moved to stock additions
 
@@ -266,23 +267,17 @@ export function InventoryItemForm({
           />
         </div>
 
-        <div>
-          <Label htmlFor="storage_vicinity">Storage Vicinity *</Label>
-          <Input
-            id="storage_vicinity"
-            value={formData.storage_vicinity}
-            onChange={(e) => updateFormData('storage_vicinity', e.target.value)}
-            placeholder="e.g., Workshop A, Storage Room"
-          />
-        </div>
-
-        <div>
-          <Label htmlFor="storage_location">Storage Location</Label>
-          <Input
-            id="storage_location"
-            value={formData.storage_location}
-            onChange={(e) => updateFormData('storage_location', e.target.value)}
-            placeholder="e.g., Shelf 3, Bin B2"
+        <div className="col-span-2">
+          {/* Location Fields */}
+          <LocationFieldsGroup
+            areaValue={formData.storage_vicinity}
+            specificLocation={formData.storage_location}
+            onAreaChange={(value) => updateFormData('storage_vicinity', value)}
+            onSpecificLocationChange={(value) => updateFormData('storage_location', value)}
+            areaDataSource="storage_vicinities"
+            areaFieldLabel="Storage Vicinity"
+            specificLocationPlaceholder="e.g., Shelf 3, Bin B2"
+            areaRequired={true}
           />
         </div>
       </div>

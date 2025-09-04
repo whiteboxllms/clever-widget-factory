@@ -8,8 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Upload, X } from "lucide-react";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useToast } from "@/hooks/use-toast";
-import { useParentStructures } from "@/hooks/tools/useParentStructures";
 import { TOOL_CATEGORY_OPTIONS } from "@/lib/constants";
+import { LocationFieldsGroup } from "@/components/shared/LocationFieldsGroup";
 
 interface NewToolForm {
   name: string;
@@ -44,7 +44,7 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const { uploadImages, isUploading } = useImageUpload();
-  const { parentStructures } = useParentStructures();
+  
 
   useEffect(() => {
     if (initialName) {
@@ -185,36 +185,16 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
             </div>
           </div>
 
-          {/* Parent Structure Dropdown */}
-          <div>
-            <Label htmlFor="parent-structure">Area</Label>
-            <Select
-              value={newTool.parent_structure_id}
-              onValueChange={(value) => setNewTool(prev => ({ ...prev, parent_structure_id: value }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select parent structure (optional)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {parentStructures.map((structure) => (
-                  <SelectItem key={structure.id} value={structure.id}>
-                    {structure.name} ({structure.category})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label htmlFor="storage-location">Specific Location</Label>
-            <Input
-              id="storage-location"
-              value={newTool.storage_location}
-              onChange={(e) => setNewTool(prev => ({ ...prev, storage_location: e.target.value }))}
-              placeholder="e.g., Shelf A2, Drawer 3"
-            />
-          </div>
+          {/* Location Fields */}
+          <LocationFieldsGroup
+            areaValue={newTool.parent_structure_id}
+            specificLocation={newTool.storage_location}
+            onAreaChange={(value) => setNewTool(prev => ({ ...prev, parent_structure_id: value }))}
+            onSpecificLocationChange={(value) => setNewTool(prev => ({ ...prev, storage_location: value }))}
+            areaDataSource="parent_structures"
+            areaFieldLabel="Area"
+            specificLocationPlaceholder="e.g., Shelf A2, Drawer 3"
+          />
 
           <div>
             <Label htmlFor="status">Status</Label>

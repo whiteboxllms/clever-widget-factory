@@ -39,6 +39,13 @@ interface ActionCardProps {
     policy?: string;
     observations?: string;
     assigned_to?: string | null;
+    participants?: string[];
+    participants_details?: {
+      id: string;
+      user_id: string;
+      full_name: string;
+      role: string;
+    }[];
     status: string;
     mission_id?: string;
     estimated_duration?: string;
@@ -799,6 +806,14 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                   <User className="w-3 h-3" />
                   <span>
                     {profiles.find(p => p.user_id === action.assigned_to)?.full_name || 'Unknown User'}
+                  </span>
+                </div>
+              )}
+              {action.participants_details && action.participants_details.length > 0 && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <User className="w-3 h-3" />
+                  <span className="text-xs">
+                    Participants: {action.participants_details.map(p => p.full_name).join(', ')}
                   </span>
                 </div>
               )}

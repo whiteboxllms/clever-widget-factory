@@ -27,6 +27,7 @@ export interface BaseAction {
   score?: number | null;
   scoring_data?: any;
   plan_commitment?: boolean | null;
+  participants?: string[];
   
   // Related objects (populated by joins)
   assignee?: {
@@ -35,6 +36,12 @@ export interface BaseAction {
     full_name: string;
     role: string;
   } | null;
+  participants_details?: {
+    id: string;
+    user_id: string;
+    full_name: string;
+    role: string;
+  }[];
   mission?: {
     id: string;
     title: string;
@@ -76,6 +83,7 @@ export const createMissionAction = (missionId: string): Partial<BaseAction> => (
   policy: '',
   observations: '',
   assigned_to: null,
+  participants: [],
   required_tools: [],
   required_stock: [],
   attachments: []
@@ -89,6 +97,7 @@ export const createIssueAction = (issueId: string, issueDescription?: string): P
   policy: '',
   observations: '',
   assigned_to: null,
+  participants: [],
   required_tools: [],
   required_stock: [],
   attachments: [],
@@ -103,6 +112,7 @@ export const createAssetAction = (assetId: string): Partial<BaseAction> => ({
   policy: '',
   observations: '',
   assigned_to: null,
+  participants: [],
   required_tools: [],
   required_stock: [],
   attachments: []

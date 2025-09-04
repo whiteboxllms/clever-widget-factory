@@ -39,6 +39,7 @@ import { useImageUpload } from "@/hooks/useImageUpload";
 import TiptapEditor from './TiptapEditor';
 import { AssetSelector } from './AssetSelector';
 import { StockSelector } from './StockSelector';
+import { ParticipantSelector } from './ParticipantSelector';
 import { cn } from "@/lib/utils";
 import { BaseAction, Profile, ActionCreationContext } from "@/types/actions";
 
@@ -372,6 +373,7 @@ export function UnifiedActionDialog({
         policy: formData.policy || null,
         observations: formData.observations || null,
         assigned_to: formData.assigned_to === 'unassigned' ? null : formData.assigned_to || null,
+        participants: formData.participants || [],
         estimated_duration: estimatedDuration,
         required_tools: formData.required_tools || [],
         required_stock: formData.required_stock || [],
@@ -501,8 +503,8 @@ export function UnifiedActionDialog({
           </div>
 
 
-          {/* Assigned To and Estimated Completion Date */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Assigned To, Participants, and Estimated Completion Date */}
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <Label htmlFor="assignedTo" className="text-sm font-medium">
                 Assigned To
@@ -526,6 +528,20 @@ export function UnifiedActionDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="participants" className="text-sm font-medium">
+                Participants
+              </Label>
+              <div className="mt-1">
+                <ParticipantSelector
+                  participants={formData.participants || []}
+                  onParticipantsChange={(participants) => setFormData(prev => ({ ...prev, participants }))}
+                  profiles={profiles}
+                  assigneeId={formData.assigned_to}
+                />
+              </div>
             </div>
 
             <div>
@@ -564,7 +580,7 @@ export function UnifiedActionDialog({
 
             {/* Plan Commitment Toggle - Only show when assigned */}
             {formData.assigned_to && formData.assigned_to !== 'unassigned' && (
-              <div className="col-span-2 pt-2 border-t border-border">
+              <div className="col-span-3 pt-2 border-t border-border">
                 <div className="flex items-start space-x-3">
                   <Switch
                     id="plan-commitment"
@@ -581,7 +597,11 @@ export function UnifiedActionDialog({
                     htmlFor="plan-commitment" 
                     className="text-sm leading-5 cursor-pointer"
                   >
-                    Assignee and leadership have discussed and agreed on the action plan.
+                    {(() => {
+                      const assignee = profiles.find(p => p.user_id === formData.assigned_to);
+                      const assigneeName = assignee?.full_name || 'The assignee';
+                      return `${assigneeName} and leadership agreed to this action plan.`;
+                    })()}
                   </Label>
                 </div>
               </div>

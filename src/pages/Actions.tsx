@@ -88,9 +88,28 @@ export default function Actions() {
         }
       }
 
+      // Fetch participant details for actions that have participants
+      const actionsWithParticipants = data?.filter(action => action.participants && action.participants.length > 0) || [];
+      let participantsData = [];
+      if (actionsWithParticipants.length > 0) {
+        const allParticipantIds = actionsWithParticipants.flatMap(action => action.participants || []);
+        const uniqueParticipantIds = [...new Set(allParticipantIds)];
+        
+        if (uniqueParticipantIds.length > 0) {
+          const { data: participants } = await supabase
+            .from('profiles')
+            .select('id, user_id, full_name, role')
+            .in('user_id', uniqueParticipantIds);
+          participantsData = participants || [];
+        }
+      }
+
       setActions(data?.map(item => ({
         ...item,
         required_stock: Array.isArray(item.required_stock) ? item.required_stock : [],
+        participants_details: item.participants?.map(participantId => 
+          participantsData.find(p => p.user_id === participantId)
+        ).filter(Boolean) || [],
         asset: toolsData.find(tool => tool.id === item.asset_id) || null,
         assignee: item.assignee && typeof item.assignee === 'object' && !('error' in item.assignee) 
           ? {
@@ -487,6 +506,15 @@ export default function Actions() {
                                 Unassigned
                               </Badge>
                             )}
+                            
+                            {action.participants_details && action.participants_details.length > 0 && (
+                              action.participants_details.map(participant => (
+                                <Badge key={participant.user_id} variant="secondary" className="flex items-center gap-1">
+                                  <User className="h-3 w-3" />
+                                  {participant.full_name}
+                                </Badge>
+                              ))
+                            )}
                           </div>
                         </div>
                         
@@ -564,16 +592,25 @@ export default function Actions() {
                             </Badge>
                           )}
                           
-                          {action.assignee ? (
-                            <Badge variant="outline" className="flex items-center gap-1">
-                              <User className="h-3 w-3" />
-                              {action.assignee.full_name}
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-orange-600">
-                              Unassigned
-                            </Badge>
-                          )}
+                           {action.assignee ? (
+                             <Badge variant="outline" className="flex items-center gap-1">
+                               <User className="h-3 w-3" />
+                               {action.assignee.full_name}
+                             </Badge>
+                           ) : (
+                             <Badge variant="outline" className="text-orange-600">
+                               Unassigned
+                             </Badge>
+                           )}
+                           
+                           {action.participants_details && action.participants_details.length > 0 && (
+                             action.participants_details.map(participant => (
+                               <Badge key={participant.user_id} variant="secondary" className="flex items-center gap-1">
+                                 <User className="h-3 w-3" />
+                                 {participant.full_name}
+                               </Badge>
+                             ))
+                           )}
                         </div>
                        </div>
                        

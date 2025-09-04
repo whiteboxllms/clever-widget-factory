@@ -89,6 +89,7 @@ export type Database = {
           linked_issue_id: string | null
           mission_id: string | null
           observations: string | null
+          participants: string[] | null
           plan_commitment: boolean | null
           policy: string | null
           qa_approved_at: string | null
@@ -115,6 +116,7 @@ export type Database = {
           linked_issue_id?: string | null
           mission_id?: string | null
           observations?: string | null
+          participants?: string[] | null
           plan_commitment?: boolean | null
           policy?: string | null
           qa_approved_at?: string | null
@@ -141,6 +143,7 @@ export type Database = {
           linked_issue_id?: string | null
           mission_id?: string | null
           observations?: string | null
+          participants?: string[] | null
           plan_commitment?: boolean | null
           policy?: string | null
           qa_approved_at?: string | null

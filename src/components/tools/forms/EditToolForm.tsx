@@ -25,7 +25,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit }: EditToolFormPr
     description: tool?.description || "",
     category: tool?.category || "",
     status: tool?.status || "available",
-    parent_structure_id: tool?.parent_structure_id || "",
+    parent_structure_id: tool?.parent_structure_id || "none",
     storage_location: tool?.storage_location || "",
     serial_number: tool?.serial_number || "",
     image_file: null as File | null,
@@ -44,7 +44,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit }: EditToolFormPr
         description: tool.description || "",
         category: tool.category || "",
         status: tool.status || "available",
-        parent_structure_id: tool.parent_structure_id || "",
+        parent_structure_id: tool.parent_structure_id || "none",
         storage_location: tool.storage_location || "",
         serial_number: tool.serial_number || "",
         image_file: null,
@@ -90,7 +90,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit }: EditToolFormPr
         description: editData.description || null,
         category: editData.category || null,
         status: editData.status,
-        parent_structure_id: editData.parent_structure_id || null,
+        parent_structure_id: editData.parent_structure_id === "none" ? null : editData.parent_structure_id,
         storage_location: editData.storage_location || null,
         serial_number: editData.serial_number || null,
         image_url: imageUrl
@@ -198,7 +198,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit }: EditToolFormPr
                 <SelectValue placeholder="Select parent structure (optional)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">None</SelectItem>
+                <SelectItem value="none">None</SelectItem>
                 {parentStructures.map((structure) => (
                   <SelectItem key={structure.id} value={structure.id}>
                     {structure.name} ({structure.category})

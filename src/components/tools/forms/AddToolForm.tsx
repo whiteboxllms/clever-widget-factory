@@ -35,7 +35,7 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
     description: "",
     category: "",
     status: "available",
-    parent_structure_id: "",
+    parent_structure_id: "none",
     storage_location: "",
     serial_number: "",
     image_file: null,
@@ -88,7 +88,7 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
         description: newTool.description || null,
         category: newTool.category || null,
         status: newTool.status,
-        parent_structure_id: newTool.parent_structure_id || null,
+        parent_structure_id: newTool.parent_structure_id === "none" ? null : newTool.parent_structure_id,
         storage_location: newTool.storage_location || null,
         serial_number: newTool.serial_number || null,
         image_url: imageUrl
@@ -102,7 +102,7 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
         description: "",
         category: "",
         status: "available",
-        parent_structure_id: "",
+        parent_structure_id: "none",
         storage_location: "",
         serial_number: "",
         image_file: null,
@@ -195,7 +195,7 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
                 <SelectValue placeholder="Select parent structure (optional)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">None</SelectItem>
+                <SelectItem value="none">None</SelectItem>
                 {parentStructures.map((structure) => (
                   <SelectItem key={structure.id} value={structure.id}>
                     {structure.name} ({structure.category})

@@ -1088,7 +1088,7 @@ export type Database = {
           known_issues: string | null
           last_audited_at: string | null
           last_maintenance: string | null
-          legacy_storage_vicinity: string
+          legacy_storage_vicinity: string | null
           manual_url: string | null
           name: string
           parent_structure_id: string | null
@@ -1110,7 +1110,7 @@ export type Database = {
           known_issues?: string | null
           last_audited_at?: string | null
           last_maintenance?: string | null
-          legacy_storage_vicinity: string
+          legacy_storage_vicinity?: string | null
           manual_url?: string | null
           name: string
           parent_structure_id?: string | null
@@ -1132,7 +1132,7 @@ export type Database = {
           known_issues?: string | null
           last_audited_at?: string | null
           last_maintenance?: string | null
-          legacy_storage_vicinity?: string
+          legacy_storage_vicinity?: string | null
           manual_url?: string | null
           name?: string
           parent_structure_id?: string | null

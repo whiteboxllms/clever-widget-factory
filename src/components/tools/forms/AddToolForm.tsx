@@ -18,7 +18,6 @@ interface NewToolForm {
   status: string;
   parent_structure_id: string;
   storage_location: string;
-  legacy_storage_vicinity: string;
   serial_number: string;
   image_file: File | null;
 }
@@ -38,7 +37,6 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
     status: "available",
     parent_structure_id: "none",
     storage_location: "",
-    legacy_storage_vicinity: "",
     serial_number: "",
     image_file: null,
   });
@@ -92,7 +90,7 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
         status: newTool.status,
         parent_structure_id: newTool.parent_structure_id === "none" ? null : newTool.parent_structure_id,
         storage_location: newTool.storage_location || null,
-        legacy_storage_vicinity: newTool.legacy_storage_vicinity || "General",
+        legacy_storage_vicinity: "General",
         serial_number: newTool.serial_number || null,
         image_url: imageUrl
       };
@@ -107,7 +105,6 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
         status: "available",
         parent_structure_id: "none",
         storage_location: "",
-        legacy_storage_vicinity: "",
         serial_number: "",
         image_file: null,
       });
@@ -209,27 +206,14 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="legacy-vicinity">Storage Area *</Label>
-              <Input
-                id="legacy-vicinity"
-                value={newTool.legacy_storage_vicinity}
-                onChange={(e) => setNewTool(prev => ({ ...prev, legacy_storage_vicinity: e.target.value }))}
-                placeholder="e.g., Workshop, Garage"
-                required
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="storage-location">Specific Storage Location</Label>
-              <Input
-                id="storage-location"
-                value={newTool.storage_location}
-                onChange={(e) => setNewTool(prev => ({ ...prev, storage_location: e.target.value }))}
-                placeholder="e.g., Shelf A2, Drawer 3"
-              />
-            </div>
+          <div>
+            <Label htmlFor="storage-location">Specific Storage Location</Label>
+            <Input
+              id="storage-location"
+              value={newTool.storage_location}
+              onChange={(e) => setNewTool(prev => ({ ...prev, storage_location: e.target.value }))}
+              placeholder="e.g., Shelf A2, Drawer 3"
+            />
           </div>
 
           <div>

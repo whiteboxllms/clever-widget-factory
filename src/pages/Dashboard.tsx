@@ -30,13 +30,6 @@ export default function Dashboard() {
 
   const menuItems = [
     {
-      title: "Check In Asset",
-      description: "Return an asset and report condition",
-      icon: CheckCircle,
-      path: "/checkin",
-      color: "bg-green-500"
-    },
-    {
       title: "Stock",
       description: "View and manage stock",
       icon: Package,

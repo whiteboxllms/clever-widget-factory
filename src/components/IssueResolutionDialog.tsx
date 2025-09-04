@@ -100,29 +100,24 @@ export function IssueResolutionDialog({
       return;
     }
 
-    if (form.resolution_photos.length === 0) {
-      toast({
-        title: "Photos required",
-        description: "Please upload at least one photo showing the resolution.",
-        variant: "destructive"
-      });
-      return;
-    }
 
     setIsSubmitting(true);
 
     try {
-      // Upload resolution photos
-      const uploadResults = await uploadImages(form.resolution_photos, {
-        bucket: 'tool-resolution-photos',
-        generateFileName: (file) => `resolution-${issue.id}-${Date.now()}-${file.name}`,
-        maxSizeMB: 2,
-        maxWidthOrHeight: 1920
-      });
+      // Upload resolution photos (optional)
+      let photoUrls: string[] = [];
+      if (form.resolution_photos.length > 0) {
+        const uploadResults = await uploadImages(form.resolution_photos, {
+          bucket: 'tool-resolution-photos',
+          generateFileName: (file) => `resolution-${issue.id}-${Date.now()}-${file.name}`,
+          maxSizeMB: 2,
+          maxWidthOrHeight: 1920
+        });
 
-      const photoUrls = Array.isArray(uploadResults) 
-        ? uploadResults.map(result => result.url)
-        : [uploadResults.url];
+        photoUrls = Array.isArray(uploadResults) 
+          ? uploadResults.map(result => result.url)
+          : [uploadResults.url];
+      }
 
       // Update issue as resolved
       const { error: updateError } = await supabase
@@ -213,7 +208,7 @@ export function IssueResolutionDialog({
           </div>
 
           <div>
-            <Label htmlFor="resolution_photos">Resolution Photos *</Label>
+            <Label htmlFor="resolution_photos">Resolution Photos (Optional)</Label>
             <input
               id="resolution_photos"
               type="file"
@@ -221,10 +216,9 @@ export function IssueResolutionDialog({
               multiple
               onChange={handlePhotoChange}
               className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/80"
-              required
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Upload photos showing the resolved issue (minimum 1 required)
+              Upload photos showing the resolved issue (optional)
             </p>
             
             {photoPreviewUrls.length > 0 && (

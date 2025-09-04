@@ -194,7 +194,7 @@ export function IssueQuickResolveDialog({
 
             {/* Photo Upload */}
             <div>
-              <Label className="text-sm font-medium">Resolution Photos</Label>
+              <Label className="text-sm font-medium">Resolution Photos (Optional)</Label>
               <div className="mt-1">
                 <input
                   type="file"

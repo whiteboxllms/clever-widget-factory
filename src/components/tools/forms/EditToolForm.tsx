@@ -189,7 +189,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit }: EditToolFormPr
 
           {/* Parent Structure Dropdown */}
           <div>
-            <Label htmlFor="edit-parent-structure">Parent Structure</Label>
+            <Label htmlFor="edit-parent-structure">Area</Label>
             <Select
               value={editData.parent_structure_id}
               onValueChange={(value) => setEditData(prev => ({ ...prev, parent_structure_id: value }))}
@@ -209,7 +209,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit }: EditToolFormPr
           </div>
 
           <div>
-            <Label htmlFor="edit-storage-location">Specific Storage Location</Label>
+            <Label htmlFor="edit-storage-location">Specific Location</Label>
             <Input
               id="edit-storage-location"
               value={editData.storage_location}

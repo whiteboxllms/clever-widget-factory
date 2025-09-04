@@ -187,7 +187,7 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
 
           {/* Parent Structure Dropdown */}
           <div>
-            <Label htmlFor="parent-structure">Parent Structure</Label>
+            <Label htmlFor="parent-structure">Area</Label>
             <Select
               value={newTool.parent_structure_id}
               onValueChange={(value) => setNewTool(prev => ({ ...prev, parent_structure_id: value }))}
@@ -207,7 +207,7 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
           </div>
 
           <div>
-            <Label htmlFor="storage-location">Specific Storage Location</Label>
+            <Label htmlFor="storage-location">Specific Location</Label>
             <Input
               id="storage-location"
               value={newTool.storage_location}

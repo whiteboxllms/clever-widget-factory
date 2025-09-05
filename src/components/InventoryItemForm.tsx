@@ -278,7 +278,7 @@ export function InventoryItemForm({
             specificLocation={formData.storage_location}
             onAreaChange={(value) => updateFormData('storage_vicinity', value)}
             onSpecificLocationChange={(value) => updateFormData('storage_location', value)}
-            showLegacyField={!!editingPart?.legacy_storage_vicinity}
+            showLegacyField={!!(editingPart?.legacy_storage_vicinity && (!formData.storage_vicinity || formData.storage_vicinity === 'none'))}
             legacyFieldLabel="Legacy Storage Vicinity (Reference)"
             areaDataSource="parent_structures"
             areaFieldLabel="Area"

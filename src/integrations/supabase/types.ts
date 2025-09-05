@@ -725,10 +725,11 @@ export type Database = {
           description: string | null
           id: string
           image_url: string | null
+          legacy_storage_vicinity: string | null
           minimum_quantity: number | null
           name: string
           storage_location: string | null
-          storage_vicinity: string
+          storage_vicinity: string | null
           supplier: string | null
           supplier_id: string | null
           unit: string | null
@@ -743,10 +744,11 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
+          legacy_storage_vicinity?: string | null
           minimum_quantity?: number | null
           name: string
           storage_location?: string | null
-          storage_vicinity: string
+          storage_vicinity?: string | null
           supplier?: string | null
           supplier_id?: string | null
           unit?: string | null
@@ -761,10 +763,11 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
+          legacy_storage_vicinity?: string | null
           minimum_quantity?: number | null
           name?: string
           storage_location?: string | null
-          storage_vicinity?: string
+          storage_vicinity?: string | null
           supplier?: string | null
           supplier_id?: string | null
           unit?: string | null

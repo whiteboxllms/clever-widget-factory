@@ -9,6 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Upload, Info } from 'lucide-react';
 import { LocationFieldsGroup } from '@/components/shared/LocationFieldsGroup';
+import { useParentStructures } from '@/hooks/tools/useParentStructures';
 
 // Supplier interface removed - supplier tracking moved to stock additions
 
@@ -63,6 +64,7 @@ export function InventoryItemForm({
   submitButtonText,
   editingPart
 }: InventoryItemFormProps) {
+  const { parentStructures, loading: isLoadingParentStructures } = useParentStructures();
   const [formData, setFormData] = useState<FormData>({
     name: '',
     description: '',
@@ -278,10 +280,12 @@ export function InventoryItemForm({
             onSpecificLocationChange={(value) => updateFormData('storage_location', value)}
             showLegacyField={!!editingPart?.legacy_storage_vicinity}
             legacyFieldLabel="Legacy Storage Vicinity (Reference)"
-            areaDataSource="storage_vicinities"
-            areaFieldLabel="Storage Vicinity"
+            areaDataSource="parent_structures"
+            areaFieldLabel="Area"
             specificLocationPlaceholder="e.g., Shelf 3, Bin B2"
             areaRequired={true}
+            isLoadingAreas={isLoadingParentStructures}
+            parentStructures={parentStructures}
           />
         </div>
       </div>

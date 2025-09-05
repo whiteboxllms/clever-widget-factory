@@ -106,6 +106,7 @@ export function StorageVicinitySelector({ value, onValueChange, placeholder = "S
   };
 
   const selectedVicinity = vicinities.find(vicinity => vicinity.name === value);
+  console.log('StorageVicinitySelector Debug:', { value, vicinities, selectedVicinity });
 
   return (
     <div className="flex gap-2">

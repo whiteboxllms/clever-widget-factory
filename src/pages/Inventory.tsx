@@ -40,8 +40,8 @@ interface Part {
   unit: string | null;
   supplier: string | null;
   supplier_id: string | null;
-  legacy_storage_vicinity?: string | null;
-  storage_vicinity: string;
+  legacy_storage_vicinity: string | null;
+  storage_vicinity: string | null;
   storage_location: string | null;
   image_url: string | null;
   created_at: string;

@@ -23,8 +23,8 @@ interface Part {
   unit: string | null;
   supplier: string | null;
   supplier_id: string | null;
-  legacy_storage_vicinity?: string | null;
-  storage_vicinity: string;
+  legacy_storage_vicinity: string | null;
+  storage_vicinity: string | null;
   storage_location: string | null;
   image_url: string | null;
   created_at: string;
@@ -39,7 +39,7 @@ interface FormData {
   cost_per_unit: string;
   cost_evidence_url: string;
   unit: string;
-  storage_vicinity: string;
+  storage_vicinity: string | null;
   storage_location: string;
 }
 
@@ -276,9 +276,9 @@ export function InventoryItemForm({
             legacyLocation={editingPart?.legacy_storage_vicinity}
             areaValue={formData.storage_vicinity}
             specificLocation={formData.storage_location}
-            onAreaChange={(value) => updateFormData('storage_vicinity', value)}
+            onAreaChange={(value) => updateFormData('storage_vicinity', value === 'none' ? null : value)}
             onSpecificLocationChange={(value) => updateFormData('storage_location', value)}
-            showLegacyField={!!(editingPart?.legacy_storage_vicinity && (!formData.storage_vicinity || formData.storage_vicinity === 'none'))}
+            showLegacyField={!!editingPart?.legacy_storage_vicinity}
             legacyFieldLabel="Legacy Storage Vicinity (Reference)"
             areaDataSource="parent_structures"
             areaFieldLabel="Area"
@@ -296,7 +296,7 @@ export function InventoryItemForm({
         </Button>
         <Button 
           onClick={handleSubmit} 
-          disabled={!formData.name || !formData.storage_vicinity || isLoading}
+          disabled={!formData.name || isLoading}
         >
           {isLoading ? 'Processing...' : submitButtonText}
         </Button>

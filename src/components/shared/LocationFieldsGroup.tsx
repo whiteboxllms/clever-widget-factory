@@ -25,6 +25,9 @@ interface LocationFieldsGroupProps {
   // Validation
   areaRequired?: boolean;
   specificLocationRequired?: boolean;
+  
+  // Loading state
+  isLoadingAreas?: boolean;
 }
 
 export const LocationFieldsGroup: React.FC<LocationFieldsGroupProps> = ({
@@ -39,7 +42,8 @@ export const LocationFieldsGroup: React.FC<LocationFieldsGroupProps> = ({
   areaDataSource,
   specificLocationPlaceholder = "e.g., Shelf A2, Drawer 3",
   areaRequired = false,
-  specificLocationRequired = false
+  specificLocationRequired = false,
+  isLoadingAreas = false
 }) => {
   const { parentStructures } = useParentStructures();
 
@@ -49,9 +53,10 @@ export const LocationFieldsGroup: React.FC<LocationFieldsGroupProps> = ({
         <Select
           value={areaValue || "none"}
           onValueChange={onAreaChange}
+          disabled={isLoadingAreas}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Select parent structure (optional)" />
+            <SelectValue placeholder={isLoadingAreas ? "Loading areas..." : "Select parent structure (optional)"} />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="none">None</SelectItem>

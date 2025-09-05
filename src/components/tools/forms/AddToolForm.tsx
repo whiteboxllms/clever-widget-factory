@@ -10,6 +10,7 @@ import { useImageUpload } from "@/hooks/useImageUpload";
 import { useToast } from "@/hooks/use-toast";
 import { TOOL_CATEGORY_OPTIONS } from "@/lib/constants";
 import { LocationFieldsGroup } from "@/components/shared/LocationFieldsGroup";
+import { useParentStructures } from "@/hooks/tools/useParentStructures";
 
 interface NewToolForm {
   name: string;
@@ -44,6 +45,7 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const { uploadImages, isUploading } = useImageUpload();
+  const { loading: isLoadingParentStructures } = useParentStructures();
   
 
   useEffect(() => {
@@ -194,6 +196,7 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
             areaDataSource="parent_structures"
             areaFieldLabel="Area"
             specificLocationPlaceholder="e.g., Shelf A2, Drawer 3"
+            isLoadingAreas={isLoadingParentStructures}
           />
 
           <div>

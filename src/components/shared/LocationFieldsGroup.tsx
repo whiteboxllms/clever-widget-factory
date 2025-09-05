@@ -2,8 +2,13 @@ import React from 'react';
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useParentStructures } from "@/hooks/tools/useParentStructures";
 import { StorageVicinitySelector } from "@/components/StorageVicinitySelector";
+
+interface ParentStructure {
+  id: string;
+  name: string;
+  category?: string;
+}
 
 interface LocationFieldsGroupProps {
   // Current values
@@ -28,6 +33,9 @@ interface LocationFieldsGroupProps {
   
   // Loading state
   isLoadingAreas?: boolean;
+  
+  // Data - pass parent structures from parent component
+  parentStructures?: ParentStructure[];
 }
 
 export const LocationFieldsGroup: React.FC<LocationFieldsGroupProps> = ({
@@ -43,9 +51,9 @@ export const LocationFieldsGroup: React.FC<LocationFieldsGroupProps> = ({
   specificLocationPlaceholder = "e.g., Shelf A2, Drawer 3",
   areaRequired = false,
   specificLocationRequired = false,
-  isLoadingAreas = false
+  isLoadingAreas = false,
+  parentStructures = []
 }) => {
-  const { parentStructures } = useParentStructures();
 
   const renderAreaField = () => {
     if (areaDataSource === 'parent_structures') {

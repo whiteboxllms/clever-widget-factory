@@ -27,6 +27,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { InventoryItemForm } from '@/components/InventoryItemForm';
 import { ReceivingDialog } from '@/components/ReceivingDialog';
+import { useParentStructures } from '@/hooks/tools/useParentStructures';
 
 // Supplier interface removed - supplier tracking moved to stock additions
 
@@ -94,6 +95,21 @@ export default function Inventory() {
   const enhancedToast = useEnhancedToast();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { parentStructures } = useParentStructures();
+
+  // Helper function to resolve storage vicinity display name
+  const getStorageVicinityDisplayName = (part: Part) => {
+    // First try to find the parent structure by ID
+    if (part.storage_vicinity) {
+      const parentStructure = parentStructures.find(p => p.id === part.storage_vicinity);
+      if (parentStructure) {
+        return parentStructure.name;
+      }
+    }
+    
+    // Fall back to legacy storage vicinity if no parent structure found
+    return part.legacy_storage_vicinity || 'Unknown';
+  };
 
   // Handle URL parameters for edit mode, return navigation, and low stock filter
   useEffect(() => {
@@ -1143,7 +1159,10 @@ export default function Inventory() {
 
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">Location:</span>
-                    <span className="text-right">{part.storage_vicinity}{part.storage_location ? ` - ${part.storage_location}` : ''}</span>
+                    <span className="text-right">
+                      {getStorageVicinityDisplayName(part)}
+                      {part.storage_location ? ` - ${part.storage_location}` : ''}
+                    </span>
                   </div>
 
                   {part.cost_per_unit && (

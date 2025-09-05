@@ -40,11 +40,14 @@ interface Part {
   unit: string | null;
   supplier: string | null;
   supplier_id: string | null;
+  legacy_storage_vicinity?: string | null;
   storage_vicinity: string;
   storage_location: string | null;
   image_url: string | null;
   created_at: string;
   updated_at: string;
+  // Allow other properties from database
+  [key: string]: any;
 }
 
 interface PendingOrder {

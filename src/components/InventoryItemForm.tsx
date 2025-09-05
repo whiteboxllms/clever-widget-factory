@@ -22,6 +22,7 @@ interface Part {
   unit: string | null;
   supplier: string | null;
   supplier_id: string | null;
+  legacy_storage_vicinity?: string | null;
   storage_vicinity: string;
   storage_location: string | null;
   image_url: string | null;
@@ -270,10 +271,13 @@ export function InventoryItemForm({
         <div className="col-span-2">
           {/* Location Fields */}
           <LocationFieldsGroup
+            legacyLocation={editingPart?.legacy_storage_vicinity}
             areaValue={formData.storage_vicinity}
             specificLocation={formData.storage_location}
             onAreaChange={(value) => updateFormData('storage_vicinity', value)}
             onSpecificLocationChange={(value) => updateFormData('storage_location', value)}
+            showLegacyField={!!editingPart?.legacy_storage_vicinity}
+            legacyFieldLabel="Legacy Storage Vicinity (Reference)"
             areaDataSource="storage_vicinities"
             areaFieldLabel="Storage Vicinity"
             specificLocationPlaceholder="e.g., Shelf 3, Bin B2"

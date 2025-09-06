@@ -282,10 +282,10 @@ export default function Inventory() {
 
     if (showLowInventoryOnly) {
       filtered = filtered.filter(part => {
-        // Only show items where minimum quantity is set (not null/0) AND current quantity is at or below minimum
+        // Only show items where minimum quantity is set (not null/0) AND current quantity is below minimum
         return part.minimum_quantity !== null && 
                part.minimum_quantity > 0 && 
-               part.current_quantity <= part.minimum_quantity;
+               part.current_quantity < part.minimum_quantity;
       });
       
       // Sort to show unordered items first when filtering for low stock
@@ -818,7 +818,7 @@ export default function Inventory() {
 
   const getStockStatus = (part: Part) => {
     if (!part.minimum_quantity) return null;
-    if (part.current_quantity <= part.minimum_quantity) return 'low';
+    if (part.current_quantity < part.minimum_quantity) return 'low';
     if (part.current_quantity <= part.minimum_quantity * 1.5) return 'medium';
     return 'good';
   };

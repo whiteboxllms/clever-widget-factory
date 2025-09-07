@@ -48,7 +48,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     }
 
     try {
-      // Get user's organization membership
+      // Get user's organization membership (take the first one if multiple exist)
       const { data: memberData, error: memberError } = await supabase
         .from('organization_members')
         .select(`
@@ -56,6 +56,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
           organization:organizations(*)
         `)
         .eq('user_id', user.id)
+        .order('joined_at', { ascending: true })
+        .limit(1)
         .single();
 
       if (memberError) {

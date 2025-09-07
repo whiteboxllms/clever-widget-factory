@@ -10,6 +10,7 @@ import { AppSettingsProvider } from "@/hooks/useAppSettings";
 import { useSessionMonitor } from "@/hooks/useSessionMonitor";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import LeadershipRoute from "@/components/LeadershipRoute";
+import SuperAdminRoute from "@/components/SuperAdminRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -25,6 +26,7 @@ import Audit from "./pages/Audit";
 import AuditTool from "./pages/AuditTool";
 import ScoringPrompts from "./pages/ScoringPrompts";
 import Organization from "./pages/Organization";
+import AdminOrganizations from "./pages/AdminOrganizations";
 import NotFound from "./pages/NotFound";
 import AnalyticsDashboard from "./pages/AnalyticsDashboard";
 
@@ -120,6 +122,11 @@ function AppContent() {
         <ProtectedRoute>
           <Organization />
         </ProtectedRoute>
+      } />
+      <Route path="/admin/organizations" element={
+        <SuperAdminRoute>
+          <AdminOrganizations />
+        </SuperAdminRoute>
       } />
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
       <Route path="*" element={<NotFound />} />

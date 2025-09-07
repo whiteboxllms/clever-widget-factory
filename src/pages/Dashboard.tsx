@@ -2,13 +2,15 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Package, Search, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, ClipboardList, BarChart3 } from 'lucide-react';
+import { LogOut, Package, Search, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, ClipboardList, BarChart3, Building2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DebugModeToggle } from '@/components/DebugModeToggle';
 import { AuthDiagnostics } from '@/components/AuthDiagnostics';
+import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 
 export default function Dashboard() {
   const { user, signOut, isLeadership } = useAuth();
+  const { isSuperAdmin } = useSuperAdmin();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -70,6 +72,13 @@ export default function Dashboard() {
       icon: BarChart3,
       path: "/dashboard/analytics",
       color: "bg-indigo-500"
+    },
+    {
+      title: "Organizations",
+      description: "Manage all organizations (Super Admin)",
+      icon: Building2,
+      path: "/admin/organizations",
+      color: "bg-emerald-500"
     }
   ];
 
@@ -95,7 +104,11 @@ export default function Dashboard() {
       {/* Main Content */}
       <main className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {menuItems.filter(item => item.path !== "/dashboard/analytics" || isLeadership).map((item) => {
+          {menuItems.filter(item => {
+            if (item.path === "/dashboard/analytics") return isLeadership;
+            if (item.path === "/admin/organizations") return isSuperAdmin;
+            return true;
+          }).map((item) => {
             const Icon = item.icon;
             return (
               <Card

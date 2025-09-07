@@ -1162,6 +1162,7 @@ export type Database = {
           full_name: string | null
           id: string
           role: string | null
+          super_admin: boolean | null
           updated_at: string
           user_id: string
         }
@@ -1170,6 +1171,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           role?: string | null
+          super_admin?: boolean | null
           updated_at?: string
           user_id: string
         }
@@ -1178,6 +1180,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           role?: string | null
+          super_admin?: boolean | null
           updated_at?: string
           user_id?: string
         }
@@ -1635,6 +1638,14 @@ export type Database = {
         Args: { new_role: string; old_role: string; target_user_id: string }
         Returns: boolean
       }
+      create_organization_with_admin: {
+        Args: {
+          admin_user_id?: string
+          org_name: string
+          org_subdomain?: string
+        }
+        Returns: string
+      }
       get_user_display_name: {
         Args: { target_user_id: string }
         Returns: string
@@ -1651,6 +1662,10 @@ export type Database = {
         Returns: string
       }
       is_organization_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      is_super_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }

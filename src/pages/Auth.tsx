@@ -1,68 +1,84 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useAuth } from '@/hooks/useAuth';
+import { useInvitations } from '@/hooks/useInvitations';
 import { useToast } from '@/hooks/use-toast';
 
-export default function Auth() {
-  const { user, signIn, signUp, signInWithGoogle, resetPassword, updatePassword } = useAuth();
+const Auth = () => {
   const navigate = useNavigate();
-  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const { user, signIn, signUp, signInWithGoogle, resetPassword, updatePassword } = useAuth();
+  const { validateInvitation, acceptInvitation } = useInvitations();
   const { toast } = useToast();
+  
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showResetForm, setShowResetForm] = useState(false);
+  const [error, setError] = useState('');
   const [isPasswordReset, setIsPasswordReset] = useState(false);
+  const [showResetForm, setShowResetForm] = useState(false);
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
+  const [invitationData, setInvitationData] = useState<any>(null);
+  const [showSignUp, setShowSignUp] = useState(false);
 
-  // Check if user is coming from password reset link
   useEffect(() => {
-    const urlParams = new URLSearchParams(location.search);
-    const type = urlParams.get('type');
+    // Check for password reset link
+    const type = searchParams.get('type');
+    const accessToken = searchParams.get('access_token');
+    const token = searchParams.get('token');
     
-    if (type === 'recovery' && user) {
+    if (type === 'recovery' && accessToken) {
       setIsPasswordReset(true);
-    } else if (user && !isPasswordReset) {
-      navigate('/');
     }
-  }, [user, location, navigate, isPasswordReset]);
 
-  // Listen for auth events to detect password recovery
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (event === 'PASSWORD_RECOVERY' && session?.user) {
-          setIsPasswordReset(true);
-        }
+    // Check for invitation token
+    if (token) {
+      setInviteToken(token);
+      validateInviteToken(token);
+    }
+
+    // Redirect to dashboard if already authenticated and not in password reset flow
+    if (user && !isPasswordReset) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate, searchParams, isPasswordReset]);
+
+  const validateInviteToken = async (token: string) => {
+    try {
+      const invitation = await validateInvitation(token);
+      if (invitation) {
+        setInvitationData(invitation);
+        setShowSignUp(true);
+        toast({
+          title: "Invitation Found",
+          description: `You've been invited to join ${invitation.organization.name}`,
+        });
+      } else {
+        setError('Invalid or expired invitation link');
       }
-    );
-
-    return () => subscription.unsubscribe();
-  }, []);
+    } catch (error) {
+      setError('Error validating invitation');
+    }
+  };
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
-
     const formData = new FormData(e.currentTarget);
+    
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
-
+    
+    setLoading(true);
+    setError('');
+    
     const { error } = await signIn(email, password);
     
     if (error) {
       setError(error.message);
-      toast({
-        title: "Sign in failed",
-        description: error.message,
-        variant: "destructive",
-      });
     } else {
       toast({
         title: "Welcome back!",
@@ -75,27 +91,37 @@ export default function Auth() {
 
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
-
+    
+    if (!inviteToken || !invitationData) {
+      setError('Sign up is by invitation only');
+      return;
+    }
+    
     const formData = new FormData(e.currentTarget);
+    
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
     const fullName = formData.get('fullName') as string;
-
+    
+    // Verify email matches invitation
+    if (email !== invitationData.email) {
+      setError('Email must match the invitation email');
+      return;
+    }
+    
+    setLoading(true);
+    setError('');
+    
     const { error } = await signUp(email, password, fullName);
     
     if (error) {
       setError(error.message);
-      toast({
-        title: "Sign up failed",
-        description: error.message,
-        variant: "destructive",
-      });
     } else {
+      // Accept the invitation after successful signup
+      // This will be handled in the auth state change when user is created
       toast({
-        title: "Account created!",
-        description: "Please check your email to verify your account.",
+        title: "Account created successfully",
+        description: `Welcome to ${invitationData.organization.name}!`,
       });
     }
     
@@ -104,21 +130,17 @@ export default function Auth() {
 
   const handleResetPassword = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
-
     const formData = new FormData(e.currentTarget);
+    
     const email = formData.get('email') as string;
-
+    
+    setLoading(true);
+    setError('');
+    
     const { error } = await resetPassword(email);
     
     if (error) {
       setError(error.message);
-      toast({
-        title: "Password reset failed",
-        description: error.message,
-        variant: "destructive",
-      });
     } else {
       toast({
         title: "Password reset email sent",
@@ -132,17 +154,12 @@ export default function Auth() {
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
-    setError(null);
-
+    setError('');
+    
     const { error } = await signInWithGoogle();
     
     if (error) {
       setError(error.message);
-      toast({
-        title: "Google sign in failed",
-        description: error.message,
-        variant: "destructive",
-      });
     }
     
     setLoading(false);
@@ -150,41 +167,30 @@ export default function Auth() {
 
   const handleUpdatePassword = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
-
     const formData = new FormData(e.currentTarget);
+    
     const password = formData.get('password') as string;
     const confirmPassword = formData.get('confirmPassword') as string;
-
+    
     if (password !== confirmPassword) {
       setError("Passwords do not match");
-      setLoading(false);
       return;
     }
-
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters long");
-      setLoading(false);
-      return;
-    }
-
+    
+    setLoading(true);
+    setError('');
+    
     const { error } = await updatePassword(password);
     
     if (error) {
       setError(error.message);
-      toast({
-        title: "Password update failed",
-        description: error.message,
-        variant: "destructive",
-      });
     } else {
       toast({
         title: "Password updated successfully",
-        description: "Your password has been updated. You can now use your new password to sign in.",
+        description: "Your password has been updated.",
       });
       setIsPasswordReset(false);
-      navigate('/');
+      navigate('/dashboard');
     }
     
     setLoading(false);
@@ -194,10 +200,10 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Farm Tool Tracker</CardTitle>
-          <CardDescription>Sign in to manage your tools and equipment</CardDescription>
+          <CardTitle className="text-3xl font-bold">Farm Asset Tracker</CardTitle>
+          <p className="text-muted-foreground">Manage your farm assets and stock efficiently</p>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           {isPasswordReset ? (
             <div className="space-y-4">
               <div className="text-center">
@@ -213,29 +219,27 @@ export default function Auth() {
 
               <form onSubmit={handleUpdatePassword} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="new-password">New Password</Label>
+                  <Label htmlFor="password">New Password</Label>
                   <Input
-                    id="new-password"
+                    id="password"
                     name="password"
                     type="password"
-                    placeholder="Enter new password"
                     required
-                    minLength={6}
+                    disabled={loading}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirm Password</Label>
+                  <Label htmlFor="confirmPassword">Confirm Password</Label>
                   <Input
-                    id="confirm-password"
+                    id="confirmPassword"
                     name="confirmPassword"
                     type="password"
-                    placeholder="Confirm new password"
                     required
-                    minLength={6}
+                    disabled={loading}
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Updating..." : "Update Password"}
+                  {loading ? 'Updating...' : 'Update Password'}
                 </Button>
               </form>
             </div>
@@ -254,148 +258,138 @@ export default function Auth() {
 
               <form onSubmit={handleResetPassword} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="reset-email">Email</Label>
+                  <Label htmlFor="email">Email</Label>
                   <Input
-                    id="reset-email"
+                    id="email"
                     name="email"
                     type="email"
-                    placeholder="your@email.com"
                     required
+                    disabled={loading}
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Sending..." : "Send Reset Email"}
+                  {loading ? 'Sending...' : 'Send Reset Email'}
                 </Button>
                 <Button 
                   type="button" 
                   variant="ghost" 
                   className="w-full" 
                   onClick={() => setShowResetForm(false)}
+                  disabled={loading}
                 >
                   Back to Sign In
                 </Button>
               </form>
             </div>
-          ) : (
+          ) : showSignUp ? (
             <div className="space-y-4">
-              {/* Google Sign In Button - Commented out until provider is configured in Supabase
-              <Button 
-                onClick={handleGoogleSignIn} 
-                variant="outline" 
-                className="w-full"
-                disabled={loading}
-              >
-                <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
-                  <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                  <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                </svg>
-                {loading ? "Signing in..." : "Continue with Google"}
-              </Button>
+              {invitationData && (
+                <Alert>
+                  <AlertDescription>
+                    You've been invited to join <strong>{invitationData.organization.name}</strong> as a <strong>{invitationData.role}</strong>.
+                    Please create your account below.
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
 
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
+              <form onSubmit={handleSignUp} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Full Name</Label>
+                  <Input
+                    id="fullName"
+                    name="fullName"
+                    type="text"
+                    required
+                    disabled={loading}
+                  />
                 </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">
-                    Or continue with email
-                  </span>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    value={invitationData?.email || ''}
+                    required
+                    disabled={true}
+                  />
                 </div>
-              </div>
-              */}
-
-              <Tabs defaultValue="signin" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="signin">Sign In</TabsTrigger>
-                  <TabsTrigger value="signup">Sign Up</TabsTrigger>
-                </TabsList>
-
-                {error && (
-                  <Alert variant="destructive" className="mt-4">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    name="password"
+                    type="password"
+                    required
+                    disabled={loading}
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? 'Creating Account...' : 'Join Organization'}
+                </Button>
+              </form>
+            </div>
+          ) : (
+            <Tabs defaultValue="signin" className="w-full">
+              <TabsList className="grid w-full grid-cols-1">
+                <TabsTrigger value="signin">Sign In</TabsTrigger>
+              </TabsList>
+              
+              {error && (
+                <Alert variant="destructive" className="mt-4">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
 
               <TabsContent value="signin">
                 <form onSubmit={handleSignIn} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signin-email">Email</Label>
+                    <Label htmlFor="email">Email</Label>
                     <Input
-                      id="signin-email"
+                      id="email"
                       name="email"
                       type="email"
-                      placeholder="your@email.com"
                       required
+                      disabled={loading}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signin-password">Password</Label>
+                    <Label htmlFor="password">Password</Label>
                     <Input
-                      id="signin-password"
+                      id="password"
                       name="password"
                       type="password"
-                      placeholder="Your password"
                       required
+                      disabled={loading}
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Signing in..." : "Sign In"}
+                    {loading ? 'Signing In...' : 'Sign In'}
                   </Button>
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    className="w-full text-sm" 
-                    onClick={() => setShowResetForm(true)}
-                  >
-                    Forgot Password?
-                  </Button>
+                  <div className="text-center">
+                    <Button 
+                      type="button" 
+                      variant="link" 
+                      onClick={() => setShowResetForm(true)}
+                      disabled={loading}
+                    >
+                      Forgot your password?
+                    </Button>
+                  </div>
                 </form>
               </TabsContent>
-
-              <TabsContent value="signup">
-                <form onSubmit={handleSignUp} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-name">Full Name</Label>
-                    <Input
-                      id="signup-name"
-                      name="fullName"
-                      type="text"
-                      placeholder="Your full name"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
-                    <Input
-                      id="signup-email"
-                      name="email"
-                      type="email"
-                      placeholder="your@email.com"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
-                    <Input
-                      id="signup-password"
-                      name="password"
-                      type="password"
-                      placeholder="Choose a password"
-                      required
-                    />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Creating account..." : "Sign Up"}
-                  </Button>
-                </form>
-              </TabsContent>
-              </Tabs>
-            </div>
+            </Tabs>
           )}
         </CardContent>
       </Card>
     </div>
   );
-}
+};
+
+export default Auth;

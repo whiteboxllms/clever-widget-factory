@@ -42,13 +42,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           // Use setTimeout to defer Supabase calls and prevent deadlock
           setTimeout(async () => {
-            const { data: profile } = await supabase
-              .from('profiles')
+            const { data: member } = await supabase
+              .from('organization_members')
               .select('role')
               .eq('user_id', session.user.id)
               .single();
-            const userRole = profile?.role;
-            setIsAdmin(userRole === 'admin');
+            const userRole = member?.role;
+            setIsAdmin(userRole === 'admin' || userRole === 'leadership');
             setIsContributor(userRole === 'contributor');
             setIsLeadership(userRole === 'leadership');
             setIsToolKeeper(userRole === 'tool_keeper' || userRole === 'leadership');
@@ -71,19 +71,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       
-      // Check role for existing session
-      if (session?.user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('user_id', session.user.id)
-          .single();
-        const userRole = profile?.role;
-        setIsAdmin(userRole === 'admin');
-        setIsContributor(userRole === 'contributor');
-        setIsLeadership(userRole === 'leadership');
-        setIsToolKeeper(userRole === 'tool_keeper' || userRole === 'leadership');
-        setCanEditTools(userRole === 'admin' || userRole === 'contributor' || userRole === 'leadership' || userRole === 'tool_keeper');
+        // Check role for existing session
+        if (session?.user) {
+          const { data: member } = await supabase
+            .from('organization_members')
+            .select('role')
+            .eq('user_id', session.user.id)
+            .single();
+          const userRole = member?.role;
+          setIsAdmin(userRole === 'admin' || userRole === 'leadership');
+          setIsContributor(userRole === 'contributor');
+          setIsLeadership(userRole === 'leadership');
+          setIsToolKeeper(userRole === 'tool_keeper' || userRole === 'leadership');
+          setCanEditTools(userRole === 'admin' || userRole === 'contributor' || userRole === 'leadership' || userRole === 'tool_keeper');
       } else {
         setIsAdmin(false);
         setIsContributor(false);

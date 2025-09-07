@@ -5,6 +5,7 @@ import { AppVersion } from "@/components/AppVersion";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { OrganizationProvider } from "@/hooks/useOrganization";
 import { AppSettingsProvider } from "@/hooks/useAppSettings";
 import { useSessionMonitor } from "@/hooks/useSessionMonitor";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -23,6 +24,7 @@ import Issues from "./pages/Issues";
 import Audit from "./pages/Audit";
 import AuditTool from "./pages/AuditTool";
 import ScoringPrompts from "./pages/ScoringPrompts";
+import Organization from "./pages/Organization";
 import NotFound from "./pages/NotFound";
 import AnalyticsDashboard from "./pages/AnalyticsDashboard";
 
@@ -114,6 +116,11 @@ function AppContent() {
           <AnalyticsDashboard />
         </LeadershipRoute>
       } />
+      <Route path="/organization" element={
+        <ProtectedRoute>
+          <Organization />
+        </ProtectedRoute>
+      } />
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
       <Route path="*" element={<NotFound />} />
     </Routes>
@@ -123,16 +130,18 @@ function AppContent() {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <AppSettingsProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <AppVersion />
-          <BrowserRouter>
-            <AppContent />
-          </BrowserRouter>
-        </TooltipProvider>
-      </AppSettingsProvider>
+      <OrganizationProvider>
+        <AppSettingsProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <AppVersion />
+            <BrowserRouter>
+              <AppContent />
+            </BrowserRouter>
+          </TooltipProvider>
+        </AppSettingsProvider>
+      </OrganizationProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

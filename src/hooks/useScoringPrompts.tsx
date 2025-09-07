@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useOrganizationId } from '@/hooks/useOrganizationId';
 
 export interface ScoringPrompt {
   id: string;
@@ -13,6 +14,7 @@ export interface ScoringPrompt {
 }
 
 export const useScoringPrompts = () => {
+  const organizationId = useOrganizationId();
   const [prompts, setPrompts] = useState<ScoringPrompt[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -51,6 +53,7 @@ export const useScoringPrompts = () => {
           prompt_text: promptData.prompt_text,
           is_default: promptData.is_default || false,
           created_by: user.id,
+          organization_id: organizationId,
         })
         .select()
         .single();

@@ -68,6 +68,7 @@ interface PendingOrder {
 
 
 export default function Inventory() {
+  const organizationId = useOrganizationId();
   const [parts, setParts] = useState<Part[]>([]);
   const [filteredParts, setFilteredParts] = useState<Part[]>([]);
   const [pendingOrders, setPendingOrders] = useState<Record<string, PendingOrder[]>>({});
@@ -459,7 +460,8 @@ export default function Inventory() {
             quantity_change: null,
             changed_by: currentUser.id,
             change_reason: 'Item created',
-            order_id: null
+            order_id: null,
+            organization_id: organizationId
           }]);
 
         if (historyError) {

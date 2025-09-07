@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useOrganizationId } from '@/hooks/useOrganizationId';
 
 export type AttributeType = 
   | 'communication' 
@@ -49,6 +50,7 @@ export interface WorkerPerformance {
 }
 
 export function useWorkerAttributes() {
+  const organizationId = useOrganizationId();
   const [attributes, setAttributes] = useState<WorkerAttribute[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -89,7 +91,8 @@ export function useWorkerAttributes() {
           user_id: userId,
           attribute_type: attributeType,
           level: newLevel,
-          earned_at: new Date().toISOString()
+          earned_at: new Date().toISOString(),
+          organization_id: organizationId
         });
 
       if (error) throw error;
@@ -156,6 +159,7 @@ export function useWorkerAttributes() {
 }
 
 export function useIssueRequirements(issueId: string | null) {
+  const organizationId = useOrganizationId();
   const [requirements, setRequirements] = useState<IssueRequirement[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -188,7 +192,8 @@ export function useIssueRequirements(issueId: string | null) {
         .insert({
           issue_id: issueId,
           attribute_type: attributeType,
-          required_level: requiredLevel
+          required_level: requiredLevel,
+          organization_id: organizationId
         });
 
       if (error) throw error;

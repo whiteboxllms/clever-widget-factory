@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { BaseIssue } from "@/types/issues";
 
 export interface ToolIssue extends BaseIssue {
@@ -8,6 +9,7 @@ export interface ToolIssue extends BaseIssue {
 }
 
 export function useToolIssues(toolId: string | null) {
+  const organizationId = useOrganizationId();
   const [issues, setIssues] = useState<ToolIssue[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -68,6 +70,7 @@ export function useToolIssues(toolId: string | null) {
           context_id: toolId,
           description: description.trim(),
           issue_type: issueType,
+          organization_id: organizationId,
           damage_assessment: damageAssessment,
           efficiency_loss_percentage: efficiencyLoss,
           report_photo_urls: photoUrls,
@@ -86,7 +89,8 @@ export function useToolIssues(toolId: string | null) {
           old_status: null,
           new_status: 'active',
           changed_by: user.data.user.id,
-          notes: `Issue reported: "${description.trim().substring(0, 50)}${description.trim().length > 50 ? '...' : ''}"`
+          notes: `Issue reported: "${description.trim().substring(0, 50)}${description.trim().length > 50 ? '...' : ''}"`,
+          organization_id: organizationId
         });
 
       toast({
@@ -184,7 +188,8 @@ export function useToolIssues(toolId: string | null) {
                 field_changed: field,
                 old_value: oldValue ? String(oldValue) : null,
                 new_value: newValue ? String(newValue) : null,
-                notes: `Field '${field}' updated during issue edit`
+                notes: `Field '${field}' updated during issue edit`,
+                organization_id: organizationId
               })
           );
         }

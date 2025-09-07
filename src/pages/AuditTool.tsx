@@ -129,7 +129,10 @@ const AuditTool = () => {
 
       const { error: auditError } = await supabase
         .from('tool_audits')
-        .insert(auditData);
+        .insert({
+          ...auditData,
+          organization_id: organizationId
+        });
 
       if (auditError) throw auditError;
 

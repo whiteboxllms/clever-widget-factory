@@ -3,6 +3,7 @@ import { useState, useCallback } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
+import { useOrganizationId } from "@/hooks/useOrganizationId";
 
 export interface TempPhoto {
   id: string;
@@ -20,6 +21,7 @@ export interface SavedPhoto {
 }
 
 export const useTempPhotoStorage = () => {
+  const organizationId = useOrganizationId();
   const [tempPhotos, setTempPhotos] = useState<TempPhoto[]>([]);
   const enhancedToast = useEnhancedToast();
 
@@ -98,6 +100,7 @@ export const useTempPhotoStorage = () => {
             file_name: tempPhoto.fileName,
             file_url: uploadData.path,
             file_type: compressionResult.file.type,
+            organization_id: organizationId,
             attachment_type: 'evidence',
             uploaded_by: (await supabase.auth.getUser()).data.user?.id
           })

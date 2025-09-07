@@ -20,6 +20,7 @@ export interface AssetScore {
 }
 
 export const useAssetScores = (assetId?: string) => {
+  const organizationId = useOrganizationId();
   const [scores, setScores] = useState<AssetScore[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();

@@ -14,6 +14,7 @@ import { MissionTemplates } from '@/components/MissionTemplates';
 import { SimpleMissionForm } from '@/components/SimpleMissionForm';
 import { MissionTaskList } from '@/components/MissionTaskList';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { useOrganizationId } from '@/hooks/useOrganizationId';
 
 import { withAuth, checkUserRole as checkUserRoleAuth } from '@/lib/authUtils';
 interface Mission {
@@ -58,6 +59,7 @@ const Missions = () => {
   const {
     user
   } = useAuth();
+  const organizationId = useOrganizationId();
   const {
     toast
   } = useToast();
@@ -419,7 +421,8 @@ const Missions = () => {
               title: task.title,
               policy: task.policy || null,
               observations: task.observations || null,
-              assigned_to: task.assigned_to || null
+              assigned_to: task.assigned_to || null,
+              organization_id: organizationId
             })))
             .select();
           

@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useImageUpload } from '@/hooks/useImageUpload';
 import { showErrorToast } from '@/components/ErrorToast';
+import { useOrganizationId } from '@/hooks/useOrganizationId';
 import { useEnhancedToast } from '@/hooks/useEnhancedToast';
 
 
@@ -42,6 +43,7 @@ const AuditTool = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  const organizationId = useOrganizationId();
   const queryClient = useQueryClient();
   const { uploadImages, isUploading } = useImageUpload();
 

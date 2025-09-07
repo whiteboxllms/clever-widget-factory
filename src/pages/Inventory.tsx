@@ -28,6 +28,7 @@ import { Switch } from '@/components/ui/switch';
 import { InventoryItemForm } from '@/components/InventoryItemForm';
 import { ReceivingDialog } from '@/components/ReceivingDialog';
 import { useParentStructures } from '@/hooks/tools/useParentStructures';
+import { useOrganizationId } from '@/hooks/useOrganizationId';
 
 // Supplier interface removed - supplier tracking moved to stock additions
 
@@ -603,7 +604,8 @@ export default function Inventory() {
             new_quantity: quantityChanged ? newQuantity : null,
             quantity_change: quantityChanged ? (newQuantity - oldQuantity) : null,
             changed_by: currentUser.id,
-            change_reason: changeReason
+            change_reason: changeReason,
+            organization_id: organizationId
           }]);
 
         if (historyError) {
@@ -763,7 +765,8 @@ export default function Inventory() {
             change_reason: quantityChange.reason || null,
             order_id: fulfilledOrderId,
             supplier_name: quantityOperation === 'add' ? (quantityChange.supplierName || null) : null,
-            supplier_url: quantityOperation === 'add' ? (quantityChange.supplierUrl || null) : null
+            supplier_url: quantityOperation === 'add' ? (quantityChange.supplierUrl || null) : null,
+            organization_id: organizationId
           }]);
 
         if (historyError) {
@@ -781,7 +784,8 @@ export default function Inventory() {
                 part_id: quantityPart.id,
                 quantity_used: amount,
                 used_by: currentUser.id,
-                usage_description: quantityChange.reason || `Manual usage: ${amount} ${quantityPart.unit || 'pieces'} of ${quantityPart.name}`
+                usage_description: quantityChange.reason || `Manual usage: ${amount} ${quantityPart.unit || 'pieces'} of ${quantityPart.name}`,
+                organization_id: organizationId
               }]);
 
             if (usageError) {

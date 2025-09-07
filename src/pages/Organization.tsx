@@ -5,10 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Send, Copy } from 'lucide-react';
+import { Trash2, Send, Copy, Users } from 'lucide-react';
 import { useOrganization } from '@/hooks/useOrganization';
 import { useInvitations } from '@/hooks/useInvitations';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Invitation {
   id: string;
@@ -19,24 +20,69 @@ interface Invitation {
   created_at: string;
 }
 
+interface OrganizationMember {
+  id: string;
+  user_id: string;
+  role: string;
+  joined_at: string;
+  profiles: {
+    full_name: string | null;
+  } | null;
+}
+
 const Organization = () => {
   const { organization, isAdmin } = useOrganization();
   const { sendInvitation, getInvitations, revokeInvitation, loading } = useInvitations();
   const { toast } = useToast();
   
   const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [members, setMembers] = useState<OrganizationMember[]>([]);
   const [newInviteEmail, setNewInviteEmail] = useState('');
   const [newInviteRole, setNewInviteRole] = useState('user');
 
   useEffect(() => {
     if (isAdmin) {
       loadInvitations();
+      loadMembers();
     }
   }, [isAdmin]);
 
   const loadInvitations = async () => {
     const data = await getInvitations();
     setInvitations(data);
+  };
+
+  const loadMembers = async () => {
+    if (!organization) return;
+    
+    const { data, error } = await supabase
+      .from('organization_members')
+      .select('*')
+      .eq('organization_id', organization.id)
+      .order('joined_at', { ascending: true });
+
+    if (error) {
+      console.error('Error loading members:', error);
+      return;
+    }
+
+    // Get profile data separately for each member
+    const membersWithProfiles = await Promise.all(
+      (data || []).map(async (member) => {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('user_id', member.user_id)
+          .single();
+        
+        return {
+          ...member,
+          profiles: profile
+        };
+      })
+    );
+
+    setMembers(membersWithProfiles);
   };
 
   const handleSendInvitation = async (e: React.FormEvent) => {
@@ -139,6 +185,7 @@ const Organization = () => {
                       <SelectContent>
                         <SelectItem value="user">User</SelectItem>
                         <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="leadership">Leadership</SelectItem>
                         <SelectItem value="contributor">Contributor</SelectItem>
                         <SelectItem value="tool_keeper">Tool Keeper</SelectItem>
                       </SelectContent>
@@ -152,6 +199,41 @@ const Organization = () => {
                   </div>
                 </div>
               </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Organization Members
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {members.length === 0 ? (
+                <p className="text-muted-foreground">No members found</p>
+              ) : (
+                <div className="space-y-2">
+                  {members.map((member) => (
+                    <div
+                      key={member.id}
+                      className="flex items-center justify-between p-3 border rounded-lg"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3">
+                          <span className="font-medium">
+                            {member.profiles?.full_name || 'Unknown User'}
+                          </span>
+                          <Badge variant="outline">{member.role}</Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Joined: {new Date(member.joined_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 

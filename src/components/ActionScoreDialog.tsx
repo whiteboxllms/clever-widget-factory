@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Copy, User, Calendar, Wrench, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useScoringPrompts } from "@/hooks/useScoringPrompts";
 import { useActionScores, ActionScore } from "@/hooks/useActionScores";
 import { ScoreEntryForm } from "./ScoreEntryForm";
@@ -38,6 +39,7 @@ export function ActionScoreDialog({
   existingScore 
 }: ActionScoreDialogProps) {
   const [selectedPromptId, setSelectedPromptId] = useState<string>("");
+  const organizationId = useOrganizationId();
   const [aiResponse, setAiResponse] = useState("");
   const [parsedScores, setParsedScores] = useState<Record<string, { score: number; reason: string }> | null>(null);
   const [rootCauses, setRootCauses] = useState<string[]>([]);
@@ -252,7 +254,8 @@ export function ActionScoreDialog({
           required_tools: action.required_tools || [],
           required_stock: action.required_stock || [],
           attachments: action.attachments || [],
-          plan_commitment: action.plan_commitment || false
+          plan_commitment: action.plan_commitment || false,
+          organization_id: organizationId
         };
 
         const { error: createError } = await supabase

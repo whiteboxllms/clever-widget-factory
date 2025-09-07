@@ -9,6 +9,7 @@ import { UnifiedActionDialog } from "./UnifiedActionDialog";
 import { createIssueAction } from "@/types/actions";
 import { ManageIssueActionsDialog } from "./ManageIssueActionsDialog";
 import { IssueScoreDialog } from "./IssueScoreDialog";
+import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { IssueQuickResolveDialog } from "./IssueQuickResolveDialog";
 import { useAssetScores, AssetScore } from "@/hooks/useAssetScores";
 import { useIssueActions } from "@/hooks/useIssueActions";
@@ -38,6 +39,7 @@ interface IssueCardProps {
 
 export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProps) {
   const [isRemoving, setIsRemoving] = useState(false);
+  const organizationId = useOrganizationId();
   const [showCreateActionDialog, setShowCreateActionDialog] = useState(false);
   const [showManageActionsDialog, setShowManageActionsDialog] = useState(false);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
@@ -73,7 +75,8 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
           old_status: issue.status,
           new_status: 'removed',
           changed_by: (await supabase.auth.getUser()).data.user?.id,
-          notes: 'Issue removed during check-in'
+          notes: 'Issue removed during check-in',
+          organization_id: organizationId
         });
 
       if (historyError) throw historyError;

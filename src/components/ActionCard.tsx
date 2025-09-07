@@ -10,6 +10,7 @@ import { CheckCircle, Circle, Clock, User, Upload, Image, ChevronDown, ChevronRi
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { DEFAULT_DONE_DEFINITION } from "@/lib/constants";
@@ -67,6 +68,7 @@ interface ActionCardProps {
 
 export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSave, onCancel, onEdit, tempPhotoStorage, compact = false, onToggleComplete }: ActionCardProps) {
   const { toast } = useToast();
+  const organizationId = useOrganizationId();
   const enhancedToast = useEnhancedToast();
   const { getScoreForAction } = useAssetScores();
   const planTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -411,6 +413,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
             .insert({
               task_id: action.id,
               mission_id: action.mission_id,
+              organization_id: organizationId,
               file_name: file.name,
               file_url: uploadData.path,
               file_type: compressionResult.file.type,

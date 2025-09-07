@@ -95,6 +95,7 @@ export function IssueQuickResolveDialog({
       if (updateError) throw updateError;
 
       // Log the resolution in history
+      const organizationId = useOrganizationId();
       const { error: historyError } = await supabase
         .from('issue_history')
         .insert({
@@ -103,7 +104,8 @@ export function IssueQuickResolveDialog({
           old_status: issue.status,
           new_status: 'resolved',
           field_changed: 'status',
-          notes: `Issue resolved. Root cause: ${formData.rootCause}. Resolution: ${formData.resolutionNotes}`
+          notes: `Issue resolved. Root cause: ${formData.rootCause}. Resolution: ${formData.resolutionNotes}`,
+          organization_id: organizationId
         });
 
       if (historyError) throw historyError;

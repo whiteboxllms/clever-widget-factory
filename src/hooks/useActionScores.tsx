@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useOrganizationId } from '@/hooks/useOrganizationId';
 
 export interface ActionScore {
   id: string;
@@ -19,6 +20,7 @@ export interface ActionScore {
 }
 
 export const useActionScores = (actionId?: string) => {
+  const organizationId = useOrganizationId();
   const [scores, setScores] = useState<ActionScore[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -79,6 +81,7 @@ export const useActionScores = (actionId?: string) => {
           ...scoreData,
           source_type: 'action',
           source_id: scoreData.action_id,
+          organization_id: organizationId,
         })
         .select()
         .single();

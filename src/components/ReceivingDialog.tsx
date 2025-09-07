@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Package, Calendar, Building2, Minus, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { OrderIssueReportDialog } from "./OrderIssueReportDialog";
 
 interface PendingOrder {
@@ -51,6 +52,7 @@ export function ReceivingDialog({
   part, 
   onSuccess 
 }: ReceivingDialogProps) {
+  const organizationId = useOrganizationId();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [receivingNotes, setReceivingNotes] = useState("");
   const [actualQuantity, setActualQuantity] = useState<number | ''>('');
@@ -162,7 +164,8 @@ export function ReceivingDialog({
             change_reason: `Order received: ${order.supplier_name || 'Unknown supplier'}`,
             changed_by: user.data.user.id,
             order_id: order.id,
-            supplier_name: order.supplier_name
+            supplier_name: order.supplier_name,
+            organization_id: organizationId
           });
 
         if (historyError) throw historyError;

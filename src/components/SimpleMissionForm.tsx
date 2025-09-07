@@ -12,6 +12,7 @@ import { ResourceSelector } from '@/components/ResourceSelector';
 
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
@@ -86,6 +87,7 @@ export function SimpleMissionForm({
   isEditing = false,
   missionId // Add mission ID parameter
 }: SimpleMissionFormProps) {
+  const organizationId = useOrganizationId();
   const { toast } = useToast();
   const { uploadImages, isUploading: isImageUploading } = useImageUpload();
   const enhancedToast = useEnhancedToast();
@@ -296,7 +298,8 @@ export function SimpleMissionForm({
             file_url: uploadResult.fileName, // Use fileName from result
             file_type: file.type,
             attachment_type: 'evidence',
-            uploaded_by: (await supabase.auth.getUser()).data.user?.id
+            uploaded_by: (await supabase.auth.getUser()).data.user?.id,
+            organization_id: organizationId
           })
           .select()
           .single();

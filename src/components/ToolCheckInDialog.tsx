@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { useOrganizationId } from '@/hooks/useOrganizationId';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_VERSION, getBrowserInfo } from '@/lib/version';
@@ -48,6 +49,7 @@ interface ToolCheckInDialogProps {
 }
 
 export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolCheckInDialogProps) {
+  const organizationId = useOrganizationId();
   const { toast } = useToast();
   const { user } = useAuth();
   const { uploadImages, isUploading: isUploadingImages } = useImageUpload();
@@ -258,6 +260,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
             reported_by: user?.id,
             description: form.tool_issues.trim(),
             issue_type: 'general',
+            organization_id: organizationId,
             status: 'active',
             related_checkout_id: checkout.id,
             report_photo_urls: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : []

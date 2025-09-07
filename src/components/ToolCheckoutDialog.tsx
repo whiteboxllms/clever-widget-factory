@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useAuth } from "@/hooks/useAuth";
 import { Upload, X, ExternalLink, Loader2 } from "lucide-react";
 import { compressImage, formatFileSize } from "@/lib/imageUtils";
@@ -40,6 +41,7 @@ interface CheckoutForm {
 }
 
 export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assignedTasks = [], missionId, taskId }: ToolCheckoutDialogProps) {
+  const organizationId = useOrganizationId();
   const { user } = useAuth();
   const [form, setForm] = useState<CheckoutForm>({
     intendedUsage: "",
@@ -201,7 +203,8 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
           intended_usage: form.intendedUsage || null,
           notes: form.notes || null,
           before_image_url: beforeImageUrl,
-          pre_existing_issues: form.preCheckoutIssues || null
+          pre_existing_issues: form.preCheckoutIssues || null,
+          organization_id: organizationId
         })
         .select()
         .single();
@@ -215,7 +218,8 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
           .insert({
             mission_id: missionId,
             task_id: taskId || null,
-            checkout_id: checkoutData.id
+            checkout_id: checkoutData.id,
+            organization_id: organizationId
           });
 
         if (missionToolError) {
@@ -243,6 +247,7 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
             context_id: tool.id,
             reported_by: user?.id,
             description: form.preCheckoutIssues.trim(),
+            organization_id: organizationId,
             issue_type: 'general',
             status: 'active',
             related_checkout_id: checkoutData.id,

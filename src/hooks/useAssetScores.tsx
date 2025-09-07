@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useOrganizationId } from '@/hooks/useOrganizationId';
 
 export interface AssetScore {
   id: string;
@@ -104,7 +105,8 @@ export const useAssetScores = (assetId?: string) => {
               description: `Automatically created action for issue score tracking`,
               status: 'not_started',
               linked_issue_id: scoreData.source_id,
-              asset_id: scoreData.asset_id
+              asset_id: scoreData.asset_id,
+              organization_id: organizationId
             })
             .select('id')
             .single();
@@ -128,6 +130,7 @@ export const useAssetScores = (assetId?: string) => {
           source_id: scoreData.source_id,
           prompt_id: scoreData.prompt_id,
           prompt_text: scoreData.prompt_text,
+          organization_id: organizationId,
           scores: scoreData.scores,
           ai_response: scoreData.ai_response,
           likely_root_causes: scoreData.likely_root_causes || [],

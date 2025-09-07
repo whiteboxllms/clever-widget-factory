@@ -8,6 +8,7 @@ import { X, Plus, Search, User, Undo2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { useOrganizationId } from '@/hooks/useOrganizationId';
 import { ToolCheckoutDialog } from '@/components/ToolCheckoutDialog';
 import { ToolCheckInDialog } from '@/components/ToolCheckInDialog';
 import { Tables } from '@/integrations/supabase/types';
@@ -45,6 +46,7 @@ interface ResourceSelectorProps {
 }
 
 export function ResourceSelector({ selectedResources, onResourcesChange, assignedTasks = [], missionId, assignedUsers = [] }: ResourceSelectorProps) {
+  const organizationId = useOrganizationId();
   const [parts, setParts] = useState<Part[]>([]);
   const [tools, setTools] = useState<Tool[]>([]);
   const [teamTools, setTeamTools] = useState<any[]>([]);
@@ -324,7 +326,8 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
           part_id: resource.id,
           quantity_used: resource.quantity || 1,
           used_by: user.id,
-          usage_description: `Used ${resource.quantity || 1} ${resource.unit || 'pieces'} of ${resource.name} for mission`
+          usage_description: `Used ${resource.quantity || 1} ${resource.unit || 'pieces'} of ${resource.name} for mission`,
+          organization_id: organizationId
         });
 
       if (error) throw error;
@@ -364,7 +367,8 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
           new_quantity: Math.max(0, newQuantity),
           quantity_change: -(resource.quantity || 1),
           changed_by: user.id,
-          change_reason: `Used for mission - ${resource.quantity || 1} ${resource.unit || 'pieces'} of ${resource.name}`
+          change_reason: `Used for mission - ${resource.quantity || 1} ${resource.unit || 'pieces'} of ${resource.name}`,
+          organization_id: organizationId
         });
 
       if (historyError) {

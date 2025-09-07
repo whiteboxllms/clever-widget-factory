@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useOrganizationId } from "@/hooks/useOrganizationId";
 
 interface PendingOrder {
   id: string;
@@ -46,6 +47,7 @@ export function OrderDialog({
 }: OrderDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const organizationId = useOrganizationId();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     quantity: "",
@@ -120,7 +122,8 @@ export function OrderDialog({
             ...orderData,
             part_id: partId,
             ordered_by: user.id,
-            status: 'pending'
+            status: 'pending',
+            organization_id: organizationId
           }]);
 
         if (error) throw error;

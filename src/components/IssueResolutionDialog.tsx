@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { Loader2, X } from "lucide-react";
 
 interface ToolIssue {
@@ -44,6 +45,7 @@ export function IssueResolutionDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
   const { uploadImages, isUploading } = useImageUpload();
+  const organizationId = useOrganizationId();
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -142,7 +144,8 @@ export function IssueResolutionDialog({
           old_status: 'active',
           new_status: 'resolved',
           changed_by: (await supabase.auth.getUser()).data.user?.id,
-          notes: `Resolved: ${form.resolution_notes}`
+          notes: `Resolved: ${form.resolution_notes}`,
+          organization_id: organizationId
         });
 
       if (historyError) throw historyError;

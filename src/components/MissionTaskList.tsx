@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Plus } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useOrganizationId } from "@/hooks/useOrganizationId";
 
 interface Action {
   id: string;
@@ -37,6 +38,7 @@ interface MissionActionListProps {
 
 export function MissionTaskList({ missionId, profiles, canEdit = false, missionNumber }: MissionActionListProps) {
   const { toast } = useToast();
+  const organizationId = useOrganizationId();
   const [actions, setActions] = useState<Action[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddingAction, setIsAddingAction] = useState(false);
@@ -77,7 +79,8 @@ export function MissionTaskList({ missionId, profiles, canEdit = false, missionN
           title: actionData.title,
           policy: actionData.policy,
           observations: actionData.observations,
-          assigned_to: actionData.assigned_to || null
+          assigned_to: actionData.assigned_to || null,
+          organization_id: organizationId
         })
         .select()
         .single();

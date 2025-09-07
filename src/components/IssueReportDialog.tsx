@@ -20,6 +20,7 @@ import { CreateIssueDialog } from "./CreateIssueDialog";
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useOrganizationId } from "@/hooks/useOrganizationId";
 
 interface IssueReportDialogProps {
   tool: Tool | null;
@@ -45,6 +46,7 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
 
   const { issues, isLoading, createIssue, fetchIssues, updateIssue } = useToolIssues(tool?.id || null);
   const { uploadImages, isUploading } = useImageUpload();
+  const organizationId = useOrganizationId();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,7 +145,8 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
           old_status: issue.status,
           new_status: 'removed',
           changed_by: (await supabase.auth.getUser()).data.user?.id,
-          notes: 'Issue removed by toolkeeper'
+          notes: 'Issue removed by toolkeeper',
+          organization_id: organizationId
         });
 
       if (historyError) throw historyError;

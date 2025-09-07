@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { BaseIssue, ContextType, ToolIssue, OrderIssue } from "@/types/issues";
 
 export interface GenericIssuesFilters {
@@ -10,6 +11,7 @@ export interface GenericIssuesFilters {
 }
 
 export function useGenericIssues(filters: GenericIssuesFilters = {}) {
+  const organizationId = useOrganizationId();
   const [issues, setIssues] = useState<BaseIssue[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -76,7 +78,10 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
 
       const { data, error } = await supabase
         .from('issues')
-        .insert(insertData)
+        .insert({
+          ...insertData,
+          organization_id: organizationId
+        })
         .select()
         .single();
 
@@ -88,6 +93,7 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
         .insert({
           issue_id: data.id,
           old_status: null,
+          organization_id: organizationId,
           new_status: 'active',
           changed_by: user.data.user.id,
           notes: `Issue reported: "${issueData.description?.substring(0, 50)}${issueData.description && issueData.description.length > 50 ? '...' : ''}"`
@@ -153,6 +159,7 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
                 field_changed: field,
                 old_value: oldValue ? String(oldValue) : null,
                 new_value: newValue ? String(newValue) : null,
+                organization_id: organizationId,
                 notes: `Field '${field}' updated during issue edit`
               })
           );

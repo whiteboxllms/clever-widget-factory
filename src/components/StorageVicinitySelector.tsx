@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { useOrganizationId } from '@/hooks/useOrganizationId';
 
 interface StorageVicinity {
   id: string;
@@ -35,6 +36,7 @@ export function StorageVicinitySelector({ value, onValueChange, placeholder = "S
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
+  const organizationId = useOrganizationId();
 
   const fetchVicinities = async () => {
     setLoading(true);
@@ -74,7 +76,8 @@ export function StorageVicinitySelector({ value, onValueChange, placeholder = "S
         .insert({
           name: newVicinity.name.trim(),
           description: newVicinity.description.trim() || null,
-          created_by: user.id
+          created_by: user.id,
+          organization_id: organizationId
         })
         .select()
         .single();

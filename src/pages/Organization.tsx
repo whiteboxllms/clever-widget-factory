@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,9 +33,16 @@ interface OrganizationMember {
 }
 
 const Organization = () => {
-  const { organization, isAdmin } = useOrganization();
+  const { user } = useAuth();
+  const { organizationId } = useParams();
+  const { organization: currentOrg, isAdmin: isCurrentOrgAdmin } = useOrganization();
   const { sendInvitation, getInvitations, revokeInvitation, loading } = useInvitations();
   const { toast } = useToast();
+  
+  // Use the organization from URL param or fallback to current user's org
+  const targetOrgId = organizationId || currentOrg?.id;
+  const [targetOrganization, setTargetOrganization] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [members, setMembers] = useState<OrganizationMember[]>([]);
@@ -41,11 +50,56 @@ const Organization = () => {
   const [newInviteRole, setNewInviteRole] = useState('user');
 
   useEffect(() => {
-    if (isAdmin) {
+    if (targetOrgId) {
+      loadOrganizationData();
+    }
+  }, [targetOrgId]);
+
+  useEffect(() => {
+    if (isAdmin && targetOrgId) {
       loadInvitations();
       loadMembers();
     }
-  }, [isAdmin]);
+  }, [isAdmin, targetOrgId]);
+
+  const loadOrganizationData = async () => {
+    if (!targetOrgId) return;
+
+    // If viewing current user's org, use existing data
+    if (targetOrgId === currentOrg?.id) {
+      setTargetOrganization(currentOrg);
+      setIsAdmin(isCurrentOrgAdmin);
+      return;
+    }
+
+    // Otherwise, fetch the specific organization
+    try {
+      const { data: orgData, error: orgError } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('id', targetOrgId)
+        .single();
+
+      if (orgError) {
+        console.error('Error loading organization:', orgError);
+        return;
+      }
+
+      setTargetOrganization(orgData);
+
+      // Check if current user is admin of this organization
+      const { data: memberData } = await supabase
+        .from('organization_members')
+        .select('role')
+        .eq('organization_id', targetOrgId)
+        .eq('user_id', user?.id)
+        .single();
+
+      setIsAdmin(memberData?.role === 'admin' || memberData?.role === 'leadership');
+    } catch (error) {
+      console.error('Error in loadOrganizationData:', error);
+    }
+  };
 
   const loadInvitations = async () => {
     const data = await getInvitations();
@@ -53,12 +107,12 @@ const Organization = () => {
   };
 
   const loadMembers = async () => {
-    if (!organization) return;
+    if (!targetOrgId) return;
     
     const { data, error } = await supabase
       .from('organization_members')
       .select('*')
-      .eq('organization_id', organization.id)
+      .eq('organization_id', targetOrgId)
       .order('joined_at', { ascending: true });
 
     if (error) {
@@ -112,7 +166,7 @@ const Organization = () => {
     });
   };
 
-  if (!organization) {
+  if (!targetOrganization) {
     return (
       <div className="container mx-auto p-6">
         <Card>
@@ -138,18 +192,18 @@ const Organization = () => {
         <CardContent className="space-y-4">
           <div>
             <Label>Organization Name</Label>
-            <p className="text-lg font-medium">{organization.name}</p>
+            <p className="text-lg font-medium">{targetOrganization.name}</p>
           </div>
-          {organization.subdomain && (
+          {targetOrganization.subdomain && (
             <div>
               <Label>Subdomain</Label>
-              <p className="text-lg font-medium">{organization.subdomain}</p>
+              <p className="text-lg font-medium">{targetOrganization.subdomain}</p>
             </div>
           )}
           <div>
             <Label>Status</Label>
-            <Badge variant={organization.is_active ? "default" : "destructive"}>
-              {organization.is_active ? "Active" : "Inactive"}
+            <Badge variant={targetOrganization.is_active ? "default" : "destructive"}>
+              {targetOrganization.is_active ? "Active" : "Inactive"}
             </Badge>
           </div>
         </CardContent>

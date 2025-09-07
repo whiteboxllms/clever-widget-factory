@@ -123,6 +123,11 @@ function AppContent() {
           <Organization />
         </ProtectedRoute>
       } />
+      <Route path="/organization/:organizationId" element={
+        <ProtectedRoute>
+          <Organization />
+        </ProtectedRoute>
+      } />
       <Route path="/admin/organizations" element={
         <SuperAdminRoute>
           <AdminOrganizations />

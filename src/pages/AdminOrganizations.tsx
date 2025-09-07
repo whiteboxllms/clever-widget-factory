@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +25,7 @@ interface Organization {
 }
 
 const AdminOrganizations = () => {
+  const navigate = useNavigate();
   const { isSuperAdmin, loading: superAdminLoading } = useSuperAdmin();
   const { getAllOrganizations, getOrganizationWithMembers, createOrganization, updateOrganization, loading } = useOrganizations();
   const { toast } = useToast();
@@ -227,7 +229,8 @@ const AdminOrganizations = () => {
               {filteredOrganizations.map((org) => (
                 <div
                   key={org.id}
-                  className="flex items-center justify-between p-4 border rounded-lg"
+                  className="flex items-center justify-between p-4 border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+                  onClick={() => navigate(`/organization/${org.id}`)}
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
@@ -251,14 +254,20 @@ const AdminOrganizations = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => openViewMembersDialog(org)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openViewMembersDialog(org);
+                      }}
                     >
                       <Eye className="w-4 h-4" />
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => openEditDialog(org)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditDialog(org);
+                      }}
                     >
                       <Edit className="w-4 h-4" />
                     </Button>

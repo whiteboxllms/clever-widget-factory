@@ -44,8 +44,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setTimeout(async () => {
             const { data: members } = await supabase
               .from('organization_members')
-              .select('role')
-              .eq('user_id', session.user.id);
+              .select('role, organization_id')
+              .eq('user_id', session.user.id)
+              .order('joined_at', { ascending: true })
+              .limit(1);
             const member = members?.[0];
             const userRole = member?.role;
             setIsAdmin(userRole === 'admin' || userRole === 'leadership');
@@ -73,8 +75,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           const { data: members } = await supabase
             .from('organization_members')
-            .select('role')
-            .eq('user_id', session.user.id);
+            .select('role, organization_id')
+            .eq('user_id', session.user.id)
+            .order('joined_at', { ascending: true })
+            .limit(1);
           const member = members?.[0];
           const userRole = member?.role;
           setIsAdmin(userRole === 'admin' || userRole === 'leadership');

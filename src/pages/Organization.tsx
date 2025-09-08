@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Send, Copy, Users, Shield, User, Wrench, Crown, Star, Info } from 'lucide-react';
+import { Trash2, Send, Copy, Users, Shield, User, Wrench, Star, Info } from 'lucide-react';
 import { useOrganization } from '@/hooks/useOrganization';
 import { useInvitations } from '@/hooks/useInvitations';
 import { useToast } from '@/hooks/use-toast';
@@ -264,7 +264,7 @@ const Organization = () => {
                 <h3 className="font-semibold text-foreground">Admin</h3>
               </div>
               <p className="text-sm text-muted-foreground mb-3">
-                Administrative access with member and organization management.
+                Full administrative access with member management and strategic oversight capabilities.
               </p>
               <ul className="text-xs text-muted-foreground space-y-1">
                 <li>• All Contributor permissions</li>
@@ -272,20 +272,6 @@ const Organization = () => {
                 <li>• Send/revoke invitations</li>
                 <li>• Edit organization settings</li>
                 <li>• Access admin analytics</li>
-              </ul>
-            </div>
-
-            {/* Leadership Role */}
-            <div className="p-4 border rounded-lg bg-muted/20">
-              <div className="flex items-center gap-2 mb-3">
-                <Crown className="w-5 h-5 text-red-600" />
-                <h3 className="font-semibold text-foreground">Leadership</h3>
-              </div>
-              <p className="text-sm text-muted-foreground mb-3">
-                Full administrative access with strategic oversight capabilities.
-              </p>
-              <ul className="text-xs text-muted-foreground space-y-1">
-                <li>• All Admin permissions</li>
                 <li>• Strategic planning tools</li>
                 <li>• Performance analytics</li>
                 <li>• Worker attribute management</li>
@@ -353,12 +339,6 @@ const Organization = () => {
                           <div className="flex items-center gap-2">
                             <Shield className="w-4 h-4" />
                             <span>Admin - Manage members</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="leadership">
-                          <div className="flex items-center gap-2">
-                            <Crown className="w-4 h-4" />
-                            <span>Leadership - Full access</span>
                           </div>
                         </SelectItem>
                       </SelectContent>

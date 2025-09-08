@@ -31,7 +31,7 @@ export function usePendingInvitations() {
           status,
           created_at,
           expires_at,
-          organizations (
+          organizations!inner (
             name
           )
         `)

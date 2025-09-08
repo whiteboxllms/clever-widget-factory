@@ -391,7 +391,6 @@ const Missions = () => {
         } = await supabase.from('missions').insert({
           title: formData.title,
           problem_statement: formData.problem_statement,
-          plan: '',
           resources_required: formData.selected_resources.length > 0 ? formData.selected_resources.map(r => {
             const quantity = r.quantity || 1;
             const unit = r.unit || (r.type === 'part' ? 'pieces' : '');

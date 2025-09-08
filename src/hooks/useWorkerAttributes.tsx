@@ -91,9 +91,8 @@ export function useWorkerAttributes() {
           user_id: userId,
           attribute_type: attributeType,
           level: newLevel,
-          earned_at: new Date().toISOString(),
-          organization_id: organizationId
-        });
+          earned_at: new Date().toISOString()
+        } as any);
 
       if (error) throw error;
 
@@ -192,9 +191,8 @@ export function useIssueRequirements(issueId: string | null) {
         .insert({
           issue_id: issueId,
           attribute_type: attributeType,
-          required_level: requiredLevel,
-          organization_id: organizationId
-        });
+          required_level: requiredLevel
+        } as any);
 
       if (error) throw error;
       await fetchRequirements();

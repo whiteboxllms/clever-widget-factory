@@ -70,12 +70,11 @@ export function useToolIssues(toolId: string | null) {
           context_id: toolId,
           description: description.trim(),
           issue_type: issueType,
-          organization_id: organizationId,
           damage_assessment: damageAssessment,
           efficiency_loss_percentage: efficiencyLoss,
           report_photo_urls: photoUrls,
           reported_by: user.data.user.id
-        })
+        } as any)
         .select()
         .single();
 
@@ -90,8 +89,7 @@ export function useToolIssues(toolId: string | null) {
           new_status: 'active',
           changed_by: user.data.user.id,
           notes: `Issue reported: "${description.trim().substring(0, 50)}${description.trim().length > 50 ? '...' : ''}"`,
-          organization_id: organizationId
-        });
+        } as any);
 
       toast({
         title: "Issue reported",
@@ -188,9 +186,8 @@ export function useToolIssues(toolId: string | null) {
                 field_changed: field,
                 old_value: oldValue ? String(oldValue) : null,
                 new_value: newValue ? String(newValue) : null,
-                notes: `Field '${field}' updated during issue edit`,
-                organization_id: organizationId
-              })
+                notes: `Field '${field}' updated during issue edit`
+              } as any)
           );
         }
       }

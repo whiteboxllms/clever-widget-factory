@@ -52,9 +52,8 @@ export const useScoringPrompts = () => {
           name: promptData.name,
           prompt_text: promptData.prompt_text,
           is_default: promptData.is_default || false,
-          created_by: user.id,
-          organization_id: organizationId,
-        })
+          created_by: user.id
+        } as any)
         .select()
         .single();
 

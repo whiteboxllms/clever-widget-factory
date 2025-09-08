@@ -204,7 +204,7 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
           notes: form.notes || null,
           before_image_url: beforeImageUrl,
           pre_existing_issues: form.preCheckoutIssues || null
-        })
+        } as any)
         .select()
         .single();
 
@@ -217,9 +217,8 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
           .insert({
             mission_id: missionId,
             task_id: taskId || null,
-            checkout_id: checkoutData.id,
-            organization_id: organizationId
-          });
+            checkout_id: checkoutData.id
+          } as any);
 
         if (missionToolError) {
           console.error('Error linking tool to mission:', missionToolError);
@@ -246,12 +245,11 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
             context_id: tool.id,
             reported_by: user?.id,
             description: form.preCheckoutIssues.trim(),
-            organization_id: organizationId,
             issue_type: 'general',
             status: 'active',
             related_checkout_id: checkoutData.id,
             report_photo_urls: beforeImageUrl ? [beforeImageUrl] : []
-          });
+          } as any);
 
         if (issueError) {
           console.error('Error creating issue from pre-checkout inspection:', issueError);

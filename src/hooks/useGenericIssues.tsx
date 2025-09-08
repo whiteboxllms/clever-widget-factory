@@ -79,9 +79,8 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
       const { data, error } = await supabase
         .from('issues')
         .insert({
-          ...insertData,
-          organization_id: organizationId
-        })
+          ...insertData
+        } as any)
         .select()
         .single();
 
@@ -93,11 +92,10 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
         .insert({
           issue_id: data.id,
           old_status: null,
-          organization_id: organizationId,
           new_status: 'active',
           changed_by: user.data.user.id,
           notes: `Issue reported: "${issueData.description?.substring(0, 50)}${issueData.description && issueData.description.length > 50 ? '...' : ''}"`
-        });
+        } as any);
 
       toast({
         title: "Issue reported",
@@ -159,9 +157,8 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
                 field_changed: field,
                 old_value: oldValue ? String(oldValue) : null,
                 new_value: newValue ? String(newValue) : null,
-                organization_id: organizationId,
                 notes: `Field '${field}' updated during issue edit`
-              })
+              } as any)
           );
         }
       }

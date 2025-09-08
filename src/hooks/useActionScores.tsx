@@ -80,9 +80,8 @@ export const useActionScores = (actionId?: string) => {
         .insert({
           ...scoreData,
           source_type: 'action',
-          source_id: scoreData.action_id,
-          organization_id: organizationId,
-        })
+          source_id: scoreData.action_id
+        } as any)
         .select()
         .single();
 

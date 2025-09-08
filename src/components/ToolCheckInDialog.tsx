@@ -263,7 +263,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
             status: 'active',
             related_checkout_id: checkout.id,
             report_photo_urls: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : []
-          });
+          } as any);
 
         if (issueError) {
           console.error('Error creating issue from check-in:', issueError);

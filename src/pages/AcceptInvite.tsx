@@ -14,10 +14,11 @@ export default function AcceptInvite() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [processed, setProcessed] = useState(false);
 
   const orgId = searchParams.get('org_id');
 
@@ -27,11 +28,60 @@ export default function AcceptInvite() {
       return;
     }
 
+    // Process auth tokens from URL (from Supabase Auth invitation email)
+    if (!processed) {
+      processInviteTokens();
+    }
+
     // If user is already logged in, just join the organization
-    if (user) {
+    if (user && processed) {
       joinOrganization();
     }
-  }, [user, orgId, navigate]);
+  }, [user, orgId, navigate, processed]);
+
+  const processInviteTokens = async () => {
+    setProcessed(true);
+    setLoading(true);
+    
+    try {
+      // Extract tokens from URL hash or search params
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = hashParams.get('access_token') || searchParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token') || searchParams.get('refresh_token');
+      const type = hashParams.get('type') || searchParams.get('type');
+
+      if (accessToken && refreshToken && type === 'invite') {
+        // Set the session using the tokens from the email
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken
+        });
+
+        if (error) {
+          console.error('Error setting session:', error);
+          setError('Invalid or expired invitation link');
+          setLoading(false);
+          return;
+        }
+
+        if (data.user) {
+          // User is now authenticated, the useEffect will handle joining the organization
+          toast({
+            title: "Invitation Accepted",
+            description: "Welcome! Joining your organization...",
+          });
+        }
+      } else {
+        // No tokens found, this might be a direct access or expired link
+        console.log('No invitation tokens found in URL');
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Error processing invite tokens:', error);
+      setError('Failed to process invitation');
+      setLoading(false);
+    }
+  };
 
   const joinOrganization = async () => {
     if (!user || !orgId) return;
@@ -107,6 +157,26 @@ export default function AcceptInvite() {
     return null;
   }
 
+  // Show loading while processing invite tokens
+  if (loading && !user && !error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle>Processing Invitation</CardTitle>
+            <CardDescription>
+              Verifying your invitation link...
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show loading while joining organization
   if (user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -125,57 +195,75 @@ export default function AcceptInvite() {
     );
   }
 
+  // Show error state or manual setup
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle>Accept Invitation</CardTitle>
+          <CardTitle>
+            {error ? "Invitation Error" : "Complete Account Setup"}
+          </CardTitle>
           <CardDescription>
-            Set your password to complete your account setup and join the organization
+            {error 
+              ? "There was an issue with your invitation link" 
+              : "Set your password to complete your account setup and join the organization"
+            }
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handlePasswordSubmit} className="space-y-4">
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          
+          {!error && (
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  placeholder="Enter your password"
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                placeholder="Enter your password"
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Confirm Password</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  placeholder="Confirm your password"
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirm Password</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                minLength={6}
-                placeholder="Confirm your password"
-              />
-            </div>
-
+              <Button 
+                type="submit" 
+                className="w-full" 
+                disabled={loading || !password || !confirmPassword}
+              >
+                {loading ? "Setting up..." : "Complete Setup"}
+              </Button>
+            </form>
+          )}
+          
+          {error && (
             <Button 
-              type="submit" 
-              className="w-full" 
-              disabled={loading || !password || !confirmPassword}
+              onClick={() => navigate('/auth')} 
+              className="w-full mt-4"
+              variant="outline"
             >
-              {loading ? "Setting up..." : "Complete Setup"}
+              Go to Login
             </Button>
-          </form>
+          )}
         </CardContent>
       </Card>
     </div>

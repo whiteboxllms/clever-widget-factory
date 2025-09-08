@@ -27,7 +27,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 }) => {
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        link: false, // Disable the default link extension from StarterKit
+      }),
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {

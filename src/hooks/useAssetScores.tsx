@@ -190,12 +190,21 @@ export const useAssetScores = (assetId?: string) => {
 
   const getScoreForIssue = async (issueId: string) => {
     try {
+      console.log('getScoreForIssue called with:', { issueId, organizationId });
+      
+      if (!organizationId) {
+        console.log('No organizationId available, skipping score fetch');
+        return null;
+      }
+
       const { data, error } = await supabase
         .from('action_scores')
         .select('*')
         .eq('source_id', issueId)
         .eq('source_type', 'issue')
         .maybeSingle();
+
+      console.log('Score query result:', { data, error });
 
       if (error) throw error;
       
@@ -223,12 +232,21 @@ export const useAssetScores = (assetId?: string) => {
 
   const getScoreForAction = async (actionId: string) => {
     try {
+      console.log('getScoreForAction called with:', { actionId, organizationId });
+      
+      if (!organizationId) {
+        console.log('No organizationId available, skipping action score fetch');
+        return null;
+      }
+
       const { data, error } = await supabase
         .from('action_scores')
         .select('*')
         .eq('source_id', actionId)
         .eq('source_type', 'action')
         .maybeSingle();
+
+      console.log('Action score query result:', { data, error });
 
       if (error) throw error;
       

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Check, ChevronsUpDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,11 @@ export const ParticipantSelector: React.FC<ParticipantSelectorProps> = ({
   assigneeId
 }) => {
   const [open, setOpen] = React.useState(false);
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Filter out the assignee from available participants
   const availableProfiles = profiles.filter(profile => profile.user_id !== assigneeId);
@@ -74,7 +79,7 @@ export const ParticipantSelector: React.FC<ParticipantSelectorProps> = ({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-full p-0">
-          {open && (
+          {open && mounted && (
             <Command key="participant-command">
               <CommandInput placeholder="Search participants..." />
               <CommandList>

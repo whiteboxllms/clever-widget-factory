@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { 
   Paperclip, 
   Calendar as CalendarIcon, 
@@ -63,6 +64,7 @@ export function UnifiedActionDialog({
   isCreating = false
 }: UnifiedActionDialogProps) {
   const { toast } = useToast();
+  const organizationId = useOrganizationId();
   const [formData, setFormData] = useState<Partial<BaseAction>>({});
   const [missionData, setMissionData] = useState<any>(null);
   const [newTool, setNewTool] = useState('');
@@ -362,6 +364,15 @@ export function UnifiedActionDialog({
       return;
     }
 
+    if (!organizationId) {
+      toast({
+        title: "Error",
+        description: "Organization context not available",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     
     try {
@@ -383,7 +394,8 @@ export function UnifiedActionDialog({
         linked_issue_id: formData.linked_issue_id || null,
         issue_reference: formData.issue_reference || null,
         status: formData.status || 'not_started',
-        plan_commitment: formData.plan_commitment || false
+        plan_commitment: formData.plan_commitment || false,
+        organization_id: organizationId
       };
 
 

@@ -29,9 +29,11 @@ export function MultiParticipantSelector({
   const [search, setSearch] = React.useState("")
   const [open, setOpen] = React.useState(false)
 
-  // Filter out the assignee from available participants
+  // Filter out the assignee and system user from available participants
   const availableProfiles = profiles.filter(profile => 
-    profile.user_id !== assigneeId
+    profile.user_id !== assigneeId &&
+    profile.user_id !== "00000000-0000-0000-0000-000000000000" &&
+    profile.full_name !== "System User"
   )
 
   // Filter profiles based on search

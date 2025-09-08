@@ -126,61 +126,63 @@ export function StorageVicinitySelector({ value, onValueChange, placeholder = "S
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[400px] p-0">
-          <Command>
-            <CommandInput placeholder="Search vicinities..." />
-            <CommandList>
-              <CommandEmpty>
-                <div className="p-2 text-center">
-                  <p className="text-sm text-muted-foreground mb-2">No vicinity found.</p>
-                  <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add New Vicinity
-                      </Button>
-                    </DialogTrigger>
-                  </Dialog>
-                </div>
-              </CommandEmpty>
-              <CommandGroup>
-                {vicinities.map((vicinity) => (
-                  <CommandItem
-                    key={vicinity.id}
-                    value={vicinity.name}
-                    onSelect={() => {
-                      onValueChange(vicinity.name);
-                      setOpen(false);
-                    }}
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        value === vicinity.name ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium">{vicinity.name}</div>
-                      {vicinity.description && (
-                        <div className="text-sm text-muted-foreground">{vicinity.description}</div>
-                      )}
-                    </div>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              {vicinities.length > 0 && (
+          {open && (
+            <Command key="storage-vicinity-command">
+              <CommandInput placeholder="Search vicinities..." />
+              <CommandList>
+                <CommandEmpty>
+                  <div className="p-2 text-center">
+                    <p className="text-sm text-muted-foreground mb-2">No vicinity found.</p>
+                    <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <Plus className="mr-2 h-4 w-4" />
+                          Add New Vicinity
+                        </Button>
+                      </DialogTrigger>
+                    </Dialog>
+                  </div>
+                </CommandEmpty>
                 <CommandGroup>
-                  <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                    <DialogTrigger asChild>
-                      <CommandItem onSelect={() => setIsAddDialogOpen(true)}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add New Vicinity
-                      </CommandItem>
-                    </DialogTrigger>
-                  </Dialog>
+                  {vicinities.map((vicinity) => (
+                    <CommandItem
+                      key={vicinity.id}
+                      value={vicinity.name}
+                      onSelect={() => {
+                        onValueChange(vicinity.name);
+                        setOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          value === vicinity.name ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium">{vicinity.name}</div>
+                        {vicinity.description && (
+                          <div className="text-sm text-muted-foreground">{vicinity.description}</div>
+                        )}
+                      </div>
+                    </CommandItem>
+                  ))}
                 </CommandGroup>
-              )}
-            </CommandList>
-          </Command>
+                {vicinities.length > 0 && (
+                  <CommandGroup>
+                    <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                      <DialogTrigger asChild>
+                        <CommandItem onSelect={() => setIsAddDialogOpen(true)}>
+                          <Plus className="mr-2 h-4 w-4" />
+                          Add New Vicinity
+                        </CommandItem>
+                      </DialogTrigger>
+                    </Dialog>
+                  </CommandGroup>
+                )}
+              </CommandList>
+            </Command>
+          )}
         </PopoverContent>
       </Popover>
 

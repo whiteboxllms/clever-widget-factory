@@ -38,7 +38,7 @@ type CheckInForm = {
   reflection: string;
   hours_used: string;
   checkin_reason: string;
-  
+  finished_action: boolean;
 };
 
 interface ToolCheckInDialogProps {
@@ -61,7 +61,8 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
     returned_to_correct_location: true,
     reflection: '',
     hours_used: '',
-    checkin_reason: ''
+    checkin_reason: '',
+    finished_action: false
   });
   const [showValidation, setShowValidation] = useState(false);
   const [selectedIssueForResolution, setSelectedIssueForResolution] = useState<any>(null);
@@ -84,7 +85,8 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         returned_to_correct_location: true,
         reflection: '',
         hours_used: '',
-        checkin_reason: ''
+        checkin_reason: '',
+        finished_action: false
       });
       // Reset photo state
       setSelectedPhotos([]);
@@ -577,6 +579,20 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
               />
               <Label htmlFor="returned_to_correct_location">
                 Tool was returned to its correct storage location: {tool.legacy_storage_vicinity}{tool.storage_location ? ` - ${tool.storage_location}` : ''}
+              </Label>
+            </div>
+
+            {/* Finished Action Checkbox */}
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="finished_action"
+                checked={form.finished_action}
+                onChange={(e) => setForm(prev => ({ ...prev, finished_action: e.target.checked }))}
+                className="rounded border-gray-300"
+              />
+              <Label htmlFor="finished_action">
+                Finished action
               </Label>
             </div>
 

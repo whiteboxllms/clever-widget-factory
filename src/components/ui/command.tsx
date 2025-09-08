@@ -39,45 +39,58 @@ const Command = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive>
 >(({ className, ...props }, ref) => {
-  const [mounted, setMounted] = React.useState(false);
+  const [isReady, setIsReady] = React.useState(false);
   const internalRef = React.useRef<React.ElementRef<typeof CommandPrimitive>>(null);
   
-  // Use useLayoutEffect to ensure synchronization with layout phase
-  React.useLayoutEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Ensure ref is never null by using a fallback
-  const safeRef = React.useMemo(() => {
-    if (typeof ref === 'function') {
-      return (node: React.ElementRef<typeof CommandPrimitive> | null) => {
-        if (node) {
-          internalRef.current = node;
-          ref(node);
-        }
-      };
-    } else if (ref) {
-      return ref;
+  // Create a stable ref that's never null
+  const stableRef = React.useCallback((node: React.ElementRef<typeof CommandPrimitive> | null) => {
+    if (node) {
+      internalRef.current = node;
+      if (typeof ref === 'function') {
+        ref(node);
+      } else if (ref) {
+        ref.current = node;
+      }
     }
-    return internalRef;
   }, [ref]);
 
-  // Don't render until mounted to prevent timing issues
-  if (!mounted) {
-    return <div className="flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground" />;
+  // Use double RAF to ensure DOM is completely ready
+  React.useLayoutEffect(() => {
+    const raf1 = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(() => {
+        setIsReady(true);
+      });
+      return () => cancelAnimationFrame(raf2);
+    });
+    return () => cancelAnimationFrame(raf1);
+  }, []);
+
+  // Don't render until completely ready
+  if (!isReady) {
+    return (
+      <div className={cn(
+        "flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground opacity-50",
+        className
+      )}>
+        <div className="flex items-center border-b px-3 h-11">
+          <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+          <div className="flex h-11 w-full rounded-md bg-transparent py-3 text-sm text-muted-foreground">
+            Loading...
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <CommandErrorBoundary>
-      <CommandPrimitive
-        ref={safeRef}
-        className={cn(
-          "flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground",
-          className
-        )}
-        {...props}
-      />
-    </CommandErrorBoundary>
+    <CommandPrimitive
+      ref={stableRef}
+      className={cn(
+        "flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground",
+        className
+      )}
+      {...props}
+    />
   );
 });
 Command.displayName = CommandPrimitive.displayName

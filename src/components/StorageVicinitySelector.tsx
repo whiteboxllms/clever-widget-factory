@@ -63,8 +63,15 @@ export function StorageVicinitySelector({ value, onValueChange, placeholder = "S
   };
 
   useLayoutEffect(() => {
-    setMounted(true);
-    fetchVicinities();
+    // Use double RAF for more reliable mounting
+    const raf1 = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(() => {
+        setMounted(true);
+        fetchVicinities();
+      });
+      return () => cancelAnimationFrame(raf2);
+    });
+    return () => cancelAnimationFrame(raf1);
   }, []);
 
   const handleAddVicinity = async (e: React.FormEvent) => {

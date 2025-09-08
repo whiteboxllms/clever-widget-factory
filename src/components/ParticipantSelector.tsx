@@ -42,7 +42,14 @@ export const ParticipantSelector: React.FC<ParticipantSelectorProps> = ({
   const [mounted, setMounted] = useState(false);
 
   useLayoutEffect(() => {
-    setMounted(true);
+    // Use double RAF for more reliable mounting
+    const raf1 = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(() => {
+        setMounted(true);
+      });
+      return () => cancelAnimationFrame(raf2);
+    });
+    return () => cancelAnimationFrame(raf1);
   }, []);
 
   // Filter out the assignee from available participants

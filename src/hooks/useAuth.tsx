@@ -42,11 +42,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           // Use setTimeout to defer Supabase calls and prevent deadlock
           setTimeout(async () => {
-            const { data: member } = await supabase
+            const { data: members } = await supabase
               .from('organization_members')
               .select('role')
-              .eq('user_id', session.user.id)
-              .single();
+              .eq('user_id', session.user.id);
+            const member = members?.[0];
             const userRole = member?.role;
             setIsAdmin(userRole === 'admin' || userRole === 'leadership');
             setIsContributor(userRole === 'contributor');
@@ -73,11 +73,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
         // Check role for existing session
         if (session?.user) {
-          const { data: member } = await supabase
+          const { data: members } = await supabase
             .from('organization_members')
             .select('role')
-            .eq('user_id', session.user.id)
-            .single();
+            .eq('user_id', session.user.id);
+          const member = members?.[0];
           const userRole = member?.role;
           setIsAdmin(userRole === 'admin' || userRole === 'leadership');
           setIsContributor(userRole === 'contributor');

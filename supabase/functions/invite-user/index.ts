@@ -93,20 +93,19 @@ const handler = async (req: Request): Promise<Response> => {
         );
       }
 
-      // Create pending invitation
-      const { error: pendingError } = await supabaseAdmin
+      // Check if there's already a pending invitation
+      const { data: existingInvitation, error: invitationCheckError } = await supabaseAdmin
         .from('pending_invitations')
-        .insert({
-          organization_id: organizationId,
-          invitee_user_id: existingUser.id,
-          invited_by: existingUser.id, // This should be the current user's ID
-          role: role,
-        });
+        .select('id')
+        .eq('organization_id', organizationId)
+        .eq('invitee_user_id', existingUser.id)
+        .eq('status', 'pending')
+        .single();
 
-      if (pendingError) {
-        console.error('Error creating pending invitation:', pendingError);
+      if (invitationCheckError && invitationCheckError.code !== 'PGRST116') {
+        console.error('Error checking existing invitation:', invitationCheckError);
         return new Response(
-          JSON.stringify({ error: "Failed to create invitation" }),
+          JSON.stringify({ error: "Failed to check existing invitation" }),
           {
             status: 500,
             headers: {
@@ -117,7 +116,56 @@ const handler = async (req: Request): Promise<Response> => {
         );
       }
 
-      console.log('Pending invitation created successfully for existing user:', email);
+      if (existingInvitation) {
+        // Update existing invitation with new expiry date
+        const { error: updateError } = await supabaseAdmin
+          .from('pending_invitations')
+          .update({
+            role: role,
+            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days from now
+          })
+          .eq('id', existingInvitation.id);
+
+        if (updateError) {
+          console.error('Error updating existing invitation:', updateError);
+          return new Response(
+            JSON.stringify({ error: "Failed to update invitation" }),
+            {
+              status: 500,
+              headers: {
+                "Content-Type": "application/json",
+                ...corsHeaders,
+              },
+            }
+          );
+        }
+      } else {
+        // Create new pending invitation
+        const { error: pendingError } = await supabaseAdmin
+          .from('pending_invitations')
+          .insert({
+            organization_id: organizationId,
+            invitee_user_id: existingUser.id,
+            invited_by: existingUser.id, // This should be the current user's ID
+            role: role,
+          });
+
+        if (pendingError) {
+          console.error('Error creating pending invitation:', pendingError);
+          return new Response(
+            JSON.stringify({ error: "Failed to create invitation" }),
+            {
+              status: 500,
+              headers: {
+                "Content-Type": "application/json",
+                ...corsHeaders,
+              },
+            }
+          );
+        }
+      }
+
+      console.log('Pending invitation created/updated successfully for existing user:', email);
 
       return new Response(
         JSON.stringify({ 

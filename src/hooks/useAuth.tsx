@@ -9,7 +9,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isContributor: boolean;
   isLeadership: boolean;
-  isToolKeeper: boolean;
+  
   canEditTools: boolean;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
@@ -28,7 +28,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isContributor, setIsContributor] = useState(false);
   const [isLeadership, setIsLeadership] = useState(false);
-  const [isToolKeeper, setIsToolKeeper] = useState(false);
+  
   const [canEditTools, setCanEditTools] = useState(false);
 
   useEffect(() => {
@@ -51,14 +51,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setIsAdmin(userRole === 'admin' || userRole === 'leadership');
             setIsContributor(userRole === 'contributor');
             setIsLeadership(userRole === 'leadership');
-            setIsToolKeeper(userRole === 'tool_keeper' || userRole === 'leadership');
-            setCanEditTools(userRole === 'admin' || userRole === 'contributor' || userRole === 'leadership' || userRole === 'tool_keeper');
+            setCanEditTools(userRole === 'admin' || userRole === 'contributor' || userRole === 'leadership');
           }, 0);
         } else {
           setIsAdmin(false);
           setIsContributor(false);
           setIsLeadership(false);
-          setIsToolKeeper(false);
           setCanEditTools(false);
         }
         
@@ -82,13 +80,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setIsAdmin(userRole === 'admin' || userRole === 'leadership');
           setIsContributor(userRole === 'contributor');
           setIsLeadership(userRole === 'leadership');
-          setIsToolKeeper(userRole === 'tool_keeper' || userRole === 'leadership');
-          setCanEditTools(userRole === 'admin' || userRole === 'contributor' || userRole === 'leadership' || userRole === 'tool_keeper');
+          setCanEditTools(userRole === 'admin' || userRole === 'contributor' || userRole === 'leadership');
       } else {
         setIsAdmin(false);
         setIsContributor(false);
         setIsLeadership(false);
-        setIsToolKeeper(false);
+        
         setCanEditTools(false);
       }
       
@@ -163,7 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAdmin,
       isContributor,
       isLeadership,
-      isToolKeeper,
+      
       canEditTools,
       signUp,
       signIn,

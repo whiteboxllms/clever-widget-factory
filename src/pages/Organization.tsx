@@ -244,32 +244,16 @@ const Organization = () => {
                 <h3 className="font-semibold text-foreground">Contributor</h3>
               </div>
               <p className="text-sm text-muted-foreground mb-3">
-                Enhanced member who can create and manage content.
+                Enhanced member who can create and manage content, tools, and inventory.
               </p>
               <ul className="text-xs text-muted-foreground space-y-1">
                 <li>• All User permissions</li>
                 <li>• Create missions and actions</li>
                 <li>• Edit mission details</li>
+                <li>• Add/edit tools and inventory (with history tracking)</li>
+                <li>• Manage tool maintenance</li>
                 <li>• Manage mission attachments</li>
                 <li>• Generate reports</li>
-              </ul>
-            </div>
-
-            {/* Tool Keeper Role */}
-            <div className="p-4 border rounded-lg bg-muted/20">
-              <div className="flex items-center gap-2 mb-3">
-                <Wrench className="w-5 h-5 text-orange-600" />
-                <h3 className="font-semibold text-foreground">Tool Keeper</h3>
-              </div>
-              <p className="text-sm text-muted-foreground mb-3">
-                Specialized role for managing tools, inventory, and equipment.
-              </p>
-              <ul className="text-xs text-muted-foreground space-y-1">
-                <li>• All Contributor permissions</li>
-                <li>• Add/edit tools and inventory</li>
-                <li>• Manage tool maintenance</li>
-                <li>• Oversee check-in/out processes</li>
-                <li>• Handle equipment issues</li>
               </ul>
             </div>
 
@@ -283,7 +267,7 @@ const Organization = () => {
                 Administrative access with member and organization management.
               </p>
               <ul className="text-xs text-muted-foreground space-y-1">
-                <li>• All Tool Keeper permissions</li>
+                <li>• All Contributor permissions</li>
                 <li>• Manage organization members</li>
                 <li>• Send/revoke invitations</li>
                 <li>• Edit organization settings</li>
@@ -363,12 +347,6 @@ const Organization = () => {
                           <div className="flex items-center gap-2">
                             <Star className="w-4 h-4" />
                             <span>Contributor - Create content</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="tool_keeper">
-                          <div className="flex items-center gap-2">
-                            <Wrench className="w-4 h-4" />
-                            <span>Tool Keeper - Manage equipment</span>
                           </div>
                         </SelectItem>
                         <SelectItem value="admin">

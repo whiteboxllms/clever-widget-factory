@@ -36,18 +36,18 @@ export const useToolsWithUnassignedIssues = () => {
       const toolsNeedingAction = issuesData.filter(issue => {
         const issueActions = actionsData?.filter(action => action.linked_issue_id === issue.id) || [];
         
-        // If no actions exist for this issue, it needs toolkeeper action
+        // If no actions exist for this issue, it needs contributor action
         if (issueActions.length === 0) {
           return true;
         }
         
-        // If all actions are completed, issue is resolved - no toolkeeper action needed
+        // If all actions are completed, issue is resolved - no contributor action needed
         const allActionsCompleted = issueActions.every(action => action.status === 'completed');
         if (allActionsCompleted) {
           return false;
         }
         
-        // If actions exist but not all completed, toolkeeper action is not needed
+        // If actions exist but not all completed, contributor action is not needed
         return false;
       });
 

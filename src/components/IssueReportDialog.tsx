@@ -145,7 +145,7 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
           old_status: issue.status,
           new_status: 'removed',
           changed_by: (await supabase.auth.getUser()).data.user?.id,
-          notes: 'Issue removed by toolkeeper',
+          notes: 'Issue removed by contributor',
           organization_id: organizationId
         });
 

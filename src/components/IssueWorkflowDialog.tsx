@@ -69,8 +69,8 @@ export function IssueWorkflowDialog({
   const { requirements, addRequirement, removeRequirement } = useIssueRequirements(issue?.id || null);
 
   // Check user permissions
-  const isToolKeeper = userRole === 'leadership';
-  const isRepairer = userRole === 'leadership';
+  const canManageWorkflow = userRole === 'leadership' || userRole === 'admin' || userRole === 'contributor';
+  const canRepair = userRole === 'leadership' || userRole === 'admin' || userRole === 'contributor';
 
   useEffect(() => {
     if (issue) {
@@ -167,9 +167,9 @@ export function IssueWorkflowDialog({
   if (!issue) return null;
 
   const currentStepIndex = workflowSteps.findIndex(step => step.status === issue.workflow_status);
-  const canDiagnose = isToolKeeper && issue.workflow_status === 'reported';
-  const canProgress = isRepairer && ['diagnosed', 'in_progress'].includes(issue.workflow_status);
-  const canComplete = isRepairer && issue.workflow_status === 'in_progress';
+  const canDiagnose = canManageWorkflow && issue.workflow_status === 'reported';
+  const canProgress = canRepair && ['diagnosed', 'in_progress'].includes(issue.workflow_status);
+  const canComplete = canRepair && issue.workflow_status === 'in_progress';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -482,7 +482,7 @@ export function IssueWorkflowDialog({
                       </Badge>
                     </p>
                   )}
-                  {!isToolKeeper && !isRepairer && (
+                  {!canManageWorkflow && !canRepair && (
                     <p className="text-sm text-muted-foreground">
                       You don't have permission to modify this workflow.
                     </p>

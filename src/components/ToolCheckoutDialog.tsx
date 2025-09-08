@@ -203,8 +203,7 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
           intended_usage: form.intendedUsage || null,
           notes: form.notes || null,
           before_image_url: beforeImageUrl,
-          pre_existing_issues: form.preCheckoutIssues || null,
-          organization_id: organizationId
+          pre_existing_issues: form.preCheckoutIssues || null
         })
         .select()
         .single();

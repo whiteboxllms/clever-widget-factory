@@ -254,8 +254,7 @@ export function ActionScoreDialog({
           required_tools: action.required_tools || [],
           required_stock: action.required_stock || [],
           attachments: action.attachments || [],
-          plan_commitment: action.plan_commitment || false,
-          organization_id: organizationId
+          plan_commitment: action.plan_commitment || false
         };
 
         const { error: createError } = await supabase

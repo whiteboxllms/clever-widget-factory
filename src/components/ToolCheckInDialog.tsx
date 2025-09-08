@@ -260,7 +260,6 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
             reported_by: user?.id,
             description: form.tool_issues.trim(),
             issue_type: 'general',
-            organization_id: organizationId,
             status: 'active',
             related_checkout_id: checkout.id,
             report_photo_urls: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : []

@@ -394,8 +394,7 @@ export function UnifiedActionDialog({
         linked_issue_id: formData.linked_issue_id || null,
         issue_reference: formData.issue_reference || null,
         status: formData.status || 'not_started',
-        plan_commitment: formData.plan_commitment || false,
-        organization_id: organizationId
+        plan_commitment: formData.plan_commitment || false
       };
 
 

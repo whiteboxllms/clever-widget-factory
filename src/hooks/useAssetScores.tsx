@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { useOrganizationId } from '@/hooks/useOrganizationId';
 
 export interface AssetScore {
   id: string;
@@ -20,7 +19,6 @@ export interface AssetScore {
 }
 
 export const useAssetScores = (assetId?: string) => {
-  const organizationId = useOrganizationId();
   const [scores, setScores] = useState<AssetScore[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -106,8 +104,7 @@ export const useAssetScores = (assetId?: string) => {
               description: `Automatically created action for issue score tracking`,
               status: 'not_started',
               linked_issue_id: scoreData.source_id,
-              asset_id: scoreData.asset_id,
-              organization_id: organizationId
+              asset_id: scoreData.asset_id
             })
             .select('id')
             .single();
@@ -131,7 +128,6 @@ export const useAssetScores = (assetId?: string) => {
           source_id: scoreData.source_id,
           prompt_id: scoreData.prompt_id,
           prompt_text: scoreData.prompt_text,
-          organization_id: organizationId,
           scores: scoreData.scores,
           ai_response: scoreData.ai_response,
           likely_root_causes: scoreData.likely_root_causes || [],
@@ -190,21 +186,12 @@ export const useAssetScores = (assetId?: string) => {
 
   const getScoreForIssue = async (issueId: string) => {
     try {
-      console.log('getScoreForIssue called with:', { issueId, organizationId });
-      
-      if (!organizationId) {
-        console.log('No organizationId available, skipping score fetch');
-        return null;
-      }
-
       const { data, error } = await supabase
         .from('action_scores')
         .select('*')
         .eq('source_id', issueId)
         .eq('source_type', 'issue')
         .maybeSingle();
-
-      console.log('Score query result:', { data, error });
 
       if (error) throw error;
       
@@ -232,21 +219,12 @@ export const useAssetScores = (assetId?: string) => {
 
   const getScoreForAction = async (actionId: string) => {
     try {
-      console.log('getScoreForAction called with:', { actionId, organizationId });
-      
-      if (!organizationId) {
-        console.log('No organizationId available, skipping action score fetch');
-        return null;
-      }
-
       const { data, error } = await supabase
         .from('action_scores')
         .select('*')
         .eq('source_id', actionId)
         .eq('source_type', 'action')
         .maybeSingle();
-
-      console.log('Action score query result:', { data, error });
 
       if (error) throw error;
       

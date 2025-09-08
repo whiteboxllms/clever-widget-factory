@@ -42,7 +42,7 @@ const handler = async (req: Request): Promise<Response> => {
         organization_name: organizationName,
         role: role,
       },
-      redirectTo: `${req.headers.get('origin') || 'http://localhost:5173'}/auth`
+      redirectTo: `${req.headers.get('origin') || 'http://localhost:5173'}/accept-invite?org_id=${organizationId}`
     });
 
     if (error) {

@@ -29,6 +29,7 @@ import Organization from "./pages/Organization";
 import AdminOrganizations from "./pages/AdminOrganizations";
 import NotFound from "./pages/NotFound";
 import AnalyticsDashboard from "./pages/AnalyticsDashboard";
+import AcceptInvite from "./pages/AcceptInvite";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +39,7 @@ function AppContent() {
   return (
     <Routes>
       <Route path="/auth" element={<Auth />} />
+      <Route path="/accept-invite" element={<AcceptInvite />} />
       <Route path="/" element={
         <ProtectedRoute>
           <Dashboard />

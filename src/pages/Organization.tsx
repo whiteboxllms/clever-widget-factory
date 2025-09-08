@@ -261,7 +261,7 @@ const Organization = () => {
             <div className="p-4 border rounded-lg bg-muted/20">
               <div className="flex items-center gap-2 mb-3">
                 <Shield className="w-5 h-5 text-purple-600" />
-                <h3 className="font-semibold text-foreground">Admin</h3>
+                <h3 className="font-semibold text-foreground">Leadership</h3>
               </div>
               <p className="text-sm text-muted-foreground mb-3">
                 Full administrative access with member management and strategic oversight capabilities.

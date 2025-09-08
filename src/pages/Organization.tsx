@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Send, Copy, Users } from 'lucide-react';
+import { Trash2, Send, Copy, Users, Shield, User, Wrench, Crown, Star, Info } from 'lucide-react';
 import { useOrganization } from '@/hooks/useOrganization';
 import { useInvitations } from '@/hooks/useInvitations';
 import { useToast } from '@/hooks/use-toast';
@@ -209,6 +209,122 @@ const Organization = () => {
         </CardContent>
       </Card>
 
+      {/* Roles & Permissions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="w-5 h-5" />
+            Roles & Permissions
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* User Role */}
+            <div className="p-4 border rounded-lg bg-muted/20">
+              <div className="flex items-center gap-2 mb-3">
+                <User className="w-5 h-5 text-blue-600" />
+                <h3 className="font-semibold text-foreground">User</h3>
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">
+                Basic member with standard access to organization resources.
+              </p>
+              <ul className="text-xs text-muted-foreground space-y-1">
+                <li>• View tools and inventory</li>
+                <li>• Check out/in tools</li>
+                <li>• Participate in missions</li>
+                <li>• Report issues</li>
+                <li>• View own activities</li>
+              </ul>
+            </div>
+
+            {/* Contributor Role */}
+            <div className="p-4 border rounded-lg bg-muted/20">
+              <div className="flex items-center gap-2 mb-3">
+                <Star className="w-5 h-5 text-green-600" />
+                <h3 className="font-semibold text-foreground">Contributor</h3>
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">
+                Enhanced member who can create and manage content.
+              </p>
+              <ul className="text-xs text-muted-foreground space-y-1">
+                <li>• All User permissions</li>
+                <li>• Create missions and actions</li>
+                <li>• Edit mission details</li>
+                <li>• Manage mission attachments</li>
+                <li>• Generate reports</li>
+              </ul>
+            </div>
+
+            {/* Tool Keeper Role */}
+            <div className="p-4 border rounded-lg bg-muted/20">
+              <div className="flex items-center gap-2 mb-3">
+                <Wrench className="w-5 h-5 text-orange-600" />
+                <h3 className="font-semibold text-foreground">Tool Keeper</h3>
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">
+                Specialized role for managing tools, inventory, and equipment.
+              </p>
+              <ul className="text-xs text-muted-foreground space-y-1">
+                <li>• All Contributor permissions</li>
+                <li>• Add/edit tools and inventory</li>
+                <li>• Manage tool maintenance</li>
+                <li>• Oversee check-in/out processes</li>
+                <li>• Handle equipment issues</li>
+              </ul>
+            </div>
+
+            {/* Admin Role */}
+            <div className="p-4 border rounded-lg bg-muted/20">
+              <div className="flex items-center gap-2 mb-3">
+                <Shield className="w-5 h-5 text-purple-600" />
+                <h3 className="font-semibold text-foreground">Admin</h3>
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">
+                Administrative access with member and organization management.
+              </p>
+              <ul className="text-xs text-muted-foreground space-y-1">
+                <li>• All Tool Keeper permissions</li>
+                <li>• Manage organization members</li>
+                <li>• Send/revoke invitations</li>
+                <li>• Edit organization settings</li>
+                <li>• Access admin analytics</li>
+              </ul>
+            </div>
+
+            {/* Leadership Role */}
+            <div className="p-4 border rounded-lg bg-muted/20">
+              <div className="flex items-center gap-2 mb-3">
+                <Crown className="w-5 h-5 text-red-600" />
+                <h3 className="font-semibold text-foreground">Leadership</h3>
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">
+                Full administrative access with strategic oversight capabilities.
+              </p>
+              <ul className="text-xs text-muted-foreground space-y-1">
+                <li>• All Admin permissions</li>
+                <li>• Strategic planning tools</li>
+                <li>• Performance analytics</li>
+                <li>• Worker attribute management</li>
+                <li>• Organizational reporting</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="flex items-start gap-2">
+              <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm">
+                <p className="font-medium text-blue-900 dark:text-blue-100 mb-1">Role Assignment</p>
+                <p className="text-blue-700 dark:text-blue-200">
+                  Roles are hierarchical - higher roles inherit all permissions from lower roles. 
+                  Choose the appropriate role based on the level of access and responsibility needed.
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Invitation Management (Admin Only) */}
       {isAdmin && (
         <>
@@ -237,11 +353,36 @@ const Organization = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="user">User</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="leadership">Leadership</SelectItem>
-                        <SelectItem value="contributor">Contributor</SelectItem>
-                        <SelectItem value="tool_keeper">Tool Keeper</SelectItem>
+                        <SelectItem value="user">
+                          <div className="flex items-center gap-2">
+                            <User className="w-4 h-4" />
+                            <span>User - Basic member access</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="contributor">
+                          <div className="flex items-center gap-2">
+                            <Star className="w-4 h-4" />
+                            <span>Contributor - Create content</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="tool_keeper">
+                          <div className="flex items-center gap-2">
+                            <Wrench className="w-4 h-4" />
+                            <span>Tool Keeper - Manage equipment</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="admin">
+                          <div className="flex items-center gap-2">
+                            <Shield className="w-4 h-4" />
+                            <span>Admin - Manage members</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="leadership">
+                          <div className="flex items-center gap-2">
+                            <Crown className="w-4 h-4" />
+                            <span>Leadership - Full access</span>
+                          </div>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

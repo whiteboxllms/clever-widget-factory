@@ -29,6 +29,7 @@ interface OrganizationMember {
   joined_at: string;
   profiles: {
     full_name: string | null;
+    created_at: string;
   } | null;
 }
 
@@ -125,7 +126,7 @@ const Organization = () => {
       (data || []).map(async (member) => {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('full_name')
+          .select('full_name, created_at')
           .eq('user_id', member.user_id)
           .single();
         
@@ -380,7 +381,7 @@ const Organization = () => {
                           <Badge variant="outline">{member.role}</Badge>
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          Joined: {new Date(member.joined_at).toLocaleDateString()}
+                          Member since: {new Date(member.profiles?.created_at || member.joined_at).toLocaleDateString()}
                         </p>
                       </div>
                     </div>

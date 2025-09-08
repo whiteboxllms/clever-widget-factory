@@ -182,10 +182,44 @@ export function SimpleMissionForm({
     setTaskDialogOpen(true);
   };
 
-  const handleCreateTask = () => {
+  const handleCreateTask = async () => {
     // Reload task list from database to reflect new task
     if (isEditing && missionId) {
       loadTasksFromDatabase();
+    } else {
+      // During mission creation, fetch any orphaned actions created for this organization
+      // that don't have a mission_id yet and add them to the form
+      try {
+        const { data: orphanedActions, error } = await supabase
+          .from('actions')
+          .select('*')
+          .is('mission_id', null)
+          .eq('organization_id', organizationId)
+          .order('created_at', { ascending: true });
+
+        if (error) throw error;
+
+        if (orphanedActions && orphanedActions.length > 0) {
+          // Convert to form data format and add to existing actions
+          const newActions = orphanedActions.map(action => ({
+            id: action.id,
+            title: action.title,
+            policy: action.policy || '',
+            observations: action.observations || '',
+            assigned_to: action.assigned_to,
+            status: action.status,
+            estimated_completion_date: action.estimated_duration ? new Date(action.estimated_duration) : undefined,
+            required_tools: action.required_tools || []
+          }));
+
+          setFormData(prev => ({ 
+            ...prev, 
+            actions: [...prev.actions.filter(a => a.title.trim()), ...newActions]
+          }));
+        }
+      } catch (error) {
+        console.error('Error loading orphaned actions:', error);
+      }
     }
     setCreatingNewTask(false);
     setTaskDialogOpen(false);

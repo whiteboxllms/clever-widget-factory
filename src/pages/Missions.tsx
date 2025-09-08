@@ -50,6 +50,7 @@ interface Profile {
   role: string;
 }
 interface Task {
+  id?: string;
   title: string;
   policy?: string;
   observations?: string;
@@ -418,11 +419,13 @@ const Missions = () => {
         } as any).select().single();
         if (missionError) throw missionError;
 
-        // Create tasks for the mission if any
-        const tasksToCreate = formData.actions.filter(task => task.title.trim());
+        // Handle both new tasks from form and existing orphaned tasks
+        const tasksToCreate = formData.actions.filter(task => task.title.trim() && !task.id);
+        const existingTasksToUpdate = formData.actions.filter(task => task.id);
         const createdTasks = [];
         const taskIdMap: Record<string, string> = {};
         
+        // Create new tasks
         if (tasksToCreate.length > 0) {
           const { data: tasksData, error: tasksError } = await supabase
             .from('actions')
@@ -447,6 +450,19 @@ const Missions = () => {
           });
           
           createdTasks.push(...(tasksData || []));
+        }
+
+        // Update existing orphaned tasks with the mission ID
+        if (existingTasksToUpdate.length > 0) {
+          const { data: updatedTasks, error: updateError } = await supabase
+            .from('actions')
+            .update({ mission_id: missionData.id })
+            .in('id', existingTasksToUpdate.map(task => task.id))
+            .select();
+          
+          if (updateError) throw updateError;
+          
+          createdTasks.push(...(updatedTasks || []));
         }
 
         return { 

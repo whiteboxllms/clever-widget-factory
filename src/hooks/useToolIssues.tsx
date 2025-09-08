@@ -14,7 +14,7 @@ export function useToolIssues(toolId: string | null) {
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchIssues = async () => {
-    if (!toolId) {
+    if (!toolId || !organizationId) {
       setIssues([]);
       return;
     }
@@ -142,7 +142,7 @@ export function useToolIssues(toolId: string | null) {
 
   useEffect(() => {
     fetchIssues();
-  }, [toolId]);
+  }, [toolId, organizationId]);
 
   const updateIssue = async (
     issueId: string,

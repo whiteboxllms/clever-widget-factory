@@ -40,7 +40,7 @@ import { useImageUpload } from "@/hooks/useImageUpload";
 import TiptapEditor from './TiptapEditor';
 import { AssetSelector } from './AssetSelector';
 import { StockSelector } from './StockSelector';
-import { ParticipantSelector } from './ParticipantSelector';
+import { MultiParticipantSelector } from './MultiParticipantSelector';
 import { cn } from "@/lib/utils";
 import { BaseAction, Profile, ActionCreationContext } from "@/types/actions";
 
@@ -547,7 +547,7 @@ export function UnifiedActionDialog({
                 Participants
               </Label>
               <div className="mt-1">
-                <ParticipantSelector
+                <MultiParticipantSelector
                   participants={formData.participants || []}
                   onParticipantsChange={(participants) => setFormData(prev => ({ ...prev, participants }))}
                   profiles={profiles}

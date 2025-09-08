@@ -1156,6 +1156,39 @@ export type Database = {
           },
         ]
       }
+      pending_invitations: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          invited_by: string
+          invitee_user_id: string
+          organization_id: string
+          role: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          invited_by: string
+          invitee_user_id: string
+          organization_id: string
+          role?: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string
+          invitee_user_id?: string
+          organization_id?: string
+          role?: string
+          status?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string

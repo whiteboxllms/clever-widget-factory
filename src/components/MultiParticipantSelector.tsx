@@ -87,12 +87,7 @@ export function MultiParticipantSelector({
               checked={participants.includes(profile.user_id)}
               onSelect={() => handleSelect(profile.user_id)}
             >
-              <div className="flex items-center justify-between w-full">
-                <span>{profile.full_name}</span>
-                <span className="text-xs text-muted-foreground ml-2">
-                  {profile.role}
-                </span>
-              </div>
+              <span>{profile.full_name}</span>
             </MultiSelectItem>
           ))
         )}

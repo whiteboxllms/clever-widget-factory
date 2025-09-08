@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useLayoutEffect } from 'react';
 import { Check, ChevronsUpDown, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandErrorBoundary } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -30,7 +30,6 @@ interface StorageVicinitySelectorProps {
 export function StorageVicinitySelector({ value, onValueChange, placeholder = "Select storage vicinity..." }: StorageVicinitySelectorProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [isReady, setIsReady] = useState(false);
   const [vicinities, setVicinities] = useState<StorageVicinity[]>([]);
   const [loading, setLoading] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -63,12 +62,9 @@ export function StorageVicinitySelector({ value, onValueChange, placeholder = "S
     }
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setMounted(true);
     fetchVicinities();
-    // Add a small delay to ensure proper initialization
-    const timer = setTimeout(() => setIsReady(true), 50);
-    return () => clearTimeout(timer);
   }, []);
 
   const handleAddVicinity = async (e: React.FormEvent) => {
@@ -132,62 +128,64 @@ export function StorageVicinitySelector({ value, onValueChange, placeholder = "S
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[400px] p-0">
-          {open && mounted && isReady && (
-            <Command key={`storage-vicinity-command-${mounted}`}>
-              <CommandInput placeholder="Search vicinities..." />
-              <CommandList>
-                <CommandEmpty>
-                  <div className="p-2 text-center">
-                    <p className="text-sm text-muted-foreground mb-2">No vicinity found.</p>
-                    <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <Plus className="mr-2 h-4 w-4" />
-                          Add New Vicinity
-                        </Button>
-                      </DialogTrigger>
-                    </Dialog>
-                  </div>
-                </CommandEmpty>
-                <CommandGroup>
-                  {vicinities.map((vicinity) => (
-                    <CommandItem
-                      key={vicinity.id}
-                      value={vicinity.name}
-                      onSelect={() => {
-                        onValueChange(vicinity.name);
-                        setOpen(false);
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          value === vicinity.name ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                      <div className="flex-1">
-                        <div className="font-medium">{vicinity.name}</div>
-                        {vicinity.description && (
-                          <div className="text-sm text-muted-foreground">{vicinity.description}</div>
-                        )}
-                      </div>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-                {vicinities.length > 0 && (
+          {open && mounted && (
+            <CommandErrorBoundary>
+              <Command>
+                <CommandInput placeholder="Search vicinities..." />
+                <CommandList>
+                  <CommandEmpty>
+                    <div className="p-2 text-center">
+                      <p className="text-sm text-muted-foreground mb-2">No vicinity found.</p>
+                      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            <Plus className="mr-2 h-4 w-4" />
+                            Add New Vicinity
+                          </Button>
+                        </DialogTrigger>
+                      </Dialog>
+                    </div>
+                  </CommandEmpty>
                   <CommandGroup>
-                    <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                      <DialogTrigger asChild>
-                        <CommandItem onSelect={() => setIsAddDialogOpen(true)}>
-                          <Plus className="mr-2 h-4 w-4" />
-                          Add New Vicinity
-                        </CommandItem>
-                      </DialogTrigger>
-                    </Dialog>
+                    {vicinities.map((vicinity) => (
+                      <CommandItem
+                        key={vicinity.id}
+                        value={vicinity.name}
+                        onSelect={() => {
+                          onValueChange(vicinity.name);
+                          setOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            value === vicinity.name ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium">{vicinity.name}</div>
+                          {vicinity.description && (
+                            <div className="text-sm text-muted-foreground">{vicinity.description}</div>
+                          )}
+                        </div>
+                      </CommandItem>
+                    ))}
                   </CommandGroup>
-                )}
-              </CommandList>
-            </Command>
+                  {vicinities.length > 0 && (
+                    <CommandGroup>
+                      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                        <DialogTrigger asChild>
+                          <CommandItem onSelect={() => setIsAddDialogOpen(true)}>
+                            <Plus className="mr-2 h-4 w-4" />
+                            Add New Vicinity
+                          </CommandItem>
+                        </DialogTrigger>
+                      </Dialog>
+                    </CommandGroup>
+                  )}
+                </CommandList>
+              </Command>
+            </CommandErrorBoundary>
           )}
         </PopoverContent>
       </Popover>

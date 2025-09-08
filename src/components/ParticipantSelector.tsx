@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useLayoutEffect } from "react";
 import { Check, ChevronsUpDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandErrorBoundary,
 } from "@/components/ui/command";
 import {
   Popover,
@@ -39,13 +40,9 @@ export const ParticipantSelector: React.FC<ParticipantSelectorProps> = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [isReady, setIsReady] = useState(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setMounted(true);
-    // Add a small delay to ensure proper initialization
-    const timer = setTimeout(() => setIsReady(true), 50);
-    return () => clearTimeout(timer);
   }, []);
 
   // Filter out the assignee from available participants
@@ -83,33 +80,35 @@ export const ParticipantSelector: React.FC<ParticipantSelectorProps> = ({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-full p-0">
-          {open && mounted && isReady && (
-            <Command key={`participant-command-${mounted}`}>
-              <CommandInput placeholder="Search participants..." />
-              <CommandList>
-                <CommandEmpty>No participants found.</CommandEmpty>
-                <CommandGroup>
-                  {availableProfiles.map((profile) => (
-                    <CommandItem
-                      key={profile.user_id}
-                      value={profile.full_name}
-                      onSelect={() => handleSelect(profile.user_id)}
-                    >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          participants.includes(profile.user_id) ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                      {profile.full_name}
-                      <Badge variant="secondary" className="ml-auto">
-                        {profile.role}
-                      </Badge>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
+          {open && mounted && (
+            <CommandErrorBoundary>
+              <Command>
+                <CommandInput placeholder="Search participants..." />
+                <CommandList>
+                  <CommandEmpty>No participants found.</CommandEmpty>
+                  <CommandGroup>
+                    {availableProfiles.map((profile) => (
+                      <CommandItem
+                        key={profile.user_id}
+                        value={profile.full_name}
+                        onSelect={() => handleSelect(profile.user_id)}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            participants.includes(profile.user_id) ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        {profile.full_name}
+                        <Badge variant="secondary" className="ml-auto">
+                          {profile.role}
+                        </Badge>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </CommandErrorBoundary>
           )}
         </PopoverContent>
       </Popover>

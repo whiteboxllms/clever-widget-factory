@@ -6,20 +6,78 @@ import { Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 
+// Error boundary component to catch cmdk errors
+class CommandErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallback?: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode; fallback?: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    if (error.message.includes("Cannot use 'in' operator to search for 'current' in null")) {
+      console.warn("Caught cmdk null ref error, using fallback");
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || <div className="p-4 text-muted-foreground">Search temporarily unavailable</div>;
+    }
+
+    return this.props.children;
+  }
+}
+
 const Command = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive>
 >(({ className, ...props }, ref) => {
-  console.log('Command component rendering', { ref, props });
+  const [mounted, setMounted] = React.useState(false);
+  const internalRef = React.useRef<React.ElementRef<typeof CommandPrimitive>>(null);
+  
+  // Use useLayoutEffect to ensure synchronization with layout phase
+  React.useLayoutEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Ensure ref is never null by using a fallback
+  const safeRef = React.useMemo(() => {
+    if (typeof ref === 'function') {
+      return (node: React.ElementRef<typeof CommandPrimitive> | null) => {
+        if (node) {
+          internalRef.current = node;
+          ref(node);
+        }
+      };
+    } else if (ref) {
+      return ref;
+    }
+    return internalRef;
+  }, [ref]);
+
+  // Don't render until mounted to prevent timing issues
+  if (!mounted) {
+    return <div className="flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground" />;
+  }
+
   return (
-    <CommandPrimitive
-      ref={ref}
-      className={cn(
-        "flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground",
-        className
-      )}
-      {...props}
-    />
+    <CommandErrorBoundary>
+      <CommandPrimitive
+        ref={safeRef}
+        className={cn(
+          "flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground",
+          className
+        )}
+        {...props}
+      />
+    </CommandErrorBoundary>
   );
 });
 Command.displayName = CommandPrimitive.displayName
@@ -153,4 +211,5 @@ export {
   CommandItem,
   CommandShortcut,
   CommandSeparator,
+  CommandErrorBoundary,
 }

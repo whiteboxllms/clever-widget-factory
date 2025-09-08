@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Send, Copy, Users, Shield, User, Wrench, Star, Info } from 'lucide-react';
+import { Trash2, Send, Copy, Users, Shield, User, Wrench, Star, Info, ToggleLeft, ToggleRight } from 'lucide-react';
 import { useOrganization } from '@/hooks/useOrganization';
 import { useInvitations } from '@/hooks/useInvitations';
 import { useToast } from '@/hooks/use-toast';
@@ -27,6 +27,7 @@ interface OrganizationMember {
   user_id: string;
   role: string;
   joined_at: string;
+  is_active: boolean;
   profiles: {
     full_name: string | null;
     created_at: string;
@@ -112,7 +113,7 @@ const Organization = () => {
     
     const { data, error } = await supabase
       .from('organization_members')
-      .select('*')
+      .select('*, is_active')
       .eq('organization_id', targetOrgId)
       .order('joined_at', { ascending: true });
 
@@ -165,6 +166,39 @@ const Organization = () => {
       title: "Copied",
       description: "Invitation link copied to clipboard",
     });
+  };
+
+  const toggleMemberStatus = async (memberId: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('organization_members')
+        .update({ is_active: !currentStatus })
+        .eq('id', memberId);
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Failed to update member status",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Success",
+        description: `Member ${!currentStatus ? 'activated' : 'deactivated'} successfully`,
+      });
+
+      // Reload members to show updated status
+      loadMembers();
+    } catch (error) {
+      console.error('Error toggling member status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update member status",
+        variant: "destructive",
+      });
+    }
   };
 
   if (!targetOrganization) {
@@ -379,10 +413,28 @@ const Organization = () => {
                             {member.profiles?.full_name || 'Unknown User'}
                           </span>
                           <Badge variant="outline">{member.role}</Badge>
+                          <Badge variant={member.is_active ? "default" : "destructive"}>
+                            {member.is_active ? "Active" : "Inactive"}
+                          </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground">
                           Member since: {new Date(member.profiles?.created_at || member.joined_at).toLocaleDateString()}
                         </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleMemberStatus(member.id, member.is_active)}
+                          className="flex items-center gap-2"
+                        >
+                          {member.is_active ? (
+                            <ToggleRight className="w-4 h-4 text-green-600" />
+                          ) : (
+                            <ToggleLeft className="w-4 h-4 text-gray-400" />
+                          )}
+                          {member.is_active ? "Active" : "Inactive"}
+                        </Button>
                       </div>
                     </div>
                   ))}

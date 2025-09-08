@@ -877,6 +877,7 @@ export type Database = {
           created_at: string
           id: string
           invited_by: string | null
+          is_active: boolean
           joined_at: string
           organization_id: string
           role: string
@@ -886,6 +887,7 @@ export type Database = {
           created_at?: string
           id?: string
           invited_by?: string | null
+          is_active?: boolean
           joined_at?: string
           organization_id: string
           role?: string
@@ -895,6 +897,7 @@ export type Database = {
           created_at?: string
           id?: string
           invited_by?: string | null
+          is_active?: boolean
           joined_at?: string
           organization_id?: string
           role?: string

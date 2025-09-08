@@ -74,32 +74,34 @@ export const ParticipantSelector: React.FC<ParticipantSelectorProps> = ({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-full p-0">
-          <Command>
-            <CommandInput placeholder="Search participants..." />
-            <CommandList>
-              <CommandEmpty>No participants found.</CommandEmpty>
-              <CommandGroup>
-                {availableProfiles.map((profile) => (
-                  <CommandItem
-                    key={profile.user_id}
-                    value={profile.full_name}
-                    onSelect={() => handleSelect(profile.user_id)}
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        participants.includes(profile.user_id) ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                    {profile.full_name}
-                    <Badge variant="secondary" className="ml-auto">
-                      {profile.role}
-                    </Badge>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
+          {open && (
+            <Command key="participant-command">
+              <CommandInput placeholder="Search participants..." />
+              <CommandList>
+                <CommandEmpty>No participants found.</CommandEmpty>
+                <CommandGroup>
+                  {availableProfiles.map((profile) => (
+                    <CommandItem
+                      key={profile.user_id}
+                      value={profile.full_name}
+                      onSelect={() => handleSelect(profile.user_id)}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          participants.includes(profile.user_id) ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      {profile.full_name}
+                      <Badge variant="secondary" className="ml-auto">
+                        {profile.role}
+                      </Badge>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          )}
         </PopoverContent>
       </Popover>
       

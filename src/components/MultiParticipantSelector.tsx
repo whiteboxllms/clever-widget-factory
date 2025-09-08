@@ -36,8 +36,8 @@ export function MultiParticipantSelector({
 
   // Filter profiles based on search
   const filteredProfiles = availableProfiles.filter(profile =>
-    profile.full_name.toLowerCase().includes(search.toLowerCase()) ||
-    profile.role.toLowerCase().includes(search.toLowerCase())
+    (profile.full_name?.toLowerCase() || '').includes(search.toLowerCase()) ||
+    (profile.role?.toLowerCase() || '').includes(search.toLowerCase())
   )
 
   // Get selected participant details for display

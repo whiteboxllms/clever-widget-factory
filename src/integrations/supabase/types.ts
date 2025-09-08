@@ -40,7 +40,7 @@ export type Database = {
           created_at?: string
           id?: string
           likely_root_causes?: string[] | null
-          organization_id: string
+          organization_id?: string
           prompt_id: string
           prompt_text: string
           score_attribution_type?: string | null
@@ -127,7 +127,7 @@ export type Database = {
           linked_issue_id?: string | null
           mission_id?: string | null
           observations?: string | null
-          organization_id: string
+          organization_id?: string
           participants?: string[] | null
           plan_commitment?: boolean | null
           policy?: string | null

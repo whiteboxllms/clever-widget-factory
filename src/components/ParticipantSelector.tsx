@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Check, ChevronsUpDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -37,11 +37,15 @@ export const ParticipantSelector: React.FC<ParticipantSelectorProps> = ({
   profiles,
   assigneeId
 }) => {
-  const [open, setOpen] = React.useState(false);
-  const [mounted, setMounted] = React.useState(false);
+  const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     setMounted(true);
+    // Add a small delay to ensure proper initialization
+    const timer = setTimeout(() => setIsReady(true), 50);
+    return () => clearTimeout(timer);
   }, []);
 
   // Filter out the assignee from available participants
@@ -79,8 +83,8 @@ export const ParticipantSelector: React.FC<ParticipantSelectorProps> = ({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-full p-0">
-          {open && mounted && (
-            <Command key="participant-command">
+          {open && mounted && isReady && (
+            <Command key={`participant-command-${mounted}`}>
               <CommandInput placeholder="Search participants..." />
               <CommandList>
                 <CommandEmpty>No participants found.</CommandEmpty>

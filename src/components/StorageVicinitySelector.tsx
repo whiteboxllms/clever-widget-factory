@@ -30,6 +30,7 @@ interface StorageVicinitySelectorProps {
 export function StorageVicinitySelector({ value, onValueChange, placeholder = "Select storage vicinity..." }: StorageVicinitySelectorProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [isReady, setIsReady] = useState(false);
   const [vicinities, setVicinities] = useState<StorageVicinity[]>([]);
   const [loading, setLoading] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -65,6 +66,9 @@ export function StorageVicinitySelector({ value, onValueChange, placeholder = "S
   useEffect(() => {
     setMounted(true);
     fetchVicinities();
+    // Add a small delay to ensure proper initialization
+    const timer = setTimeout(() => setIsReady(true), 50);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleAddVicinity = async (e: React.FormEvent) => {
@@ -128,8 +132,8 @@ export function StorageVicinitySelector({ value, onValueChange, placeholder = "S
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[400px] p-0">
-          {open && mounted && (
-            <Command key="storage-vicinity-command">
+          {open && mounted && isReady && (
+            <Command key={`storage-vicinity-command-${mounted}`}>
               <CommandInput placeholder="Search vicinities..." />
               <CommandList>
                 <CommandEmpty>

@@ -113,38 +113,28 @@ const Organization = () => {
   const loadMembers = async () => {
     if (!targetOrgId) return;
     
-    const { data, error } = await supabase
-      .from('organization_members')
-      .select('*, is_active, status')
-      .eq('organization_id', targetOrgId);
+    try {
+      // Call the new edge function to get members with auth data
+      const { data: response, error } = await supabase.functions.invoke('get-organization-members-with-auth', {
+        body: { organizationId: targetOrgId }
+      });
 
-    if (error) {
-      console.error('Error loading members:', error);
-      return;
+      if (error) {
+        console.error('Error loading members:', error);
+        return;
+      }
+
+      const membersWithAuth = response.members || [];
+      
+      // Split members: those who have signed in vs those who haven't
+      const signedInMembers = membersWithAuth.filter((m: any) => m.auth_data.last_sign_in_at !== null);
+      const pendingSignIn = membersWithAuth.filter((m: any) => m.auth_data.last_sign_in_at === null);
+      
+      setMembers(signedInMembers);
+      setPendingMembers(pendingSignIn);
+    } catch (error) {
+      console.error('Error in loadMembers:', error);
     }
-
-    // Get profile data separately for each member
-    const membersWithProfiles = await Promise.all(
-      (data || []).map(async (member) => {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name, created_at')
-          .eq('user_id', member.user_id)
-          .single();
-        
-        return {
-          ...member,
-          profiles: profile
-        };
-      })
-    );
-
-    // Split members by status
-    const activeMembers = membersWithProfiles.filter(m => (m.status || 'active') === 'active');
-    const pending = membersWithProfiles.filter(m => (m.status || 'active') === 'pending');
-    
-    setMembers(activeMembers);
-    setPendingMembers(pending);
   };
 
   const handleSendInvitation = async (e: React.FormEvent) => {

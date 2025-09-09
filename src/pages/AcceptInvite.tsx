@@ -140,29 +140,13 @@ export default function AcceptInvite() {
   const joinOrganization = async (userId: string, metadata: any) => {
     try {
       const organizationId = metadata?.organization_id;
-      const role = metadata?.role || 'user';
 
       if (!organizationId) {
         throw new Error('Organization information not found in invitation');
       }
 
-      // Update existing pending membership to active status
-      const { error: memberError } = await supabase
-        .from('organization_members')
-        .update({
-          status: 'active'
-        })
-        .eq('user_id', userId)
-        .eq('organization_id', organizationId)
-        .eq('status', 'pending');
-
-      if (memberError) {
-        console.error('Error activating organization membership:', memberError);
-        setError('Failed to join organization');
-        setStep('error');
-        return;
-      }
-
+      // No need to update status anymore - organization membership is already active
+      // Just show success and redirect
       toast({
         title: "Welcome!",
         description: `You've successfully joined ${organizationName}`,

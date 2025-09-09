@@ -95,7 +95,13 @@ const Organization = () => {
 
       setTargetOrganization(orgData);
 
-      // Check if current user is admin of this organization OR is a super admin
+      // Super admins have admin access to all organizations
+      if (isSuperAdmin) {
+        setIsAdmin(true);
+        return;
+      }
+
+      // Check if current user is admin of this specific organization
       const { data: memberData } = await supabase
         .from('organization_members')
         .select('role')
@@ -104,7 +110,7 @@ const Organization = () => {
         .single();
 
       const isOrgAdmin = memberData?.role === 'admin';
-      setIsAdmin(isOrgAdmin || isSuperAdmin);
+      setIsAdmin(isOrgAdmin);
     } catch (error) {
       console.error('Error in loadOrganizationData:', error);
     }

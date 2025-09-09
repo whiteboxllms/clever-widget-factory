@@ -177,6 +177,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "fk_actions_assigned_to_organization_members"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "organization_members"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "mission_tasks_assigned_to_fkey"
             columns: ["assigned_to"]
             isOneToOne: false

@@ -142,8 +142,8 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold">Farm Asset Tracker</CardTitle>
-          <p className="text-muted-foreground">Manage your farm assets and stock efficiently</p>
+          <CardTitle className="text-3xl font-bold">Asset Tracker</CardTitle>
+          <p className="text-muted-foreground">Manage your assets and stock efficiently</p>
         </CardHeader>
         <CardContent className="space-y-4">
           {isPasswordReset ? (

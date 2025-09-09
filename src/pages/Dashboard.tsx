@@ -8,12 +8,20 @@ import { DebugModeToggle } from '@/components/DebugModeToggle';
 import { AuthDiagnostics } from '@/components/AuthDiagnostics';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { EditableDisplayName } from '@/components/EditableDisplayName';
+import { useOrganization } from '@/hooks/useOrganization';
 
 export default function Dashboard() {
   const { user, signOut, isAdmin } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
+  const { organization, loading: orgLoading } = useOrganization();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const appTitle = orgLoading 
+    ? "Asset Tracker" 
+    : organization 
+      ? `${organization.name} Asset Tracker`
+      : "Asset Tracker";
 
   const handleSignOut = async () => {
     const { error } = await signOut();
@@ -96,7 +104,7 @@ export default function Dashboard() {
       <header className="border-b bg-card">
         <div className="flex items-center justify-between p-4">
           <div>
-            <h1 className="text-2xl font-bold">Farm Asset Tracker</h1>
+            <h1 className="text-2xl font-bold">{appTitle}</h1>
             <EditableDisplayName />
           </div>
           <div className="flex items-center gap-4">

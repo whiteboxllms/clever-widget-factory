@@ -38,7 +38,7 @@ const Organization = () => {
   const { user } = useAuth();
   const { organizationId } = useParams();
   const { organization: currentOrg, isAdmin: isCurrentOrgAdmin } = useOrganization();
-  const { sendInvitation, getInvitations, revokeInvitation, loading } = useInvitations();
+  const { sendInvitation, getPendingInvitations, revokeInvitation, loading } = useInvitations();
   const { toast } = useToast();
   
   // Use the organization from URL param or fallback to current user's org
@@ -104,7 +104,7 @@ const Organization = () => {
   };
 
   const loadInvitations = async () => {
-    const data = await getInvitations();
+    const data = await getPendingInvitations();
     setInvitations(data);
   };
 

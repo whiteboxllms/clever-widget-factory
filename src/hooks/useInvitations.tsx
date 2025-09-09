@@ -3,16 +3,16 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useOrganization } from './useOrganization';
 
-interface Invitation {
+interface PendingInvitation {
   id: string;
-  organization_id: string;
   email: string;
-  role: string;
-  token: string;
-  expires_at: string;
-  invited_by: string;
-  accepted_at: string | null;
-  created_at: string;
+  user_metadata: {
+    organization_id: string;
+    organization_name: string;
+    role: string;
+  };
+  invited_at: string;
+  email_confirmed_at: string | null;
 }
 
 export function useInvitations() {
@@ -32,8 +32,8 @@ export function useInvitations() {
 
     setLoading(true);
     try {
-      // Send invitation using Supabase Admin API
-      const { error } = await supabase.functions.invoke('invite-user', {
+      // Send magic link invitation using our edge function
+      const { data, error } = await supabase.functions.invoke('invite-magic-link', {
         body: {
           email,
           organizationId: organization.id,
@@ -54,10 +54,10 @@ export function useInvitations() {
 
       toast({
         title: "Success",
-        description: `Invitation sent to ${email}`,
+        description: `Magic link invitation sent to ${email}`,
       });
 
-      return { success: true };
+      return data;
     } catch (error) {
       console.error('Error sending invitation:', error);
       toast({
@@ -71,41 +71,64 @@ export function useInvitations() {
     }
   };
 
-  const getInvitations = async () => {
-    // Since we're using Supabase's native invitation system,
-    // we can't easily fetch pending invitations. Return empty array.
-    // Users will need to manage invitations through Supabase dashboard if needed.
-    return [];
+  const getPendingInvitations = async () => {
+    if (!organization) return [];
+
+    try {
+      // For now, we'll return an empty array since admin.listUsers requires service role
+      // In production, this would be called from an edge function with proper admin access
+      console.log('Pending invitations feature requires server-side implementation');
+      return [];
+    } catch (error) {
+      console.error('Error fetching pending invitations:', error);
+      return [];
+    }
   };
 
-  const revokeInvitation = async (invitationId: string) => {
-    // Since we're using Supabase's native invitation system,
-    // invitations are managed by Supabase Auth and cannot be revoked through the API.
-    toast({
-      title: "Info",
-      description: "Invitations are managed through Supabase Auth and expire automatically",
-    });
-    return false;
-  };
+  const revokeInvitation = async (userId: string) => {
+    if (!isAdmin) {
+      toast({
+        title: "Error",
+        description: "You don't have permission to revoke invitations",
+        variant: "destructive",
+      });
+      return false;
+    }
 
-  const validateInvitation = async (token: string) => {
-    // With Supabase native invitations, validation is handled by Supabase Auth
-    // We don't need custom validation logic
-    return null;
-  };
+    try {
+      // Delete the user to revoke the invitation
+      const { error } = await supabase.auth.admin.deleteUser(userId);
 
-  const acceptInvitation = async (token: string, userId: string) => {
-    // With Supabase native invitations, acceptance is handled automatically
-    // when users complete the signup flow from the invitation email
-    return { success: false, error: 'Invitation acceptance is handled by Supabase Auth' };
+      if (error) {
+        console.error('Error revoking invitation:', error);
+        toast({
+          title: "Error",
+          description: "Failed to revoke invitation",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      toast({
+        title: "Success",
+        description: "Invitation revoked successfully",
+      });
+      return true;
+    } catch (error) {
+      console.error('Error revoking invitation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to revoke invitation",
+        variant: "destructive",
+      });
+      return false;
+    }
   };
 
   return {
     sendInvitation,
-    getInvitations,
+    getPendingInvitations,
     revokeInvitation,
-    validateInvitation,
-    acceptInvitation,
     loading,
   };
 }

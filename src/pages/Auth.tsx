@@ -14,16 +14,14 @@ const Auth = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, signIn, signUp, signInWithGoogle, resetPassword, updatePassword } = useAuth();
-  const { validateInvitation, acceptInvitation } = useInvitations();
+  const { sendInvitation } = useInvitations();
   const { toast } = useToast();
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isPasswordReset, setIsPasswordReset] = useState(false);
   const [showResetForm, setShowResetForm] = useState(false);
-  const [inviteToken, setInviteToken] = useState<string | null>(null);
-  const [invitationData, setInvitationData] = useState<any>(null);
-  const [showSignUp, setShowSignUp] = useState(false);
+  // Removed invitation state since magic links are handled by AcceptInvite page
 
   useEffect(() => {
     // Check for password reset link
@@ -35,11 +33,8 @@ const Auth = () => {
       setIsPasswordReset(true);
     }
 
-    // Check for invitation token
-    if (token) {
-      setInviteToken(token);
-      validateInviteToken(token);
-    }
+    // Invitation tokens are no longer used in the new magic link system
+    // Users are redirected to /accept-invite directly
 
     // Redirect to dashboard if already authenticated and not in password reset flow
     if (user && !isPasswordReset) {
@@ -47,23 +42,7 @@ const Auth = () => {
     }
   }, [user, navigate, searchParams, isPasswordReset]);
 
-  const validateInviteToken = async (token: string) => {
-    try {
-      const invitation = await validateInvitation(token);
-      if (invitation) {
-        setInvitationData(invitation);
-        setShowSignUp(true);
-        toast({
-          title: "Invitation Found",
-          description: `You've been invited to join ${invitation.organization.name}`,
-        });
-      } else {
-        setError('Invalid or expired invitation link');
-      }
-    } catch (error) {
-      setError('Error validating invitation');
-    }
-  };
+  // Magic link invitations are handled by the AcceptInvite page
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -89,44 +68,7 @@ const Auth = () => {
     setLoading(false);
   };
 
-  const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    
-    if (!inviteToken || !invitationData) {
-      setError('Sign up is by invitation only');
-      return;
-    }
-    
-    const formData = new FormData(e.currentTarget);
-    
-    const email = formData.get('email') as string;
-    const password = formData.get('password') as string;
-    const fullName = formData.get('fullName') as string;
-    
-    // Verify email matches invitation
-    if (email !== invitationData.email) {
-      setError('Email must match the invitation email');
-      return;
-    }
-    
-    setLoading(true);
-    setError('');
-    
-    const { error } = await signUp(email, password, fullName);
-    
-    if (error) {
-      setError(error.message);
-    } else {
-      // Accept the invitation after successful signup
-      // This will be handled in the auth state change when user is created
-      toast({
-        title: "Account created successfully",
-        description: `Welcome to ${invitationData.organization.name}!`,
-      });
-    }
-    
-    setLoading(false);
-  };
+  // Sign up is now handled via magic link invitations only
 
   const handleResetPassword = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -278,60 +220,6 @@ const Auth = () => {
                   disabled={loading}
                 >
                   Back to Sign In
-                </Button>
-              </form>
-            </div>
-          ) : showSignUp ? (
-            <div className="space-y-4">
-              {invitationData && (
-                <Alert>
-                  <AlertDescription>
-                    You've been invited to join <strong>{invitationData.organization.name}</strong> as a <strong>{invitationData.role}</strong>.
-                    Please create your account below.
-                  </AlertDescription>
-                </Alert>
-              )}
-              
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
-              <form onSubmit={handleSignUp} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="fullName">Full Name</Label>
-                  <Input
-                    id="fullName"
-                    name="fullName"
-                    type="text"
-                    required
-                    disabled={loading}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    value={invitationData?.email || ''}
-                    required
-                    disabled={true}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    name="password"
-                    type="password"
-                    required
-                    disabled={loading}
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? 'Creating Account...' : 'Join Organization'}
                 </Button>
               </form>
             </div>

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Trash2, Send, Copy, Users, Shield, User, Wrench, Star, Info, ToggleLeft, ToggleRight, ChevronDown, UserX } from 'lucide-react';
+import { Trash2, Send, Users, Shield, User, Wrench, Star, Info, ToggleLeft, ToggleRight, ChevronDown, UserX } from 'lucide-react';
 import { EditableMemberName } from '@/components/EditableMemberName';
 import { EditableOrganizationName } from '@/components/EditableOrganizationName';
 import { useOrganizations } from '@/hooks/useOrganizations';
@@ -18,14 +18,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { supabase } from '@/integrations/supabase/client';
 
-interface Invitation {
-  id: string;
-  email: string;
-  role: string;
-  expires_at: string;
-  accepted_at: string | null;
-  created_at: string;
-}
 
 interface OrganizationMember {
   id: string;
@@ -45,7 +37,7 @@ const Organization = () => {
   const { user } = useAuth();
   const { organizationId } = useParams();
   const { organization: currentOrg, isAdmin: isCurrentOrgAdmin } = useOrganization();
-  const { sendInvitation, getPendingInvitations, revokeInvitation, loading } = useInvitations();
+  const { sendInvitation, loading } = useInvitations();
   const { updateOrganization } = useOrganizations();
   const { isSuperAdmin, loading: superAdminLoading } = useSuperAdmin();
   const { toast } = useToast();
@@ -55,7 +47,6 @@ const Organization = () => {
   const [targetOrganization, setTargetOrganization] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   
-  const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [members, setMembers] = useState<OrganizationMember[]>([]);
   const [pendingMembers, setPendingMembers] = useState<OrganizationMember[]>([]);
   const [newInviteEmail, setNewInviteEmail] = useState('');
@@ -69,7 +60,6 @@ const Organization = () => {
 
   useEffect(() => {
     if (isAdmin && targetOrgId) {
-      loadInvitations();
       loadMembers();
     }
   }, [isAdmin, targetOrgId]);
@@ -127,10 +117,6 @@ const Organization = () => {
     }
   };
 
-  const loadInvitations = async () => {
-    const data = await getPendingInvitations();
-    setInvitations(data);
-  };
 
   const loadMembers = async () => {
     if (!targetOrgId) return;
@@ -166,18 +152,10 @@ const Organization = () => {
     if (result) {
       setNewInviteEmail('');
       setNewInviteRole('user');
-      loadInvitations();
       loadMembers(); // Refresh to show new pending invitation
     }
   };
 
-  const handleRevokeInvitation = async (invitationId: string) => {
-    const success = await revokeInvitation(invitationId);
-    if (success) {
-      loadInvitations();
-      loadMembers(); // Refresh members to update pending list
-    }
-  };
 
   const handleRevokePendingMember = async (memberId: string) => {
     if (!isAdmin) return;
@@ -214,14 +192,6 @@ const Organization = () => {
     }
   };
 
-  const copyInviteLink = (token: string) => {
-    const inviteUrl = `${window.location.origin}/auth?token=${token}`;
-    navigator.clipboard.writeText(inviteUrl);
-    toast({
-      title: "Copied",
-      description: "Invitation link copied to clipboard",
-    });
-  };
 
   const toggleMemberStatus = async (memberId: string, currentStatus: boolean) => {
     try {
@@ -687,60 +657,6 @@ const Organization = () => {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Pending Invitations</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {invitations.length === 0 ? (
-                <p className="text-muted-foreground">No pending invitations</p>
-              ) : (
-                <div className="space-y-2">
-                  {invitations.map((invitation) => (
-                    <div
-                      key={invitation.id}
-                      className="flex items-center justify-between p-3 border rounded-lg"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3">
-                          <span className="font-medium">{invitation.email}</span>
-                          <Badge variant="outline">{invitation.role}</Badge>
-                          {invitation.accepted_at ? (
-                            <Badge variant="default">Accepted</Badge>
-                          ) : (
-                            <Badge variant="secondary">Pending</Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          Expires: {new Date(invitation.expires_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {!invitation.accepted_at && (
-                          <>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => copyInviteLink(invitation.id)}
-                            >
-                              <Copy className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleRevokeInvitation(invitation.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </>
       )}
     </div>

@@ -255,20 +255,43 @@ const Organization = () => {
   const handleRemoveMember = async (memberId: string, memberName: string) => {
     if (!isAdmin) return;
 
-    const confirmed = window.confirm(`Are you sure you want to remove ${memberName} from the organization? This action cannot be undone.`);
+    const confirmed = window.confirm(`Are you sure you want to completely delete ${memberName}? This will permanently remove them from all systems and cannot be undone.`);
     if (!confirmed) return;
 
     try {
-      const { error } = await supabase
+      // First, get the user_id from the organization member record
+      const { data: memberData, error: memberError } = await supabase
         .from('organization_members')
-        .delete()
-        .eq('id', memberId);
+        .select('user_id')
+        .eq('id', memberId)
+        .single();
 
-      if (error) {
-        console.error('Error removing member:', error);
+      if (memberError || !memberData) {
+        console.error('Error fetching member data:', memberError);
         toast({
           title: "Error",
-          description: "Failed to remove member from organization",
+          description: "Failed to find member record",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const userId = memberData.user_id;
+
+      // Delete the user's profile first (to handle any FK constraints)
+      await supabase
+        .from('profiles')
+        .delete()
+        .eq('user_id', userId);
+
+      // Delete the user from auth.users (this should cascade to organization_members)
+      const { error: deleteError } = await supabase.auth.admin.deleteUser(userId);
+
+      if (deleteError) {
+        console.error('Error deleting user:', deleteError);
+        toast({
+          title: "Error",
+          description: "Failed to completely delete user",
           variant: "destructive",
         });
         return;
@@ -276,15 +299,15 @@ const Organization = () => {
 
       toast({
         title: "Success",
-        description: `${memberName} has been removed from the organization`,
+        description: `${memberName} has been completely deleted from all systems`,
       });
       
       loadMembers();
     } catch (error) {
-      console.error('Error removing member:', error);
+      console.error('Error completely deleting user:', error);
       toast({
         title: "Error",
-        description: "Failed to remove member from organization",
+        description: "Failed to completely delete user",
         variant: "destructive",
       });
     }

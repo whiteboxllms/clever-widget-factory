@@ -43,7 +43,7 @@ const Organization = () => {
   const { organizationId } = useParams();
   const { organization: currentOrg, isAdmin: isCurrentOrgAdmin } = useOrganization();
   const { sendInvitation, getPendingInvitations, revokeInvitation, loading } = useInvitations();
-  const { isSuperAdmin } = useSuperAdmin();
+  const { isSuperAdmin, loading: superAdminLoading } = useSuperAdmin();
   const { toast } = useToast();
   
   // Use the organization from URL param or fallback to current user's org
@@ -58,10 +58,10 @@ const Organization = () => {
   const [newInviteRole, setNewInviteRole] = useState('user');
 
   useEffect(() => {
-    if (targetOrgId) {
+    if (targetOrgId && !superAdminLoading) {
       loadOrganizationData();
     }
-  }, [targetOrgId]);
+  }, [targetOrgId, isSuperAdmin, superAdminLoading]);
 
   useEffect(() => {
     if (isAdmin && targetOrgId) {
@@ -71,7 +71,7 @@ const Organization = () => {
   }, [isAdmin, targetOrgId]);
 
   const loadOrganizationData = async () => {
-    if (!targetOrgId) return;
+    if (!targetOrgId || superAdminLoading) return;
 
     // If viewing current user's org, use existing data
     if (targetOrgId === currentOrg?.id) {
@@ -102,17 +102,24 @@ const Organization = () => {
       }
 
       // Check if current user is admin of this specific organization
-      const { data: memberData } = await supabase
+      const { data: memberData, error: memberError } = await supabase
         .from('organization_members')
         .select('role')
         .eq('organization_id', targetOrgId)
         .eq('user_id', user?.id)
-        .single();
+        .maybeSingle();
+
+      if (memberError) {
+        console.error('Error fetching member data:', memberError);
+        setIsAdmin(false);
+        return;
+      }
 
       const isOrgAdmin = memberData?.role === 'admin';
       setIsAdmin(isOrgAdmin);
     } catch (error) {
       console.error('Error in loadOrganizationData:', error);
+      setIsAdmin(false);
     }
   };
 

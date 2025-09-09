@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { DebugModeToggle } from '@/components/DebugModeToggle';
 import { AuthDiagnostics } from '@/components/AuthDiagnostics';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
+import { EditableDisplayName } from '@/components/EditableDisplayName';
 
 export default function Dashboard() {
   const { user, signOut, isLeadership, isAdmin } = useAuth();
@@ -96,7 +97,7 @@ export default function Dashboard() {
         <div className="flex items-center justify-between p-4">
           <div>
             <h1 className="text-2xl font-bold">Farm Asset Tracker</h1>
-            <p className="text-muted-foreground">Welcome back, {user?.user_metadata?.full_name || user?.email}</p>
+            <EditableDisplayName />
           </div>
           <div className="flex items-center gap-4">
             <DebugModeToggle />

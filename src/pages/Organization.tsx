@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Trash2, Send, Copy, Users, Shield, User, Wrench, Star, Info, ToggleLeft, ToggleRight, ChevronDown, UserX } from 'lucide-react';
 import { EditableMemberName } from '@/components/EditableMemberName';
+import { EditableOrganizationName } from '@/components/EditableOrganizationName';
+import { useOrganizations } from '@/hooks/useOrganizations';
 import { useOrganization } from '@/hooks/useOrganization';
 import { useInvitations } from '@/hooks/useInvitations';
 import { useToast } from '@/hooks/use-toast';
@@ -44,6 +46,7 @@ const Organization = () => {
   const { organizationId } = useParams();
   const { organization: currentOrg, isAdmin: isCurrentOrgAdmin } = useOrganization();
   const { sendInvitation, getPendingInvitations, revokeInvitation, loading } = useInvitations();
+  const { updateOrganization } = useOrganizations();
   const { isSuperAdmin, loading: superAdminLoading } = useSuperAdmin();
   const { toast } = useToast();
   
@@ -375,7 +378,12 @@ const Organization = () => {
         <CardContent className="space-y-4">
           <div>
             <Label>Organization Name</Label>
-            <p className="text-lg font-medium">{targetOrganization.name}</p>
+            <EditableOrganizationName
+              organizationId={targetOrganization.id}
+              currentName={targetOrganization.name}
+              onNameUpdated={loadOrganizationData}
+              canEdit={isAdmin}
+            />
           </div>
           {targetOrganization.subdomain && (
             <div>

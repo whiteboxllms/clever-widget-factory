@@ -55,18 +55,36 @@ export default function AcceptInvite() {
             setOrganizationName(metadata.organization_name);
           }
 
-          // If user already has a password set, proceed to join organization
-          if (data.user.email_confirmed_at) {
-            await joinOrganization(data.user.id, metadata);
-          } else {
+          // Check if user needs to set password (invited users won't have email_confirmed_at initially)
+          if (!data.user.email_confirmed_at || metadata?.needs_password_setup) {
             // User needs to set a password
             setStep('set-password');
+          } else {
+            // User already has password, proceed to join organization
+            await joinOrganization(data.user.id, metadata);
           }
         }
       } else {
-        // No magic link parameters found
-        setError('Invalid invitation link');
-        setStep('error');
+        // Check if user is already logged in but needs to set password
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          setUserEmail(session.user.email || '');
+          const metadata = session.user.user_metadata;
+          
+          if (metadata?.organization_name) {
+            setOrganizationName(metadata.organization_name);
+          }
+
+          if (metadata?.needs_password_setup) {
+            setStep('set-password');
+          } else {
+            // Already set up, redirect to dashboard
+            navigate('/dashboard');
+          }
+        } else {
+          setError('Invalid invitation link or session expired');
+          setStep('error');
+        }
       }
     } catch (error: any) {
       console.error('Error handling magic link:', error);
@@ -94,9 +112,12 @@ export default function AcceptInvite() {
     setError('');
 
     try {
-      // Update user's password
+      // Update user's password and remove the password setup flag
       const { data, error: updateError } = await supabase.auth.updateUser({
-        password: password
+        password: password,
+        data: {
+          needs_password_setup: false
+        }
       });
 
       if (updateError) {

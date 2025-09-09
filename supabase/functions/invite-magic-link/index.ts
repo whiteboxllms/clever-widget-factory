@@ -43,7 +43,8 @@ const handler = async (req: Request): Promise<Response> => {
         organization_id: organizationId,
         organization_name: organizationName,
         role: role,
-        invited_by: 'admin' // We could get this from the auth header if needed
+        invited_by: 'admin', // We could get this from the auth header if needed
+        needs_password_setup: true
       }
     });
 

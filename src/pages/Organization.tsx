@@ -274,6 +274,41 @@ const Organization = () => {
     }
   };
 
+  const handleRoleChange = async (memberId: string, newRole: string, memberName: string) => {
+    if (!isAdmin) return;
+
+    try {
+      const { error } = await supabase
+        .from('organization_members')
+        .update({ role: newRole })
+        .eq('id', memberId);
+
+      if (error) {
+        console.error('Error updating member role:', error);
+        toast({
+          title: "Error",
+          description: "Failed to update member role",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Success",
+        description: `${memberName}'s role has been updated to ${newRole}`,
+      });
+      
+      loadMembers();
+    } catch (error) {
+      console.error('Error updating member role:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update member role",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (!targetOrganization) {
     return (
       <div className="container mx-auto p-6">
@@ -492,14 +527,30 @@ const Organization = () => {
                 ) : (
                   <div className="space-y-2">
                     {members.map((member) => (
-                      <div key={member.id} className="flex items-center justify-between p-3 border rounded-lg bg-muted/20">
-                        <div className="flex-1">
-                          <div className="font-medium">{member.full_name || 'Unknown User'}</div>
-                          <div className="text-sm text-muted-foreground">{member.auth_data?.email || 'No email available'}</div>
-                          <div className="text-sm text-muted-foreground capitalize">
-                            {member.role}
-                          </div>
-                        </div>
+                       <div key={member.id} className="flex items-center justify-between p-3 border rounded-lg bg-muted/20">
+                         <div className="flex-1">
+                           <div className="font-medium">{member.full_name || 'Unknown User'}</div>
+                           <div className="text-sm text-muted-foreground">{member.auth_data?.email || 'No email available'}</div>
+                           <div className="flex items-center gap-2 text-sm">
+                             <span className="text-muted-foreground">Role:</span>
+                             {isAdmin ? (
+                               <Select value={member.role} onValueChange={(value) => handleRoleChange(member.id, value, member.full_name || 'Unknown User')}>
+                                 <SelectTrigger className="w-32 h-7 text-xs">
+                                   <SelectValue />
+                                 </SelectTrigger>
+                                 <SelectContent>
+                                   <SelectItem value="user">User</SelectItem>
+                                   <SelectItem value="admin">Admin</SelectItem>
+                                   <SelectItem value="leadership">Leadership</SelectItem>
+                                 </SelectContent>
+                               </Select>
+                             ) : (
+                               <Badge variant="outline" className="text-xs">
+                                 {member.role}
+                               </Badge>
+                             )}
+                           </div>
+                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant={member.is_active ? "default" : "secondary"}>
                             {member.is_active ? 'Active' : 'Inactive'}

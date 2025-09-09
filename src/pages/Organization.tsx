@@ -30,6 +30,11 @@ interface OrganizationMember {
   is_active: boolean;
   status?: string;
   full_name: string | null;
+  auth_data?: {
+    email: string;
+    last_sign_in_at: string | null;
+    created_at: string;
+  };
 }
 
 const Organization = () => {
@@ -452,6 +457,7 @@ const Organization = () => {
                       <div key={member.id} className="flex items-center justify-between p-3 border rounded-lg bg-muted/20">
                         <div className="flex-1">
                           <div className="font-medium">{member.full_name || 'Unknown User'}</div>
+                          <div className="text-sm text-muted-foreground">{member.auth_data?.email || 'No email available'}</div>
                           <div className="text-sm text-muted-foreground capitalize">
                             {member.role}
                           </div>

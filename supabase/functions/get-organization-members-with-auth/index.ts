@@ -74,16 +74,23 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Set the auth token for the regular client
-    supabase.auth.setSession({
-      access_token: authHeader.replace('Bearer ', ''),
-      refresh_token: ''
-    } as any);
+    // Create authenticated client with the user's token
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      },
+      global: {
+        headers: {
+          Authorization: authHeader
+        }
+      }
+    });
 
     console.log(`Fetching organization members for organization: ${organizationId}`);
 
     // Fetch organization members (full_name is now directly in organization_members)
-    const { data: members, error: membersError } = await supabase
+    const { data: members, error: membersError } = await supabaseAuth
       .from('organization_members')
       .select('*')
       .eq('organization_id', organizationId);

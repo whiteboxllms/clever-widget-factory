@@ -540,6 +540,7 @@ const Organization = () => {
                                  </SelectTrigger>
                                  <SelectContent>
                                    <SelectItem value="user">User</SelectItem>
+                                   <SelectItem value="contributor">Contributor</SelectItem>
                                    <SelectItem value="admin">Admin</SelectItem>
                                    <SelectItem value="leadership">Leadership</SelectItem>
                                  </SelectContent>

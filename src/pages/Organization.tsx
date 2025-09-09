@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Trash2, Send, Copy, Users, Shield, User, Wrench, Star, Info, ToggleLeft, ToggleRight, ChevronDown } from 'lucide-react';
+import { Trash2, Send, Copy, Users, Shield, User, Wrench, Star, Info, ToggleLeft, ToggleRight, ChevronDown, UserX } from 'lucide-react';
 import { useOrganization } from '@/hooks/useOrganization';
 import { useInvitations } from '@/hooks/useInvitations';
 import { useToast } from '@/hooks/use-toast';
@@ -231,6 +231,44 @@ const Organization = () => {
       toast({
         title: "Error",
         description: "Failed to update member status",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRemoveMember = async (memberId: string, memberName: string) => {
+    if (!isAdmin) return;
+
+    const confirmed = window.confirm(`Are you sure you want to remove ${memberName} from the organization? This action cannot be undone.`);
+    if (!confirmed) return;
+
+    try {
+      const { error } = await supabase
+        .from('organization_members')
+        .delete()
+        .eq('id', memberId);
+
+      if (error) {
+        console.error('Error removing member:', error);
+        toast({
+          title: "Error",
+          description: "Failed to remove member from organization",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Success",
+        description: `${memberName} has been removed from the organization`,
+      });
+      
+      loadMembers();
+    } catch (error) {
+      console.error('Error removing member:', error);
+      toast({
+        title: "Error",
+        description: "Failed to remove member from organization",
         variant: "destructive",
       });
     }
@@ -483,6 +521,15 @@ const Organization = () => {
                                 Activate
                               </>
                             )}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleRemoveMember(member.id, member.full_name || 'Unknown User')}
+                            className="text-xs text-destructive hover:text-destructive"
+                          >
+                            <UserX className="w-4 h-4 mr-1" />
+                            Remove
                           </Button>
                         </div>
                       </div>

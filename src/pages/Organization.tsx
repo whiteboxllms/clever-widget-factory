@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Trash2, Send, Copy, Users, Shield, User, Wrench, Star, Info, ToggleLeft, ToggleRight, ChevronDown, UserX } from 'lucide-react';
+import { EditableMemberName } from '@/components/EditableMemberName';
 import { useOrganization } from '@/hooks/useOrganization';
 import { useInvitations } from '@/hooks/useInvitations';
 import { useToast } from '@/hooks/use-toast';
@@ -568,7 +569,12 @@ const Organization = () => {
                     {members.map((member) => (
                        <div key={member.id} className="flex items-center justify-between p-3 border rounded-lg bg-muted/20">
                          <div className="flex-1">
-                           <div className="font-medium">{member.full_name || 'Unknown User'}</div>
+                           <EditableMemberName 
+                             memberId={member.id}
+                             currentName={member.full_name}
+                             email={member.auth_data?.email || 'No email available'}
+                             onNameUpdated={loadMembers}
+                           />
                            <div className="text-sm text-muted-foreground">{member.auth_data?.email || 'No email available'}</div>
                            <div className="flex items-center gap-2 text-sm">
                              <span className="text-muted-foreground">Role:</span>
@@ -639,9 +645,14 @@ const Organization = () => {
                   
                   <div className="space-y-2">
                     {pendingMembers.map((member) => (
-                      <div key={member.id} className="flex items-center justify-between p-3 border rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
-                        <div className="flex-1">
-                          <div className="font-medium">{member.full_name || 'Unknown User'}</div>
+                       <div key={member.id} className="flex items-center justify-between p-3 border rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
+                         <div className="flex-1">
+                           <EditableMemberName 
+                             memberId={member.id}
+                             currentName={member.full_name}
+                             email={member.auth_data?.email || 'No email available'}
+                             onNameUpdated={loadMembers}
+                           />
                           <div className="text-sm text-muted-foreground capitalize">
                             {member.role} • Invitation pending
                           </div>

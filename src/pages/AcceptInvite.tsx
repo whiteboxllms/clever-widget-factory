@@ -146,18 +146,18 @@ export default function AcceptInvite() {
         throw new Error('Organization information not found in invitation');
       }
 
-      // Add user to organization_members table
+      // Update existing pending membership to active status
       const { error: memberError } = await supabase
         .from('organization_members')
-        .insert({
-          organization_id: organizationId,
-          user_id: userId,
-          role: role,
-          invited_by: metadata?.invited_by,
-        });
+        .update({
+          status: 'active'
+        })
+        .eq('user_id', userId)
+        .eq('organization_id', organizationId)
+        .eq('status', 'pending');
 
       if (memberError) {
-        console.error('Error adding to organization:', memberError);
+        console.error('Error activating organization membership:', memberError);
         setError('Failed to join organization');
         setStep('error');
         return;

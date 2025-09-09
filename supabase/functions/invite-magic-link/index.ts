@@ -59,6 +59,27 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Create pending organization membership record
+    if (data.user) {
+      const { error: memberError } = await supabaseAdmin
+        .from('organization_members')
+        .insert({
+          organization_id: organizationId,
+          user_id: data.user.id,
+          role: role,
+          status: 'pending',
+          invited_by: null // Could be set to the current user's ID if needed
+        });
+
+      if (memberError) {
+        console.error('Error creating organization member record:', memberError);
+        // Note: We don't return an error here as the user was already created
+        // The AcceptInvite component can still handle this case
+      } else {
+        console.log('Organization member record created with pending status');
+      }
+    }
+
     console.log('User invited successfully:', data);
 
     return new Response(

@@ -28,6 +28,7 @@ interface OrganizationMember {
   user_id: string;
   role: string;
   is_active: boolean;
+  status?: string;
   profiles: {
     full_name: string | null;
     created_at: string;
@@ -48,6 +49,7 @@ const Organization = () => {
   
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [members, setMembers] = useState<OrganizationMember[]>([]);
+  const [pendingMembers, setPendingMembers] = useState<OrganizationMember[]>([]);
   const [newInviteEmail, setNewInviteEmail] = useState('');
   const [newInviteRole, setNewInviteRole] = useState('user');
 
@@ -113,7 +115,7 @@ const Organization = () => {
     
     const { data, error } = await supabase
       .from('organization_members')
-      .select('*, is_active')
+      .select('*, is_active, status')
       .eq('organization_id', targetOrgId);
 
     if (error) {
@@ -137,7 +139,12 @@ const Organization = () => {
       })
     );
 
-    setMembers(membersWithProfiles);
+    // Split members by status
+    const activeMembers = membersWithProfiles.filter(m => (m.status || 'active') === 'active');
+    const pending = membersWithProfiles.filter(m => (m.status || 'active') === 'pending');
+    
+    setMembers(activeMembers);
+    setPendingMembers(pending);
   };
 
   const handleSendInvitation = async (e: React.FormEvent) => {
@@ -148,6 +155,7 @@ const Organization = () => {
       setNewInviteEmail('');
       setNewInviteRole('user');
       loadInvitations();
+      loadMembers(); // Refresh to show new pending invitation
     }
   };
 
@@ -155,6 +163,42 @@ const Organization = () => {
     const success = await revokeInvitation(invitationId);
     if (success) {
       loadInvitations();
+      loadMembers(); // Refresh members to update pending list
+    }
+  };
+
+  const handleRevokePendingMember = async (memberId: string) => {
+    if (!isAdmin) return;
+
+    try {
+      const { error } = await supabase
+        .from('organization_members')
+        .delete()
+        .eq('id', memberId);
+
+      if (error) {
+        console.error('Error revoking pending membership:', error);
+        toast({
+          title: "Error",
+          description: "Failed to revoke invitation",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Success",
+        description: "Pending invitation revoked",
+      });
+      
+      loadMembers();
+    } catch (error) {
+      console.error('Error revoking pending membership:', error);
+      toast({
+        title: "Error",
+        description: "Failed to revoke invitation",
+        variant: "destructive",
+      });
     }
   };
 
@@ -405,47 +449,89 @@ const Organization = () => {
                 Organization Members
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              {members.length === 0 ? (
-                <p className="text-muted-foreground">No members found</p>
-              ) : (
-                <div className="space-y-2">
-                  {members.map((member) => (
-                    <div
-                      key={member.id}
-                      className="flex items-center justify-between p-3 border rounded-lg"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3">
-                          <span className="font-medium">
-                            {member.profiles?.full_name || 'Unknown User'}
-                          </span>
-                          <Badge variant="outline">{member.role}</Badge>
-                          <Badge variant={member.is_active ? "default" : "destructive"}>
-                            {member.is_active ? "Active" : "Inactive"}
-                          </Badge>
+            <CardContent className="space-y-6">
+              {/* Active Members */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  <h3 className="text-lg font-semibold">Active Members ({members.length})</h3>
+                </div>
+                
+                {members.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">No active members found</p>
+                ) : (
+                  <div className="space-y-2">
+                    {members.map((member) => (
+                      <div key={member.id} className="flex items-center justify-between p-3 border rounded-lg bg-muted/20">
+                        <div className="flex-1">
+                          <div className="font-medium">{member.profiles?.full_name || 'Unknown User'}</div>
+                          <div className="text-sm text-muted-foreground capitalize">
+                            {member.role}
+                          </div>
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          Member since: {new Date(member.profiles?.created_at).toLocaleDateString()}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={member.is_active ? "default" : "secondary"}>
+                            {member.is_active ? 'Active' : 'Inactive'}
+                          </Badge>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => toggleMemberStatus(member.id, member.is_active)}
+                            className="text-xs"
+                          >
+                            {member.is_active ? (
+                              <>
+                                <ToggleLeft className="w-4 h-4 mr-1" />
+                                Deactivate
+                              </>
+                            ) : (
+                              <>
+                                <ToggleRight className="w-4 h-4 mr-1" />
+                                Activate
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => toggleMemberStatus(member.id, member.is_active)}
-                          className="flex items-center gap-2"
-                        >
-                          {member.is_active ? (
-                            <ToggleRight className="w-4 h-4 text-green-600" />
-                          ) : (
-                            <ToggleLeft className="w-4 h-4 text-gray-400" />
-                          )}
-                          {member.is_active ? "Active" : "Inactive"}
-                        </Button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Pending Invitations */}
+              {pendingMembers.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Send className="w-5 h-5" />
+                    <h3 className="text-lg font-semibold">Pending Invitations ({pendingMembers.length})</h3>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {pendingMembers.map((member) => (
+                      <div key={member.id} className="flex items-center justify-between p-3 border rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
+                        <div className="flex-1">
+                          <div className="font-medium">{member.profiles?.full_name || 'Unknown User'}</div>
+                          <div className="text-sm text-muted-foreground capitalize">
+                            {member.role} • Invitation pending
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200">
+                            Pending
+                          </Badge>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleRevokePendingMember(member.id)}
+                            className="text-xs text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4 mr-1" />
+                            Revoke
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
             </CardContent>

@@ -834,7 +834,6 @@ export type Database = {
           id: string
           invited_by: string | null
           is_active: boolean
-          joined_at: string
           organization_id: string
           role: string
           user_id: string
@@ -844,7 +843,6 @@ export type Database = {
           id?: string
           invited_by?: string | null
           is_active?: boolean
-          joined_at?: string
           organization_id: string
           role?: string
           user_id: string
@@ -854,7 +852,6 @@ export type Database = {
           id?: string
           invited_by?: string | null
           is_active?: boolean
-          joined_at?: string
           organization_id?: string
           role?: string
           user_id?: string

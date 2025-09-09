@@ -46,7 +46,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               .from('organization_members')
               .select('role, organization_id')
               .eq('user_id', session.user.id)
-              .order('joined_at', { ascending: true })
               .limit(1);
             const member = members?.[0];
             const userRole = member?.role;
@@ -77,7 +76,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .from('organization_members')
             .select('role, organization_id')
             .eq('user_id', session.user.id)
-            .order('joined_at', { ascending: true })
             .limit(1);
           const member = members?.[0];
           const userRole = member?.role;

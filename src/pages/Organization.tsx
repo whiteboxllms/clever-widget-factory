@@ -26,7 +26,6 @@ interface OrganizationMember {
   id: string;
   user_id: string;
   role: string;
-  joined_at: string;
   is_active: boolean;
   profiles: {
     full_name: string | null;
@@ -114,8 +113,7 @@ const Organization = () => {
     const { data, error } = await supabase
       .from('organization_members')
       .select('*, is_active')
-      .eq('organization_id', targetOrgId)
-      .order('joined_at', { ascending: true });
+      .eq('organization_id', targetOrgId);
 
     if (error) {
       console.error('Error loading members:', error);
@@ -418,7 +416,7 @@ const Organization = () => {
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          Member since: {new Date(member.profiles?.created_at || member.joined_at).toLocaleDateString()}
+                          Member since: {new Date(member.profiles?.created_at).toLocaleDateString()}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">

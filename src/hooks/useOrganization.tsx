@@ -17,7 +17,6 @@ interface OrganizationMember {
   organization_id: string;
   user_id: string;
   role: string;
-  joined_at: string;
   invited_by: string | null;
 }
 
@@ -56,7 +55,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
           organization:organizations(*)
         `)
         .eq('user_id', user.id)
-        .order('joined_at', { ascending: true })
         .limit(1)
         .single();
 

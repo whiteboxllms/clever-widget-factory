@@ -18,7 +18,6 @@ interface OrganizationWithMembers extends Organization {
     id: string;
     user_id: string;
     role: string;
-    joined_at: string;
     profiles: {
       full_name: string | null;
     } | null;
@@ -77,7 +76,7 @@ export function useOrganizations() {
 
       const { data: membersData, error: membersError } = await supabase
         .from('organization_members')
-        .select('id, user_id, role, joined_at')
+        .select('id, user_id, role')
         .eq('organization_id', orgId);
 
       if (membersError) {

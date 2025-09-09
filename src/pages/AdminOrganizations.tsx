@@ -354,9 +354,6 @@ const AdminOrganizations = () => {
                       </span>
                       <Badge variant="outline">{member.role}</Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      Joined: {new Date(member.joined_at).toLocaleDateString()}
-                    </p>
                   </div>
                 </div>
               ))

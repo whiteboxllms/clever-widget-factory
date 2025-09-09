@@ -12,6 +12,7 @@ import { Trash2, Send, Copy, Users, Shield, User, Wrench, Star, Info, ToggleLeft
 import { useOrganization } from '@/hooks/useOrganization';
 import { useInvitations } from '@/hooks/useInvitations';
 import { useToast } from '@/hooks/use-toast';
+import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { supabase } from '@/integrations/supabase/client';
 
 interface Invitation {
@@ -42,6 +43,7 @@ const Organization = () => {
   const { organizationId } = useParams();
   const { organization: currentOrg, isAdmin: isCurrentOrgAdmin } = useOrganization();
   const { sendInvitation, getPendingInvitations, revokeInvitation, loading } = useInvitations();
+  const { isSuperAdmin } = useSuperAdmin();
   const { toast } = useToast();
   
   // Use the organization from URL param or fallback to current user's org
@@ -74,7 +76,7 @@ const Organization = () => {
     // If viewing current user's org, use existing data
     if (targetOrgId === currentOrg?.id) {
       setTargetOrganization(currentOrg);
-      setIsAdmin(isCurrentOrgAdmin);
+      setIsAdmin(isCurrentOrgAdmin || isSuperAdmin);
       return;
     }
 
@@ -93,7 +95,7 @@ const Organization = () => {
 
       setTargetOrganization(orgData);
 
-      // Check if current user is admin of this organization
+      // Check if current user is admin of this organization OR is a super admin
       const { data: memberData } = await supabase
         .from('organization_members')
         .select('role')
@@ -101,7 +103,8 @@ const Organization = () => {
         .eq('user_id', user?.id)
         .single();
 
-      setIsAdmin(memberData?.role === 'leadership');
+      const isOrgAdmin = memberData?.role === 'leadership';
+      setIsAdmin(isOrgAdmin || isSuperAdmin);
     } catch (error) {
       console.error('Error in loadOrganizationData:', error);
     }

@@ -111,7 +111,7 @@ export default function Actions() {
           participantsData.find(p => p.user_id === participantId)
         ).filter(Boolean) || [],
         asset: toolsData.find(tool => tool.id === item.asset_id) || null,
-        assignee: item.assignee && typeof item.assignee === 'object' && !('error' in item.assignee) && item.assignee !== null 
+        assignee: item.assignee && typeof item.assignee === 'object' && !Array.isArray(item.assignee) && !('error' in item.assignee) 
           ? {
               id: (item.assignee as any)?.id || '',
               user_id: (item.assignee as any)?.user_id || '',

@@ -29,10 +29,7 @@ interface OrganizationMember {
   role: string;
   is_active: boolean;
   status?: string;
-  profiles: {
-    full_name: string | null;
-    created_at: string;
-  } | null;
+  full_name: string | null;
 }
 
 const Organization = () => {
@@ -454,7 +451,7 @@ const Organization = () => {
                     {members.map((member) => (
                       <div key={member.id} className="flex items-center justify-between p-3 border rounded-lg bg-muted/20">
                         <div className="flex-1">
-                          <div className="font-medium">{member.profiles?.full_name || 'Unknown User'}</div>
+                          <div className="font-medium">{member.full_name || 'Unknown User'}</div>
                           <div className="text-sm text-muted-foreground capitalize">
                             {member.role}
                           </div>
@@ -500,7 +497,7 @@ const Organization = () => {
                     {pendingMembers.map((member) => (
                       <div key={member.id} className="flex items-center justify-between p-3 border rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
                         <div className="flex-1">
-                          <div className="font-medium">{member.profiles?.full_name || 'Unknown User'}</div>
+                          <div className="font-medium">{member.full_name || 'Unknown User'}</div>
                           <div className="text-sm text-muted-foreground capitalize">
                             {member.role} • Invitation pending
                           </div>

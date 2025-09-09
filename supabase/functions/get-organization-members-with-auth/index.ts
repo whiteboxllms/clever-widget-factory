@@ -17,9 +17,7 @@ interface OrganizationMemberWithAuth {
   invited_by: string | null;
   created_at: string;
   is_active: boolean;
-  profiles: {
-    full_name: string | null;
-  };
+  full_name: string | null;
   auth_data: {
     email: string;
     last_sign_in_at: string | null;
@@ -84,13 +82,10 @@ Deno.serve(async (req) => {
 
     console.log(`Fetching organization members for organization: ${organizationId}`);
 
-    // Fetch organization members with profiles
+    // Fetch organization members (full_name is now directly in organization_members)
     const { data: members, error: membersError } = await supabase
       .from('organization_members')
-      .select(`
-        *,
-        profiles:user_id(full_name)
-      `)
+      .select('*')
       .eq('organization_id', organizationId);
 
     if (membersError) {

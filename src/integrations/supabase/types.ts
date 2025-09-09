@@ -831,29 +831,35 @@ export type Database = {
       organization_members: {
         Row: {
           created_at: string
+          full_name: string | null
           id: string
           invited_by: string | null
           is_active: boolean
           organization_id: string
           role: string
+          super_admin: boolean | null
           user_id: string
         }
         Insert: {
           created_at?: string
+          full_name?: string | null
           id?: string
           invited_by?: string | null
           is_active?: boolean
           organization_id: string
           role?: string
+          super_admin?: boolean | null
           user_id: string
         }
         Update: {
           created_at?: string
+          full_name?: string | null
           id?: string
           invited_by?: string | null
           is_active?: boolean
           organization_id?: string
           role?: string
+          super_admin?: boolean | null
           user_id?: string
         }
         Relationships: [

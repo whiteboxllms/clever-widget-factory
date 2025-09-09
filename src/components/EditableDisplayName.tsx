@@ -79,9 +79,9 @@ export function EditableDisplayName() {
         onClick={handleStartEdit}
         variant="ghost"
         size="sm"
-        className="h-6 w-6 p-0 hover:bg-muted"
+        className="h-5 w-5 p-0 opacity-50 hover:opacity-100 hover:bg-muted transition-opacity"
       >
-        <Edit2 className="h-3 w-3" />
+        <Edit2 className="h-2.5 w-2.5" />
       </Button>
     </div>
   );

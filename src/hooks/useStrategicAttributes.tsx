@@ -83,7 +83,7 @@ export function useStrategicAttributes() {
       
       // Fetch profiles for these users
       const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
+        .from('organization_members')
         .select('user_id, full_name, role')
         .in('user_id', userIdsFromAttributes);
 

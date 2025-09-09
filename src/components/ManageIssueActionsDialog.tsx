@@ -72,7 +72,7 @@ export function ManageIssueActionsDialog({
     try {
       // Always fetch profiles
       const profilesResponse = await supabase
-        .from('profiles')
+        .from('organization_members')
         .select('id, user_id, full_name, role')
         .order('full_name');
       

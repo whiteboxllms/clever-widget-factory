@@ -176,8 +176,8 @@ export default function EditMission() {
 
   const fetchProfiles = async () => {
     const { data: profilesData, error: profilesError } = await supabase
-      .from('profiles')
-      .select('*');
+      .from('organization_members')
+      .select('id, user_id, full_name, role, super_admin, created_at');
     
     if (profilesError) {
       console.error('Error fetching profiles:', profilesError);
@@ -189,13 +189,13 @@ export default function EditMission() {
   const checkUserPermissions = async () => {
     if (!user) return;
     
-    const { data: userProfile } = await supabase
-      .from('profiles')
+    const { data: userMember } = await supabase
+      .from('organization_members')
       .select('role')
       .eq('user_id', user.id)
       .single();
 
-    const contributorOrLeadership = userProfile?.role === 'contributor' || userProfile?.role === 'leadership';
+    const contributorOrLeadership = userMember?.role === 'contributor' || userMember?.role === 'leadership';
     setIsContributorOrLeadership(contributorOrLeadership);
   };
 

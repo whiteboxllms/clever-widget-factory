@@ -111,12 +111,12 @@ export default function Actions() {
           participantsData.find(p => p.user_id === participantId)
         ).filter(Boolean) || [],
         asset: toolsData.find(tool => tool.id === item.asset_id) || null,
-        assignee: item.assignee && typeof item.assignee === 'object' && !('error' in item.assignee) 
+        assignee: item.assignee && typeof item.assignee === 'object' && !('error' in item.assignee) && item.assignee !== null 
           ? {
-              id: item.assignee.id || '',
-              user_id: item.assignee.user_id || '',
-              full_name: item.assignee.full_name || '',
-              role: item.assignee.role || ''
+              id: (item.assignee as any)?.id || '',
+              user_id: (item.assignee as any)?.user_id || '',
+              full_name: (item.assignee as any)?.full_name || '',
+              role: (item.assignee as any)?.role || ''
             }
           : null,
         mission: item.mission && typeof item.mission === 'object' && !('error' in item.mission) 
@@ -145,8 +145,8 @@ export default function Actions() {
   const fetchProfiles = async () => {
     try {
       const { data, error } = await supabase
-        .from('profiles')
-        .select('*');
+        .from('organization_members')
+        .select('id, user_id, full_name, role, super_admin, created_at');
       if (error) throw error;
       setProfiles(data || []);
     } catch (error) {

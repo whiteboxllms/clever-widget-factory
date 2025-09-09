@@ -125,7 +125,7 @@ export async function checkUserRole(requiredRole: string): Promise<{ hasRole: bo
 
   try {
     const { data: profile, error } = await supabase
-      .from('profiles')
+      .from('organization_members')
       .select('role')
       .eq('user_id', validation.session.user.id)
       .single();

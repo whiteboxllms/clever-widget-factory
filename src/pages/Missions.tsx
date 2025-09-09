@@ -251,16 +251,16 @@ const Missions = () => {
   const checkUserRole = async () => {
     if (!user) return;
     const {
-      data: profile
-    } = await supabase.from('profiles').select('role').eq('user_id', user.id).single();
-    setIsLeadership(profile?.role === 'leadership');
-    setIsContributorOrLeadership(profile?.role === 'leadership' || profile?.role === 'contributor');
+      data: member
+    } = await supabase.from('organization_members').select('role').eq('user_id', user.id).single();
+    setIsLeadership(member?.role === 'leadership');
+    setIsContributorOrLeadership(member?.role === 'leadership' || member?.role === 'contributor');
   };
   const fetchProfiles = async () => {
     const {
       data,
       error
-    } = await supabase.from('profiles').select('*');
+    } = await supabase.from('organization_members').select('id, user_id, full_name, role, super_admin, created_at');
     if (error) {
       toast({
         title: "Error",

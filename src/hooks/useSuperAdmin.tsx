@@ -17,7 +17,7 @@ export function useSuperAdmin() {
 
       try {
         const { data, error } = await supabase
-          .from('profiles')
+          .from('organization_members')
           .select('super_admin')
           .eq('user_id', user.id)
           .single();

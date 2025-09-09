@@ -42,7 +42,7 @@ export function WorkerSelector({
   const fetchWorkers = async () => {
     try {
       const { data, error } = await supabase
-        .from('profiles')
+        .from('organization_members')
         .select('user_id, full_name, role')
         .not('full_name', 'is', null);
 

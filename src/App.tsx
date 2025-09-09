@@ -9,7 +9,7 @@ import { OrganizationProvider } from "@/hooks/useOrganization";
 import { AppSettingsProvider } from "@/hooks/useAppSettings";
 import { useSessionMonitor } from "@/hooks/useSessionMonitor";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import LeadershipRoute from "@/components/LeadershipRoute";
+import AdminRoute from "@/components/AdminRoute";
 import SuperAdminRoute from "@/components/SuperAdminRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -116,9 +116,9 @@ function AppContent() {
         </ProtectedRoute>
       } />
       <Route path="/dashboard/analytics" element={
-        <LeadershipRoute>
+        <AdminRoute>
           <AnalyticsDashboard />
-        </LeadershipRoute>
+        </AdminRoute>
       } />
       <Route path="/organization" element={
         <ProtectedRoute>

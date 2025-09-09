@@ -546,7 +546,7 @@ export function SimpleMissionForm({
               <SelectValue placeholder="Select QA person" />
             </SelectTrigger>
             <SelectContent>
-              {profiles.filter(p => p.role === 'leadership').map((profile) => (
+              {profiles.filter(p => p.role === 'admin').map((profile) => (
                 <SelectItem key={profile.user_id} value={profile.user_id}>
                   {profile.full_name}
                 </SelectItem>

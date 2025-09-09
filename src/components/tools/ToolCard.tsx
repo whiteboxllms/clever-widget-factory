@@ -10,7 +10,7 @@ interface ToolCardProps {
   activeCheckout?: { user_name: string, user_id: string };
   hasIssues?: boolean;
   canEditTools: boolean;
-  isLeadership: boolean;
+  isAdmin: boolean;
   currentUserId?: string;
   onToolClick: (tool: Tool) => void;
   onCheckoutClick: (tool: Tool) => void;
@@ -25,7 +25,7 @@ export const ToolCard = ({
   activeCheckout,
   hasIssues,
   canEditTools,
-  isLeadership,
+  isAdmin,
   currentUserId,
   onToolClick,
   onCheckoutClick,
@@ -136,7 +136,7 @@ export const ToolCard = ({
                 Issues
               </Button>
               
-              {isLeadership && (
+              {isAdmin && (
                 <Button
                   size="icon"
                   variant="outline"

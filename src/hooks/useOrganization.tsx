@@ -36,7 +36,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const [organizationMember, setOrganizationMember] = useState<OrganizationMember | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const isAdmin = organizationMember?.role === 'admin' || organizationMember?.role === 'leadership';
+  const isAdmin = organizationMember?.role === 'admin';
 
   const fetchOrganizationData = async () => {
     if (!user) {

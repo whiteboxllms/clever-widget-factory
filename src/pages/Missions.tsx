@@ -70,8 +70,8 @@ const Missions = () => {
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showTemplates, setShowTemplates] = useState(true);
-  const [isLeadership, setIsLeadership] = useState(false);
-  const [isContributorOrLeadership, setIsContributorOrLeadership] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isContributorOrAdmin, setIsContributorOrAdmin] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [expandedMissions, setExpandedMissions] = useState<Set<string>>(new Set());
   const [expandedProblemStatements, setExpandedProblemStatements] = useState<Set<string>>(new Set());
@@ -253,8 +253,8 @@ const Missions = () => {
     const {
       data: member
     } = await supabase.from('organization_members').select('role').eq('user_id', user.id).single();
-    setIsLeadership(member?.role === 'leadership');
-    setIsContributorOrLeadership(member?.role === 'leadership' || member?.role === 'contributor');
+    setIsAdmin(member?.role === 'admin');
+    setIsContributorOrAdmin(member?.role === 'admin' || member?.role === 'contributor');
   };
   const fetchProfiles = async () => {
     const {
@@ -382,12 +382,12 @@ const Missions = () => {
       return;
     }
     try {
-      // Check if user has leadership role using the enhanced auth utils
-      const roleCheck = await checkUserRoleAuth('leadership');
+      // Check if user has admin role using the enhanced auth utils
+      const roleCheck = await checkUserRoleAuth('admin');
       if (!roleCheck.hasRole) {
         toast({
           title: "Permission Error",
-          description: "Only leadership can create new missions",
+          description: "Only admins can create new missions",
           variant: "destructive"
         });
         return;
@@ -608,7 +608,7 @@ const Missions = () => {
             </div>
           </div>
           
-          {isLeadership && <Dialog open={showCreateDialog} onOpenChange={open => {
+          {isAdmin && <Dialog open={showCreateDialog} onOpenChange={open => {
           setShowCreateDialog(open);
           if (open) {
             // Always start with template selection when opening
@@ -643,7 +643,7 @@ const Missions = () => {
               <Flag className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">No missions yet</h3>
               <p className="text-muted-foreground">
-                {isLeadership ? "Create your first mission to get started." : "No missions have been created yet."}
+                {isAdmin ? "Create your first mission to get started." : "No missions have been created yet."}
               </p>
             </div> : <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {missions.map(mission => {
@@ -656,7 +656,7 @@ const Missions = () => {
                            MISSION-{String(mission.mission_number).padStart(3, '0')}: {mission.title}
                          </CardTitle>
                          <div className="flex items-center gap-2">
-                           {(mission.created_by === user?.id || isContributorOrLeadership) && <Button variant="ghost" size="sm" onClick={() => handleEditClick(mission)} className="h-6 w-6 p-0">
+                           {(mission.created_by === user?.id || isContributorOrAdmin) && <Button variant="ghost" size="sm" onClick={() => handleEditClick(mission)} className="h-6 w-6 p-0">
                                <ExternalLink className="h-3 w-3" />
                              </Button>}
                          </div>
@@ -721,12 +721,12 @@ const Missions = () => {
                               </Button>
                             </CollapsibleTrigger>
                             <CollapsibleContent className="mt-2">
-                               <MissionTaskList missionId={mission.id} profiles={profiles} canEdit={isContributorOrLeadership || mission.created_by === user?.id} missionNumber={mission.mission_number} />
+                               <MissionTaskList missionId={mission.id} profiles={profiles} canEdit={isContributorOrAdmin || mission.created_by === user?.id} missionNumber={mission.mission_number} />
                              </CollapsibleContent>
                            </Collapsible>}
 
                          {/* QA Feedback Section */}
-                         {(isLeadership || mission.created_by === user?.id || mission.status === 'completed') && <div className={`mt-4 p-3 rounded-lg bg-muted/50 ${mission.status === 'completed' && (!mission.qa_feedback || !mission.qa_feedback.trim()) ? 'border-2 border-task-plan-border' // Blue border when ready to be filled
+                         {(isAdmin || mission.created_by === user?.id || mission.status === 'completed') && <div className={`mt-4 p-3 rounded-lg bg-muted/50 ${mission.status === 'completed' && (!mission.qa_feedback || !mission.qa_feedback.trim()) ? 'border-2 border-task-plan-border' // Blue border when ready to be filled
                   : 'border'}`}>
                              <Label className="text-sm font-medium">QA Feedback</Label>
                              <Textarea value={mission.qa_feedback || ''} onChange={async e => {

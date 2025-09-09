@@ -103,7 +103,7 @@ const Organization = () => {
         .eq('user_id', user?.id)
         .single();
 
-      const isOrgAdmin = memberData?.role === 'leadership';
+      const isOrgAdmin = memberData?.role === 'admin';
       setIsAdmin(isOrgAdmin || isSuperAdmin);
     } catch (error) {
       console.error('Error in loadOrganizationData:', error);
@@ -410,11 +410,11 @@ const Organization = () => {
               </ul>
             </div>
 
-            {/* Leadership Role */}
+            {/* Admin Role */}
             <div className="p-4 border rounded-lg bg-muted/20">
               <div className="flex items-center gap-2 mb-3">
                 <Shield className="w-5 h-5 text-purple-600" />
-                <h3 className="font-semibold text-foreground">Leadership</h3>
+                <h3 className="font-semibold text-foreground">Admin</h3>
               </div>
               <p className="text-sm text-muted-foreground mb-3">
                 Full administrative access with member management and strategic oversight capabilities.
@@ -450,7 +450,7 @@ const Organization = () => {
       </Card>
       </Collapsible>
 
-      {/* Invitation Management (Leadership Only) */}
+      {/* Invitation Management (Admin Only) */}
       {isAdmin && (
         <>
           <Card>
@@ -490,10 +490,10 @@ const Organization = () => {
                             <span>Contributor - Create content</span>
                           </div>
                         </SelectItem>
-                        <SelectItem value="leadership">
+                        <SelectItem value="admin">
                           <div className="flex items-center gap-2">
                             <Shield className="w-4 h-4" />
-                            <span>Leadership - Manage members</span>
+                            <span>Admin - Manage members</span>
                           </div>
                         </SelectItem>
                       </SelectContent>
@@ -545,7 +545,7 @@ const Organization = () => {
                                    <SelectItem value="user">User</SelectItem>
                                    <SelectItem value="contributor">Contributor</SelectItem>
                                    <SelectItem value="admin">Admin</SelectItem>
-                                   <SelectItem value="leadership">Leadership</SelectItem>
+                                   
                                  </SelectContent>
                                </Select>
                              ) : (

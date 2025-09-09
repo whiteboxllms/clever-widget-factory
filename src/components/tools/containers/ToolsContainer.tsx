@@ -30,7 +30,7 @@ import { ToolRemovalDialog } from "../ToolRemovalDialog";
 export const ToolsContainer = () => {
   const { toolId } = useParams();
   const navigate = useNavigate();
-  const { user, canEditTools, isLeadership } = useAuth();
+  const { user, canEditTools, isAdmin } = useAuth();
   
   // State management
   const [selectedTool, setSelectedTool] = useState(null);
@@ -279,7 +279,7 @@ export const ToolsContainer = () => {
               activeCheckouts={activeCheckouts}
               toolsWithIssues={toolsWithIssues}
               canEditTools={canEditTools}
-              isLeadership={isLeadership}
+              isAdmin={isAdmin}
               currentUserId={user?.id}
               onToolClick={handleToolClick}
               onCheckoutClick={handleCheckoutClick}

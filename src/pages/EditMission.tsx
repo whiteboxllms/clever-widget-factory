@@ -62,7 +62,7 @@ export default function EditMission() {
   const [mission, setMission] = useState<Mission | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isContributorOrLeadership, setIsContributorOrLeadership] = useState(false);
+  const [isContributorOrAdmin, setIsContributorOrAdmin] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   
   const [formData, setFormData] = useState({
@@ -195,8 +195,8 @@ export default function EditMission() {
       .eq('user_id', user.id)
       .single();
 
-    const contributorOrLeadership = userMember?.role === 'contributor' || userMember?.role === 'leadership';
-    setIsContributorOrLeadership(contributorOrLeadership);
+    const contributorOrAdmin = userMember?.role === 'contributor' || userMember?.role === 'admin';
+    setIsContributorOrAdmin(contributorOrAdmin);
   };
 
   // Save mission data explicitly
@@ -206,7 +206,7 @@ export default function EditMission() {
     }
     
     // Check permissions
-    const canEdit = mission.created_by === user.id || isContributorOrLeadership;
+    const canEdit = mission.created_by === user.id || isContributorOrAdmin;
     if (!canEdit) {
       throw new Error('You do not have permission to edit this mission');
     }
@@ -266,7 +266,7 @@ export default function EditMission() {
   }
 
   // Check permission
-  const canEdit = mission.created_by === user?.id || isContributorOrLeadership;
+  const canEdit = mission.created_by === user?.id || isContributorOrAdmin;
   if (!canEdit) {
     return (
       <div className="min-h-screen bg-background">

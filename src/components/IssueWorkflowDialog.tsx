@@ -69,8 +69,8 @@ export function IssueWorkflowDialog({
   const { requirements, addRequirement, removeRequirement } = useIssueRequirements(issue?.id || null);
 
   // Check user permissions
-  const canManageWorkflow = userRole === 'leadership' || userRole === 'admin' || userRole === 'contributor';
-  const canRepair = userRole === 'leadership' || userRole === 'admin' || userRole === 'contributor';
+  const canManageWorkflow = userRole === 'admin' || userRole === 'contributor';
+  const canRepair = userRole === 'admin' || userRole === 'contributor';
 
   useEffect(() => {
     if (issue) {

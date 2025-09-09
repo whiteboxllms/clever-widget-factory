@@ -173,7 +173,7 @@ export function AuthDiagnostics() {
                 <div className="space-y-1">
                   <div className="flex justify-between">
                     <span>Profile Role:</span>
-                    <Badge variant={authInfo.profile.role === 'leadership' ? "default" : "secondary"}>
+                    <Badge variant={authInfo.profile.role === 'admin' ? "default" : "secondary"}>
                       {authInfo.profile.role || "None"}
                     </Badge>
                   </div>

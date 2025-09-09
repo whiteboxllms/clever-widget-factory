@@ -10,7 +10,7 @@ import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { EditableDisplayName } from '@/components/EditableDisplayName';
 
 export default function Dashboard() {
-  const { user, signOut, isLeadership, isAdmin } = useAuth();
+  const { user, signOut, isAdmin } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -113,7 +113,7 @@ export default function Dashboard() {
       <main className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {menuItems.filter(item => {
-            if (item.path === "/dashboard/analytics") return isLeadership;
+            if (item.path === "/dashboard/analytics") return isAdmin;
             if (item.path === "/organization") return isAdmin;
             if (item.path === "/admin/organizations") return isSuperAdmin;
             return true;

@@ -611,7 +611,7 @@ export function UnifiedActionDialog({
                     {(() => {
                       const assignee = profiles.find(p => p.user_id === formData.assigned_to);
                       const assigneeName = assignee?.full_name || 'The assignee';
-                      return `${assigneeName} and leadership agreed to this action plan.`;
+                      return `${assigneeName} and admin agreed to this action plan.`;
                     })()}
                   </Label>
                 </div>

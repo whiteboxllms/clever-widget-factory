@@ -2,21 +2,21 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 
-interface LeadershipRouteProps {
+interface AdminRouteProps {
   children: React.ReactNode;
 }
 
-export default function LeadershipRoute({ children }: LeadershipRouteProps) {
-  const { user, loading, isLeadership } = useAuth();
+export default function AdminRoute({ children }: AdminRouteProps) {
+  const { user, loading, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
-    } else if (!loading && user && !isLeadership) {
+    } else if (!loading && user && !isAdmin) {
       navigate('/dashboard');
     }
-  }, [user, loading, isLeadership, navigate]);
+  }, [user, loading, isAdmin, navigate]);
 
   if (loading) {
     return (
@@ -29,7 +29,7 @@ export default function LeadershipRoute({ children }: LeadershipRouteProps) {
     );
   }
 
-  if (!user || !isLeadership) {
+  if (!user || !isAdmin) {
     return null;
   }
 

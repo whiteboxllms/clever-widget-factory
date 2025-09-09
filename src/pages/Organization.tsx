@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Send, Copy, Users, Shield, User, Wrench, Star, Info, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Trash2, Send, Copy, Users, Shield, User, Wrench, Star, Info, ToggleLeft, ToggleRight, ChevronDown } from 'lucide-react';
 import { useOrganization } from '@/hooks/useOrganization';
 import { useInvitations } from '@/hooks/useInvitations';
 import { useToast } from '@/hooks/use-toast';
@@ -96,7 +97,7 @@ const Organization = () => {
         .eq('user_id', user?.id)
         .single();
 
-      setIsAdmin(memberData?.role === 'admin' || memberData?.role === 'leadership');
+      setIsAdmin(memberData?.role === 'leadership');
     } catch (error) {
       console.error('Error in loadOrganizationData:', error);
     }
@@ -243,13 +244,20 @@ const Organization = () => {
       </Card>
 
       {/* Roles & Permissions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="w-5 h-5" />
-            Roles & Permissions
-          </CardTitle>
-        </CardHeader>
+      <Collapsible defaultOpen={false}>
+        <Card>
+          <CollapsibleTrigger className="w-full">
+            <CardHeader className="hover:bg-muted/50 transition-colors">
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-5 h-5" />
+                  Roles & Permissions
+                </div>
+                <ChevronDown className="w-5 h-5 transition-transform group-data-[state=open]:rotate-180" />
+              </CardTitle>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* User Role */}
@@ -290,7 +298,7 @@ const Organization = () => {
               </ul>
             </div>
 
-            {/* Admin Role */}
+            {/* Leadership Role */}
             <div className="p-4 border rounded-lg bg-muted/20">
               <div className="flex items-center gap-2 mb-3">
                 <Shield className="w-5 h-5 text-purple-600" />
@@ -304,7 +312,7 @@ const Organization = () => {
                 <li>• Manage organization members</li>
                 <li>• Send/revoke invitations</li>
                 <li>• Edit organization settings</li>
-                <li>• Access admin analytics</li>
+                <li>• Access analytics</li>
                 <li>• Strategic planning tools</li>
                 <li>• Performance analytics</li>
                 <li>• Worker attribute management</li>
@@ -326,9 +334,11 @@ const Organization = () => {
             </div>
           </div>
         </CardContent>
+        </CollapsibleContent>
       </Card>
+      </Collapsible>
 
-      {/* Invitation Management (Admin Only) */}
+      {/* Invitation Management (Leadership Only) */}
       {isAdmin && (
         <>
           <Card>
@@ -368,10 +378,10 @@ const Organization = () => {
                             <span>Contributor - Create content</span>
                           </div>
                         </SelectItem>
-                        <SelectItem value="admin">
+                        <SelectItem value="leadership">
                           <div className="flex items-center gap-2">
                             <Shield className="w-4 h-4" />
-                            <span>Admin - Manage members</span>
+                            <span>Leadership - Manage members</span>
                           </div>
                         </SelectItem>
                       </SelectContent>

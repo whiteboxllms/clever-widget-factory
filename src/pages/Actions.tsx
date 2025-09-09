@@ -44,7 +44,7 @@ export default function Actions() {
         .from('actions')
         .select(`
           *,
-          assignee:profiles(id, user_id, full_name, role),
+          assignee:organization_members(id, user_id, full_name, role),
           mission:missions(id, title, mission_number, status)
         `)
         .order('created_at', { ascending: false });

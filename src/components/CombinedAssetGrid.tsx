@@ -13,6 +13,11 @@ interface CombinedAssetGridProps {
   onCheckout: (asset: CombinedAsset) => void;
   onCheckin: (asset: CombinedAsset) => void;
   onReportIssue?: (asset: CombinedAsset) => void;
+  onAddQuantity?: (asset: CombinedAsset) => void;
+  onUseQuantity?: (asset: CombinedAsset) => void;
+  onOrderStock?: (asset: CombinedAsset) => void;
+  onReceiveOrder?: (asset: CombinedAsset) => void;
+  pendingOrders?: Record<string, any[]>;
 }
 
 export const CombinedAssetGrid = ({
@@ -26,7 +31,12 @@ export const CombinedAssetGrid = ({
   onRemove,
   onCheckout,
   onCheckin,
-  onReportIssue
+  onReportIssue,
+  onAddQuantity,
+  onUseQuantity,
+  onOrderStock,
+  onReceiveOrder,
+  pendingOrders
 }: CombinedAssetGridProps) => {
   if (assets.length === 0) {
     return (
@@ -52,6 +62,11 @@ export const CombinedAssetGrid = ({
           onCheckout={onCheckout}
           onCheckin={onCheckin}
           onReportIssue={onReportIssue}
+          onAddQuantity={onAddQuantity}
+          onUseQuantity={onUseQuantity}
+          onOrderStock={onOrderStock}
+          onReceiveOrder={onReceiveOrder}
+          hasPendingOrders={pendingOrders?.[asset.id]?.length > 0}
         />
       ))}
     </div>

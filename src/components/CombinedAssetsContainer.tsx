@@ -1,7 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { CombinedAssetFilters } from "./CombinedAssetFilters";
 import { CombinedAssetGrid } from "./CombinedAssetGrid";
 import { CombinedAssetDialog } from "./CombinedAssetDialog";
@@ -12,17 +16,21 @@ import { ToolRemovalDialog } from "./tools/ToolRemovalDialog";
 import { EditToolForm } from "./tools/forms/EditToolForm";
 import { InventoryItemForm } from "./InventoryItemForm";
 import { ToolDetails } from "./tools/ToolDetails";
+import { OrderDialog } from "./OrderDialog";
+import { ReceivingDialog } from "./ReceivingDialog";
 import { useCombinedAssets, CombinedAsset } from "@/hooks/useCombinedAssets";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useToolHistory } from "@/hooks/tools/useToolHistory";
 import { useToolIssues } from "@/hooks/useToolIssues";
+import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { supabase } from "@/integrations/supabase/client";
 
 export const CombinedAssetsContainer = () => {
   const navigate = useNavigate();
   const { user, canEditTools, isAdmin } = useAuth();
   const { toast } = useToast();
+  const organizationId = useOrganizationId();
   const [searchTerm, setSearchTerm] = useState("");
   const [showMyCheckedOut, setShowMyCheckedOut] = useState(false);
   const [showWithIssues, setShowWithIssues] = useState(false);
@@ -38,6 +46,19 @@ export const CombinedAssetsContainer = () => {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<CombinedAsset | null>(null);
+  
+  // Stock dialog states
+  const [showQuantityDialog, setShowQuantityDialog] = useState(false);
+  const [quantityOperation, setQuantityOperation] = useState<'add' | 'remove'>('add');
+  const [showOrderDialog, setShowOrderDialog] = useState(false);
+  const [showReceivingDialog, setShowReceivingDialog] = useState(false);
+  const [pendingOrders, setPendingOrders] = useState<Record<string, any[]>>({});
+  const [quantityChange, setQuantityChange] = useState({
+    amount: '',
+    reason: '',
+    supplierName: '',
+    supplierUrl: ''
+  });
 
   const { assets, loading, createAsset, updateAsset, refetch } = useCombinedAssets(showRemovedItems);
   
@@ -46,6 +67,36 @@ export const CombinedAssetsContainer = () => {
   const { issues, fetchIssues } = useToolIssues(
     selectedAsset?.type === 'asset' ? selectedAsset.id : null
   );
+
+  // Fetch pending orders for stock items
+  useEffect(() => {
+    const fetchPendingOrders = async () => {
+      try {
+        const { data: orders, error } = await supabase
+          .from('parts_orders')
+          .select('*')
+          .in('status', ['pending', 'partially_received'])
+          .order('ordered_at', { ascending: false });
+
+        if (error) throw error;
+
+        // Group orders by part_id
+        const ordersByPart: Record<string, any[]> = {};
+        (orders || []).forEach(order => {
+          if (!ordersByPart[order.part_id]) {
+            ordersByPart[order.part_id] = [];
+          }
+          ordersByPart[order.part_id].push(order);
+        });
+
+        setPendingOrders(ordersByPart);
+      } catch (error) {
+        console.error('Error fetching pending orders:', error);
+      }
+    };
+
+    fetchPendingOrders();
+  }, []);
 
   // Filter assets based on current filters
   const filteredAssets = useMemo(() => {
@@ -119,6 +170,101 @@ export const CombinedAssetsContainer = () => {
   const handleReportIssue = (asset: CombinedAsset) => {
     setSelectedAsset(asset);
     setShowIssueDialog(true);
+  };
+
+  // Stock quantity handlers
+  const handleAddQuantity = (asset: CombinedAsset) => {
+    setSelectedAsset(asset);
+    setQuantityOperation('add');
+    setShowQuantityDialog(true);
+  };
+
+  const handleUseQuantity = (asset: CombinedAsset) => {
+    setSelectedAsset(asset);
+    setQuantityOperation('remove');
+    setShowQuantityDialog(true);
+  };
+
+  const handleOrderStock = (asset: CombinedAsset) => {
+    setSelectedAsset(asset);
+    setShowOrderDialog(true);
+  };
+
+  const handleReceiveOrder = (asset: CombinedAsset) => {
+    const orders = pendingOrders[asset.id];
+    if (orders && orders.length > 0) {
+      setSelectedAsset(asset);
+      setShowReceivingDialog(true);
+    }
+  };
+
+  // Quantity update handler for stock items
+  const updateQuantity = async () => {
+    if (!selectedAsset || !quantityChange.amount || !user) return;
+
+    try {
+      const change = parseFloat(quantityChange.amount);
+      const currentQty = selectedAsset.current_quantity || 0;
+      const newQuantity = quantityOperation === 'add' ? currentQty + change : currentQty - change;
+
+      if (newQuantity < 0) {
+        toast({
+          title: "Error",
+          description: "Quantity cannot be negative",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Update the parts table
+      const { error } = await supabase
+        .from('parts')
+        .update({ current_quantity: newQuantity })
+        .eq('id', selectedAsset.id);
+
+      if (error) throw error;
+
+      // Log the change to history
+      try {
+        const { error: historyError } = await supabase
+          .from('parts_history')
+          .insert([{
+            part_id: selectedAsset.id,
+            change_type: quantityOperation,
+            old_quantity: currentQty,
+            new_quantity: newQuantity,
+            quantity_change: quantityOperation === 'add' ? change : -change,
+            changed_by: user.id,
+            change_reason: quantityChange.reason || `Quantity ${quantityOperation}ed`,
+            supplier_name: quantityChange.supplierName || null,
+            supplier_url: quantityChange.supplierUrl || null,
+            organization_id: organizationId
+          }]);
+
+        if (historyError) {
+          console.error('Error logging history:', historyError);
+        }
+      } catch (historyError) {
+        console.error('History logging failed:', historyError);
+      }
+
+      toast({
+        title: "Success",
+        description: `Quantity ${quantityOperation === 'add' ? 'increased' : 'decreased'} successfully`,
+      });
+
+      setShowQuantityDialog(false);
+      setSelectedAsset(null);
+      setQuantityChange({ amount: '', reason: '', supplierName: '', supplierUrl: '' });
+      refetch();
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update quantity",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleConfirmRemoval = async (toolId: string) => {
@@ -247,6 +393,11 @@ export const CombinedAssetsContainer = () => {
         onCheckout={handleCheckout}
         onCheckin={handleCheckin}
         onReportIssue={handleReportIssue}
+        onAddQuantity={handleAddQuantity}
+        onUseQuantity={handleUseQuantity}
+        onOrderStock={handleOrderStock}
+        onReceiveOrder={handleReceiveOrder}
+        pendingOrders={pendingOrders}
       />
 
       {/* Add Asset Dialog */}
@@ -467,6 +618,119 @@ export const CombinedAssetsContainer = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Quantity Dialog */}
+      <Dialog open={showQuantityDialog} onOpenChange={setShowQuantityDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {quantityOperation === 'add' ? 'Add Quantity' : 'Use/Remove Quantity'}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedAsset && (
+                <>
+                  {quantityOperation === 'add' ? 'Add to' : 'Remove from'} {selectedAsset.name}
+                  <br />
+                  Current quantity: {selectedAsset.current_quantity} {selectedAsset.unit || 'units'}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="amount">Amount</Label>
+              <Input
+                id="amount"
+                type="number"
+                value={quantityChange.amount}
+                onChange={(e) => setQuantityChange(prev => ({ ...prev, amount: e.target.value }))}
+                placeholder="Enter amount"
+                min="0"
+                step="0.01"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="reason">Reason</Label>
+              <Textarea
+                id="reason"
+                value={quantityChange.reason}
+                onChange={(e) => setQuantityChange(prev => ({ ...prev, reason: e.target.value }))}
+                placeholder="Reason for change"
+              />
+            </div>
+
+            {quantityOperation === 'add' && (
+              <>
+                <div>
+                  <Label htmlFor="supplierName">Supplier Name (Optional)</Label>
+                  <Input
+                    id="supplierName"
+                    value={quantityChange.supplierName}
+                    onChange={(e) => setQuantityChange(prev => ({ ...prev, supplierName: e.target.value }))}
+                    placeholder="Supplier name"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="supplierUrl">Supplier URL (Optional)</Label>
+                  <Input
+                    id="supplierUrl"
+                    value={quantityChange.supplierUrl}
+                    onChange={(e) => setQuantityChange(prev => ({ ...prev, supplierUrl: e.target.value }))}
+                    placeholder="https://example.com/product-page"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => setShowQuantityDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={updateQuantity} disabled={!quantityChange.amount}>
+              {quantityOperation === 'add' ? 'Add to' : 'Remove from'} Stock
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Order Dialog */}
+      {selectedAsset && selectedAsset.type === 'stock' && (
+        <OrderDialog
+          isOpen={showOrderDialog}
+          onClose={() => {
+            setShowOrderDialog(false);
+            setSelectedAsset(null);
+          }}
+          partId={selectedAsset.id}
+          partName={selectedAsset.name}
+          onOrderCreated={() => {
+            // Refresh pending orders after creating an order
+            refetch();
+          }}
+        />
+      )}
+
+      {/* Receiving Dialog */}
+      {selectedAsset && selectedAsset.type === 'stock' && (
+        <ReceivingDialog
+          isOpen={showReceivingDialog}
+          onClose={() => {
+            setShowReceivingDialog(false);
+            setSelectedAsset(null);
+          }}
+          order={pendingOrders[selectedAsset.id]?.[0] || null}
+          part={selectedAsset as any}
+          onSuccess={() => {
+            refetch();
+            setShowReceivingDialog(false);
+            setSelectedAsset(null);
+          }}
+        />
       )}
     </div>
   );

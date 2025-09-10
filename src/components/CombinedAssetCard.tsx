@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Wrench, Package, Eye, Edit, Trash2, LogOut, LogIn, AlertTriangle, AlertCircle } from "lucide-react";
+import { Wrench, Package, Eye, Edit, Trash2, LogOut, LogIn, AlertTriangle, AlertCircle, Plus, Minus, ShoppingCart } from "lucide-react";
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 interface CombinedAsset {
   id: string;
@@ -34,6 +35,11 @@ interface CombinedAssetCardProps {
   onCheckout?: (asset: CombinedAsset) => void;
   onCheckin?: (asset: CombinedAsset) => void;
   onReportIssue?: (asset: CombinedAsset) => void;
+  onAddQuantity?: (asset: CombinedAsset) => void;
+  onUseQuantity?: (asset: CombinedAsset) => void;
+  onOrderStock?: (asset: CombinedAsset) => void;
+  onReceiveOrder?: (asset: CombinedAsset) => void;
+  hasPendingOrders?: boolean;
 }
 
 export const CombinedAssetCard = ({
@@ -47,7 +53,12 @@ export const CombinedAssetCard = ({
   onRemove,
   onCheckout,
   onCheckin,
-  onReportIssue
+  onReportIssue,
+  onAddQuantity,
+  onUseQuantity,
+  onOrderStock,
+  onReceiveOrder,
+  hasPendingOrders
 }: CombinedAssetCardProps) => {
   const getStatusBadge = () => {
     if (asset.type === 'asset') {
@@ -160,6 +171,7 @@ export const CombinedAssetCard = ({
         </div>
 
         <div className="flex gap-2 mt-4" onClick={(e) => e.stopPropagation()}>
+          {/* Asset-specific buttons */}
           {asset.type === 'asset' && asset.status === 'available' && !asset.is_checked_out && onCheckout && (
             <Button
               size="sm"
@@ -186,7 +198,91 @@ export const CombinedAssetCard = ({
               Check In
             </Button>
           )}
+
+          {/* Stock-specific buttons */}
+          {asset.type === 'stock' && canEdit && (
+            <>
+              <div className="flex gap-2 flex-1">
+                {onAddQuantity && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAddQuantity(asset);
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add
+                  </Button>
+                )}
+
+                {onUseQuantity && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onUseQuantity(asset);
+                    }}
+                  >
+                    <Minus className="h-4 w-4 mr-1" />
+                    Use
+                  </Button>
+                )}
+
+                {onOrderStock && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-12 px-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOrderStock(asset);
+                          }}
+                        >
+                          <ShoppingCart className="w-4 h-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Create Order</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+
+                {hasPendingOrders && onReceiveOrder && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-12 px-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onReceiveOrder(asset);
+                          }}
+                        >
+                          <Package className="h-3 w-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Receive Order</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
+            </>
+          )}
           
+          {/* Common edit/admin buttons */}
           {canEdit && (
             <>
               <Button

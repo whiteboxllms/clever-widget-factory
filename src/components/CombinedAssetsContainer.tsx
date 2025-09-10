@@ -292,7 +292,7 @@ export const CombinedAssetsContainer = () => {
     }
   };
 
-  const handleConfirmRemoval = async (toolId: string) => {
+  const handleConfirmRemoval = async (reason: string, notes: string) => {
     if (!selectedAsset) return;
 
     try {
@@ -303,7 +303,7 @@ export const CombinedAssetsContainer = () => {
         const { error } = await supabase
           .from('tools')
           .update({ status: 'removed' })
-          .eq('id', toolId);
+          .eq('id', selectedAsset.id);
 
         if (error) throw error;
       } else {

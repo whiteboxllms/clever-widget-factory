@@ -1,4 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { Info } from 'lucide-react';
 import { EnhancedAttributeAnalytics } from '@/hooks/useEnhancedStrategicAttributes';
 import { useOrganizationValues } from '@/hooks/useOrganizationValues';
@@ -57,6 +59,7 @@ const mapOrgValueToAttributeKey = (orgValue: string): string => {
 
 export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedUsers }: AttributeRadarChartProps) {
   const [orgValues, setOrgValues] = useState<string[]>([]);
+  const [showImpact, setShowImpact] = useState(false);
   const { getOrganizationValues } = useOrganizationValues();
 
   // Load organization values
@@ -68,12 +71,13 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
     loadOrgValues();
   }, [getOrganizationValues]);
 
-  // Process data for radar chart - create individual data for each user
+  // Process data for radar chart - create individual data for each user or impact data
   const radarData = useMemo(() => {
     console.log('=== Radar Chart Debug ===');
     console.log('Organization values:', orgValues);
     console.log('Action analytics:', actionAnalytics);
     console.log('Selected users:', selectedUsers);
+    console.log('Show impact:', showImpact);
     
     if (!orgValues.length || !actionAnalytics.length) {
       console.log('Missing org values or action analytics');
@@ -92,32 +96,62 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
       return [];
     }
 
-    // Create radar chart data points for each organization value
-    // Each data point will include values for all selected users
-    const data = orgValues.map(orgValue => {
-      const attributeKey = mapOrgValueToAttributeKey(orgValue);
-      
-      const dataPoint: any = {
-        attribute: orgValue,
-        fullMark: 4
-      };
+    if (showImpact) {
+      // Impact mode: average score * actions completed for each attribute
+      const data = orgValues.map(orgValue => {
+        const attributeKey = mapOrgValueToAttributeKey(orgValue);
+        
+        // Calculate average score across all selected users for this attribute
+        const scores = selectedAnalytics
+          .map(user => user.attributes[attributeKey as keyof typeof user.attributes])
+          .filter(score => score !== undefined && score !== null);
+        
+        const avgScore = scores.length > 0 
+          ? scores.reduce((sum, score) => sum + score, 0) / scores.length 
+          : 2;
 
-      // Add each user's score as a separate property
-      selectedAnalytics.forEach(user => {
-        const score = user.attributes[attributeKey as keyof typeof user.attributes];
-        const userScore = score !== undefined && score !== null ? score : 2; // Default to middle value
-        dataPoint[user.userName] = Math.round(userScore * 100) / 100; // Round to 2 decimal places
-        console.log(`User ${user.userName} - ${attributeKey}: ${userScore}`);
+        // Calculate total actions completed across all selected users
+        const totalActions = selectedAnalytics.reduce((sum, user) => sum + (user.totalActions || 0), 0);
+        
+        // Impact = average score * total actions (normalized to keep chart readable)
+        const impactValue = (avgScore * totalActions) / 10; // Divide by 10 to keep values reasonable
+        
+        console.log(`${orgValue} (${attributeKey}): avgScore=${avgScore}, totalActions=${totalActions}, impact=${impactValue}`);
+
+        return {
+          attribute: orgValue,
+          impact: Math.round(impactValue * 100) / 100,
+          fullMark: Math.max(20, impactValue * 1.2) // Dynamic scale based on data
+        };
       });
+      
+      console.log('Impact radar data:', data);
+      return data;
+    } else {
+      // Individual mode: separate data for each user
+      const data = orgValues.map(orgValue => {
+        const attributeKey = mapOrgValueToAttributeKey(orgValue);
+        
+        const dataPoint: any = {
+          attribute: orgValue,
+          fullMark: 4
+        };
 
-      return dataPoint;
-    });
-    
-    console.log('Final radar data:', data);
-    console.log('=== End Radar Chart Debug ===');
-    
-    return data;
-  }, [orgValues, actionAnalytics, selectedUsers]);
+        // Add each user's score as a separate property
+        selectedAnalytics.forEach(user => {
+          const score = user.attributes[attributeKey as keyof typeof user.attributes];
+          const userScore = score !== undefined && score !== null ? score : 2; // Default to middle value
+          dataPoint[user.userName] = Math.round(userScore * 100) / 100; // Round to 2 decimal places
+          console.log(`User ${user.userName} - ${attributeKey}: ${userScore}`);
+        });
+
+        return dataPoint;
+      });
+      
+      console.log('Individual radar data:', data);
+      return data;
+    }
+  }, [orgValues, actionAnalytics, selectedUsers, showImpact]);
 
   // Get user data for individual radar lines
   const userData = useMemo(() => {
@@ -174,9 +208,24 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle>Strategic Attributes Radar Chart</CardTitle>
-        <div className="text-sm text-muted-foreground">
-          Individual analysis of {userData.length} user{userData.length !== 1 ? 's' : ''}: {userData.map(u => u.name).join(', ')}
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Strategic Attributes Radar Chart</CardTitle>
+            <div className="text-sm text-muted-foreground">
+              {showImpact 
+                ? `Impact analysis (avg score × actions completed) for ${userData.length} user${userData.length !== 1 ? 's' : ''}`
+                : `Individual analysis of ${userData.length} user${userData.length !== 1 ? 's' : ''}: ${userData.map(u => u.name).join(', ')}`
+              }
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="impact-mode" className="text-sm">Impact Mode</Label>
+            <Switch
+              id="impact-mode"
+              checked={showImpact}
+              onCheckedChange={setShowImpact}
+            />
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -193,22 +242,34 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
                 />
                 <PolarRadiusAxis 
                   angle={90} 
-                  domain={[0, 4]} 
+                  domain={showImpact ? [0, 'dataMax'] : [0, 4]} 
                   tick={{ fontSize: 10 }}
                   tickCount={5}
                 />
-                {/* Render a radar line for each user */}
-                {userData.map((user, index) => (
-                  <Radar
-                    key={user.name}
-                    name={user.name}
-                    dataKey={user.dataKey}
-                    stroke={user.color}
-                    fill={user.color}
-                    fillOpacity={0.1}
-                    strokeWidth={2}
+                {/* Render radar based on mode */}
+                {showImpact ? (
+                  <Radar 
+                    name="Impact Score" 
+                    dataKey="impact" 
+                    stroke="hsl(220, 90%, 45%)" 
+                    fill="hsl(220, 90%, 45%)" 
+                    fillOpacity={0.3}
+                    strokeWidth={3}
                   />
-                ))}
+                ) : (
+                  // Render a radar line for each user
+                  userData.map((user, index) => (
+                    <Radar
+                      key={user.name}
+                      name={user.name}
+                      dataKey={user.dataKey}
+                      stroke={user.color}
+                      fill={user.color}
+                      fillOpacity={0.1}
+                      strokeWidth={2}
+                    />
+                  ))
+                )}
                 <Legend />
               </RadarChart>
             </ResponsiveContainer>
@@ -216,7 +277,12 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
 
           {/* Scale Legend */}
           <div className="text-center text-sm text-muted-foreground">
-            <p>Scale: 0 (Needs Improvement) - 4 (Excellent)</p>
+            <p>
+              {showImpact 
+                ? 'Scale: Impact Score (Average Score × Actions Completed ÷ 10)'
+                : 'Scale: 0 (Needs Improvement) - 4 (Excellent)'
+              }
+            </p>
           </div>
         </div>
       </CardContent>

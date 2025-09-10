@@ -13,7 +13,8 @@ import { useToast } from '@/hooks/use-toast';
 interface Tool {
   id: string;
   name: string;
-  legacy_storage_vicinity?: string;
+  parent_structure_id?: string;
+  parent_structure_name?: string;
   storage_location: string;
   last_audited_at: string | null;
   audit_info?: {
@@ -28,10 +29,10 @@ const Audit = () => {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [selectedType, setSelectedType] = useState<'tools' | 'inventory' | null>(null);
-  const [selectedVicinity, setSelectedVicinity] = useState<string>('');
+  const [selectedStructure, setSelectedStructure] = useState<string>('');
   const [auditQuantity, setAuditQuantity] = useState(5);
   const [generatedAudit, setGeneratedAudit] = useState<Tool[]>([]);
-  const [currentStep, setCurrentStep] = useState<'type' | 'vicinity' | 'quantity' | 'execute'>('type');
+  const [currentStep, setCurrentStep] = useState<'type' | 'structure' | 'quantity' | 'execute'>('type');
 
   // Handle returning from tool audit with URL parameters
   useEffect(() => {
@@ -41,8 +42,15 @@ const Audit = () => {
       const storedAuditData = sessionStorage.getItem('currentAudit');
       if (storedAuditData) {
         const auditData = JSON.parse(storedAuditData);
+        
+        // Check if this is old vicinity-based data, if so clear it
+        if (auditData.selectedVicinity && !auditData.selectedStructure) {
+          sessionStorage.removeItem('currentAudit');
+          return;
+        }
+        
         setSelectedType(auditData.selectedType);
-        setSelectedVicinity(auditData.selectedVicinity);
+        setSelectedStructure(auditData.selectedStructure);
         setAuditQuantity(auditData.auditQuantity);
         setGeneratedAudit(auditData.generatedAudit);
         setCurrentStep('execute');
@@ -62,10 +70,17 @@ const Audit = () => {
     try {
       const toolIds = currentAudit.map(tool => tool.id);
       
-      // Get updated tool data
+      // Get updated tool data with parent structure information
       const { data: updatedTools, error: toolsError } = await supabase
         .from('tools')
-        .select('id, name, legacy_storage_vicinity, storage_location, last_audited_at')
+        .select(`
+          id, 
+          name, 
+          parent_structure_id, 
+          storage_location, 
+          last_audited_at,
+          parent_structure:tools!parent_structure_id(name)
+        `)
         .in('id', toolIds);
 
       if (toolsError) throw toolsError;
@@ -108,7 +123,8 @@ const Audit = () => {
         const auditInfo = auditData?.find(audit => audit.tool_id === tool.id);
         
         const result: Tool = {
-          ...(updatedTool || tool)
+          ...(updatedTool || tool),
+          parent_structure_name: updatedTool?.parent_structure?.name || tool.parent_structure_name || 'Unassigned'
         };
         
         if (auditInfo) {
@@ -140,28 +156,45 @@ const Audit = () => {
     return auditDate.toDateString() === today.toDateString();
   };
 
-  // Get unique vicinities based on selected type
-  const { data: vicinities, isLoading: vicinityLoading } = useQuery({
-    queryKey: ['audit-vicinities', selectedType],
+  // Get available structures based on selected type
+  const { data: structures, isLoading: structureLoading } = useQuery({
+    queryKey: ['audit-structures', selectedType],
     queryFn: async () => {
       if (!selectedType) return [];
       
       if (selectedType === 'tools') {
-        const { data, error } = await supabase
+        // Get all tools with their parent structure information
+        const { data: toolsData, error: toolsError } = await supabase
           .from('tools')
-          .select('legacy_storage_vicinity')
+          .select(`
+            parent_structure_id,
+            parent_structure:tools!parent_structure_id(name)
+          `)
           .eq('status', 'available');
         
-        if (error) throw error;
+        if (toolsError) throw toolsError;
         
-        // Get unique vicinities with counts
-        const vicinityMap = new Map<string, number>();
-        data.forEach((item) => {
-          const vicinity = item.legacy_storage_vicinity;
-          vicinityMap.set(vicinity, (vicinityMap.get(vicinity) || 0) + 1);
+        // Count tools by structure
+        const structureMap = new Map<string, { id: string | null; name: string; count: number }>();
+        
+        toolsData.forEach((tool) => {
+          const structureId = tool.parent_structure_id;
+          const structureName = tool.parent_structure?.name || 'Unassigned';
+          const key = structureId || 'unassigned';
+          
+          if (structureMap.has(key)) {
+            structureMap.get(key)!.count++;
+          } else {
+            structureMap.set(key, {
+              id: structureId,
+              name: structureName,
+              count: 1
+            });
+          }
         });
         
-        return Array.from(vicinityMap.entries()).map(([name, count]) => ({ name, count }));
+        return Array.from(structureMap.values())
+          .sort((a, b) => a.name.localeCompare(b.name));
       }
       
       // For inventory (parts) - not implemented yet
@@ -171,18 +204,32 @@ const Audit = () => {
   });
 
   const generateAudit = async () => {
-    if (!selectedType || !selectedVicinity) return;
+    if (!selectedType || !selectedStructure) return;
 
     try {
-      // Get tools from selected vicinity, prioritizing never audited, then least recently audited
-      const { data: tools, error } = await supabase
+      // Build query based on selected structure
+      let query = supabase
         .from('tools')
-        .select('id, name, legacy_storage_vicinity, storage_location, last_audited_at')
-        .eq('legacy_storage_vicinity', selectedVicinity)
+        .select(`
+          id, 
+          name, 
+          parent_structure_id, 
+          storage_location, 
+          last_audited_at,
+          parent_structure:tools!parent_structure_id(name)
+        `)
         .eq('status', 'available')
         .order('last_audited_at', { ascending: true, nullsFirst: true })
         .limit(50); // Get more than needed for randomization
 
+      // Filter by structure or unassigned
+      if (selectedStructure === 'unassigned') {
+        query = query.is('parent_structure_id', null);
+      } else {
+        query = query.eq('parent_structure_id', selectedStructure);
+      }
+
+      const { data: tools, error } = await query;
       if (error) throw error;
 
       // Separate never audited and previously audited
@@ -208,18 +255,27 @@ const Audit = () => {
       setGeneratedAudit(selectedTools);
       setCurrentStep('execute');
 
+      // Add parent structure name to selected tools
+      const toolsWithStructure = selectedTools.map(tool => ({
+        ...tool,
+        parent_structure_name: tool.parent_structure?.name || 'Unassigned'
+      }));
+
+      setGeneratedAudit(toolsWithStructure);
+
       // Save audit state for potential restoration
       const auditState = {
         selectedType,
-        selectedVicinity,
+        selectedStructure,
         auditQuantity,
-        generatedAudit: selectedTools
+        generatedAudit: toolsWithStructure
       };
       saveAuditState(auditState);
 
+      const structureName = structures?.find(s => s.id === selectedStructure)?.name || 'Unassigned';
       toast({
         title: "Audit Generated",
-        description: `Generated audit for ${selectedTools.length} tools in ${selectedVicinity}`,
+        description: `Generated audit for ${toolsWithStructure.length} tools in ${structureName}`,
       });
     } catch (error) {
       console.error('Error generating audit:', error);
@@ -233,10 +289,11 @@ const Audit = () => {
 
   const resetAudit = () => {
     setSelectedType(null);
-    setSelectedVicinity('');
+    setSelectedStructure('');
     setAuditQuantity(5);
     setGeneratedAudit([]);
     setCurrentStep('type');
+    sessionStorage.removeItem('currentAudit');
   };
 
   return (
@@ -281,7 +338,7 @@ const Audit = () => {
                 }`}
                 onClick={() => {
                   setSelectedType('tools');
-                  setCurrentStep('vicinity');
+                  setCurrentStep('structure');
                 }}
               >
                 <CardHeader className="text-center">
@@ -320,36 +377,39 @@ const Audit = () => {
           </div>
         )}
 
-        {/* Step 2: Vicinity Selection */}
-        {currentStep === 'vicinity' && selectedType && (
+        {/* Step 2: Structure Selection */}
+        {currentStep === 'structure' && selectedType && (
           <div className="space-y-6">
             <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold mb-2">Select Storage Vicinity</h2>
-              <p className="text-muted-foreground">Choose the area to audit</p>
+              <h2 className="text-3xl font-bold mb-2">Select Structure/Container</h2>
+              <p className="text-muted-foreground">Choose the structure to audit</p>
             </div>
 
             <Card>
               <CardHeader>
-                <CardTitle>Available Vicinities</CardTitle>
-                <CardDescription>Select a vicinity to audit {selectedType}</CardDescription>
+                <CardTitle>Available Structures</CardTitle>
+                <CardDescription>Select a structure or container to audit {selectedType}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="vicinity">Storage Vicinity</Label>
+                  <Label htmlFor="structure">Structure/Container</Label>
                   <Select 
-                    value={selectedVicinity} 
-                    onValueChange={setSelectedVicinity}
+                    value={selectedStructure} 
+                    onValueChange={setSelectedStructure}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select a vicinity..." />
+                      <SelectValue placeholder="Select a structure..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {vicinityLoading ? (
+                      {structureLoading ? (
                         <SelectItem value="loading" disabled>Loading...</SelectItem>
                       ) : (
-                        vicinities?.map(vicinity => (
-                          <SelectItem key={vicinity.name} value={vicinity.name}>
-                            {vicinity.name} ({vicinity.count} items)
+                        structures?.map(structure => (
+                          <SelectItem 
+                            key={structure.id || 'unassigned'} 
+                            value={structure.id || 'unassigned'}
+                          >
+                            {structure.name} ({structure.count} items)
                           </SelectItem>
                         ))
                       )}
@@ -366,7 +426,7 @@ const Audit = () => {
                   </Button>
                   <Button 
                     onClick={() => setCurrentStep('quantity')}
-                    disabled={!selectedVicinity}
+                    disabled={!selectedStructure}
                   >
                     Next: Set Quantity
                   </Button>
@@ -408,14 +468,14 @@ const Audit = () => {
                 <div className="bg-muted p-4 rounded-lg">
                   <h4 className="font-semibold mb-2">Audit Summary</h4>
                   <p><strong>Type:</strong> {selectedType}</p>
-                  <p><strong>Vicinity:</strong> {selectedVicinity}</p>
+                  <p><strong>Structure:</strong> {structures?.find(s => s.id === selectedStructure || (s.id === null && selectedStructure === 'unassigned'))?.name || selectedStructure}</p>
                   <p><strong>Quantity:</strong> {auditQuantity} items</p>
                 </div>
 
                 <div className="flex gap-2">
                   <Button 
                     variant="outline" 
-                    onClick={() => setCurrentStep('vicinity')}
+                    onClick={() => setCurrentStep('structure')}
                   >
                     Back
                   </Button>
@@ -435,7 +495,7 @@ const Audit = () => {
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold mb-2">Execute Audit</h2>
               <p className="text-muted-foreground">
-                Audit {generatedAudit.length} tools in {selectedVicinity}
+                Audit {generatedAudit.length} tools in {structures?.find(s => s.id === selectedStructure || (s.id === null && selectedStructure === 'unassigned'))?.name || 'Selected Structure'}
               </p>
             </div>
 
@@ -464,7 +524,7 @@ const Audit = () => {
                             )}
                           </CardTitle>
                           <CardDescription>
-                            Expected: {tool.legacy_storage_vicinity} → {tool.storage_location || 'No specific location'}
+                            Expected: {tool.parent_structure_name || 'Unassigned'} → {tool.storage_location || 'No specific location'}
                           </CardDescription>
                         </div>
                         <div className="text-sm text-muted-foreground">

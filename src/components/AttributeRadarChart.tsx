@@ -5,18 +5,18 @@ import { useOrganizationValues } from '@/hooks/useOrganizationValues';
 import { useState, useEffect, useMemo } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Legend } from 'recharts';
 
-// Color palette for different users
+// High contrast color palette for white backgrounds
 const USER_COLORS = [
-  'hsl(var(--primary))',
-  'hsl(var(--secondary))',
-  'hsl(var(--accent))',
-  'hsl(210, 100%, 50%)', // Blue
-  'hsl(120, 100%, 40%)', // Green
-  'hsl(300, 100%, 50%)', // Magenta
-  'hsl(30, 100%, 50%)',  // Orange
-  'hsl(270, 100%, 50%)', // Purple
-  'hsl(180, 100%, 40%)', // Cyan
-  'hsl(60, 100%, 45%)',  // Yellow-green
+  'hsl(220, 90%, 45%)', // Deep blue
+  'hsl(145, 85%, 35%)', // Deep green
+  'hsl(345, 90%, 45%)', // Deep red
+  'hsl(35, 95%, 40%)',  // Deep orange
+  'hsl(270, 85%, 50%)', // Deep purple
+  'hsl(190, 90%, 40%)', // Deep teal
+  'hsl(300, 80%, 45%)', // Deep magenta
+  'hsl(60, 85%, 35%)',  // Deep yellow-green
+  'hsl(15, 90%, 45%)',  // Deep red-orange
+  'hsl(250, 85%, 55%)', // Deep indigo
 ];
 
 interface AttributeRadarChartProps {
@@ -181,26 +181,6 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
       </CardHeader>
       <CardContent>
         <div className="space-y-6">
-          {/* Organization Values Display */}
-          <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <div className="flex items-start gap-2">
-              <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-              <div className="text-sm">
-                <p className="font-medium text-blue-900 dark:text-blue-100 mb-2">Organization Strategic Attributes</p>
-                <div className="flex flex-wrap gap-2">
-                  {orgValues.map((value) => (
-                    <span 
-                      key={value}
-                      className="inline-block px-3 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 rounded-full text-sm font-medium"
-                    >
-                      {value}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Radar Chart */}
           <div className="h-96">
             <ResponsiveContainer width="100%" height="100%">

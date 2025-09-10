@@ -175,7 +175,26 @@ export function ScoredActionsList({ scoredActions, isLoading }: ScoredActionsLis
                 )}
               </div>
 
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
+              {/* Individual Attribute Scores */}
+              {Object.keys(scoredAction.scores).length > 0 && (
+                <div className="mt-3 pt-2 border-t">
+                  <div className="text-xs text-muted-foreground mb-2">Attribute Scores:</div>
+                  <div className="grid grid-cols-2 gap-1">
+                    {Object.entries(scoredAction.scores).map(([attribute, scoreData]) => (
+                      <div key={attribute} className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground capitalize">
+                          {attribute.replace(/_/g, ' ')}:
+                        </span>
+                        <Badge variant="outline" className="text-xs">
+                          {scoreData.score.toFixed(1)}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between text-xs text-muted-foreground mt-3 pt-2 border-t">
                 <div className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
                   Scored: {formatDate(scoredAction.created_at)}

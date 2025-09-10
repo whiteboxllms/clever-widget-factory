@@ -123,12 +123,14 @@ export const CombinedAssetsContainer = () => {
     fetchPendingOrders();
   }, []);
 
-  // Remove the effect that triggers search on every keystroke
-  // We'll load data once and filter client-side for better UX
+  // Only search when we have at least 3 characters
   useEffect(() => {
-    // Load all data on mount
-    searchAssets('');
-  }, [showRemovedItems]);
+    if (debouncedSearchTerm.length >= 3) {
+      searchAssets(debouncedSearchTerm);
+    } else if (hasSearched && debouncedSearchTerm.length === 0) {
+      resetSearch();
+    }
+  }, [debouncedSearchTerm, searchAssets, resetSearch, hasSearched, showRemovedItems]);
 
   // Apply client-side filters to assets
   const filteredAssets = useMemo(() => {
@@ -357,7 +359,12 @@ export const CombinedAssetsContainer = () => {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Combined Assets</h1>
             <p className="text-muted-foreground">
-              Found {filteredAssets.length} item{filteredAssets.length !== 1 ? 's' : ''}
+              {debouncedSearchTerm.length > 0 && debouncedSearchTerm.length < 3 
+                ? "Enter at least 3 characters to search"
+                : hasSearched 
+                ? `Found ${filteredAssets.length} item${filteredAssets.length !== 1 ? 's' : ''}`
+                : "Enter at least 3 characters to search for tools and inventory items"
+              }
             </p>
           </div>
           
@@ -386,10 +393,24 @@ export const CombinedAssetsContainer = () => {
         />
 
         {/* Results */}
-        {loading ? (
+        {debouncedSearchTerm.length > 0 && debouncedSearchTerm.length < 3 ? (
+          <div className="text-center py-12">
+            <div className="text-muted-foreground">
+              <p className="text-lg mb-2">Enter at least 3 characters to search</p>
+              <p className="text-sm">This helps reduce server load and provides better performance</p>
+            </div>
+          </div>
+        ) : loading ? (
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-            <p className="mt-2 text-muted-foreground">Loading...</p>
+            <p className="mt-2 text-muted-foreground">Searching...</p>
+          </div>
+        ) : !hasSearched ? (
+          <div className="text-center py-12">
+            <div className="text-muted-foreground">
+              <p className="text-lg mb-2">Ready to search</p>
+              <p className="text-sm">Enter at least 3 characters in the search box above</p>
+            </div>
           </div>
         ) : (
           <CombinedAssetGrid

@@ -40,6 +40,13 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, searchQuery
     
     setLoading(true);
     try {
+      // Don't fetch if query is less than 3 characters (unless empty for reset)
+      if (query.length > 0 && query.length < 3) {
+        setAssets([]);
+        setTotalCount(0);
+        setLoading(false);
+        return;
+      }
 
       // Build base query for tools with search
       let toolsQuery = supabase

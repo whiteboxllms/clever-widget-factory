@@ -20,7 +20,9 @@ export interface CombinedAsset {
   storage_location?: string;
   storage_vicinity?: string;
   parent_structure_id?: string;
+  parent_structure_name?: string; // Resolved name from parent_structure_id
   legacy_storage_vicinity?: string;
+  area_display?: string; // Computed field: parent_structure_name || legacy_storage_vicinity
   has_issues?: boolean;
   is_checked_out?: boolean;
   checked_out_to?: string;
@@ -115,14 +117,34 @@ export const useCombinedAssets = (showRemovedItems: boolean = false) => {
 
       const toolsWithIssues = new Set(issuesData?.map(issue => issue.context_id) || []);
 
+      // Fetch parent structures for resolving area names
+      const { data: parentStructuresData, error: parentError } = await supabase
+        .from('tools')
+        .select('id, name')
+        .in('category', ['Infrastructure', 'Container'])
+        .neq('status', 'removed');
+
+      if (parentError) {
+        console.error('Error fetching parent structures:', parentError);
+      }
+
+      // Create parent structure name map
+      const parentStructureMap = new Map<string, string>();
+      parentStructuresData?.forEach(parent => {
+        parentStructureMap.set(parent.id, parent.name);
+      });
+
       // Transform and combine data
       const transformedAssets: CombinedAsset[] = [
         // Transform tools to assets
         ...(toolsResponse.data || []).map(tool => {
           const checkout = checkoutMap.get(tool.id);
+          const parentStructureName = tool.parent_structure_id ? parentStructureMap.get(tool.parent_structure_id) : null;
           return {
             ...tool,
             type: 'asset' as const,
+            parent_structure_name: parentStructureName,
+            area_display: parentStructureName || tool.legacy_storage_vicinity,
             has_issues: toolsWithIssues.has(tool.id),
             is_checked_out: checkoutMap.has(tool.id),
             checked_out_to: checkout?.user_name,
@@ -130,12 +152,17 @@ export const useCombinedAssets = (showRemovedItems: boolean = false) => {
           };
         }),
         // Transform parts to stock
-        ...(partsResponse.data || []).map(part => ({
-          ...part,
-          type: 'stock' as const,
-          has_issues: false,
-          is_checked_out: false
-        }))
+        ...(partsResponse.data || []).map(part => {
+          const parentStructureName = part.parent_structure_id ? parentStructureMap.get(part.parent_structure_id) : null;
+          return {
+            ...part,
+            type: 'stock' as const,
+            parent_structure_name: parentStructureName,
+            area_display: parentStructureName || part.legacy_storage_vicinity,
+            has_issues: false,
+            is_checked_out: false
+          };
+        })
       ];
 
       setAssets(transformedAssets);

@@ -17,6 +17,7 @@ interface CombinedAsset {
   unit?: string;
   image_url?: string;
   storage_location?: string;
+  area_display?: string; // Computed field: parent_structure_name || legacy_storage_vicinity
   legacy_storage_vicinity?: string;
   has_issues?: boolean;
   is_checked_out?: boolean;
@@ -155,10 +156,10 @@ export const CombinedAssetCard = ({
             </div>
           )}
 
-          {(asset.legacy_storage_vicinity || asset.storage_location) && (
+          {(asset.area_display || asset.storage_location) && (
             <div>
               <span className="font-medium">Location:</span>{' '}
-              {asset.legacy_storage_vicinity}
+              {asset.area_display}
               {asset.storage_location && ` • ${asset.storage_location}`}
             </div>
           )}

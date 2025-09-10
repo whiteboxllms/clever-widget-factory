@@ -31,15 +31,8 @@ export function useOrganizationValues() {
       if (values.length === 0) {
         return [
           "Growth Mindset", 
-          "Root Cause Problem Solving", 
-          "Teamwork", 
           "Quality",
-          "Proactive Documentation",
-          "Safety Focus", 
-          "Efficiency", 
-          "Asset Stewardship", 
-          "Financial Impact", 
-          "Energy & Morale Impact"
+          "Teamwork and Transparent Communication"
         ];
       }
       
@@ -48,15 +41,8 @@ export function useOrganizationValues() {
       console.error('Error fetching organization values:', error);
       return [
         "Growth Mindset", 
-        "Root Cause Problem Solving", 
-        "Teamwork", 
         "Quality",
-        "Proactive Documentation",
-        "Safety Focus", 
-        "Efficiency", 
-        "Asset Stewardship", 
-        "Financial Impact", 
-        "Energy & Morale Impact"
+        "Teamwork and Transparent Communication"
       ];
     }
   }, [organizationId]);

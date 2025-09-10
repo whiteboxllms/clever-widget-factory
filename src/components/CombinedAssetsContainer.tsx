@@ -275,6 +275,29 @@ export const CombinedAssetsContainer = () => {
         console.error('History logging failed:', historyError);
       }
 
+      // For "remove" operations (stock usage), also log to inventory_usage table
+      if (quantityOperation === 'remove') {
+        try {
+          const { error: usageError } = await supabase
+            .from('inventory_usage')
+            .insert([{
+              part_id: selectedAsset.id,
+              quantity_used: change,
+              used_by: user.id,
+              usage_description: quantityChange.reason || 'Manual stock usage from Combined Assets',
+              mission_id: null, // No specific mission for manual usage
+              task_id: null,
+              organization_id: organizationId
+            }]);
+
+          if (usageError) {
+            console.error('Error logging inventory usage:', usageError);
+          }
+        } catch (usageError) {
+          console.error('Inventory usage logging failed:', usageError);
+        }
+      }
+
       toast({
         title: "Success",
         description: `Quantity ${quantityOperation === 'add' ? 'increased' : 'decreased'} successfully`,

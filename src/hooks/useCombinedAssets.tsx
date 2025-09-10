@@ -40,13 +40,6 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, searchQuery
     
     setLoading(true);
     try {
-      // If no query and haven't searched yet, show empty state
-      if (!query.trim() && !hasSearched) {
-        setAssets([]);
-        setTotalCount(0);
-        setLoading(false);
-        return;
-      }
 
       // Build base query for tools with search
       let toolsQuery = supabase
@@ -235,10 +228,11 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, searchQuery
     setHasSearched(false);
   }, []);
 
-  // Only auto-fetch if there's a search query
+  // Load data on mount and when filters change
   useEffect(() => {
+    fetchAssets(searchQuery);
     if (searchQuery.trim()) {
-      fetchAssets(searchQuery);
+      setHasSearched(true);
     }
   }, [searchQuery, showRemovedItems, fetchAssets]);
 

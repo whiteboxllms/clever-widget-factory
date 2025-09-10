@@ -132,12 +132,8 @@ export const CombinedAssetsContainer = () => {
     }
   }, [debouncedSearchTerm, searchAssets, resetSearch, hasSearched]);
 
-  // Apply client-side filters to assets (now that we have search results)
+  // Apply client-side filters to assets
   const filteredAssets = useMemo(() => {
-    if (!hasSearched && !debouncedSearchTerm.trim()) {
-      return [];
-    }
-
     return assets.filter(asset => {
       // Type filters
       if (showOnlyAssets && asset.type !== 'asset') return false;
@@ -363,10 +359,7 @@ export const CombinedAssetsContainer = () => {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Combined Assets</h1>
             <p className="text-muted-foreground">
-              {hasSearched || debouncedSearchTerm.trim() 
-                ? `Found ${filteredAssets.length} item${filteredAssets.length !== 1 ? 's' : ''}`
-                : "Search to find tools and inventory items"
-              }
+              Found {filteredAssets.length} item{filteredAssets.length !== 1 ? 's' : ''}
             </p>
           </div>
           
@@ -376,36 +369,29 @@ export const CombinedAssetsContainer = () => {
           </Button>
         </div>
 
-        {/* Filters - only show when we have results or are searching */}
-        {(hasSearched || debouncedSearchTerm.trim()) && (
-          <CombinedAssetFilters
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
-            showMyCheckedOut={showMyCheckedOut}
-            setShowMyCheckedOut={setShowMyCheckedOut}
-            showWithIssues={showWithIssues}
-            setShowWithIssues={setShowWithIssues}
-            showLowStock={showLowStock}
-            setShowLowStock={setShowLowStock}
-            showOnlyAssets={showOnlyAssets}
-            setShowOnlyAssets={setShowOnlyAssets}
-            showOnlyStock={showOnlyStock}
-            setShowOnlyStock={setShowOnlyStock}
-            showRemovedItems={showRemovedItems}
-            setShowRemovedItems={setShowRemovedItems}
-          />
-        )}
+        {/* Filters */}
+        <CombinedAssetFilters
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          showMyCheckedOut={showMyCheckedOut}
+          setShowMyCheckedOut={setShowMyCheckedOut}
+          showWithIssues={showWithIssues}
+          setShowWithIssues={setShowWithIssues}
+          showLowStock={showLowStock}
+          setShowLowStock={setShowLowStock}
+          showOnlyAssets={showOnlyAssets}
+          setShowOnlyAssets={setShowOnlyAssets}
+          showOnlyStock={showOnlyStock}
+          setShowOnlyStock={setShowOnlyStock}
+          showRemovedItems={showRemovedItems}
+          setShowRemovedItems={setShowRemovedItems}
+        />
 
-        {/* Search Prompt or Results */}
-        {!hasSearched && !debouncedSearchTerm.trim() ? (
-          <SearchPrompt 
-            searchTerm={searchTerm}
-            onExampleSearch={setSearchTerm}
-          />
-        ) : loading ? (
+        {/* Results */}
+        {loading ? (
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-            <p className="mt-2 text-muted-foreground">Searching...</p>
+            <p className="mt-2 text-muted-foreground">Loading...</p>
           </div>
         ) : (
           <CombinedAssetGrid

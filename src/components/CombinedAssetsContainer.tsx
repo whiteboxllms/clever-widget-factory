@@ -9,6 +9,8 @@ import { ToolCheckoutDialog } from "./ToolCheckoutDialog";
 import { ToolCheckInDialog } from "./ToolCheckInDialog";
 import { IssueReportDialog } from "./IssueReportDialog";
 import { ToolRemovalDialog } from "./tools/ToolRemovalDialog";
+import { EditToolForm } from "./tools/forms/EditToolForm";
+import { InventoryItemForm } from "./InventoryItemForm";
 import { useCombinedAssets, CombinedAsset } from "@/hooks/useCombinedAssets";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +32,7 @@ export const CombinedAssetsContainer = () => {
   const [showCheckinDialog, setShowCheckinDialog] = useState(false);
   const [showIssueDialog, setShowIssueDialog] = useState(false);
   const [showRemovalDialog, setShowRemovalDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<CombinedAsset | null>(null);
 
   const { assets, loading, createAsset, updateAsset, refetch } = useCombinedAssets(showRemovedItems);
@@ -82,11 +85,8 @@ export const CombinedAssetsContainer = () => {
   };
 
   const handleEdit = (asset: CombinedAsset) => {
-    if (asset.type === 'asset') {
-      navigate(`/tools?toolId=${asset.id}&edit=true`);
-    } else {
-      navigate(`/inventory?partId=${asset.id}&edit=true`);
-    }
+    setSelectedAsset(asset);
+    setShowEditDialog(true);
   };
 
   const handleRemove = (asset: CombinedAsset) => {
@@ -147,6 +147,28 @@ export const CombinedAssetsContainer = () => {
       toast({
         title: "Error",
         description: `Failed to remove ${selectedAsset.type === 'asset' ? 'asset' : 'stock item'}`,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleEditSubmit = async (toolData: any) => {
+    if (!selectedAsset) return;
+
+    try {
+      await updateAsset(selectedAsset.id, toolData, selectedAsset.type === 'asset');
+      await refetch();
+      setShowEditDialog(false);
+      setSelectedAsset(null);
+      toast({
+        title: "Success",
+        description: `${selectedAsset.type === 'asset' ? 'Asset' : 'Stock item'} updated successfully`,
+      });
+    } catch (error) {
+      console.error('Error updating item:', error);
+      toast({
+        title: "Error",
+        description: `Failed to update ${selectedAsset.type === 'asset' ? 'asset' : 'stock item'}`,
         variant: "destructive"
       });
     }
@@ -284,6 +306,53 @@ export const CombinedAssetsContainer = () => {
           tool={selectedAsset as any}
           onConfirm={handleConfirmRemoval}
         />
+      )}
+
+      {/* Edit Tool Dialog */}
+      {selectedAsset && selectedAsset.type === 'asset' && (
+        <EditToolForm
+          tool={selectedAsset as any}
+          isOpen={showEditDialog}
+          onClose={() => {
+            setShowEditDialog(false);
+            setSelectedAsset(null);
+          }}
+          onSubmit={handleEditSubmit}
+        />
+      )}
+
+      {/* Edit Stock Item Dialog */}
+      {selectedAsset && selectedAsset.type === 'stock' && showEditDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-semibold mb-4">Edit Stock Item</h2>
+            <InventoryItemForm
+              initialData={{
+                name: selectedAsset.name || '',
+                description: selectedAsset.description || '',
+                current_quantity: selectedAsset.current_quantity || 0,
+                minimum_quantity: selectedAsset.minimum_quantity || 0,
+                unit: selectedAsset.unit || 'pieces',
+                cost_per_unit: (selectedAsset.cost_per_unit || 0).toString(),
+                cost_evidence_url: selectedAsset.cost_evidence_url || '',
+                storage_vicinity: selectedAsset.storage_vicinity || '',
+                storage_location: selectedAsset.storage_location || ''
+              }}
+              editingPart={selectedAsset as any}
+              selectedImage={null}
+              setSelectedImage={() => {}}
+              onSubmit={(data, useMinimumQuantity) => {
+                handleEditSubmit(data);
+              }}
+              onCancel={() => {
+                setShowEditDialog(false);
+                setSelectedAsset(null);
+              }}
+              isLoading={false}
+              submitButtonText="Update Stock Item"
+            />
+          </div>
+        </div>
       )}
     </div>
   );

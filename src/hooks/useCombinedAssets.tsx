@@ -13,8 +13,12 @@ export interface CombinedAsset {
   current_quantity?: number;
   minimum_quantity?: number;
   unit?: string;
+  cost_per_unit?: number;
+  cost_evidence_url?: string;
+  supplier?: string;
   image_url?: string;
   storage_location?: string;
+  storage_vicinity?: string;
   legacy_storage_vicinity?: string;
   has_issues?: boolean;
   is_checked_out?: boolean;

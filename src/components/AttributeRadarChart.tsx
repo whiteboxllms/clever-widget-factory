@@ -5,6 +5,20 @@ import { useOrganizationValues } from '@/hooks/useOrganizationValues';
 import { useState, useEffect, useMemo } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Legend } from 'recharts';
 
+// Color palette for different users
+const USER_COLORS = [
+  'hsl(var(--primary))',
+  'hsl(var(--secondary))',
+  'hsl(var(--accent))',
+  'hsl(210, 100%, 50%)', // Blue
+  'hsl(120, 100%, 40%)', // Green
+  'hsl(300, 100%, 50%)', // Magenta
+  'hsl(30, 100%, 50%)',  // Orange
+  'hsl(270, 100%, 50%)', // Purple
+  'hsl(180, 100%, 40%)', // Cyan
+  'hsl(60, 100%, 45%)',  // Yellow-green
+];
+
 interface AttributeRadarChartProps {
   actionAnalytics: EnhancedAttributeAnalytics[];
   issueAnalytics: EnhancedAttributeAnalytics[];
@@ -54,7 +68,7 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
     loadOrgValues();
   }, [getOrganizationValues]);
 
-  // Process data for radar chart
+  // Process data for radar chart - create individual data for each user
   const radarData = useMemo(() => {
     console.log('=== Radar Chart Debug ===');
     console.log('Organization values:', orgValues);
@@ -79,29 +93,24 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
     }
 
     // Create radar chart data points for each organization value
+    // Each data point will include values for all selected users
     const data = orgValues.map(orgValue => {
       const attributeKey = mapOrgValueToAttributeKey(orgValue);
       
-      // Calculate average score for this attribute across selected users
-      const scores = selectedAnalytics
-        .map(user => {
-          const score = user.attributes[attributeKey as keyof typeof user.attributes];
-          console.log(`User ${user.userName} - ${attributeKey}: ${score}`);
-          return score;
-        })
-        .filter(score => score !== undefined && score !== null);
-      
-      const avgScore = scores.length > 0 
-        ? scores.reduce((sum, score) => sum + score, 0) / scores.length 
-        : 2; // Default to middle value
-
-      console.log(`${orgValue} (${attributeKey}): scores=[${scores}], avg=${avgScore}`);
-
-      return {
+      const dataPoint: any = {
         attribute: orgValue,
-        value: Math.round(avgScore * 100) / 100, // Round to 2 decimal places
         fullMark: 4
       };
+
+      // Add each user's score as a separate property
+      selectedAnalytics.forEach(user => {
+        const score = user.attributes[attributeKey as keyof typeof user.attributes];
+        const userScore = score !== undefined && score !== null ? score : 2; // Default to middle value
+        dataPoint[user.userName] = Math.round(userScore * 100) / 100; // Round to 2 decimal places
+        console.log(`User ${user.userName} - ${attributeKey}: ${userScore}`);
+      });
+
+      return dataPoint;
     });
     
     console.log('Final radar data:', data);
@@ -109,6 +118,17 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
     
     return data;
   }, [orgValues, actionAnalytics, selectedUsers]);
+
+  // Get user data for individual radar lines
+  const userData = useMemo(() => {
+    return actionAnalytics
+      .filter(user => selectedUsers.includes(user.userId))
+      .map((user, index) => ({
+        name: user.userName,
+        color: USER_COLORS[index % USER_COLORS.length],
+        dataKey: user.userName
+      }));
+  }, [actionAnalytics, selectedUsers]);
 
   // Get user names for legend
   const selectedUserNames = useMemo(() => {
@@ -156,7 +176,7 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
       <CardHeader>
         <CardTitle>Strategic Attributes Radar Chart</CardTitle>
         <div className="text-sm text-muted-foreground">
-          Comparing {selectedUserNames.length} user{selectedUserNames.length !== 1 ? 's' : ''}: {selectedUserNames.join(', ')}
+          Individual analysis of {userData.length} user{userData.length !== 1 ? 's' : ''}: {userData.map(u => u.name).join(', ')}
         </div>
       </CardHeader>
       <CardContent>
@@ -197,14 +217,19 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
                   tick={{ fontSize: 10 }}
                   tickCount={5}
                 />
-                <Radar 
-                  name="Average Score" 
-                  dataKey="value" 
-                  stroke="hsl(var(--primary))" 
-                  fill="hsl(var(--primary))" 
-                  fillOpacity={0.3}
-                  strokeWidth={2}
-                />
+                {/* Render a radar line for each user */}
+                {userData.map((user, index) => (
+                  <Radar
+                    key={user.name}
+                    name={user.name}
+                    dataKey={user.dataKey}
+                    stroke={user.color}
+                    fill={user.color}
+                    fillOpacity={0.1}
+                    strokeWidth={2}
+                  />
+                ))}
+                <Legend />
               </RadarChart>
             </ResponsiveContainer>
           </div>

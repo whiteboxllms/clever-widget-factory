@@ -23,6 +23,7 @@ export interface CombinedAsset {
   has_issues?: boolean;
   is_checked_out?: boolean;
   checked_out_to?: string;
+  checked_out_user_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -85,7 +86,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false) => {
       // Fetch active checkouts for tools
       const { data: checkoutsData, error: checkoutsError } = await supabase
         .from('checkouts')
-        .select('tool_id, user_name')
+        .select('tool_id, user_name, user_id')
         .eq('is_returned', false);
 
       if (checkoutsError) {
@@ -93,9 +94,9 @@ export const useCombinedAssets = (showRemovedItems: boolean = false) => {
       }
 
       // Create checkout map
-      const checkoutMap = new Map<string, string>();
+      const checkoutMap = new Map<string, { user_name: string; user_id: string }>();
       checkoutsData?.forEach(checkout => {
-        checkoutMap.set(checkout.tool_id, checkout.user_name);
+        checkoutMap.set(checkout.tool_id, { user_name: checkout.user_name, user_id: checkout.user_id });
       });
 
       // Fetch tools with issues
@@ -114,13 +115,17 @@ export const useCombinedAssets = (showRemovedItems: boolean = false) => {
       // Transform and combine data
       const transformedAssets: CombinedAsset[] = [
         // Transform tools to assets
-        ...(toolsResponse.data || []).map(tool => ({
-          ...tool,
-          type: 'asset' as const,
-          has_issues: toolsWithIssues.has(tool.id),
-          is_checked_out: checkoutMap.has(tool.id),
-          checked_out_to: checkoutMap.get(tool.id)
-        })),
+        ...(toolsResponse.data || []).map(tool => {
+          const checkout = checkoutMap.get(tool.id);
+          return {
+            ...tool,
+            type: 'asset' as const,
+            has_issues: toolsWithIssues.has(tool.id),
+            is_checked_out: checkoutMap.has(tool.id),
+            checked_out_to: checkout?.user_name,
+            checked_out_user_id: checkout?.user_id
+          };
+        }),
         // Transform parts to stock
         ...(partsResponse.data || []).map(part => ({
           ...part,

@@ -21,6 +21,7 @@ interface CombinedAsset {
   has_issues?: boolean;
   is_checked_out?: boolean;
   checked_out_to?: string;
+  checked_out_user_id?: string;
 }
 
 interface CombinedAssetCardProps {
@@ -189,7 +190,7 @@ export const CombinedAssetCard = ({
             </Button>
           )}
 
-          {asset.type === 'asset' && asset.is_checked_out && asset.checked_out_to === currentUserEmail && onCheckin && (
+          {asset.type === 'asset' && asset.is_checked_out && asset.checked_out_user_id === currentUserId && onCheckin && (
             <Button
               size="sm"
               onClick={(e) => {

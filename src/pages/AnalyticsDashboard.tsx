@@ -54,6 +54,9 @@ export default function AnalyticsDashboard() {
           .map(user => user.userId);
         setSelectedUsers(selectedUserIds);
       }
+
+      // Fetch initial scored actions for all users (no filter)
+      await fetchScoredActions();
     };
     
     loadInitialData();

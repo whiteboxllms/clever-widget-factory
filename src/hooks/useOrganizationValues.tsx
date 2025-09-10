@@ -1,11 +1,10 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { StrategicAttributeType } from '@/hooks/useStrategicAttributes';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
 
 export interface OrganizationValues {
-  strategic_attributes: StrategicAttributeType[];
+  strategic_attributes: string[];
 }
 
 export function useOrganizationValues() {
@@ -13,7 +12,7 @@ export function useOrganizationValues() {
   const { toast } = useToast();
   const organizationId = useOrganizationId();
 
-  const getOrganizationValues = useCallback(async (): Promise<StrategicAttributeType[]> => {
+  const getOrganizationValues = useCallback(async (): Promise<string[]> => {
     if (!organizationId) return [];
 
     try {
@@ -26,14 +25,21 @@ export function useOrganizationValues() {
       if (error) throw error;
 
       const settings = data?.settings as any;
-      return settings?.strategic_attributes || [];
+      const values = settings?.strategic_attributes || [];
+      
+      // If no values exist, return defaults
+      if (values.length === 0) {
+        return ["Growth Mindset", "Teamwork", "Quality"];
+      }
+      
+      return values;
     } catch (error) {
       console.error('Error fetching organization values:', error);
-      return [];
+      return ["Growth Mindset", "Teamwork", "Quality"];
     }
   }, [organizationId]);
 
-  const updateOrganizationValues = useCallback(async (selectedAttributes: StrategicAttributeType[]): Promise<boolean> => {
+  const updateOrganizationValues = useCallback(async (selectedAttributes: string[]): Promise<boolean> => {
     if (!organizationId) return false;
 
     setIsLoading(true);

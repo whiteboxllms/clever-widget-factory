@@ -124,9 +124,8 @@ export function useStrategicAttributes() {
   const getAttributeAnalytics = async (userIds?: string[], filterByOrgValues = true): Promise<AttributeAnalytics[]> => {
     const userMap = new Map<string, AttributeAnalytics>();
 
-    // Get organization's selected strategic attributes
-    const orgValues = filterByOrgValues ? await getOrganizationValues() : [];
-    const attributesToUse = orgValues.length > 0 ? orgValues : [
+    // Use all predefined strategic attributes for now (custom org values don't map to these enums)
+    const attributesToUse = [
       'growth_mindset', 'root_cause_problem_solving', 'teamwork', 'quality',
       'proactive_documentation', 'safety_focus', 'efficiency', 'asset_stewardship',
       'financial_impact', 'energy_morale_impact'
@@ -134,9 +133,6 @@ export function useStrategicAttributes() {
 
     attributes.forEach(attr => {
       if (userIds && userIds.length > 0 && !userIds.includes(attr.user_id)) return;
-      
-      // Only include attributes that are selected by the organization
-      if (filterByOrgValues && orgValues.length > 0 && !orgValues.includes(attr.attribute_type)) return;
 
       if (!userMap.has(attr.user_id)) {
         userMap.set(attr.user_id, {
@@ -164,12 +160,11 @@ export function useStrategicAttributes() {
   };
 
   const getCompanyAverage = async (userIds?: string[], filterByOrgValues = true): Promise<CompanyAverage> => {
-    const userAnalytics = await getAttributeAnalytics(userIds, filterByOrgValues);
+    const userAnalytics = await getAttributeAnalytics(userIds, false); // Don't filter by org values for now
     const averages: Record<StrategicAttributeType, number> = {} as Record<StrategicAttributeType, number>;
 
-    // Get organization's selected strategic attributes
-    const orgValues = filterByOrgValues ? await getOrganizationValues() : [];
-    const attributesToUse = orgValues.length > 0 ? orgValues : [
+    // Use all predefined strategic attributes for now
+    const attributesToUse = [
       'growth_mindset', 'root_cause_problem_solving', 'teamwork', 'quality',
       'proactive_documentation', 'safety_focus', 'efficiency', 'asset_stewardship',
       'financial_impact', 'energy_morale_impact'

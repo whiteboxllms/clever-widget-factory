@@ -28,26 +28,48 @@ export interface CombinedAsset {
   updated_at: string;
 }
 
-export const useCombinedAssets = (showRemovedItems: boolean = false, searchQuery: string = '') => {
+export function useCombinedAssets(showRemovedItems: boolean = false) {
   const [assets, setAssets] = useState<CombinedAsset[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
+  const [cachedAssets, setCachedAssets] = useState<CombinedAsset[]>([]);
+  const [cacheTimestamp, setCacheTimestamp] = useState<number | null>(null);
+  const [cacheKey, setCacheKey] = useState<string>('');
   const organizationId = useOrganizationId();
 
-  const fetchAssets = useCallback(async (query: string = '') => {
+  // Cache validity period (5 minutes)
+  const CACHE_DURATION = 5 * 60 * 1000;
+
+  // Check if cache is valid
+  const isCacheValid = (timestamp: number | null, key: string): boolean => {
+    if (!timestamp || key !== `${organizationId}-${showRemovedItems}`) return false;
+    return Date.now() - timestamp < CACHE_DURATION;
+  };
+
+  const loadDataWithCache = async (query: string = '') => {
+    if (!organizationId) return;
+
+    const currentCacheKey = `${organizationId}-${showRemovedItems}`;
+    
+    // Use cached data if valid and available
+    if (isCacheValid(cacheTimestamp, currentCacheKey) && cachedAssets.length > 0) {
+      setAssets(cachedAssets);
+      setTotalCount(cachedAssets.length);
+      setHasSearched(true);
+      applyClientSideFilter(query, cachedAssets);
+      return;
+    }
+
+    // Fetch fresh data
+    await fetchAssetsFromAPI(query, currentCacheKey);
+  };
+
+  const fetchAssetsFromAPI = async (query: string = '', currentCacheKey: string = '') => {
     if (!organizationId) return;
     
     setLoading(true);
     try {
-      // Don't fetch if query is less than 3 characters (unless empty for reset)
-      if (query.length > 0 && query.length < 3) {
-        setAssets([]);
-        setTotalCount(0);
-        setLoading(false);
-        return;
-      }
-
       // Build base query for tools with search
       let toolsQuery = supabase
         .from('tools')
@@ -85,12 +107,6 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, searchQuery
         `)
         .eq('organization_id', organizationId);
 
-      // Apply search filters if query exists (for backend filtering when needed)
-      if (query.trim()) {
-        toolsQuery = toolsQuery.or(`name.ilike.%${query}%,serial_number.ilike.%${query}%,description.ilike.%${query}%,storage_location.ilike.%${query}%`);
-        partsQuery = partsQuery.or(`name.ilike.%${query}%,description.ilike.%${query}%,storage_location.ilike.%${query}%`);
-      }
-
       // Apply removal filter
       if (!showRemovedItems) {
         toolsQuery = toolsQuery.neq('status', 'removed');
@@ -114,8 +130,13 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, searchQuery
 
       // Only fetch additional data if we have results
       if (tools.length === 0 && parts.length === 0) {
-        setAssets([]);
+        const emptyAssets: CombinedAsset[] = [];
+        setAssets(emptyAssets);
         setTotalCount(0);
+        setHasSearched(true);
+        setCachedAssets(emptyAssets);
+        setCacheTimestamp(Date.now());
+        setCacheKey(currentCacheKey || `${organizationId}-${showRemovedItems}`);
         setLoading(false);
         return;
       }
@@ -210,44 +231,80 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, searchQuery
         }))
       ];
 
+      // Cache the data
+      setCachedAssets(transformedAssets);
+      setCacheTimestamp(Date.now());
+      setCacheKey(currentCacheKey || `${organizationId}-${showRemovedItems}`);
+      
       setAssets(transformedAssets);
       setTotalCount(transformedAssets.length);
+      setHasSearched(true);
       
-      if (query.trim()) {
-        setHasSearched(true);
+      // Apply client-side filtering if there's a search query
+      if (query) {
+        applyClientSideFilter(query, transformedAssets);
       }
     } catch (error) {
       console.error('Error fetching assets:', error);
-      setAssets([]);
-      setTotalCount(0);
     } finally {
       setLoading(false);
     }
-  }, [organizationId, showRemovedItems]);
+  };
+
+  const applyClientSideFilter = (query: string, assetsToFilter: CombinedAsset[] = cachedAssets) => {
+    if (!query.trim()) {
+      setAssets(assetsToFilter);
+      setTotalCount(assetsToFilter.length);
+      return;
+    }
+
+    const searchLower = query.toLowerCase();
+    const filtered = assetsToFilter.filter(asset => 
+      asset.name.toLowerCase().includes(searchLower) ||
+      asset.description?.toLowerCase().includes(searchLower) ||
+      asset.category?.toLowerCase().includes(searchLower) ||
+      asset.serial_number?.toLowerCase().includes(searchLower) ||
+      asset.storage_location?.toLowerCase().includes(searchLower)
+    );
+    
+    setAssets(filtered);
+    setTotalCount(filtered.length);
+  };
 
   const searchAssets = useCallback(async (query: string) => {
-    await fetchAssets(query);
-  }, [fetchAssets]);
+    if (cachedAssets.length > 0 && isCacheValid(cacheTimestamp, `${organizationId}-${showRemovedItems}`)) {
+      // Use cached data for instant client-side filtering
+      applyClientSideFilter(query);
+      setHasSearched(true);
+    } else {
+      // Load data with cache check
+      await loadDataWithCache(query);
+    }
+  }, [cachedAssets, cacheTimestamp, organizationId, showRemovedItems]);
 
   const resetSearch = useCallback(() => {
     setAssets([]);
-    setTotalCount(0);
     setHasSearched(false);
+    setTotalCount(0);
   }, []);
+
+  const invalidateCache = useCallback(() => {
+    setCachedAssets([]);
+    setCacheTimestamp(null);
+    setCacheKey('');
+  }, []);
+
+  const refreshData = useCallback(async () => {
+    invalidateCache();
+    await loadDataWithCache();
+  }, [invalidateCache]);
 
   // Load data on mount and when filters change
   useEffect(() => {
-    fetchAssets(searchQuery);
-    if (searchQuery.trim()) {
-      setHasSearched(true);
-    }
-  }, [searchQuery, showRemovedItems, fetchAssets]);
+    loadDataWithCache();
+  }, [organizationId, showRemovedItems]);
 
-  const refetch = useCallback(() => {
-    if (hasSearched || searchQuery.trim()) {
-      return fetchAssets(searchQuery);
-    }
-  }, [fetchAssets, hasSearched, searchQuery]);
+  const refetch = useCallback(() => refreshData(), [refreshData]);
 
   const createAsset = async (assetData: any, isAsset: boolean) => {
     try {
@@ -288,14 +345,9 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, searchQuery
       
       if (error) throw error;
       
-      // Update local state
-      setAssets(prevAssets => 
-        prevAssets.map(asset => 
-          asset.id === assetId 
-            ? { ...asset, ...updates, updated_at: new Date().toISOString() }
-            : asset
-        )
-      );
+      // Invalidate cache and refetch to get updated data
+      invalidateCache();
+      await loadDataWithCache();
       
       return data;
     } catch (error) {
@@ -304,15 +356,17 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, searchQuery
     }
   };
 
-  return { 
-    assets, 
-    loading, 
+  return {
+    assets,
+    loading,
     hasSearched,
     totalCount,
     searchAssets,
     resetSearch,
-    createAsset, 
-    updateAsset, 
-    refetch 
+    createAsset,
+    updateAsset,
+    refetch,
+    refreshData,
+    invalidateCache
   };
-};
+}

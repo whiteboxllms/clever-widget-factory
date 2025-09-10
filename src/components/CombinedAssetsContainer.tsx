@@ -68,18 +68,18 @@ export const CombinedAssetsContainer = () => {
   // Pending orders state
   const [pendingOrders, setPendingOrders] = useState<Record<string, any[]>>({});
 
-  // Use the search-first assets hook
-  const { 
-    assets, 
-    loading, 
-    hasSearched, 
-    totalCount, 
-    searchAssets, 
-    resetSearch, 
-    createAsset, 
-    updateAsset, 
-    refetch 
-  } = useCombinedAssets(showRemovedItems, debouncedSearchTerm);
+  const {
+    assets,
+    loading,
+    hasSearched,
+    totalCount,
+    searchAssets,
+    resetSearch,
+    createAsset,
+    updateAsset,
+    refetch,
+    invalidateCache
+  } = useCombinedAssets(showRemovedItems);
 
   // Tool history and issues hooks
   const { toolHistory, currentCheckout, fetchToolHistory } = useToolHistory();
@@ -123,14 +123,10 @@ export const CombinedAssetsContainer = () => {
     fetchPendingOrders();
   }, []);
 
-  // Only search when we have at least 3 characters
+  // Search with debounced term for instant client-side filtering
   useEffect(() => {
-    if (debouncedSearchTerm.length >= 3) {
-      searchAssets(debouncedSearchTerm);
-    } else if (hasSearched && debouncedSearchTerm.length === 0) {
-      resetSearch();
-    }
-  }, [debouncedSearchTerm, searchAssets, resetSearch, hasSearched, showRemovedItems]);
+    searchAssets(debouncedSearchTerm);
+  }, [debouncedSearchTerm, searchAssets]);
 
   // Apply client-side filters to assets
   const filteredAssets = useMemo(() => {
@@ -161,6 +157,7 @@ export const CombinedAssetsContainer = () => {
   const handleCreateAsset = async (assetData: any, isAsset: boolean) => {
     const result = await createAsset(assetData, isAsset);
     if (result) {
+      invalidateCache();
       await refetch();
     }
     return result;
@@ -359,11 +356,9 @@ export const CombinedAssetsContainer = () => {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Combined Assets</h1>
             <p className="text-muted-foreground">
-              {debouncedSearchTerm.length > 0 && debouncedSearchTerm.length < 3 
-                ? "Enter at least 3 characters to search"
-                : hasSearched 
+              {hasSearched 
                 ? `Found ${filteredAssets.length} item${filteredAssets.length !== 1 ? 's' : ''}`
-                : "Enter at least 3 characters to search for tools and inventory items"
+                : "Loading tools and inventory items..."
               }
             </p>
           </div>
@@ -393,24 +388,10 @@ export const CombinedAssetsContainer = () => {
         />
 
         {/* Results */}
-        {debouncedSearchTerm.length > 0 && debouncedSearchTerm.length < 3 ? (
-          <div className="text-center py-12">
-            <div className="text-muted-foreground">
-              <p className="text-lg mb-2">Enter at least 3 characters to search</p>
-              <p className="text-sm">This helps reduce server load and provides better performance</p>
-            </div>
-          </div>
-        ) : loading ? (
+        {loading ? (
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-            <p className="mt-2 text-muted-foreground">Searching...</p>
-          </div>
-        ) : !hasSearched ? (
-          <div className="text-center py-12">
-            <div className="text-muted-foreground">
-              <p className="text-lg mb-2">Ready to search</p>
-              <p className="text-sm">Enter at least 3 characters in the search box above</p>
-            </div>
+            <p className="mt-2 text-muted-foreground">Loading...</p>
           </div>
         ) : (
           <CombinedAssetGrid

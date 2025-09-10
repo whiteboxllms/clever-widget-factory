@@ -332,6 +332,42 @@ export const CombinedAssetsContainer = () => {
     }
   };
 
+  // Reuse the exact data conversion logic from the original Inventory page
+  const handleStockEditSubmit = async (formData: any, useMinimumQuantity: boolean) => {
+    if (!selectedAsset || selectedAsset.type !== 'stock') return;
+
+    try {
+      // Same data conversion as original Inventory page updatePart function
+      const updateData = {
+        name: formData.name,
+        description: formData.description,
+        current_quantity: formData.current_quantity,
+        minimum_quantity: useMinimumQuantity ? formData.minimum_quantity : null,
+        cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
+        unit: formData.unit,
+        storage_vicinity: formData.storage_vicinity,
+        storage_location: formData.storage_location,
+        image_url: formData.image_url
+      };
+
+      await updateAsset(selectedAsset.id, updateData, false);
+      await refetch();
+      setShowEditDialog(false);
+      setSelectedAsset(null);
+      toast({
+        title: "Success",
+        description: "Stock item updated successfully",
+      });
+    } catch (error) {
+      console.error('Error updating stock item:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update stock item",
+        variant: "destructive"
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto p-6">
@@ -514,9 +550,7 @@ export const CombinedAssetsContainer = () => {
               editingPart={selectedAsset as any}
               selectedImage={null}
               setSelectedImage={() => {}}
-              onSubmit={(data, useMinimumQuantity) => {
-                handleEditSubmit(data);
-              }}
+              onSubmit={handleStockEditSubmit}
               onCancel={() => {
                 setShowEditDialog(false);
                 setSelectedAsset(null);

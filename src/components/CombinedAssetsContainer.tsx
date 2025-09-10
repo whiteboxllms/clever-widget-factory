@@ -483,6 +483,14 @@ export const CombinedAssetsContainer = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Add Asset Dialog */}
+      <CombinedAssetDialog
+        isOpen={showAddDialog}
+        onClose={() => setShowAddDialog(false)}
+        onSubmit={handleCreateAsset}
+        initialName={searchTerm}
+      />
     </div>
   );
 };

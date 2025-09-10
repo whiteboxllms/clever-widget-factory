@@ -29,13 +29,13 @@ export function useOrganizationValues() {
       
       // If no values exist, return defaults
       if (values.length === 0) {
-        return ["Growth Mindset", "Teamwork", "Quality"];
+        return ["Growth Mindset", "Root Cause Problem Solving", "Teamwork", "Quality"];
       }
       
       return values;
     } catch (error) {
       console.error('Error fetching organization values:', error);
-      return ["Growth Mindset", "Teamwork", "Quality"];
+      return ["Growth Mindset", "Root Cause Problem Solving", "Teamwork", "Quality"];
     }
   }, [organizationId]);
 

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Heart, Save, Info, X, Plus } from 'lucide-react';
+import { Save, Info, X, Plus } from 'lucide-react';
 import { useOrganizationValues } from '@/hooks/useOrganizationValues';
 
 interface OrganizationValuesSectionProps {
@@ -73,8 +73,7 @@ export function OrganizationValuesSection({ canEdit }: OrganizationValuesSection
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Heart className="w-5 h-5 text-red-500" />
+        <CardTitle>
           Organization Values
         </CardTitle>
       </CardHeader>
@@ -98,7 +97,6 @@ export function OrganizationValuesSection({ canEdit }: OrganizationValuesSection
             {values.length > 0 ? (
               values.map((value) => (
                 <Badge key={value} variant="default" className="flex items-center gap-2 py-2 px-3">
-                  <Heart className="w-3 h-3" />
                   {value}
                   {canEdit && (
                     <button
@@ -113,7 +111,7 @@ export function OrganizationValuesSection({ canEdit }: OrganizationValuesSection
               ))
             ) : (
               <p className="text-sm text-muted-foreground italic flex items-center">
-                No values configured - using defaults: Growth Mindset, Teamwork, Quality
+                No values configured - using defaults: Growth Mindset, Root Cause Problem Solving, Teamwork, Quality
               </p>
             )}
           </div>

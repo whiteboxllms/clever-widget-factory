@@ -226,25 +226,6 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
             </div>
 
             <div>
-              <Label htmlFor="category">Category</Label>
-              <Select
-                value={formData.category}
-                onValueChange={(value) => updateFormData('category', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {TOOL_CATEGORY_OPTIONS.map((category) => (
-                    <SelectItem key={category.value} value={category.value}>
-                      {category.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
               <Label htmlFor="serial">Serial Number</Label>
               <Input
                 id="serial"
@@ -254,110 +235,137 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
               />
             </div>
 
-            {/* Quantity fields - only show for stock items */}
-            {!isAsset && (
-              <>
-                <div>
-                  <Label htmlFor="current_quantity">Current Quantity *</Label>
-                  <Input
-                    id="current_quantity"
-                    type="number"
-                    step="1"
-                    min="0"
-                    value={formData.current_quantity}
-                    onChange={(e) => updateFormData('current_quantity', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                
-                <div>
-                  <div className="flex items-center space-x-2 mb-2">
-                    <Checkbox 
-                      id="use-minimum-quantity"
-                      checked={useMinimumQuantity}
-                      onCheckedChange={(checked) => setUseMinimumQuantity(checked === true)}
-                    />
-                    <Label htmlFor="use-minimum-quantity" className="text-sm font-medium">
-                      Set Minimum Quantity
-                    </Label>
-                  </div>
-                  
-                  {useMinimumQuantity && (
-                    <Input
-                      id="minimum_quantity"
-                      type="number"
-                      step="1"
-                      min="0"
-                      value={formData.minimum_quantity}
-                      onChange={(e) => updateFormData('minimum_quantity', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
-                    />
-                  )}
-                </div>
-
-                <div>
-                  <Label htmlFor="unit">Unit</Label>
-                  <Select value={formData.unit} onValueChange={(value) => updateFormData('unit', value)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pieces">Pieces</SelectItem>
-                      <SelectItem value="kg">Kilograms</SelectItem>
-                      <SelectItem value="meters">Meters</SelectItem>
-                      <SelectItem value="liters">Liters</SelectItem>
-                      <SelectItem value="grams">Grams</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Label htmlFor="cost_per_unit">Cost per unit (php)</Label>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Exclude shipping costs in calculation</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <Input
-                    id="cost_per_unit"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.cost_per_unit}
-                    onChange={(e) => updateFormData('cost_per_unit', e.target.value)}
-                    placeholder="0.00"
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Label htmlFor="cost_evidence_url">URLs</Label>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Include where to purchase and any manuals related to the purchase (one per line)</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <Textarea
-                    id="cost_evidence_url"
-                    value={formData.cost_evidence_url}
-                    onChange={(e) => updateFormData('cost_evidence_url', e.target.value)}
-                    placeholder="https://example.com/product-page&#10;https://example.com/manual.pdf"
-                    rows={3}
-                  />
-                </div>
-              </>
+            {/* Category field - only show when serial number is entered */}
+            {isAsset && (
+              <div>
+                <Label htmlFor="category">Category</Label>
+                <Select
+                  value={formData.category}
+                  onValueChange={(value) => updateFormData('category', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TOOL_CATEGORY_OPTIONS.map((category) => (
+                      <SelectItem key={category.value} value={category.value}>
+                        {category.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
+
+            {/* Quantity fields - show for all but disable for assets */}
+            <div>
+              <Label htmlFor="current_quantity">Current Quantity *</Label>
+              <Input
+                id="current_quantity"
+                type="number"
+                step="1"
+                min="0"
+                value={formData.current_quantity}
+                onChange={(e) => updateFormData('current_quantity', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
+                disabled={isAsset}
+              />
+            </div>
+            
+            <div>
+              <div className="flex items-center space-x-2 mb-2">
+                <Checkbox 
+                  id="use-minimum-quantity"
+                  checked={useMinimumQuantity}
+                  onCheckedChange={(checked) => setUseMinimumQuantity(checked === true)}
+                  disabled={isAsset}
+                />
+                <Label htmlFor="use-minimum-quantity" className="text-sm font-medium">
+                  Set Minimum Quantity
+                </Label>
+              </div>
+              
+              {useMinimumQuantity && (
+                <Input
+                  id="minimum_quantity"
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={formData.minimum_quantity}
+                  onChange={(e) => updateFormData('minimum_quantity', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
+                  disabled={isAsset}
+                />
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="unit">Unit</Label>
+              <Select 
+                value={formData.unit} 
+                onValueChange={(value) => updateFormData('unit', value)}
+                disabled={isAsset}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pieces">Pieces</SelectItem>
+                  <SelectItem value="kg">Kilograms</SelectItem>
+                  <SelectItem value="meters">Meters</SelectItem>
+                  <SelectItem value="liters">Liters</SelectItem>
+                  <SelectItem value="grams">Grams</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Label htmlFor="cost_per_unit">Cost per unit (php)</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Exclude shipping costs in calculation</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <Input
+                id="cost_per_unit"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.cost_per_unit}
+                onChange={(e) => updateFormData('cost_per_unit', e.target.value)}
+                placeholder="0.00"
+                disabled={isAsset}
+              />
+            </div>
+
+            <div className="col-span-2">
+              <div className="flex items-center gap-2 mb-2">
+                <Label htmlFor="cost_evidence_url">URLs</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Include where to purchase and any manuals related to the purchase (one per line)</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <Textarea
+                id="cost_evidence_url"
+                value={formData.cost_evidence_url}
+                onChange={(e) => updateFormData('cost_evidence_url', e.target.value)}
+                placeholder="https://example.com/product-page&#10;https://example.com/manual.pdf"
+                rows={3}
+                disabled={isAsset}
+              />
+            </div>
 
             {/* Status field - only show for assets */}
             {isAsset && (

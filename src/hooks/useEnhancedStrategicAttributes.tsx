@@ -278,7 +278,29 @@ export function useEnhancedStrategicAttributes() {
       // Create analytics primarily from action scores
       const userAnalyticsMap = new Map<string, EnhancedAttributeAnalytics>();
 
-      // Process action scores
+      // First, get total action counts for all users to show realistic totals
+      let totalActionsQuery = supabase
+        .from('actions')
+        .select('assigned_to')
+        .not('assigned_to', 'is', null);
+
+      if (userIds && userIds.length > 0) {
+        totalActionsQuery = totalActionsQuery.in('assigned_to', userIds);
+      }
+
+      const { data: totalActionsData, error: totalActionsError } = await totalActionsQuery;
+      if (totalActionsError) throw totalActionsError;
+
+      // Count total actions per user
+      const totalActionCounts = new Map<string, number>();
+      totalActionsData?.forEach(action => {
+        const userId = action.assigned_to;
+        totalActionCounts.set(userId, (totalActionCounts.get(userId) || 0) + 1);
+      });
+
+      console.log('Total action counts:', Object.fromEntries(totalActionCounts));
+
+      // Process action scores for attribute scoring
       freshActionScores.forEach(actionScore => {
       const userId = actionScore.assigned_to;
       const userName = actionScore.full_name;
@@ -313,12 +335,12 @@ export function useEnhancedStrategicAttributes() {
             financial_impact: 0,
             energy_morale_impact: 0
           },
-          totalActions: 0
+          totalActions: totalActionCounts.get(userId) || 0 // Use actual total actions count
         });
       }
 
       const userAnalytics = userAnalyticsMap.get(userId)!;
-      userAnalytics.totalActions++;
+      // Don't increment totalActions here since we got the real count above
 
       // Process each score in the action
       Object.entries(actionScore.scores).forEach(([attribute, scoreData]) => {
@@ -328,7 +350,7 @@ export function useEnhancedStrategicAttributes() {
           // Add to running average (scores are -2 to 2 range, shift to 0-4)
           const currentCount = userAnalytics.scoreCount![mappedAttribute];
           const currentAvg = userAnalytics.attributes[mappedAttribute];
-          const adjustedScore = Math.max(0, Math.min(4, scoreData.score + 2));
+          const adjustedScore = Math.max(0, Math.min(4, (scoreData as any).score + 2));
           
           // Calculate new average
           userAnalytics.attributes[mappedAttribute] = 
@@ -337,6 +359,49 @@ export function useEnhancedStrategicAttributes() {
         }
       });
     });
+
+    // Add users who have actions but no scores yet
+    for (const [userId, actionCount] of totalActionCounts) {
+      if (!userAnalyticsMap.has(userId)) {
+        // Get user name from organization members
+        const { data: memberData } = await supabase
+          .from('organization_members')
+          .select('full_name')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        userAnalyticsMap.set(userId, {
+          userId,
+          userName: memberData?.full_name || 'Unknown User',
+          userRole: 'user',
+          attributes: {
+            growth_mindset: 2,
+            root_cause_problem_solving: 2,
+            teamwork: 2,
+            quality: 2,
+            proactive_documentation: 2,
+            safety_focus: 2,
+            efficiency: 2,
+            asset_stewardship: 2,
+            financial_impact: 2,
+            energy_morale_impact: 2
+          },
+          scoreCount: {
+            growth_mindset: 0,
+            root_cause_problem_solving: 0,
+            teamwork: 0,
+            quality: 0,
+            proactive_documentation: 0,
+            safety_focus: 0,
+            efficiency: 0,
+            asset_stewardship: 0,
+            financial_impact: 0,
+            energy_morale_impact: 0
+          },
+          totalActions: actionCount
+        });
+      }
+    }
 
     // Convert map to array and filter by userIds if provided
     let result = Array.from(userAnalyticsMap.values());

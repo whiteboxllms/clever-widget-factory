@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
+import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 
 interface ProactiveVsReactiveData {
   name: string;
@@ -162,9 +162,9 @@ export function ProactiveVsReactiveChart({ data, isLoading, onDayClick }: Proact
           {/* Chart */}
           <div className="flex-1 h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart
+              <ComposedChart
                 data={data}
-                margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                margin={{ top: 20, right: 50, left: 20, bottom: 60 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
@@ -175,15 +175,25 @@ export function ProactiveVsReactiveChart({ data, isLoading, onDayClick }: Proact
                   textAnchor="end"
                   height={100}
                 />
+                {/* Left Y-axis for percentages */}
                 <YAxis 
+                  yAxisId="left"
                   domain={[0, 100]}
                   tick={{ fontSize: 12 }}
                   tickFormatter={(value) => `${value}%`}
+                />
+                {/* Right Y-axis for total actions */}
+                <YAxis 
+                  yAxisId="right"
+                  orientation="right"
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(value) => value.toString()}
                 />
                 <Tooltip content={<CustomTooltip />} />
                 
                 {/* Reactive (red) bar - shown first so it appears at the bottom */}
                 <Bar 
+                  yAxisId="left"
                   dataKey="reactive" 
                   stackId="actions" 
                   fill="hsl(0, 84%, 60%)"
@@ -195,6 +205,7 @@ export function ProactiveVsReactiveChart({ data, isLoading, onDayClick }: Proact
                 
                 {/* Proactive (green) bar - shown second so it appears at the top */}
                 <Bar 
+                  yAxisId="left"
                   dataKey="proactive" 
                   stackId="actions" 
                   fill="hsl(142, 76%, 36%)"
@@ -203,7 +214,18 @@ export function ProactiveVsReactiveChart({ data, isLoading, onDayClick }: Proact
                   onClick={handleBarClick}
                   style={{ cursor: onDayClick ? 'pointer' : 'default' }}
                 />
-              </BarChart>
+                
+                {/* Total actions line */}
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="totalActions"
+                  stroke="hsl(220, 91%, 54%)"
+                  strokeWidth={3}
+                  dot={{ fill: "hsl(220, 91%, 54%)", strokeWidth: 2, r: 4 }}
+                  activeDot={{ r: 6, fill: "hsl(220, 91%, 54%)" }}
+                />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
           
@@ -211,11 +233,15 @@ export function ProactiveVsReactiveChart({ data, isLoading, onDayClick }: Proact
           <div className="flex flex-col justify-start pt-8 gap-4 min-w-48">
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded" style={{ backgroundColor: "hsl(142, 76%, 36%)" }}></div>
-              <span className="text-sm">Proactive</span>
+              <span className="text-sm">Proactive (%)</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded" style={{ backgroundColor: "hsl(0, 84%, 60%)" }}></div>
-              <span className="text-sm">Reactive</span>
+              <span className="text-sm">Reactive (%)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-1 rounded" style={{ backgroundColor: "hsl(220, 91%, 54%)" }}></div>
+              <span className="text-sm">Total Actions</span>
             </div>
           </div>
         </div>

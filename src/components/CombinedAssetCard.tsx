@@ -205,21 +205,6 @@ export const CombinedAssetCard = ({
           {asset.type === 'stock' && canEdit && (
             <>
               <div className="flex gap-2 flex-1">
-                {onAddQuantity && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAddQuantity(asset);
-                    }}
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add
-                  </Button>
-                )}
-
                 {onUseQuantity && (
                   <Button
                     variant="outline"
@@ -232,6 +217,21 @@ export const CombinedAssetCard = ({
                   >
                     <Minus className="h-4 w-4 mr-1" />
                     Use
+                  </Button>
+                )}
+
+                {onAddQuantity && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAddQuantity(asset);
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add
                   </Button>
                 )}
 

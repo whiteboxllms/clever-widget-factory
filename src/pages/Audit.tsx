@@ -163,23 +163,34 @@ const Audit = () => {
       if (!selectedType) return [];
       
       if (selectedType === 'tools') {
-        // Get all tools with their parent structure information
-        const { data: toolsData, error: toolsError } = await supabase
-          .from('tools')
-          .select(`
-            parent_structure_id,
-            parent_structure:tools!parent_structure_id(name)
-          `)
-          .eq('status', 'available');
+        // Get all available tools and all parent structures separately
+        const [toolsResponse, structuresResponse] = await Promise.all([
+          supabase
+            .from('tools')
+            .select('parent_structure_id')
+            .eq('status', 'available'),
+          supabase
+            .from('tools')
+            .select('id, name')
+            .in('category', ['Infrastructure', 'Container'])
+            .neq('status', 'removed')
+        ]);
         
-        if (toolsError) throw toolsError;
+        if (toolsResponse.error) throw toolsResponse.error;
+        if (structuresResponse.error) throw structuresResponse.error;
+        
+        // Create lookup map for parent structure names
+        const structureNameMap = new Map<string, string>();
+        structuresResponse.data.forEach(structure => {
+          structureNameMap.set(structure.id, structure.name);
+        });
         
         // Count tools by structure
         const structureMap = new Map<string, { id: string | null; name: string; count: number }>();
         
-        toolsData.forEach((tool) => {
+        toolsResponse.data.forEach((tool) => {
           const structureId = tool.parent_structure_id;
-          const structureName = tool.parent_structure?.name || 'Unassigned';
+          const structureName = structureId ? structureNameMap.get(structureId) || 'Unknown Structure' : 'Unassigned';
           const key = structureId || 'unassigned';
           
           if (structureMap.has(key)) {

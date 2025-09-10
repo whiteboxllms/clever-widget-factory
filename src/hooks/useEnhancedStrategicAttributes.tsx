@@ -227,19 +227,59 @@ export function useEnhancedStrategicAttributes() {
   };
 
   const getActionAnalytics = async (userIds?: string[], filterByOrgValues = true): Promise<EnhancedAttributeAnalytics[]> => {
-    // Get organization's selected strategic attributes
-    const orgValues = filterByOrgValues ? await getOrganizationValues() : [];
-    const attributesToUse = orgValues.length > 0 ? orgValues : [
-      'growth_mindset', 'root_cause_problem_solving', 'teamwork', 'quality',
-      'proactive_documentation', 'safety_focus', 'efficiency', 'asset_stewardship',
-      'financial_impact', 'energy_morale_impact'
-    ] as StrategicAttributeType[];
+    try {
+      // Get organization's selected strategic attributes
+      const orgValues = filterByOrgValues ? await getOrganizationValues() : [];
+      const attributesToUse = orgValues.length > 0 ? orgValues : [
+        'growth_mindset', 'root_cause_problem_solving', 'teamwork', 'quality',
+        'proactive_documentation', 'safety_focus', 'efficiency', 'asset_stewardship',
+        'financial_impact', 'energy_morale_impact'
+      ] as StrategicAttributeType[];
 
-    // Create analytics primarily from action scores
-    const userAnalyticsMap = new Map<string, EnhancedAttributeAnalytics>();
+      // Directly fetch action scores from database
+      let query = supabase
+        .from('action_scores')
+        .select(`
+          id,
+          action_id,
+          scores,
+          created_at,
+          actions!inner(
+            id,
+            assigned_to,
+            title,
+            profiles!assigned_to(
+              full_name
+            )
+          )
+        `)
+        .eq('source_type', 'action');
 
-    // Process action scores
-    actionScores.forEach(actionScore => {
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      // Transform the data to match our interface
+      const freshActionScores: ActionScore[] = (data || []).map((item: any) => ({
+        id: item.id,
+        action_id: item.action_id,
+        assigned_to: item.actions.assigned_to,
+        full_name: item.actions.profiles?.full_name || 'Unknown User',
+        scores: item.scores,
+        created_at: item.created_at
+      })).filter(score => {
+        // Filter by user IDs if provided
+        if (userIds && userIds.length > 0) {
+          return userIds.includes(score.assigned_to);
+        }
+        return true;
+      });
+
+      // Create analytics primarily from action scores
+      const userAnalyticsMap = new Map<string, EnhancedAttributeAnalytics>();
+
+      // Process action scores
+      freshActionScores.forEach(actionScore => {
       const userId = actionScore.assigned_to;
       const userName = actionScore.full_name;
 
@@ -306,6 +346,15 @@ export function useEnhancedStrategicAttributes() {
     }
 
     return result;
+    } catch (error) {
+      console.error('Error fetching action analytics:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch action analytics",
+        variant: "destructive",
+      });
+      return [];
+    }
   };
 
   const getIssueAnalytics = async (userIds?: string[], startDate?: string, endDate?: string): Promise<EnhancedAttributeAnalytics[]> => {

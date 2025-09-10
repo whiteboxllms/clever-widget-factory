@@ -480,7 +480,7 @@ export const CombinedAssetsContainer = () => {
         actionButton={
           <Button onClick={() => setShowAddDialog(true)}>
             <Plus className="w-4 h-4 mr-2" />
-            Add Asset/Stock
+            Add
           </Button>
         }
       />
@@ -511,6 +511,7 @@ export const CombinedAssetsContainer = () => {
         isOpen={showAddDialog}
         onClose={() => setShowAddDialog(false)}
         onSubmit={handleCreateAsset}
+        initialName={searchTerm}
       />
 
       {/* Checkout Dialog */}

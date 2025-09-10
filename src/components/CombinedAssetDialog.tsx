@@ -80,16 +80,12 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
   };
 
   const updateFormData = (field: keyof CombinedAssetForm, value: any) => {
-    console.log(`Updating field ${field} with value:`, value);
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-
-    console.log('Form submission - formData.parent_structure_id:', formData.parent_structure_id);
-    console.log('Form submission - full formData:', formData);
 
     try {
       let imageUrl = null;
@@ -133,12 +129,11 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
           minimum_quantity: useMinimumQuantity ? formData.minimum_quantity : null,
           cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
           unit: formData.unit,
-          storage_vicinity: formData.parent_structure_id === "none" ? null : formData.parent_structure_id,
+          parent_structure_id: formData.parent_structure_id === "none" ? null : formData.parent_structure_id,
           storage_location: formData.storage_location || null,
           legacy_storage_vicinity: "General",
           image_url: imageUrl
         };
-        console.log('Part data being submitted:', partData);
         await onSubmit(partData, false);
       }
 

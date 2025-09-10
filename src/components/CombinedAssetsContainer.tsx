@@ -372,7 +372,7 @@ export const CombinedAssetsContainer = () => {
         minimum_quantity: useMinimumQuantity ? formData.minimum_quantity : null,
         cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
         unit: formData.unit,
-        storage_vicinity: formData.storage_vicinity,
+        parent_structure_id: formData.parent_structure_id,
         storage_location: formData.storage_location,
         image_url: formData.image_url
       };
@@ -614,7 +614,7 @@ export const CombinedAssetsContainer = () => {
                 minimum_quantity: selectedAsset.minimum_quantity || 0,
                 unit: selectedAsset.unit || 'pieces',
                 cost_per_unit: (selectedAsset.cost_per_unit || 0).toString(),
-                storage_vicinity: selectedAsset.storage_vicinity || '',
+                parent_structure_id: selectedAsset.parent_structure_id || '',
                 storage_location: selectedAsset.storage_location || ''
               }}
               editingPart={selectedAsset as any}

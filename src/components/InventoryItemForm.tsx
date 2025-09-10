@@ -25,6 +25,7 @@ interface Part {
   supplier_id: string | null;
   legacy_storage_vicinity: string | null;
   storage_vicinity: string | null;
+  parent_structure_id: string | null;
   storage_location: string | null;
   image_url: string | null;
   created_at: string;
@@ -38,7 +39,7 @@ interface FormData {
   minimum_quantity: number;
   cost_per_unit: string;
   unit: string;
-  storage_vicinity: string | null;
+  parent_structure_id: string | null;
   storage_location: string;
 }
 
@@ -71,7 +72,7 @@ export function InventoryItemForm({
     minimum_quantity: 0,
     cost_per_unit: '',
     unit: 'pieces',
-    storage_vicinity: '',
+    parent_structure_id: '',
     storage_location: '',
     ...initialData
   });
@@ -88,7 +89,7 @@ export function InventoryItemForm({
         minimum_quantity: editingPart.minimum_quantity || 0,
         cost_per_unit: editingPart.cost_per_unit?.toString() || '',
         unit: editingPart.unit || 'pieces',
-        storage_vicinity: editingPart.storage_vicinity,
+        parent_structure_id: editingPart.parent_structure_id,
         storage_location: editingPart.storage_location || ''
       });
       setUseMinimumQuantity(editingPart.minimum_quantity !== null && editingPart.minimum_quantity > 0);
@@ -249,9 +250,9 @@ export function InventoryItemForm({
           {/* Location Fields */}
           <LocationFieldsGroup
             legacyLocation={editingPart?.legacy_storage_vicinity}
-            areaValue={formData.storage_vicinity}
+            areaValue={formData.parent_structure_id}
             specificLocation={formData.storage_location}
-            onAreaChange={(value) => updateFormData('storage_vicinity', value === 'none' ? null : value)}
+            onAreaChange={(value) => updateFormData('parent_structure_id', value === 'none' ? null : value)}
             onSpecificLocationChange={(value) => updateFormData('storage_location', value)}
             showLegacyField={!!editingPart?.legacy_storage_vicinity}
             legacyFieldLabel="Legacy Storage Vicinity (Reference)"

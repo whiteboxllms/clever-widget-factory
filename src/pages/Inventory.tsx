@@ -44,6 +44,7 @@ interface Part {
   supplier_id: string | null;
   legacy_storage_vicinity: string | null;
   storage_vicinity: string | null;
+  parent_structure_id: string | null;
   storage_location: string | null;
   image_url: string | null;
   created_at: string;
@@ -555,7 +556,7 @@ export default function Inventory() {
         cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
         unit: formData.unit,
         // supplier_id removed - tracking moved to stock additions
-        storage_vicinity: formData.storage_vicinity,
+        parent_structure_id: formData.parent_structure_id,
         storage_location: formData.storage_location,
         image_url: imageUrl
       };

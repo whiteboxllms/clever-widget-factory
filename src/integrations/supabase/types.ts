@@ -923,6 +923,7 @@ export type Database = {
           minimum_quantity: number | null
           name: string
           organization_id: string
+          parent_structure_id: string | null
           storage_location: string | null
           storage_vicinity: string | null
           supplier: string | null
@@ -943,6 +944,7 @@ export type Database = {
           minimum_quantity?: number | null
           name: string
           organization_id: string
+          parent_structure_id?: string | null
           storage_location?: string | null
           storage_vicinity?: string | null
           supplier?: string | null
@@ -963,6 +965,7 @@ export type Database = {
           minimum_quantity?: number | null
           name?: string
           organization_id?: string
+          parent_structure_id?: string | null
           storage_location?: string | null
           storage_vicinity?: string | null
           supplier?: string | null

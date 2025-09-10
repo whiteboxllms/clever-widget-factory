@@ -19,6 +19,7 @@ export interface CombinedAsset {
   image_url?: string;
   storage_location?: string;
   storage_vicinity?: string;
+  parent_structure_id?: string;
   legacy_storage_vicinity?: string;
   has_issues?: boolean;
   is_checked_out?: boolean;
@@ -47,6 +48,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false) => {
           category,
           status,
           serial_number,
+          parent_structure_id,
           image_url,
           storage_location,
           legacy_storage_vicinity,
@@ -71,6 +73,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false) => {
             current_quantity,
             minimum_quantity,
             unit,
+            parent_structure_id,
             image_url,
             storage_location,
             legacy_storage_vicinity,

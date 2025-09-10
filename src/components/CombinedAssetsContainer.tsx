@@ -12,6 +12,7 @@ import { CombinedAssetDialog } from "./CombinedAssetDialog";
 import { ToolCheckoutDialog } from "./ToolCheckoutDialog";
 import { ToolCheckInDialog } from "./ToolCheckInDialog";
 import { IssueReportDialog } from "./IssueReportDialog";
+import { CreateIssueDialog } from "./CreateIssueDialog";
 import { ToolRemovalDialog } from "./tools/ToolRemovalDialog";
 import { EditToolForm } from "./tools/forms/EditToolForm";
 import { InventoryItemForm } from "./InventoryItemForm";
@@ -486,6 +487,24 @@ export const CombinedAssetsContainer = () => {
             setSelectedAsset(null);
           }}
           tool={selectedAsset as any}
+          onSuccess={() => {
+            refetch();
+            setShowIssueDialog(false);
+            setSelectedAsset(null);
+          }}
+        />
+      )}
+
+      {/* Stock Issue Dialog */}
+      {selectedAsset && selectedAsset.type === 'stock' && (
+        <CreateIssueDialog
+          open={showIssueDialog}
+          onOpenChange={() => {
+            setShowIssueDialog(false);
+            setSelectedAsset(null);
+          }}
+          contextType="inventory"
+          contextId={selectedAsset.id}
           onSuccess={() => {
             refetch();
             setShowIssueDialog(false);

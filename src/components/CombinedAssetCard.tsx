@@ -297,7 +297,7 @@ export const CombinedAssetCard = ({
                 Edit
               </Button>
               
-              {asset.type === 'asset' && onReportIssue && (
+              {(asset.type === 'asset' || asset.type === 'stock') && onReportIssue && (
                 <Button
                   size="sm"
                   variant="outline"

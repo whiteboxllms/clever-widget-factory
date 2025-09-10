@@ -37,7 +37,6 @@ interface FormData {
   current_quantity: number;
   minimum_quantity: number;
   cost_per_unit: string;
-  cost_evidence_url: string;
   unit: string;
   storage_vicinity: string | null;
   storage_location: string;
@@ -71,7 +70,6 @@ export function InventoryItemForm({
     current_quantity: 0,
     minimum_quantity: 0,
     cost_per_unit: '',
-    cost_evidence_url: '',
     unit: 'pieces',
     storage_vicinity: '',
     storage_location: '',
@@ -89,7 +87,6 @@ export function InventoryItemForm({
         current_quantity: editingPart.current_quantity,
         minimum_quantity: editingPart.minimum_quantity || 0,
         cost_per_unit: editingPart.cost_per_unit?.toString() || '',
-        cost_evidence_url: '',
         unit: editingPart.unit || 'pieces',
         storage_vicinity: editingPart.storage_vicinity,
         storage_location: editingPart.storage_location || ''
@@ -247,28 +244,6 @@ export function InventoryItemForm({
           />
         </div>
 
-        <div className="col-span-2">
-          <div className="flex items-center gap-2 mb-2">
-            <Label htmlFor="cost_evidence_url">URLs</Label>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Include where to purchase and any manuals related to the purchase (one per line)</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          <Textarea
-            id="cost_evidence_url"
-            value={formData.cost_evidence_url}
-            onChange={(e) => updateFormData('cost_evidence_url', e.target.value)}
-            placeholder="https://example.com/product-page&#10;https://example.com/manual.pdf"
-            rows={3}
-          />
-        </div>
 
         <div className="col-span-2">
           {/* Location Fields */}

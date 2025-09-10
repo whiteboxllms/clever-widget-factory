@@ -23,7 +23,6 @@ interface CombinedAssetForm {
   current_quantity: number;
   minimum_quantity: number;
   cost_per_unit: string;
-  cost_evidence_url: string;
   unit: string;
   status: string;
   parent_structure_id: string;
@@ -47,7 +46,6 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
     current_quantity: 0,
     minimum_quantity: 0,
     cost_per_unit: "",
-    cost_evidence_url: "",
     unit: "pieces",
     status: "available",
     parent_structure_id: "none",
@@ -130,7 +128,6 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
           current_quantity: formData.current_quantity,
           minimum_quantity: useMinimumQuantity ? formData.minimum_quantity : null,
           cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
-          cost_evidence_url: formData.cost_evidence_url || null,
           unit: formData.unit,
           storage_vicinity: formData.parent_structure_id === "none" ? null : formData.parent_structure_id,
           storage_location: formData.storage_location || null,
@@ -149,7 +146,6 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
         current_quantity: 0,
         minimum_quantity: 0,
         cost_per_unit: "",
-        cost_evidence_url: "",
         unit: "pieces",
         status: "available",
         parent_structure_id: "none",
@@ -344,30 +340,6 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
               />
             </div>
 
-            <div className="col-span-2">
-              <div className="flex items-center gap-2 mb-2">
-                <Label htmlFor="cost_evidence_url" className={isAsset ? "text-muted-foreground" : ""}>URLs</Label>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Include where to purchase and any manuals related to the purchase (one per line)</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              <Textarea
-                id="cost_evidence_url"
-                value={formData.cost_evidence_url}
-                onChange={(e) => updateFormData('cost_evidence_url', e.target.value)}
-                placeholder="https://example.com/product-page&#10;https://example.com/manual.pdf"
-                rows={3}
-                disabled={isAsset}
-                className={isAsset ? "text-muted-foreground" : ""}
-              />
-            </div>
 
             {/* Status field - only show for assets */}
             {isAsset && (

@@ -614,7 +614,6 @@ export const CombinedAssetsContainer = () => {
                 minimum_quantity: selectedAsset.minimum_quantity || 0,
                 unit: selectedAsset.unit || 'pieces',
                 cost_per_unit: (selectedAsset.cost_per_unit || 0).toString(),
-                cost_evidence_url: selectedAsset.cost_evidence_url || '',
                 storage_vicinity: selectedAsset.storage_vicinity || '',
                 storage_location: selectedAsset.storage_location || ''
               }}

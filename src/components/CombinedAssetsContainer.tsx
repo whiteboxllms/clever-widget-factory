@@ -177,12 +177,12 @@ export const CombinedAssetsContainer = () => {
     setShowCheckinDialog(true);
   };
 
-  const handleReportIssue = (asset: CombinedAsset) => {
+  const handleManageIssues = (asset: CombinedAsset) => {
     setSelectedAsset(asset);
     setShowIssueDialog(true);
   };
 
-  const handleViewIssues = (asset: CombinedAsset) => {
+  const handleShowAssetDetails = (asset: CombinedAsset) => {
     // This should behave like clicking on the asset card - go to detail view
     setSelectedAssetForDetails(asset);
     if (asset.type === 'asset') {
@@ -490,13 +490,13 @@ export const CombinedAssetsContainer = () => {
         isAdmin={isAdmin}
         currentUserId={user?.id}
         currentUserEmail={user?.email}
-            onView={handleView}
+            onView={handleShowAssetDetails}
             onEdit={handleEdit}
             onRemove={handleRemove}
             onCheckout={handleCheckout}
             onCheckin={handleCheckin}
-            onReportIssue={handleReportIssue}
-            onViewIssues={handleViewIssues}
+            onReportIssue={handleManageIssues}
+            onManageIssues={handleManageIssues}
             onAddQuantity={handleAddQuantity}
             onUseQuantity={handleUseQuantity}
             onOrderStock={handleOrderStock}

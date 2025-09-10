@@ -35,7 +35,7 @@ interface CombinedAssetCardProps {
   onCheckout?: (asset: CombinedAsset) => void;
   onCheckin?: (asset: CombinedAsset) => void;
   onReportIssue?: (asset: CombinedAsset) => void;
-  onViewIssues?: (asset: CombinedAsset) => void;
+  onManageIssues?: (asset: CombinedAsset) => void;
   onAddQuantity?: (asset: CombinedAsset) => void;
   onUseQuantity?: (asset: CombinedAsset) => void;
   onOrderStock?: (asset: CombinedAsset) => void;
@@ -55,7 +55,7 @@ export const CombinedAssetCard = ({
   onCheckout,
   onCheckin,
   onReportIssue,
-  onViewIssues,
+  onManageIssues,
   onAddQuantity,
   onUseQuantity,
   onOrderStock,
@@ -299,13 +299,13 @@ export const CombinedAssetCard = ({
                 Edit
               </Button>
               
-              {(asset.type === 'asset' || asset.type === 'stock') && onViewIssues && (
+              {(asset.type === 'asset' || asset.type === 'stock') && onManageIssues && (
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onViewIssues(asset);
+                    onManageIssues(asset);
                   }}
                   className="text-orange-600 hover:text-orange-700 border-orange-200 hover:border-orange-300"
                 >

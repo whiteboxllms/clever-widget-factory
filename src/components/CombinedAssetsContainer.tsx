@@ -124,7 +124,7 @@ export const CombinedAssetsContainer = () => {
       if (showOnlyStock && asset.type !== 'stock') return false;
 
       // My checked out filter
-      if (showMyCheckedOut && (!asset.is_checked_out || asset.checked_out_to !== user?.email)) return false;
+      if (showMyCheckedOut && (!asset.is_checked_out || asset.checked_out_user_id !== user?.id)) return false;
 
       // Issues filter
       if (showWithIssues && !asset.has_issues) return false;

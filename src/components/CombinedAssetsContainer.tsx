@@ -11,9 +11,12 @@ import { IssueReportDialog } from "./IssueReportDialog";
 import { ToolRemovalDialog } from "./tools/ToolRemovalDialog";
 import { EditToolForm } from "./tools/forms/EditToolForm";
 import { InventoryItemForm } from "./InventoryItemForm";
+import { ToolDetails } from "./tools/ToolDetails";
 import { useCombinedAssets, CombinedAsset } from "@/hooks/useCombinedAssets";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useToolHistory } from "@/hooks/tools/useToolHistory";
+import { useToolIssues } from "@/hooks/useToolIssues";
 import { supabase } from "@/integrations/supabase/client";
 
 export const CombinedAssetsContainer = () => {
@@ -33,9 +36,16 @@ export const CombinedAssetsContainer = () => {
   const [showIssueDialog, setShowIssueDialog] = useState(false);
   const [showRemovalDialog, setShowRemovalDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showViewDialog, setShowViewDialog] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<CombinedAsset | null>(null);
 
   const { assets, loading, createAsset, updateAsset, refetch } = useCombinedAssets(showRemovedItems);
+  
+  // Tool history and issues for view dialog
+  const { toolHistory, currentCheckout, fetchToolHistory } = useToolHistory();
+  const { issues, fetchIssues } = useToolIssues(
+    selectedAsset?.type === 'asset' ? selectedAsset.id : null
+  );
 
   // Filter assets based on current filters
   const filteredAssets = useMemo(() => {
@@ -77,10 +87,12 @@ export const CombinedAssetsContainer = () => {
   };
 
   const handleView = (asset: CombinedAsset) => {
+    setSelectedAsset(asset);
+    setShowViewDialog(true);
+    // Fetch additional data for view dialog if it's an asset
     if (asset.type === 'asset') {
-      navigate(`/tools?toolId=${asset.id}`);
-    } else {
-      navigate(`/inventory?partId=${asset.id}`);
+      fetchToolHistory(asset.id);
+      fetchIssues();
     }
   };
 
@@ -351,6 +363,108 @@ export const CombinedAssetsContainer = () => {
               isLoading={false}
               submitButtonText="Update Stock Item"
             />
+          </div>
+        </div>
+      )}
+
+      {/* View Asset Dialog */}
+      {selectedAsset && selectedAsset.type === 'asset' && showViewDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background rounded-lg w-full max-w-6xl max-h-[90vh] overflow-y-auto m-4">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">Asset Details</h2>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowViewDialog(false);
+                    setSelectedAsset(null);
+                  }}
+                >
+                  Close
+                </Button>
+              </div>
+              <ToolDetails
+                tool={selectedAsset as any}
+                toolHistory={toolHistory}
+                currentCheckout={currentCheckout}
+                issues={issues}
+                onBack={() => {
+                  setShowViewDialog(false);
+                  setSelectedAsset(null);
+                }}
+                onResolveIssue={() => {}}
+                onEditIssue={() => {}}
+                onRefresh={() => {
+                  if (selectedAsset) {
+                    fetchToolHistory(selectedAsset.id);
+                    fetchIssues();
+                    refetch();
+                  }
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Stock Item Dialog */}
+      {selectedAsset && selectedAsset.type === 'stock' && showViewDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto m-4">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">Stock Item Details</h2>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowViewDialog(false);
+                    setSelectedAsset(null);
+                  }}
+                >
+                  Close
+                </Button>
+              </div>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="font-medium">Basic Information</h3>
+                    <div className="mt-2 space-y-2 text-sm">
+                      <div><span className="font-medium">Name:</span> {selectedAsset.name}</div>
+                      <div><span className="font-medium">Description:</span> {selectedAsset.description || 'N/A'}</div>
+                      <div><span className="font-medium">Category:</span> {selectedAsset.category || 'N/A'}</div>
+                      <div><span className="font-medium">Unit:</span> {selectedAsset.unit || 'pieces'}</div>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="font-medium">Inventory Information</h3>
+                    <div className="mt-2 space-y-2 text-sm">
+                      <div><span className="font-medium">Current Quantity:</span> {selectedAsset.current_quantity || 0}</div>
+                      <div><span className="font-medium">Minimum Quantity:</span> {selectedAsset.minimum_quantity || 0}</div>
+                      <div><span className="font-medium">Cost per Unit:</span> {selectedAsset.cost_per_unit ? `$${selectedAsset.cost_per_unit}` : 'N/A'}</div>
+                      <div><span className="font-medium">Supplier:</span> {selectedAsset.supplier || 'N/A'}</div>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="font-medium">Storage Information</h3>
+                  <div className="mt-2 space-y-2 text-sm">
+                    <div><span className="font-medium">Storage Vicinity:</span> {selectedAsset.storage_vicinity || 'N/A'}</div>
+                    <div><span className="font-medium">Storage Location:</span> {selectedAsset.storage_location || 'N/A'}</div>
+                  </div>
+                </div>
+                {selectedAsset.image_url && (
+                  <div>
+                    <h3 className="font-medium">Image</h3>
+                    <img 
+                      src={selectedAsset.image_url} 
+                      alt={selectedAsset.name}
+                      className="mt-2 max-w-xs rounded-lg"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

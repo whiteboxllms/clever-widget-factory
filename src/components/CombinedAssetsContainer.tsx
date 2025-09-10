@@ -545,33 +545,15 @@ export const CombinedAssetsContainer = () => {
         />
       )}
 
-      {/* Issue Report Dialog */}
-      {selectedAsset && selectedAsset.type === 'asset' && (
+      {/* Unified Issue Dialog for both assets and stock */}
+      {selectedAsset && (
         <IssueReportDialog
           open={showIssueDialog}
           onOpenChange={() => {
             setShowIssueDialog(false);
             setSelectedAsset(null);
           }}
-          tool={selectedAsset as any}
-          onSuccess={() => {
-            refetch();
-            setShowIssueDialog(false);
-            setSelectedAsset(null);
-          }}
-        />
-      )}
-
-      {/* Stock Issue Dialog */}
-      {selectedAsset && selectedAsset.type === 'stock' && (
-        <CreateIssueDialog
-          open={showIssueDialog}
-          onOpenChange={() => {
-            setShowIssueDialog(false);
-            setSelectedAsset(null);
-          }}
-          contextType="inventory"
-          contextId={selectedAsset.id}
+          asset={selectedAsset}
           onSuccess={() => {
             refetch();
             setShowIssueDialog(false);

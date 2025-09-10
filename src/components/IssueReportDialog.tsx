@@ -8,7 +8,8 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle, ImagePlus, X, Settings, Plus } from "lucide-react";
 import { Tool } from "@/hooks/tools/useToolsData";
-import { useToolIssues } from "@/hooks/useGenericIssues";
+import { useToolIssues, useInventoryIssues } from "@/hooks/useGenericIssues";
+import { CombinedAsset } from "@/hooks/useCombinedAssets";
 import { BaseIssue } from "@/types/issues";
 import { useImageUpload, ImageUploadResult } from "@/hooks/useImageUpload";
 
@@ -23,7 +24,7 @@ import { toast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 
 interface IssueReportDialogProps {
-  tool: Tool | null;
+  asset: CombinedAsset | Tool | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
@@ -31,7 +32,7 @@ interface IssueReportDialogProps {
 
 // Issue type utilities imported from centralized location
 
-export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: IssueReportDialogProps) {
+export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: IssueReportDialogProps) {
   const [description, setDescription] = useState("");
   const [damageDuringUse, setDamageDuringUse] = useState(false);
   const [incidentDescription, setIncidentDescription] = useState("");
@@ -44,13 +45,31 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
   const [showReportForm, setShowReportForm] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
-  const { issues, isLoading, createIssue, fetchIssues, updateIssue } = useToolIssues(tool?.id || null);
+  // Determine if this is a stock item or asset/tool
+  const isStockItem = asset && 'type' in asset && asset.type === 'stock';
+  const contextType = isStockItem ? 'inventory' : 'tool';
+  
+  // Use appropriate hooks based on asset type
+  const { issues: toolIssues, isLoading: toolLoading, createIssue: createToolIssue, fetchIssues: fetchToolIssues, updateIssue: updateToolIssue } = useToolIssues(
+    !isStockItem ? asset?.id || null : null
+  );
+  const { issues: stockIssues, isLoading: stockLoading, createIssue: createStockIssue, fetchIssues: fetchStockIssues, updateIssue: updateStockIssue } = useInventoryIssues(
+    isStockItem ? asset?.id || null : null
+  );
+  
+  // Use the appropriate data based on asset type
+  const issues = isStockItem ? stockIssues : toolIssues;
+  const isLoading = isStockItem ? stockLoading : toolLoading;
+  const createIssue = isStockItem ? createStockIssue : createToolIssue;
+  const fetchIssues = isStockItem ? fetchStockIssues : fetchToolIssues;
+  const updateIssue = isStockItem ? updateStockIssue : updateToolIssue;
+  
   const { uploadImages, isUploading } = useImageUpload();
   const organizationId = useOrganizationId();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!description.trim() || !tool) return;
+    if (!description.trim() || !asset) return;
 
     setIsSubmitting(true);
     try {
@@ -61,7 +80,7 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
         try {
           const uploadResults = await uploadImages(selectedImages, {
             bucket: 'tool-resolution-photos',
-            generateFileName: (file, index) => `issue-report-${tool.id}-${Date.now()}-${index || 1}-${file.name}`
+            generateFileName: (file, index) => `issue-report-${asset.id}-${Date.now()}-${index || 1}-${file.name}`
           });
           
           if (Array.isArray(uploadResults)) {
@@ -78,8 +97,8 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
       }
 
         await createIssue({
-          context_type: 'tool',
-          context_id: tool.id,
+          context_type: contextType,
+          context_id: asset.id,
           description,
           issue_type: 'general',
           damage_assessment: incidentDescription || undefined,
@@ -169,7 +188,7 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
 
   // Issue type utilities now imported from centralized location
 
-  if (!tool) return null;
+  if (!asset) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -178,10 +197,10 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
           <DialogTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
             <div className="flex items-baseline gap-2">
-              <span>Manage Issues - {tool.name}</span>
-              {tool.serial_number && (
+              <span>Manage Issues - {asset.name}</span>
+              {!isStockItem && (asset as Tool).serial_number && (
                 <span className="text-sm text-muted-foreground font-normal">
-                  ({tool.serial_number})
+                  ({(asset as Tool).serial_number})
                 </span>
               )}
             </div>
@@ -426,8 +445,8 @@ export function IssueReportDialog({ tool, open, onOpenChange, onSuccess }: Issue
         <CreateIssueDialog
           open={isCreateDialogOpen}
           onOpenChange={setIsCreateDialogOpen}
-          contextType="tool"
-          contextId={tool?.id}
+          contextType={contextType}
+          contextId={asset?.id}
           onSuccess={() => {
             fetchIssues();
             setIsCreateDialogOpen(false);

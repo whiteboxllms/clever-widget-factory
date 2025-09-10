@@ -331,7 +331,7 @@ export const ToolsContainer = () => {
       />
 
       <IssueReportDialog
-        tool={reportIssueTool}
+        asset={reportIssueTool}
         open={isReportIssueDialogOpen}
         onOpenChange={setIsReportIssueDialogOpen}
         onSuccess={() => {

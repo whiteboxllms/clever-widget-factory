@@ -115,7 +115,6 @@ export const CombinedAssetsContainer = () => {
       const matchesSearch = 
         asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (asset.serial_number && asset.serial_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (asset.category && asset.category.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (asset.description && asset.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (asset.storage_location && asset.storage_location.toLowerCase().includes(searchTerm.toLowerCase()));
 

@@ -336,11 +336,11 @@ export const CombinedAssetsContainer = () => {
     }
   };
 
-  const handleEditSubmit = async (toolData: any) => {
+  const handleEditSubmit = async (toolId: string, toolData: any) => {
     if (!selectedAsset) return;
 
     try {
-      await updateAsset(selectedAsset.id, toolData, selectedAsset.type === 'asset');
+      await updateAsset(toolId, toolData, selectedAsset.type === 'asset');
       await refetch();
       setShowEditDialog(false);
       setSelectedAsset(null);

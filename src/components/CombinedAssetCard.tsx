@@ -96,7 +96,7 @@ export const CombinedAssetCard = ({
 
   return (
     <Card className="relative hover:shadow-md transition-shadow cursor-pointer" onClick={() => onView(asset)}>
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-3 pt-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
             {asset.type === 'asset' && (

@@ -404,6 +404,7 @@ export const CombinedAssetsContainer = () => {
             onManageIssues={handleManageIssues}
             canEdit={canEditTools}
             isAdmin={isAdmin}
+            currentUserId={user?.id}
             pendingOrders={pendingOrders}
           />
         )}

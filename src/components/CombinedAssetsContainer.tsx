@@ -183,9 +183,13 @@ export const CombinedAssetsContainer = () => {
   };
 
   const handleViewIssues = (asset: CombinedAsset) => {
+    // This should behave like clicking on the asset card - go to detail view
     setSelectedAssetForDetails(asset);
     if (asset.type === 'asset') {
       fetchToolHistory(asset.id);
+      fetchAssetIssues();
+    } else {
+      fetchStockIssues();
     }
   };
 

@@ -238,3 +238,12 @@ export function useOrderIssues(orderId: string | null) {
     contextId: orderId || undefined 
   });
 }
+
+export function useInventoryIssues(stockId: string | null) {
+  return useGenericIssues({ 
+    contextType: 'inventory', 
+    contextId: stockId || undefined,
+    // Include both active and resolved issues for inventory management
+    status: undefined // This will bypass the default active-only filter
+  });
+}

@@ -47,6 +47,7 @@ export const CombinedAssetsContainer = () => {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<CombinedAsset | null>(null);
+  const [selectedAssetForDetails, setSelectedAssetForDetails] = useState<CombinedAsset | null>(null);
   
   // Stock dialog states
   const [showQuantityDialog, setShowQuantityDialog] = useState(false);
@@ -171,6 +172,17 @@ export const CombinedAssetsContainer = () => {
   const handleReportIssue = (asset: CombinedAsset) => {
     setSelectedAsset(asset);
     setShowIssueDialog(true);
+  };
+
+  const handleViewIssues = (asset: CombinedAsset) => {
+    setSelectedAssetForDetails(asset);
+    if (asset.type === 'asset') {
+      fetchToolHistory(asset.id);
+    }
+  };
+
+  const handleBackToAssets = () => {
+    setSelectedAssetForDetails(null);
   };
 
   // Stock quantity handlers
@@ -424,16 +436,17 @@ export const CombinedAssetsContainer = () => {
         isAdmin={isAdmin}
         currentUserId={user?.id}
         currentUserEmail={user?.email}
-        onView={handleView}
-        onEdit={handleEdit}
-        onRemove={handleRemove}
-        onCheckout={handleCheckout}
-        onCheckin={handleCheckin}
-        onReportIssue={handleReportIssue}
-        onAddQuantity={handleAddQuantity}
-        onUseQuantity={handleUseQuantity}
-        onOrderStock={handleOrderStock}
-        onReceiveOrder={handleReceiveOrder}
+            onView={handleView}
+            onEdit={handleEdit}
+            onRemove={handleRemove}
+            onCheckout={handleCheckout}
+            onCheckin={handleCheckin}
+            onReportIssue={handleReportIssue}
+            onViewIssues={handleViewIssues}
+            onAddQuantity={handleAddQuantity}
+            onUseQuantity={handleUseQuantity}
+            onOrderStock={handleOrderStock}
+            onReceiveOrder={handleReceiveOrder}
         pendingOrders={pendingOrders}
       />
 

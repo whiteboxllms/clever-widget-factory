@@ -35,6 +35,7 @@ interface CombinedAssetCardProps {
   onCheckout?: (asset: CombinedAsset) => void;
   onCheckin?: (asset: CombinedAsset) => void;
   onReportIssue?: (asset: CombinedAsset) => void;
+  onViewIssues?: (asset: CombinedAsset) => void;
   onAddQuantity?: (asset: CombinedAsset) => void;
   onUseQuantity?: (asset: CombinedAsset) => void;
   onOrderStock?: (asset: CombinedAsset) => void;
@@ -54,6 +55,7 @@ export const CombinedAssetCard = ({
   onCheckout,
   onCheckin,
   onReportIssue,
+  onViewIssues,
   onAddQuantity,
   onUseQuantity,
   onOrderStock,
@@ -297,6 +299,21 @@ export const CombinedAssetCard = ({
                 Edit
               </Button>
               
+              {(asset.type === 'asset' || asset.type === 'stock') && asset.has_issues && onViewIssues && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onViewIssues(asset);
+                  }}
+                  className="text-orange-600 hover:text-orange-700 border-orange-200 hover:border-orange-300"
+                >
+                  <AlertTriangle className="h-4 w-4 mr-1" />
+                  Issues
+                </Button>
+              )}
+
               {(asset.type === 'asset' || asset.type === 'stock') && onReportIssue && (
                 <Button
                   size="sm"
@@ -305,10 +322,8 @@ export const CombinedAssetCard = ({
                     e.stopPropagation();
                     onReportIssue(asset);
                   }}
-                  className="text-orange-600 hover:text-orange-700 border-orange-200 hover:border-orange-300"
                 >
-                  <AlertTriangle className="h-4 w-4 mr-1" />
-                  Issues
+                  Report Issue
                 </Button>
               )}
               

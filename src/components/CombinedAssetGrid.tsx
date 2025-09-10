@@ -13,6 +13,7 @@ interface CombinedAssetGridProps {
   onCheckout: (asset: CombinedAsset) => void;
   onCheckin: (asset: CombinedAsset) => void;
   onReportIssue?: (asset: CombinedAsset) => void;
+  onViewIssues?: (asset: CombinedAsset) => void;
   onAddQuantity?: (asset: CombinedAsset) => void;
   onUseQuantity?: (asset: CombinedAsset) => void;
   onOrderStock?: (asset: CombinedAsset) => void;
@@ -32,6 +33,7 @@ export const CombinedAssetGrid = ({
   onCheckout,
   onCheckin,
   onReportIssue,
+  onViewIssues,
   onAddQuantity,
   onUseQuantity,
   onOrderStock,
@@ -62,6 +64,7 @@ export const CombinedAssetGrid = ({
           onCheckout={onCheckout}
           onCheckin={onCheckin}
           onReportIssue={onReportIssue}
+          onViewIssues={onViewIssues}
           onAddQuantity={onAddQuantity}
           onUseQuantity={onUseQuantity}
           onOrderStock={onOrderStock}

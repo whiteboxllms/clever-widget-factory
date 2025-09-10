@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Save, Info, X, Plus } from 'lucide-react';
 import { useOrganizationValues } from '@/hooks/useOrganizationValues';
 
@@ -73,23 +74,26 @@ export function OrganizationValuesSection({ canEdit }: OrganizationValuesSection
   return (
     <Card>
       <CardHeader>
-        <CardTitle>
+        <CardTitle className="flex items-center gap-2">
           Organization Values
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-auto p-1">
+                <Info className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80">
+              <div className="space-y-2">
+                <p className="font-medium">Organization Values</p>
+                <p className="text-sm text-muted-foreground">
+                  Define the core values that guide your organization. These will be used in analytics and scoring to focus on what matters most to your team.
+                </p>
+              </div>
+            </PopoverContent>
+          </Popover>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <div className="flex items-start gap-2">
-            <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="text-sm">
-              <p className="font-medium text-blue-900 dark:text-blue-100 mb-1">Organization Values</p>
-              <p className="text-blue-700 dark:text-blue-200">
-                Define the core values that guide your organization. These will be used in analytics and scoring to focus on what matters most to your team.
-              </p>
-            </div>
-          </div>
-        </div>
-
         {/* Current Values Display */}
         <div className="space-y-4">
           <p className="text-sm font-medium">Current Values ({values.length}):</p>

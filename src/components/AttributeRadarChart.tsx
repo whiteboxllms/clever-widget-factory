@@ -2,9 +2,10 @@ import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Responsi
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { strategicAttributeLabels } from '@/hooks/useStrategicAttributes';
+import { strategicAttributeLabels, StrategicAttributeType } from '@/hooks/useStrategicAttributes';
 import { EnhancedAttributeAnalytics } from '@/hooks/useEnhancedStrategicAttributes';
-import { useState } from 'react';
+import { useOrganizationValues } from '@/hooks/useOrganizationValues';
+import { useState, useEffect } from 'react';
 
 interface AttributeRadarChartProps {
   actionAnalytics: EnhancedAttributeAnalytics[];
@@ -19,9 +20,24 @@ const COLORS = [
 
 export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedUsers }: AttributeRadarChartProps) {
   const [showImpact, setShowImpact] = useState(false);
+  const [orgAttributes, setOrgAttributes] = useState<StrategicAttributeType[]>([]);
+  const { getOrganizationValues } = useOrganizationValues();
 
-  // Transform data for radar chart
-  const chartData = Object.entries(strategicAttributeLabels).map(([key, label]) => {
+  // Load organization values
+  useEffect(() => {
+    const loadOrgValues = async () => {
+      const values = await getOrganizationValues();
+      setOrgAttributes(values);
+    };
+    loadOrgValues();
+  }, [getOrganizationValues]);
+
+  // Get attributes to display (organization-selected or all)
+  const attributesToDisplay = orgAttributes.length > 0 ? orgAttributes : Object.keys(strategicAttributeLabels) as StrategicAttributeType[];
+
+  // Transform data for radar chart - only show organization-selected attributes
+  const chartData = attributesToDisplay.map((key) => {
+    const label = strategicAttributeLabels[key];
     const dataPoint: any = {
       attribute: label
     };
@@ -29,8 +45,8 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
     // Add selected users' action scores
     actionAnalytics.forEach((user) => {
       if (selectedUsers.includes(user.userId)) {
-        const attributeValue = user.attributes[key as keyof typeof strategicAttributeLabels] || 0;
-        const actionCount = user.scoreCount?.[key as keyof typeof strategicAttributeLabels] || 0;
+        const attributeValue = user.attributes[key] || 0;
+        const actionCount = user.scoreCount?.[key] || 0;
         dataPoint[`${user.userName} (Actions)`] = showImpact ? attributeValue * actionCount : attributeValue;
       }
     });
@@ -38,8 +54,8 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
     // Add selected users' issue scores
     issueAnalytics.forEach((user) => {
       if (selectedUsers.includes(user.userId)) {
-        const attributeValue = user.attributes[key as keyof typeof strategicAttributeLabels] || 0;
-        const issueCount = user.scoreCount?.[key as keyof typeof strategicAttributeLabels] || 0;
+        const attributeValue = user.attributes[key] || 0;
+        const issueCount = user.scoreCount?.[key] || 0;
         dataPoint[`${user.userName} (Issues)`] = showImpact ? attributeValue * issueCount : attributeValue;
       }
     });
@@ -126,6 +142,11 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
             }
           </p>
           <p>Actions vs Issues comparison for selected users</p>
+          {orgAttributes.length > 0 && (
+            <p className="text-xs text-blue-600 mt-1">
+              Showing organization values: {orgAttributes.length} of {Object.keys(strategicAttributeLabels).length} attributes
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>

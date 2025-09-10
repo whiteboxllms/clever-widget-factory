@@ -16,6 +16,7 @@ import { useOrganization } from '@/hooks/useOrganization';
 import { useInvitations } from '@/hooks/useInvitations';
 import { useToast } from '@/hooks/use-toast';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
+import { OrganizationValuesSection } from '@/components/OrganizationValuesSection';
 import { supabase } from '@/integrations/supabase/client';
 
 
@@ -369,6 +370,9 @@ const Organization = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Organization Values */}
+      <OrganizationValuesSection canEdit={isAdmin} />
 
       {/* Roles & Permissions */}
       <Collapsible defaultOpen={false}>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useOrganizationValues } from '@/hooks/useOrganizationValues';
 
 export type StrategicAttributeType = 
   | 'growth_mindset'
@@ -52,6 +53,7 @@ export function useStrategicAttributes() {
   const [attributes, setAttributes] = useState<StrategicAttribute[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { getOrganizationValues } = useOrganizationValues();
 
   const fetchAttributes = async (userIds?: string[], startDate?: string, endDate?: string) => {
     try {
@@ -119,11 +121,22 @@ export function useStrategicAttributes() {
     }
   };
 
-  const getAttributeAnalytics = (userIds?: string[]): AttributeAnalytics[] => {
+  const getAttributeAnalytics = async (userIds?: string[], filterByOrgValues = true): Promise<AttributeAnalytics[]> => {
     const userMap = new Map<string, AttributeAnalytics>();
+
+    // Get organization's selected strategic attributes
+    const orgValues = filterByOrgValues ? await getOrganizationValues() : [];
+    const attributesToUse = orgValues.length > 0 ? orgValues : [
+      'growth_mindset', 'root_cause_problem_solving', 'teamwork', 'quality',
+      'proactive_documentation', 'safety_focus', 'efficiency', 'asset_stewardship',
+      'financial_impact', 'energy_morale_impact'
+    ] as StrategicAttributeType[];
 
     attributes.forEach(attr => {
       if (userIds && userIds.length > 0 && !userIds.includes(attr.user_id)) return;
+      
+      // Only include attributes that are selected by the organization
+      if (filterByOrgValues && orgValues.length > 0 && !orgValues.includes(attr.attribute_type)) return;
 
       if (!userMap.has(attr.user_id)) {
         userMap.set(attr.user_id, {
@@ -138,15 +151,9 @@ export function useStrategicAttributes() {
       userAnalytics.attributes[attr.attribute_type] = attr.level;
     });
 
-    // Fill in missing attributes with 0
-    const allAttributeTypes: StrategicAttributeType[] = [
-      'growth_mindset', 'root_cause_problem_solving', 'teamwork', 'quality',
-      'proactive_documentation', 'safety_focus', 'efficiency', 'asset_stewardship',
-      'financial_impact', 'energy_morale_impact'
-    ];
-
+    // Fill in missing attributes with 0 for organization-selected attributes only
     userMap.forEach(userAnalytics => {
-      allAttributeTypes.forEach(type => {
+      attributesToUse.forEach(type => {
         if (!(type in userAnalytics.attributes)) {
           userAnalytics.attributes[type] = 0;
         }
@@ -156,18 +163,20 @@ export function useStrategicAttributes() {
     return Array.from(userMap.values());
   };
 
-  const getCompanyAverage = (userIds?: string[]): CompanyAverage => {
-    const userAnalytics = getAttributeAnalytics(userIds);
+  const getCompanyAverage = async (userIds?: string[], filterByOrgValues = true): Promise<CompanyAverage> => {
+    const userAnalytics = await getAttributeAnalytics(userIds, filterByOrgValues);
     const averages: Record<StrategicAttributeType, number> = {} as Record<StrategicAttributeType, number>;
 
-    const allAttributeTypes: StrategicAttributeType[] = [
+    // Get organization's selected strategic attributes
+    const orgValues = filterByOrgValues ? await getOrganizationValues() : [];
+    const attributesToUse = orgValues.length > 0 ? orgValues : [
       'growth_mindset', 'root_cause_problem_solving', 'teamwork', 'quality',
       'proactive_documentation', 'safety_focus', 'efficiency', 'asset_stewardship',
       'financial_impact', 'energy_morale_impact'
-    ];
+    ] as StrategicAttributeType[];
 
-    allAttributeTypes.forEach(type => {
-      const sum = userAnalytics.reduce((acc, user) => acc + user.attributes[type], 0);
+    attributesToUse.forEach(type => {
+      const sum = userAnalytics.reduce((acc, user) => acc + (user.attributes[type] || 0), 0);
       averages[type] = userAnalytics.length > 0 ? sum / userAnalytics.length : 0;
     });
 

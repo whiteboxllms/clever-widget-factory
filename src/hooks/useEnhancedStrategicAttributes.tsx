@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useStrategicAttributes, AttributeAnalytics, CompanyAverage, StrategicAttributeType } from './useStrategicAttributes';
+import { useOrganizationValues } from '@/hooks/useOrganizationValues';
 
 export interface EnhancedAttributeAnalytics {
   userId: string;
@@ -23,6 +24,7 @@ interface ActionScore {
 
 export function useEnhancedStrategicAttributes() {
   const { attributes, isLoading: attributesLoading, fetchAttributes, getAttributeAnalytics, getCompanyAverage } = useStrategicAttributes();
+  const { getOrganizationValues } = useOrganizationValues();
   const [actionScores, setActionScores] = useState<ActionScore[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -224,7 +226,15 @@ export function useEnhancedStrategicAttributes() {
     }));
   };
 
-  const getActionAnalytics = (userIds?: string[]): EnhancedAttributeAnalytics[] => {
+  const getActionAnalytics = async (userIds?: string[], filterByOrgValues = true): Promise<EnhancedAttributeAnalytics[]> => {
+    // Get organization's selected strategic attributes
+    const orgValues = filterByOrgValues ? await getOrganizationValues() : [];
+    const attributesToUse = orgValues.length > 0 ? orgValues : [
+      'growth_mindset', 'root_cause_problem_solving', 'teamwork', 'quality',
+      'proactive_documentation', 'safety_focus', 'efficiency', 'asset_stewardship',
+      'financial_impact', 'energy_morale_impact'
+    ] as StrategicAttributeType[];
+
     // Create analytics primarily from action scores
     const userAnalyticsMap = new Map<string, EnhancedAttributeAnalytics>();
 

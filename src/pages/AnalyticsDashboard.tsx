@@ -31,8 +31,8 @@ export default function AnalyticsDashboard() {
   }, []);
 
   // Process data for display - get ALL users for selection, not filtered by selectedUsers
-  const allUserAnalytics = getEnhancedAttributeAnalytics(); // No filter to get all users
-  const selectedActionAnalytics = getActionAnalytics(selectedUsers); // Filtered for display
+  const [allUserAnalytics, setAllUserAnalytics] = useState<any[]>([]);
+  const [selectedActionAnalytics, setSelectedActionAnalytics] = useState<any[]>([]);
   const [selectedIssueAnalytics, setSelectedIssueAnalytics] = useState<any[]>([]);
 
   // Debug logging to see what's happening with the data
@@ -40,16 +40,36 @@ export default function AnalyticsDashboard() {
   console.log('Selected action analytics:', selectedActionAnalytics);
   console.log('Selected users:', selectedUsers);
 
-  // Auto-select specific users on initial load: Stefan, Mae, Lester and malone
+  // Load initial analytics data
   useEffect(() => {
-    if (allUserAnalytics.length > 0 && selectedUsers.length === 0) {
-      const targetUsers = ['Stefan Hamilton', 'Mae Dela Torre', 'Lester  paniel', 'malone'];
-      const selectedUserIds = allUserAnalytics
-        .filter(user => targetUsers.some(target => user.userName.includes(target.trim())))
-        .map(user => user.userId);
-      setSelectedUsers(selectedUserIds);
-    }
-  }, [allUserAnalytics.length]); // Only depend on length to avoid infinite loops
+    const loadInitialData = async () => {
+      const allAnalytics = await getActionAnalytics(); // Get all users for selection
+      setAllUserAnalytics(allAnalytics);
+
+      // Auto-select specific users on initial load: Stefan, Mae, Lester and malone
+      if (allAnalytics.length > 0 && selectedUsers.length === 0) {
+        const targetUsers = ['Stefan Hamilton', 'Mae Dela Torre', 'Lester  paniel', 'malone'];
+        const selectedUserIds = allAnalytics
+          .filter(user => targetUsers.some(target => user.userName.includes(target.trim())))
+          .map(user => user.userId);
+        setSelectedUsers(selectedUserIds);
+      }
+    };
+    
+    loadInitialData();
+  }, []); // Only run once on mount
+
+  // Update selected user analytics when selection changes
+  useEffect(() => {
+    const updateSelectedAnalytics = async () => {
+      if (selectedUsers.length > 0) {
+        const actionAnalytics = await getActionAnalytics(selectedUsers); // Filter by org values for display
+        setSelectedActionAnalytics(actionAnalytics);
+      }
+    };
+    
+    updateSelectedAnalytics();
+  }, [selectedUsers]);
 
   const handleApplyFilters = async () => {
     setIsLoadingProactiveData(true);

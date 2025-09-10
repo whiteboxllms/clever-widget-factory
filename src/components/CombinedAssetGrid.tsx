@@ -10,6 +10,7 @@ interface CombinedAssetGridProps {
   onRemove: (asset: CombinedAsset) => void;
   onCheckout: (asset: CombinedAsset) => void;
   onCheckin: (asset: CombinedAsset) => void;
+  onReportIssue?: (asset: CombinedAsset) => void;
 }
 
 export const CombinedAssetGrid = ({
@@ -20,7 +21,8 @@ export const CombinedAssetGrid = ({
   onEdit,
   onRemove,
   onCheckout,
-  onCheckin
+  onCheckin,
+  onReportIssue
 }: CombinedAssetGridProps) => {
   if (assets.length === 0) {
     return (
@@ -42,6 +44,7 @@ export const CombinedAssetGrid = ({
           onRemove={onRemove}
           onCheckout={onCheckout}
           onCheckin={onCheckin}
+          onReportIssue={onReportIssue}
         />
       ))}
     </div>

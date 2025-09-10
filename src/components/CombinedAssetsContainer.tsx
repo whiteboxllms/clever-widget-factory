@@ -5,9 +5,14 @@ import { ArrowLeft, Plus } from "lucide-react";
 import { CombinedAssetFilters } from "./CombinedAssetFilters";
 import { CombinedAssetGrid } from "./CombinedAssetGrid";
 import { CombinedAssetDialog } from "./CombinedAssetDialog";
+import { ToolCheckoutDialog } from "./ToolCheckoutDialog";
+import { ToolCheckInDialog } from "./ToolCheckInDialog";
+import { IssueReportDialog } from "./IssueReportDialog";
+import { ToolRemovalDialog } from "./tools/ToolRemovalDialog";
 import { useCombinedAssets, CombinedAsset } from "@/hooks/useCombinedAssets";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 export const CombinedAssetsContainer = () => {
   const navigate = useNavigate();
@@ -21,8 +26,13 @@ export const CombinedAssetsContainer = () => {
   const [showOnlyStock, setShowOnlyStock] = useState(false);
   const [showRemovedItems, setShowRemovedItems] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
+  const [showCheckinDialog, setShowCheckinDialog] = useState(false);
+  const [showIssueDialog, setShowIssueDialog] = useState(false);
+  const [showRemovalDialog, setShowRemovalDialog] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState<CombinedAsset | null>(null);
 
-  const { assets, loading, createAsset, refetch } = useCombinedAssets(showRemovedItems);
+  const { assets, loading, createAsset, updateAsset, refetch } = useCombinedAssets(showRemovedItems);
 
   // Filter assets based on current filters
   const filteredAssets = useMemo(() => {
@@ -80,18 +90,66 @@ export const CombinedAssetsContainer = () => {
   };
 
   const handleRemove = (asset: CombinedAsset) => {
-    toast({
-      title: "Feature Coming Soon",
-      description: `Remove functionality for ${asset.type === 'asset' ? 'assets' : 'stock items'} will be available soon.`,
-    });
+    setSelectedAsset(asset);
+    setShowRemovalDialog(true);
   };
 
   const handleCheckout = (asset: CombinedAsset) => {
-    navigate(`/tools?toolId=${asset.id}&checkout=true`);
+    setSelectedAsset(asset);
+    setShowCheckoutDialog(true);
   };
 
   const handleCheckin = (asset: CombinedAsset) => {
-    navigate(`/tools?toolId=${asset.id}&checkin=true`);
+    setSelectedAsset(asset);
+    setShowCheckinDialog(true);
+  };
+
+  const handleReportIssue = (asset: CombinedAsset) => {
+    setSelectedAsset(asset);
+    setShowIssueDialog(true);
+  };
+
+  const handleConfirmRemoval = async (toolId: string) => {
+    if (!selectedAsset) return;
+
+    try {
+      const table = selectedAsset.type === 'asset' ? 'tools' : 'parts';
+      
+      if (selectedAsset.type === 'asset') {
+        // For assets, set status to 'removed'
+        const { error } = await supabase
+          .from('tools')
+          .update({ status: 'removed' })
+          .eq('id', toolId);
+
+        if (error) throw error;
+      } else {
+        // For stock items, you might want to delete or set a removed flag
+        // For now, we'll just show a message since parts table might not have status
+        toast({
+          title: "Feature Coming Soon",
+          description: "Stock item removal will be available soon.",
+        });
+        setShowRemovalDialog(false);
+        return;
+      }
+
+      await refetch();
+      setShowRemovalDialog(false);
+      setSelectedAsset(null);
+      
+      toast({
+        title: "Success",
+        description: `${selectedAsset.type === 'asset' ? 'Asset' : 'Stock item'} removed successfully`,
+      });
+    } catch (error) {
+      console.error('Error removing item:', error);
+      toast({
+        title: "Error",
+        description: `Failed to remove ${selectedAsset.type === 'asset' ? 'asset' : 'stock item'}`,
+        variant: "destructive"
+      });
+    }
   };
 
   if (loading) {
@@ -152,6 +210,7 @@ export const CombinedAssetsContainer = () => {
         onRemove={handleRemove}
         onCheckout={handleCheckout}
         onCheckin={handleCheckin}
+        onReportIssue={handleReportIssue}
       />
 
       {/* Add Asset Dialog */}
@@ -160,6 +219,70 @@ export const CombinedAssetsContainer = () => {
         onClose={() => setShowAddDialog(false)}
         onSubmit={handleCreateAsset}
       />
+
+      {/* Checkout Dialog */}
+      {selectedAsset && selectedAsset.type === 'asset' && (
+        <ToolCheckoutDialog
+          open={showCheckoutDialog}
+          onOpenChange={() => {
+            setShowCheckoutDialog(false);
+            setSelectedAsset(null);
+          }}
+          tool={selectedAsset as any}
+          onSuccess={() => {
+            refetch();
+            setShowCheckoutDialog(false);
+            setSelectedAsset(null);
+          }}
+        />
+      )}
+
+      {/* Check-in Dialog */}
+      {selectedAsset && selectedAsset.type === 'asset' && (
+        <ToolCheckInDialog
+          open={showCheckinDialog}
+          onOpenChange={() => {
+            setShowCheckinDialog(false);
+            setSelectedAsset(null);
+          }}
+          tool={selectedAsset as any}
+          onSuccess={() => {
+            refetch();
+            setShowCheckinDialog(false);
+            setSelectedAsset(null);
+          }}
+        />
+      )}
+
+      {/* Issue Report Dialog */}
+      {selectedAsset && selectedAsset.type === 'asset' && (
+        <IssueReportDialog
+          open={showIssueDialog}
+          onOpenChange={() => {
+            setShowIssueDialog(false);
+            setSelectedAsset(null);
+          }}
+          tool={selectedAsset as any}
+          onSuccess={() => {
+            refetch();
+            setShowIssueDialog(false);
+            setSelectedAsset(null);
+          }}
+        />
+      )}
+
+      {/* Removal Dialog */}
+      {selectedAsset && selectedAsset.type === 'asset' && (
+        <ToolRemovalDialog
+          open={showRemovalDialog}
+          onOpenChange={() => {
+            setShowRemovalDialog(false);
+            setSelectedAsset(null);
+          }}
+          tool={selectedAsset as any}
+          onConfirm={handleConfirmRemoval}
+        />
+      )}
     </div>
   );
 };

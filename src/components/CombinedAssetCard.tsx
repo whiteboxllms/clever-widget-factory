@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Wrench, Package, Eye, Edit, Trash2, CheckCircle, AlertCircle } from "lucide-react";
+import { Wrench, Package, Eye, Edit, Trash2, CheckCircle, AlertCircle, Flag } from "lucide-react";
 
 interface CombinedAsset {
   id: string;
@@ -30,6 +30,7 @@ interface CombinedAssetCardProps {
   onRemove: (asset: CombinedAsset) => void;
   onCheckout?: (asset: CombinedAsset) => void;
   onCheckin?: (asset: CombinedAsset) => void;
+  onReportIssue?: (asset: CombinedAsset) => void;
 }
 
 export const CombinedAssetCard = ({
@@ -39,7 +40,8 @@ export const CombinedAssetCard = ({
   onEdit,
   onRemove,
   onCheckout,
-  onCheckin
+  onCheckin,
+  onReportIssue
 }: CombinedAssetCardProps) => {
   const getStatusBadge = () => {
     if (asset.type === 'asset') {
@@ -190,6 +192,19 @@ export const CombinedAssetCard = ({
             >
               <CheckCircle className="w-4 h-4 mr-1" />
               Check In
+            </Button>
+          )}
+
+          {asset.type === 'asset' && onReportIssue && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                onReportIssue(asset);
+              }}
+            >
+              <Flag className="w-4 h-4" />
             </Button>
           )}
 

@@ -4,7 +4,9 @@ import { CombinedAssetCard } from "./CombinedAssetCard";
 interface CombinedAssetGridProps {
   assets: CombinedAsset[];
   canEdit: boolean;
+  isAdmin: boolean;
   currentUserId?: string;
+  currentUserEmail?: string;
   onView: (asset: CombinedAsset) => void;
   onEdit: (asset: CombinedAsset) => void;
   onRemove: (asset: CombinedAsset) => void;
@@ -16,7 +18,9 @@ interface CombinedAssetGridProps {
 export const CombinedAssetGrid = ({
   assets,
   canEdit,
+  isAdmin,
   currentUserId,
+  currentUserEmail,
   onView,
   onEdit,
   onRemove,
@@ -39,6 +43,9 @@ export const CombinedAssetGrid = ({
           key={asset.id}
           asset={asset}
           canEdit={canEdit}
+          isAdmin={isAdmin}
+          currentUserId={currentUserId}
+          currentUserEmail={currentUserEmail}
           onView={onView}
           onEdit={onEdit}
           onRemove={onRemove}

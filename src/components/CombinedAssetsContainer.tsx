@@ -16,7 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const CombinedAssetsContainer = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, canEditTools, isAdmin } = useAuth();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [showMyCheckedOut, setShowMyCheckedOut] = useState(false);
@@ -203,8 +203,10 @@ export const CombinedAssetsContainer = () => {
       {/* Assets Grid */}
       <CombinedAssetGrid
         assets={filteredAssets}
-        canEdit={true} // You can add proper permission logic here
+        canEdit={canEditTools}
+        isAdmin={isAdmin}
         currentUserId={user?.id}
+        currentUserEmail={user?.email}
         onView={handleView}
         onEdit={handleEdit}
         onRemove={handleRemove}

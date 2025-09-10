@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Wrench, Package, Eye, Edit, Trash2, CheckCircle, AlertCircle, Flag } from "lucide-react";
+import { Wrench, Package, Eye, Edit, Trash2, LogOut, LogIn, AlertTriangle, AlertCircle } from "lucide-react";
 
 interface CombinedAsset {
   id: string;
@@ -25,6 +25,9 @@ interface CombinedAsset {
 interface CombinedAssetCardProps {
   asset: CombinedAsset;
   canEdit: boolean;
+  isAdmin: boolean;
+  currentUserId?: string;
+  currentUserEmail?: string;
   onView: (asset: CombinedAsset) => void;
   onEdit: (asset: CombinedAsset) => void;
   onRemove: (asset: CombinedAsset) => void;
@@ -36,6 +39,9 @@ interface CombinedAssetCardProps {
 export const CombinedAssetCard = ({
   asset,
   canEdit,
+  isAdmin,
+  currentUserId,
+  currentUserEmail,
   onView,
   onEdit,
   onRemove,
@@ -153,21 +159,8 @@ export const CombinedAssetCard = ({
           )}
         </div>
 
-        <div className="flex gap-2 mt-4">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={(e) => {
-              e.stopPropagation();
-              onView(asset);
-            }}
-            className="flex-1"
-          >
-            <Eye className="w-4 h-4 mr-1" />
-            View
-          </Button>
-
-          {asset.type === 'asset' && !asset.is_checked_out && asset.status === 'available' && onCheckout && (
+        <div className="flex gap-2 mt-4" onClick={(e) => e.stopPropagation()}>
+          {asset.type === 'asset' && asset.status === 'available' && !asset.is_checked_out && onCheckout && (
             <Button
               size="sm"
               variant="outline"
@@ -176,38 +169,24 @@ export const CombinedAssetCard = ({
                 onCheckout(asset);
               }}
             >
-              <CheckCircle className="w-4 h-4 mr-1" />
+              <LogOut className="h-4 w-4 mr-1" />
               Checkout
             </Button>
           )}
 
-          {asset.type === 'asset' && asset.is_checked_out && onCheckin && (
+          {asset.type === 'asset' && asset.is_checked_out && asset.checked_out_to === currentUserEmail && onCheckin && (
             <Button
               size="sm"
-              variant="outline"
               onClick={(e) => {
                 e.stopPropagation();
                 onCheckin(asset);
               }}
             >
-              <CheckCircle className="w-4 h-4 mr-1" />
+              <LogIn className="h-4 w-4 mr-1" />
               Check In
             </Button>
           )}
-
-          {asset.type === 'asset' && onReportIssue && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={(e) => {
-                e.stopPropagation();
-                onReportIssue(asset);
-              }}
-            >
-              <Flag className="w-4 h-4" />
-            </Button>
-          )}
-
+          
           {canEdit && (
             <>
               <Button
@@ -218,19 +197,38 @@ export const CombinedAssetCard = ({
                   onEdit(asset);
                 }}
               >
-                <Edit className="w-4 h-4" />
+                <Edit className="h-4 w-4 mr-1" />
+                Edit
               </Button>
-
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemove(asset);
-                }}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              
+              {asset.type === 'asset' && onReportIssue && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReportIssue(asset);
+                  }}
+                  className="text-orange-600 hover:text-orange-700 border-orange-200 hover:border-orange-300"
+                >
+                  <AlertTriangle className="h-4 w-4 mr-1" />
+                  Issues
+                </Button>
+              )}
+              
+              {isAdmin && (
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove(asset);
+                  }}
+                  className="text-muted-foreground hover:text-destructive h-9 w-9"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
             </>
           )}
         </div>

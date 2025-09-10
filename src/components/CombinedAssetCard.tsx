@@ -1,8 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Wrench, Package, Eye, Edit, Trash2, LogOut, LogIn, AlertTriangle, AlertCircle, Plus, Minus, ShoppingCart } from "lucide-react";
+import { Wrench, Package, Eye, Edit, Trash2, LogOut, LogIn, AlertTriangle, AlertCircle, Plus, Minus, ShoppingCart, History } from "lucide-react";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { InventoryHistoryDialog } from "./InventoryHistoryDialog";
 
 interface CombinedAsset {
   id: string;
@@ -43,6 +44,7 @@ interface CombinedAssetCardProps {
   onOrderStock?: (asset: CombinedAsset) => void;
   onReceiveOrder?: (asset: CombinedAsset) => void;
   hasPendingOrders?: boolean;
+  onShowHistory?: (asset: CombinedAsset) => void;
 }
 
 export const CombinedAssetCard = ({
@@ -62,7 +64,8 @@ export const CombinedAssetCard = ({
   onUseQuantity,
   onOrderStock,
   onReceiveOrder,
-  hasPendingOrders
+  hasPendingOrders,
+  onShowHistory
 }: CombinedAssetCardProps) => {
   const getStatusBadge = () => {
     if (asset.type === 'asset') {
@@ -279,6 +282,29 @@ export const CombinedAssetCard = ({
                     </Tooltip>
                   </TooltipProvider>
                 )}
+
+                {/* Stock History Button */}
+                <InventoryHistoryDialog partId={asset.id} partName={asset.name}>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-12 px-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
+                        >
+                          <History className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>View History</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </InventoryHistoryDialog>
               </div>
             </>
           )}

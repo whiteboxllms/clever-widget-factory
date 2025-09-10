@@ -162,6 +162,27 @@ export const useCombinedAssets = (showRemovedItems: boolean = false) => {
         throw error;
       }
 
+      // Log creation event for stock items only (parts_history)
+      if (!isAsset) {
+        try {
+          const partData = data as any; // Type assertion for parts data
+          await supabase
+            .from('parts_history')
+            .insert({
+              part_id: data.id,
+              change_type: 'create',
+              old_quantity: 0,
+              new_quantity: partData.current_quantity || 0,
+              quantity_change: partData.current_quantity || 0,
+              changed_by: (await supabase.auth.getUser()).data.user?.id,
+              change_reason: `Created stock item: ${data.name}`,
+              organization_id: data.organization_id
+            });
+        } catch (historyError) {
+          console.warn('Failed to log creation to parts_history:', historyError);
+        }
+      }
+
       // Add to local state
       const newAsset: CombinedAsset = {
         ...data,

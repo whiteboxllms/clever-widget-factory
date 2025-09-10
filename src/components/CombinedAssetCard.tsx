@@ -101,10 +101,6 @@ export const CombinedAssetCard = ({
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
           </div>
-          
-          {asset.has_issues && (
-            <AlertCircle className="w-4 h-4 text-red-600" />
-          )}
         </div>
         
         <div className="flex items-center justify-between gap-2 -mt-1">

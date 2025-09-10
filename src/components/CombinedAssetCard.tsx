@@ -109,8 +109,8 @@ export const CombinedAssetCard = ({
           )}
         </div>
         
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-lg line-clamp-2 flex-1">{asset.name}</CardTitle>
+        <div className="flex items-center justify-between gap-2 -mt-1">
+          <CardTitle className="text-base line-clamp-2 flex-1 leading-tight">{asset.name}</CardTitle>
           {asset.type === 'stock' && (
             <Badge variant="secondary" className="text-xs shrink-0">
               Stock
@@ -118,12 +118,14 @@ export const CombinedAssetCard = ({
           )}
         </div>
         
-        <div className="flex flex-wrap gap-1">
-          {asset.type === 'asset' && getStatusBadge()}
-          {asset.category && (
-            <Badge variant="outline" className="text-xs">{asset.category}</Badge>
-          )}
-        </div>
+        {(asset.type === 'asset' || asset.category) && (
+          <div className="flex flex-wrap gap-1 -mt-1">
+            {asset.type === 'asset' && getStatusBadge()}
+            {asset.category && (
+              <Badge variant="outline" className="text-xs">{asset.category}</Badge>
+            )}
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className="pt-0">

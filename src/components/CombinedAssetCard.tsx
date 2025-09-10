@@ -288,8 +288,9 @@ export const CombinedAssetCard = ({
           {canEdit && (
             <>
               <Button
-                size="icon"
+                size="sm"
                 variant="outline"
+                className="w-12 px-2"
                 onClick={(e) => {
                   e.stopPropagation();
                   onEdit(asset);
@@ -300,17 +301,17 @@ export const CombinedAssetCard = ({
               
               {(asset.type === 'asset' || asset.type === 'stock') && onManageIssues && (
                 <Button
-                  size="icon"
+                  size="sm"
                   variant="outline"
+                  className={`w-12 px-2 ${
+                    asset.has_issues 
+                      ? "text-orange-600 hover:text-orange-700 border-orange-200 hover:border-orange-300" 
+                      : ""
+                  }`}
                   onClick={(e) => {
                     e.stopPropagation();
                     onManageIssues(asset);
                   }}
-                  className={
-                    asset.has_issues 
-                      ? "text-orange-600 hover:text-orange-700 border-orange-200 hover:border-orange-300" 
-                      : ""
-                  }
                 >
                   <AlertTriangle className="h-4 w-4" />
                 </Button>

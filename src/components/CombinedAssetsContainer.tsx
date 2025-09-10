@@ -338,61 +338,19 @@ export const CombinedAssetsContainer = () => {
 
   // Show detailed view if an asset is selected
   if (selectedAssetForDetails && showViewDialog) {
-    return selectedAssetForDetails.type === 'asset' ? (
-      <ToolDetails
-        tool={selectedAssetForDetails as any}
-        onBack={() => setShowViewDialog(false)}
-        toolHistory={toolHistory}
-        currentCheckout={currentCheckout}
-        issues={issues}
-        onCheckout={() => {
-          setShowViewDialog(false);
-          handleCheckout(selectedAssetForDetails);
-        }}
-        onCheckin={() => {
-          setShowViewDialog(false);
-          handleCheckin(selectedAssetForDetails);
-        }}
-        onEdit={() => {
-          setShowViewDialog(false);
-          handleEdit(selectedAssetForDetails);
-        }}
-        onReportIssue={() => {
-          setShowViewDialog(false);
-          handleManageIssues(selectedAssetForDetails);
-        }}
-        onRemove={() => {
-          setShowViewDialog(false);
-          handleRemove(selectedAssetForDetails);
-        }}
-        canEdit={canEditTools}
-        isAdmin={isAdmin}
-      />
-    ) : (
-      <StockDetails
-        part={selectedAssetForDetails as any}
-        onBack={() => setShowViewDialog(false)}
-        issues={issues}
-        onEdit={() => {
-          setShowViewDialog(false);
-          handleEdit(selectedAssetForDetails);
-        }}
-        onReportIssue={() => {
-          setShowViewDialog(false);
-          handleManageIssues(selectedAssetForDetails);
-        }}
-        onQuantityChange={(type) => {
-          setShowViewDialog(false);
-          handleQuantityChange(selectedAssetForDetails, type);
-        }}
-        onOrder={() => {
-          setShowViewDialog(false);
-          handleOrder(selectedAssetForDetails);
-        }}
-        canEdit={canEditTools}
-        isAdmin={isAdmin}
-        pendingOrders={pendingOrders[selectedAssetForDetails.id] || []}
-      />
+    // Simple back navigation for now
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <Button onClick={() => setShowViewDialog(false)} className="mb-4">
+          ← Back to Search
+        </Button>
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">{selectedAssetForDetails.name}</h2>
+          <p className="text-muted-foreground">
+            {selectedAssetForDetails.type === 'asset' ? 'Asset' : 'Stock Item'} Details
+          </p>
+        </div>
+      </div>
     );
   }
 
@@ -458,14 +416,14 @@ export const CombinedAssetsContainer = () => {
             onCheckout={handleCheckout}
             onCheckin={handleCheckin}
             onManageIssues={handleManageIssues}
-            canEditTools={canEditTools}
+            canEdit={canEditTools}
             isAdmin={isAdmin}
             pendingOrders={pendingOrders}
           />
         )}
       </div>
 
-      {/* Dialogs */}
+      {/* Basic Dialogs */}
       <ToolCheckoutDialog
         open={showCheckoutDialog}
         onOpenChange={setShowCheckoutDialog}
@@ -477,39 +435,6 @@ export const CombinedAssetsContainer = () => {
         open={showCheckinDialog}
         onOpenChange={setShowCheckinDialog}
         tool={selectedAsset?.type === 'asset' ? selectedAsset as any : null}
-        onSuccess={() => refetch()}
-      />
-
-      {selectedAsset?.type === 'asset' && (
-        <EditToolForm
-          open={showEditDialog}
-          onOpenChange={setShowEditDialog}
-          tool={selectedAsset as any}
-          onSuccess={handleEditSubmit}
-        />
-      )}
-
-      {selectedAsset?.type === 'stock' && (
-        <InventoryItemForm
-          open={showEditDialog}
-          onOpenChange={setShowEditDialog}
-          part={selectedAsset as any}
-          onSuccess={handleStockEditSubmit}
-        />
-      )}
-
-      <OrderDialog
-        open={showOrderDialog}
-        onOpenChange={setShowOrderDialog}
-        part={selectedAsset?.type === 'stock' ? selectedAsset as any : null}
-        onSuccess={() => refetch()}
-      />
-
-      <ReceivingDialog
-        open={showReceivingDialog}
-        onOpenChange={setShowReceivingDialog}
-        order={null}
-        part={selectedAsset?.type === 'stock' ? selectedAsset as any : null}
         onSuccess={() => refetch()}
       />
 

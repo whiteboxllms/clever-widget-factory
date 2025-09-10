@@ -299,7 +299,7 @@ export const CombinedAssetCard = ({
                 Edit
               </Button>
               
-              {(asset.type === 'asset' || asset.type === 'stock') && asset.has_issues && onViewIssues && (
+              {(asset.type === 'asset' || asset.type === 'stock') && onViewIssues && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -311,19 +311,6 @@ export const CombinedAssetCard = ({
                 >
                   <AlertTriangle className="h-4 w-4 mr-1" />
                   Issues
-                </Button>
-              )}
-
-              {(asset.type === 'asset' || asset.type === 'stock') && onReportIssue && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onReportIssue(asset);
-                  }}
-                >
-                  Report Issue
                 </Button>
               )}
               

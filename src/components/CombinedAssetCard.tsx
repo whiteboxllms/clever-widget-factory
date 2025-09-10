@@ -99,10 +99,8 @@ export const CombinedAssetCard = ({
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
-            {asset.type === 'asset' ? (
+            {asset.type === 'asset' && (
               <Wrench className={`w-5 h-5 ${getIconColor()}`} />
-            ) : (
-              <Package className={`w-5 h-5 ${getIconColor()}`} />
             )}
           </div>
           

@@ -123,14 +123,12 @@ export const CombinedAssetsContainer = () => {
     fetchPendingOrders();
   }, []);
 
-  // Trigger search when debounced search term changes
+  // Remove the effect that triggers search on every keystroke
+  // We'll load data once and filter client-side for better UX
   useEffect(() => {
-    if (debouncedSearchTerm.trim()) {
-      searchAssets(debouncedSearchTerm);
-    } else if (hasSearched) {
-      resetSearch();
-    }
-  }, [debouncedSearchTerm, searchAssets, resetSearch, hasSearched]);
+    // Load all data on mount
+    searchAssets('');
+  }, [showRemovedItems]);
 
   // Apply client-side filters to assets
   const filteredAssets = useMemo(() => {

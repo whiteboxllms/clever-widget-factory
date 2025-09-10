@@ -78,7 +78,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, searchQuery
         `)
         .eq('organization_id', organizationId);
 
-      // Apply search filters if query exists
+      // Apply search filters if query exists (for backend filtering when needed)
       if (query.trim()) {
         toolsQuery = toolsQuery.or(`name.ilike.%${query}%,serial_number.ilike.%${query}%,description.ilike.%${query}%,storage_location.ilike.%${query}%`);
         partsQuery = partsQuery.or(`name.ilike.%${query}%,description.ilike.%${query}%,storage_location.ilike.%${query}%`);
@@ -89,9 +89,9 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, searchQuery
         toolsQuery = toolsQuery.neq('status', 'removed');
       }
 
-      // Limit results for better performance
-      toolsQuery = toolsQuery.limit(50);
-      partsQuery = partsQuery.limit(50);
+      // Increase limit for better client-side filtering performance
+      toolsQuery = toolsQuery.limit(200);
+      partsQuery = partsQuery.limit(200);
 
       // Fetch tools and parts concurrently
       const [toolsResponse, partsResponse] = await Promise.all([

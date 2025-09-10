@@ -104,9 +104,6 @@ export const CombinedAssetCard = ({
             ) : (
               <Package className={`w-5 h-5 ${getIconColor()}`} />
             )}
-            <Badge variant={asset.type === 'asset' ? 'default' : 'secondary'} className="text-xs">
-              {asset.type === 'asset' ? 'Asset' : 'Stock'}
-            </Badge>
           </div>
           
           {asset.has_issues && (
@@ -114,10 +111,17 @@ export const CombinedAssetCard = ({
           )}
         </div>
         
-        <CardTitle className="text-lg line-clamp-2">{asset.name}</CardTitle>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-lg line-clamp-2 flex-1">{asset.name}</CardTitle>
+          {asset.type === 'stock' && (
+            <Badge variant="secondary" className="text-xs shrink-0">
+              Stock
+            </Badge>
+          )}
+        </div>
         
         <div className="flex flex-wrap gap-1">
-          {getStatusBadge()}
+          {asset.type === 'asset' && getStatusBadge()}
           {asset.category && (
             <Badge variant="outline" className="text-xs">{asset.category}</Badge>
           )}

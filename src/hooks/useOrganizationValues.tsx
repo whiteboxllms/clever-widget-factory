@@ -29,13 +29,35 @@ export function useOrganizationValues() {
       
       // If no values exist, return defaults
       if (values.length === 0) {
-        return ["Growth Mindset", "Root Cause Problem Solving", "Teamwork", "Quality"];
+        return [
+          "Growth Mindset", 
+          "Root Cause Problem Solving", 
+          "Teamwork", 
+          "Quality",
+          "Proactive Documentation",
+          "Safety Focus", 
+          "Efficiency", 
+          "Asset Stewardship", 
+          "Financial Impact", 
+          "Energy & Morale Impact"
+        ];
       }
       
       return values;
     } catch (error) {
       console.error('Error fetching organization values:', error);
-      return ["Growth Mindset", "Root Cause Problem Solving", "Teamwork", "Quality"];
+      return [
+        "Growth Mindset", 
+        "Root Cause Problem Solving", 
+        "Teamwork", 
+        "Quality",
+        "Proactive Documentation",
+        "Safety Focus", 
+        "Efficiency", 
+        "Asset Stewardship", 
+        "Financial Impact", 
+        "Energy & Morale Impact"
+      ];
     }
   }, [organizationId]);
 

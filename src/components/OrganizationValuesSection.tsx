@@ -111,7 +111,7 @@ export function OrganizationValuesSection({ canEdit }: OrganizationValuesSection
               ))
             ) : (
               <p className="text-sm text-muted-foreground italic flex items-center">
-                No values configured - using defaults: Growth Mindset, Root Cause Problem Solving, Teamwork, Quality
+                No values configured - using defaults: Growth Mindset, Root Cause Problem Solving, Teamwork, Quality, Proactive Documentation, Safety Focus, Efficiency, Asset Stewardship, Financial Impact, Energy & Morale Impact
               </p>
             )}
           </div>

@@ -235,31 +235,30 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
               />
             </div>
 
-            {/* Category field - only show when serial number is entered */}
-            {isAsset && (
-              <div>
-                <Label htmlFor="category">Category</Label>
-                <Select
-                  value={formData.category}
-                  onValueChange={(value) => updateFormData('category', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TOOL_CATEGORY_OPTIONS.map((category) => (
-                      <SelectItem key={category.value} value={category.value}>
-                        {category.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            {/* Category field - disabled when no serial number */}
+            <div>
+              <Label htmlFor="category" className={!isAsset ? "text-muted-foreground" : ""}>Category</Label>
+              <Select
+                value={formData.category}
+                onValueChange={(value) => updateFormData('category', value)}
+                disabled={!isAsset}
+              >
+                <SelectTrigger className={!isAsset ? "text-muted-foreground" : ""}>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TOOL_CATEGORY_OPTIONS.map((category) => (
+                    <SelectItem key={category.value} value={category.value}>
+                      {category.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             {/* Quantity fields - show for all but disable for assets */}
             <div>
-              <Label htmlFor="current_quantity">Current Quantity *</Label>
+              <Label htmlFor="current_quantity" className={isAsset ? "text-muted-foreground" : ""}>Current Quantity *</Label>
               <Input
                 id="current_quantity"
                 type="number"
@@ -268,6 +267,7 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
                 value={formData.current_quantity}
                 onChange={(e) => updateFormData('current_quantity', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}
                 disabled={isAsset}
+                className={isAsset ? "text-muted-foreground" : ""}
               />
             </div>
             
@@ -279,7 +279,7 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
                   onCheckedChange={(checked) => setUseMinimumQuantity(checked === true)}
                   disabled={isAsset}
                 />
-                <Label htmlFor="use-minimum-quantity" className="text-sm font-medium">
+                <Label htmlFor="use-minimum-quantity" className={`text-sm font-medium ${isAsset ? "text-muted-foreground" : ""}`}>
                   Set Minimum Quantity
                 </Label>
               </div>
@@ -298,13 +298,13 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
             </div>
 
             <div>
-              <Label htmlFor="unit">Unit</Label>
+              <Label htmlFor="unit" className={isAsset ? "text-muted-foreground" : ""}>Unit</Label>
               <Select 
                 value={formData.unit} 
                 onValueChange={(value) => updateFormData('unit', value)}
                 disabled={isAsset}
               >
-                <SelectTrigger>
+                <SelectTrigger className={isAsset ? "text-muted-foreground" : ""}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -319,7 +319,7 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
 
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <Label htmlFor="cost_per_unit">Cost per unit (php)</Label>
+                <Label htmlFor="cost_per_unit" className={isAsset ? "text-muted-foreground" : ""}>Cost per unit (php)</Label>
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -340,12 +340,13 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
                 onChange={(e) => updateFormData('cost_per_unit', e.target.value)}
                 placeholder="0.00"
                 disabled={isAsset}
+                className={isAsset ? "text-muted-foreground" : ""}
               />
             </div>
 
             <div className="col-span-2">
               <div className="flex items-center gap-2 mb-2">
-                <Label htmlFor="cost_evidence_url">URLs</Label>
+                <Label htmlFor="cost_evidence_url" className={isAsset ? "text-muted-foreground" : ""}>URLs</Label>
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -364,6 +365,7 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
                 placeholder="https://example.com/product-page&#10;https://example.com/manual.pdf"
                 rows={3}
                 disabled={isAsset}
+                className={isAsset ? "text-muted-foreground" : ""}
               />
             </div>
 

@@ -97,35 +97,44 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
     }
 
     if (showImpact) {
-      // Impact mode: average score * actions completed for each attribute
+      // Impact mode: individual impact score for each user
       const data = orgValues.map(orgValue => {
         const attributeKey = mapOrgValueToAttributeKey(orgValue);
         
-        // Calculate average score across all selected users for this attribute
-        const scores = selectedAnalytics
-          .map(user => user.attributes[attributeKey as keyof typeof user.attributes])
-          .filter(score => score !== undefined && score !== null);
-        
-        const avgScore = scores.length > 0 
-          ? scores.reduce((sum, score) => sum + score, 0) / scores.length 
-          : 2;
-
-        // Calculate total actions completed across all selected users
-        const totalActions = selectedAnalytics.reduce((sum, user) => sum + (user.totalActions || 0), 0);
-        
-        // Impact = average score * total actions (normalized to keep chart readable)
-        const impactValue = (avgScore * totalActions) / 10; // Divide by 10 to keep values reasonable
-        
-        console.log(`${orgValue} (${attributeKey}): avgScore=${avgScore}, totalActions=${totalActions}, impact=${impactValue}`);
-
-        return {
-          attribute: orgValue,
-          impact: Math.round(impactValue * 100) / 100,
-          fullMark: Math.max(20, impactValue * 1.2) // Dynamic scale based on data
+        const dataPoint: any = {
+          attribute: orgValue
         };
+
+        // Calculate individual impact for each user
+        selectedAnalytics.forEach(user => {
+          const userScore = user.attributes[attributeKey as keyof typeof user.attributes];
+          const score = userScore !== undefined && userScore !== null ? userScore : 2;
+          const totalActions = user.totalActions || 0;
+          
+          // Impact = user's score * user's total actions (no arbitrary division)
+          const impactValue = score * totalActions;
+          
+          dataPoint[user.userName] = Math.round(impactValue * 100) / 100;
+          console.log(`${user.userName} - ${orgValue} (${attributeKey}): score=${score}, actions=${totalActions}, impact=${impactValue}`);
+        });
+
+        return dataPoint;
+      });
+
+      // Calculate dynamic fullMark based on maximum impact value
+      const allImpactValues = data.flatMap(point => 
+        selectedAnalytics.map(user => point[user.userName] || 0)
+      );
+      const maxImpact = Math.max(...allImpactValues, 1); // Ensure minimum of 1
+      const dynamicFullMark = Math.ceil(maxImpact * 1.1); // Add 10% padding
+
+      // Add fullMark to each data point
+      data.forEach(point => {
+        point.fullMark = dynamicFullMark;
       });
       
       console.log('Impact radar data:', data);
+      console.log('Dynamic fullMark:', dynamicFullMark);
       return data;
     } else {
       // Individual mode: separate data for each user
@@ -242,34 +251,22 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
                 />
                 <PolarRadiusAxis 
                   angle={90} 
-                  domain={showImpact ? [0, 'dataMax'] : [0, 4]} 
+                  domain={[0, 'dataMax']} 
                   tick={{ fontSize: 10 }}
                   tickCount={5}
                 />
-                {/* Render radar based on mode */}
-                {showImpact ? (
-                  <Radar 
-                    name="Impact Score" 
-                    dataKey="impact" 
-                    stroke="hsl(220, 90%, 45%)" 
-                    fill="hsl(220, 90%, 45%)" 
-                    fillOpacity={0.3}
-                    strokeWidth={3}
+                 {/* Render radar based on mode */}
+                {userData.map((user, index) => (
+                  <Radar
+                    key={user.name}
+                    name={user.name}
+                    dataKey={user.dataKey}
+                    stroke={user.color}
+                    fill={user.color}
+                    fillOpacity={0.1}
+                    strokeWidth={2}
                   />
-                ) : (
-                  // Render a radar line for each user
-                  userData.map((user, index) => (
-                    <Radar
-                      key={user.name}
-                      name={user.name}
-                      dataKey={user.dataKey}
-                      stroke={user.color}
-                      fill={user.color}
-                      fillOpacity={0.1}
-                      strokeWidth={2}
-                    />
-                  ))
-                )}
+                ))}
                 <Legend />
               </RadarChart>
             </ResponsiveContainer>
@@ -279,7 +276,7 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
           <div className="text-center text-sm text-muted-foreground">
             <p>
               {showImpact 
-                ? 'Scale: Impact Score (Average Score × Actions Completed ÷ 10)'
+                ? 'Scale: Individual Impact Score (Personal Score × Personal Actions)'
                 : 'Scale: 0 (Needs Improvement) - 4 (Excellent)'
               }
             </p>

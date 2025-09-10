@@ -51,12 +51,12 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
 
       if (partsError) throw partsError;
 
-      // Fetch from inventory_usage table with mission details
+      // Fetch from inventory_usage table with mission details (LEFT JOIN to include manual usage)
       const { data: missionUsage, error: missionError } = await supabase
         .from('inventory_usage')
         .select(`
           *,
-          missions!inner(
+          missions(
             id,
             mission_number,
             title,
@@ -94,21 +94,28 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
       }
 
       // Convert mission usage to history entry format
-      const missionHistoryEntries: HistoryEntry[] = (missionUsage || []).map(usage => ({
-        id: usage.id,
-        change_type: 'mission_usage',
-        old_quantity: null,
-        new_quantity: null,
-        quantity_change: -usage.quantity_used,
-        changed_by: usage.used_by,
-        changed_by_name: userMap[usage.used_by] || 'Mission Team',
-        change_reason: `Used for Mission #${(usage.missions as any)?.mission_number}: ${(usage.missions as any)?.title}`,
-        changed_at: usage.created_at,
-        mission_id: usage.mission_id,
-        mission_number: (usage.missions as any)?.mission_number,
-        mission_title: (usage.missions as any)?.title,
-        usage_description: usage.usage_description
-      }));
+      const missionHistoryEntries: HistoryEntry[] = (missionUsage || []).map(usage => {
+        const missionData = usage.missions as any;
+        const isManualUsage = !missionData || !usage.mission_id;
+        
+        return {
+          id: usage.id,
+          change_type: isManualUsage ? 'manual_usage' : 'mission_usage',
+          old_quantity: null,
+          new_quantity: null,
+          quantity_change: -usage.quantity_used,
+          changed_by: usage.used_by,
+          changed_by_name: userMap[usage.used_by] || (isManualUsage ? 'User' : 'Mission Team'),
+          change_reason: isManualUsage 
+            ? usage.usage_description || 'Manual usage'
+            : `Used for Mission #${missionData?.mission_number}: ${missionData?.title}`,
+          changed_at: usage.created_at,
+          mission_id: usage.mission_id,
+          mission_number: missionData?.mission_number,
+          mission_title: missionData?.title,
+          usage_description: usage.usage_description
+        };
+      });
 
       // Add user names to parts history entries
       const partsHistoryWithNames: HistoryEntry[] = (partsHistory || []).map(entry => ({
@@ -147,6 +154,8 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
         return <TrendingDown className="h-4 w-4 text-red-600" />;
       case 'mission_usage':
         return <TrendingDown className="h-4 w-4 text-orange-600" />;
+      case 'manual_usage':
+        return <TrendingDown className="h-4 w-4 text-purple-600" />;
       case 'update':
         return <Edit className="h-4 w-4 text-blue-600" />;
       case 'create':
@@ -164,6 +173,8 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
         return `Removed ${Math.abs(entry.quantity_change!)} items (${entry.old_quantity} → ${entry.new_quantity})`;
       case 'mission_usage':
         return `Used ${Math.abs(entry.quantity_change!)} items for mission`;
+      case 'manual_usage':
+        return `Used ${Math.abs(entry.quantity_change!)} items (manual usage)`;
       case 'update':
         return 'Updated item details';
       case 'create':
@@ -181,6 +192,8 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
         return <Badge variant="secondary" className="bg-red-100 text-red-800">Removed</Badge>;
       case 'mission_usage':
         return <Badge variant="secondary" className="bg-orange-100 text-orange-800">Mission Usage</Badge>;
+      case 'manual_usage':
+        return <Badge variant="secondary" className="bg-purple-100 text-purple-800">Manual Usage</Badge>;
       case 'update':
         return <Badge variant="secondary" className="bg-blue-100 text-blue-800">Updated</Badge>;
       case 'create':
@@ -194,9 +207,9 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
     window.open(`/missions#${missionId}`, '_blank');
   };
 
-  // Group history by missions for better organization
-  const missionUsageEntries = history.filter(entry => entry.change_type === 'mission_usage');
-  const otherEntries = history.filter(entry => entry.change_type !== 'mission_usage');
+  // Group history by usage type for better organization
+  const usageEntries = history.filter(entry => entry.change_type === 'mission_usage' || entry.change_type === 'manual_usage');
+  const otherEntries = history.filter(entry => entry.change_type !== 'mission_usage' && entry.change_type !== 'manual_usage');
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -222,17 +235,17 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Mission Usage Summary */}
-              {missionUsageEntries.length > 0 && (
+              {/* Usage History Summary */}
+              {usageEntries.length > 0 && (
                 <div>
                   <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
                     <Badge variant="secondary" className="bg-orange-100 text-orange-800">
-                      {missionUsageEntries.length}
+                      {usageEntries.length}
                     </Badge>
-                    Mission Usage History
+                    Usage History
                   </h3>
                   <div className="space-y-3">
-                    {missionUsageEntries.map((entry) => (
+                    {usageEntries.map((entry) => (
                       <Card key={entry.id} className="p-4 border-l-4 border-l-orange-400">
                         <CardContent className="p-0">
                           <div className="flex items-start justify-between">

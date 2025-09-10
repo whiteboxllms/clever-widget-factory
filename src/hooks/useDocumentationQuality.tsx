@@ -55,12 +55,9 @@ export function useDocumentationQuality() {
         }
       });
 
-      // Get user profiles for display names
-      const allUserIds = new Set(Array.from(lastUpdaterMap.values()));
+      // Get user profiles for display names using secure function
       const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('user_id, full_name')
-        .in('user_id', Array.from(allUserIds));
+        .rpc('get_user_display_names');
 
       if (profilesError) throw profilesError;
 

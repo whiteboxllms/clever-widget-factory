@@ -51,15 +51,24 @@ export function GenericIssueCard({
   useEffect(() => {
     const fetchProfiles = async () => {
       try {
+        // Use secure function instead of direct table access
         const { data, error } = await supabase
-          .from('profiles')
-          .select('id, user_id, full_name, role')
-          .order('full_name');
+          .rpc('get_user_display_names');
         
         if (error) throw error;
-        setProfiles(data || []);
+        
+        // Convert to expected format (adding role as empty since we can't access it)
+        const profilesData = (data || []).map(profile => ({
+          id: profile.user_id,
+          user_id: profile.user_id,
+          full_name: profile.full_name,
+          role: '' // Role info is no longer accessible for security
+        }));
+        
+        setProfiles(profilesData);
       } catch (error) {
         console.error('Error fetching profiles:', error);
+        setProfiles([]);
       }
     };
 

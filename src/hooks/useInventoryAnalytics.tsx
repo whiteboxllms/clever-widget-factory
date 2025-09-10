@@ -193,10 +193,9 @@ export function useInventoryAnalytics() {
         throw usageError;
       }
 
-      // Fetch all user profiles for name mapping
+      // Fetch all user profiles for name mapping using secure function
       const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('user_id, full_name');
+        .rpc('get_user_display_names');
 
       if (profilesError) {
         console.error("Error fetching profiles:", profilesError);

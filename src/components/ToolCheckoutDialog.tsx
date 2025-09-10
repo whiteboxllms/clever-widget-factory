@@ -61,13 +61,11 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
   useEffect(() => {
     const fetchUserProfile = async () => {
       if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('user_id', user.id)
-          .single();
+        // Use secure function for user's own display name
+        const displayName = await supabase
+          .rpc('get_user_display_name', { target_user_id: user.id });
         
-        setUserFullName(profile?.full_name || user.email || "");
+        setUserFullName(displayName.data || user.email || "");
       }
     };
 

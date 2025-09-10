@@ -96,11 +96,19 @@ export default function Actions() {
         const uniqueParticipantIds = [...new Set(allParticipantIds)];
         
         if (uniqueParticipantIds.length > 0) {
+          // Use secure function instead of direct table access
           const { data: participants } = await supabase
-            .from('profiles')
-            .select('id, user_id, full_name, role')
-            .in('user_id', uniqueParticipantIds);
-          participantsData = participants || [];
+            .rpc('get_user_display_names');
+          
+          // Filter to only requested participants and add required fields
+          participantsData = (participants || [])
+            .filter(p => uniqueParticipantIds.includes(p.user_id))
+            .map(p => ({
+              id: p.user_id,
+              user_id: p.user_id,
+              full_name: p.full_name,
+              role: '' // Role info is no longer accessible for security
+            }));
         }
       }
 

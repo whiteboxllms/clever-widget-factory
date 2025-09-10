@@ -107,13 +107,13 @@ const Audit = () => {
       let profilesData: any[] = [];
       
       if (auditorIds.length > 0) {
+        // Use secure function instead of direct table access
         const { data: profiles, error: profilesError } = await supabase
-          .from('profiles')
-          .select('user_id, full_name')
-          .in('user_id', auditorIds);
+          .rpc('get_user_display_names');
           
         if (!profilesError) {
-          profilesData = profiles || [];
+          // Filter to only requested auditor IDs
+          profilesData = (profiles || []).filter(p => auditorIds.includes(p.user_id));
         }
       }
 

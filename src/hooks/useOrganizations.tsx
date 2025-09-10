@@ -84,18 +84,15 @@ export function useOrganizations() {
         return null;
       }
 
-      // Get profile data for each member
+      // Get profile data for each member using secure function
       const membersWithProfiles = await Promise.all(
         (membersData || []).map(async (member) => {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('full_name')
-            .eq('user_id', member.user_id)
-            .single();
+          const { data: displayName } = await supabase
+            .rpc('get_user_display_name', { target_user_id: member.user_id });
           
           return {
             ...member,
-            profiles: profile || { full_name: null }
+            profiles: { full_name: displayName || null }
           };
         })
       );

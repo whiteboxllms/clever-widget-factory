@@ -17,6 +17,7 @@ import { ToolRemovalDialog } from "./tools/ToolRemovalDialog";
 import { EditToolForm } from "./tools/forms/EditToolForm";
 import { InventoryItemForm } from "./InventoryItemForm";
 import { ToolDetails } from "./tools/ToolDetails";
+import { StockDetails } from "./StockDetails";
 import { OrderDialog } from "./OrderDialog";
 import { ReceivingDialog } from "./ReceivingDialog";
 import { useCombinedAssets, CombinedAsset } from "@/hooks/useCombinedAssets";
@@ -24,6 +25,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useToolHistory } from "@/hooks/tools/useToolHistory";
 import { useToolIssues } from "@/hooks/useToolIssues";
+import { useInventoryIssues } from "@/hooks/useGenericIssues";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -66,9 +68,15 @@ export const CombinedAssetsContainer = () => {
   
   // Tool history and issues for view dialog
   const { toolHistory, currentCheckout, fetchToolHistory } = useToolHistory();
-  const { issues, fetchIssues } = useToolIssues(
-    selectedAsset?.type === 'asset' ? selectedAsset.id : null
+  const { issues: assetIssues, fetchIssues: fetchAssetIssues } = useToolIssues(
+    selectedAssetForDetails?.type === 'asset' ? selectedAssetForDetails.id : null
   );
+  const { issues: stockIssues, fetchIssues: fetchStockIssues } = useInventoryIssues(
+    selectedAssetForDetails?.type === 'stock' ? selectedAssetForDetails.id : null
+  );
+  
+  // Get appropriate issues based on selected asset type
+  const issues = selectedAssetForDetails?.type === 'asset' ? assetIssues : stockIssues;
 
   // Fetch pending orders for stock items
   useEffect(() => {
@@ -145,7 +153,7 @@ export const CombinedAssetsContainer = () => {
     // Fetch additional data for view dialog if it's an asset
     if (asset.type === 'asset') {
       fetchToolHistory(asset.id);
-      fetchIssues();
+      fetchAssetIssues();
     }
   };
 
@@ -389,6 +397,48 @@ export const CombinedAssetsContainer = () => {
     );
   }
 
+  // Show asset detail view if selectedAssetForDetails is set
+  if (selectedAssetForDetails) {
+    if (selectedAssetForDetails.type === 'asset') {
+      return (
+        <ToolDetails
+          tool={selectedAssetForDetails as any}
+          toolHistory={toolHistory}
+          currentCheckout={null} // TODO: Add current checkout logic if needed
+          issues={issues}
+          onBack={handleBackToAssets}
+          onResolveIssue={(issue) => {
+            // Handle issue resolution
+          }}
+          onEditIssue={(issue) => {
+            // Handle issue editing
+          }}
+          onRefresh={() => {
+            fetchToolHistory(selectedAssetForDetails.id);
+          }}
+        />
+      );
+    } else if (selectedAssetForDetails.type === 'stock') {
+      return (
+        <StockDetails
+          stock={selectedAssetForDetails as any}
+          stockHistory={[]} // TODO: Add stock history hook
+          issues={issues}
+          onBack={handleBackToAssets}
+          onResolveIssue={(issue) => {
+            // Handle issue resolution
+          }}
+          onEditIssue={(issue) => {
+            // Handle issue editing
+          }}
+          onRefresh={() => {
+            // Refresh stock data
+          }}
+        />
+      );
+    }
+  }
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
@@ -625,7 +675,7 @@ export const CombinedAssetsContainer = () => {
                 onRefresh={() => {
                   if (selectedAsset) {
                     fetchToolHistory(selectedAsset.id);
-                    fetchIssues();
+                    fetchAssetIssues();
                     refetch();
                   }
                 }}

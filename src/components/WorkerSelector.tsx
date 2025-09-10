@@ -136,15 +136,15 @@ export function WorkerSelector({
         {!canSelfClaim && (
           <div>
             <Select 
-              value={selectedWorkerId || ''} 
-              onValueChange={(value) => onWorkerSelect(value || null)}
+              value={selectedWorkerId || 'unassigned'} 
+              onValueChange={(value) => onWorkerSelect(value === 'unassigned' ? null : value)}
               disabled={disabled}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select a worker" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Unassigned</SelectItem>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
                 {sortedWorkers.map((worker) => {
                   const StatusIcon = worker.icon;
                   return (

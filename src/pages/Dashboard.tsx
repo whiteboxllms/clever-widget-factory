@@ -41,6 +41,13 @@ export default function Dashboard() {
 
   const menuItems = [
     {
+      title: "Combined Assets",
+      description: "Unified view of assets and stock",
+      icon: Box,
+      path: "/combined-assets",
+      color: "bg-green-500"
+    },
+    {
       title: "Stock",
       description: "View and manage stock",
       icon: Package,

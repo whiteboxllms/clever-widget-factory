@@ -17,6 +17,7 @@ import Dashboard from "./pages/Dashboard";
 import Tools from "./pages/Tools";
 import Inventory from "./pages/Inventory";
 import InventorySummary from "./pages/InventorySummary";
+import CombinedAssets from "./pages/CombinedAssets";
 import CheckIn from "./pages/CheckIn";
 import Missions from "./pages/Missions";
 import EditMission from "./pages/EditMission";
@@ -63,6 +64,11 @@ function AppContent() {
       <Route path="/tools/:toolId/edit" element={
         <ProtectedRoute>
           <Tools />
+        </ProtectedRoute>
+      } />
+      <Route path="/combined-assets" element={
+        <ProtectedRoute>
+          <CombinedAssets />
         </ProtectedRoute>
       } />
       <Route path="/inventory" element={

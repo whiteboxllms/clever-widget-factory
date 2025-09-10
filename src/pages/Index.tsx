@@ -21,6 +21,14 @@ const Index = () => {
             Go to Dashboard
           </Button>
           <Button 
+            onClick={() => navigate('/combined-assets')} 
+            variant="outline" 
+            className="w-full"
+            size="lg"
+          >
+            Combined Assets
+          </Button>
+          <Button 
             onClick={() => navigate('/tools')} 
             variant="outline" 
             className="w-full"

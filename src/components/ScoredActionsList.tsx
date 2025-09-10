@@ -204,7 +204,10 @@ export function ScoredActionsList({ scoredActions, isLoading }: ScoredActionsLis
                 </div>
               </div>
 
-              {scoredAction.likely_root_causes && scoredAction.likely_root_causes.length > 0 && (
+              {scoredAction.likely_root_causes && 
+               scoredAction.likely_root_causes.length > 0 && 
+               (scoredAction.score_attribution_type === 'issue_reporter' || 
+                scoredAction.score_attribution_type === 'issue_responsible') && (
                 <div className="mt-3 pt-2 border-t">
                   <div className="text-xs text-muted-foreground mb-1">Root Causes:</div>
                   <div className="flex flex-wrap gap-1">

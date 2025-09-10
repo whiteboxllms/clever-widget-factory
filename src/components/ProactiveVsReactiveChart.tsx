@@ -160,7 +160,7 @@ export function ProactiveVsReactiveChart({ data, isLoading, onDayClick }: Proact
       <CardContent className="space-y-4">
         <div className="flex gap-4">
           {/* Chart */}
-          <div className="flex-1 h-64">
+          <div className="flex-1 h-48">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart
                 data={data}
@@ -173,7 +173,7 @@ export function ProactiveVsReactiveChart({ data, isLoading, onDayClick }: Proact
                   interval={0}
                   angle={-45}
                   textAnchor="end"
-                  height={100}
+                  height={40}
                 />
                 {/* Left Y-axis for percentages */}
                 <YAxis 

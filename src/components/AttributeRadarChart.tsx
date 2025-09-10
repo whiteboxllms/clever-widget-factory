@@ -20,20 +20,23 @@ const convertToAttributeKey = (displayName: string): string => {
 };
 
 // Function to map organization values to strategic attribute keys
+// This mapping must match exactly with mapScoredAttributeToStrategic in useEnhancedStrategicAttributes
 const mapOrgValueToAttributeKey = (orgValue: string): string => {
   const mapping: Record<string, string> = {
-    'Growth Mindset': 'growth_mindset',
-    'Root Cause Problem Solving': 'root_cause_problem_solving', 
-    'Teamwork': 'teamwork',
     'Quality': 'quality',
-    'Proactive Documentation': 'proactive_documentation',
-    'Safety Focus': 'safety_focus',
     'Efficiency': 'efficiency',
+    'Safety Focus': 'safety_focus',
+    'Teamwork and Transparent Communication': 'teamwork',
+    'Root Cause Problem Solving': 'root_cause_problem_solving',
+    'Proactive Documentation': 'proactive_documentation',
     'Asset Stewardship': 'asset_stewardship',
     'Financial Impact': 'financial_impact',
     'Energy & Morale Impact': 'energy_morale_impact',
-    'Energy and Morale Impact': 'energy_morale_impact'
+    'Growth Mindset': 'growth_mindset'
   };
+  
+  // Debug logging
+  console.log('Mapping organization value:', orgValue, 'to attribute key:', mapping[orgValue]);
   
   return mapping[orgValue] || convertToAttributeKey(orgValue);
 };
@@ -53,27 +56,46 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
 
   // Process data for radar chart
   const radarData = useMemo(() => {
-    if (!orgValues.length || !actionAnalytics.length) return [];
+    console.log('=== Radar Chart Debug ===');
+    console.log('Organization values:', orgValues);
+    console.log('Action analytics:', actionAnalytics);
+    console.log('Selected users:', selectedUsers);
+    
+    if (!orgValues.length || !actionAnalytics.length) {
+      console.log('Missing org values or action analytics');
+      return [];
+    }
 
     // Filter analytics for selected users
     const selectedAnalytics = actionAnalytics.filter(user => 
       selectedUsers.includes(user.userId)
     );
+    
+    console.log('Selected analytics:', selectedAnalytics);
 
-    if (!selectedAnalytics.length) return [];
+    if (!selectedAnalytics.length) {
+      console.log('No selected analytics found');
+      return [];
+    }
 
     // Create radar chart data points for each organization value
-    return orgValues.map(orgValue => {
+    const data = orgValues.map(orgValue => {
       const attributeKey = mapOrgValueToAttributeKey(orgValue);
       
       // Calculate average score for this attribute across selected users
       const scores = selectedAnalytics
-        .map(user => user.attributes[attributeKey as keyof typeof user.attributes])
+        .map(user => {
+          const score = user.attributes[attributeKey as keyof typeof user.attributes];
+          console.log(`User ${user.userName} - ${attributeKey}: ${score}`);
+          return score;
+        })
         .filter(score => score !== undefined && score !== null);
       
       const avgScore = scores.length > 0 
         ? scores.reduce((sum, score) => sum + score, 0) / scores.length 
         : 2; // Default to middle value
+
+      console.log(`${orgValue} (${attributeKey}): scores=[${scores}], avg=${avgScore}`);
 
       return {
         attribute: orgValue,
@@ -81,6 +103,11 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
         fullMark: 4
       };
     });
+    
+    console.log('Final radar data:', data);
+    console.log('=== End Radar Chart Debug ===');
+    
+    return data;
   }, [orgValues, actionAnalytics, selectedUsers]);
 
   // Get user names for legend

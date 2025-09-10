@@ -132,7 +132,9 @@ export const CombinedAssetsContainer = () => {
       // Low stock filter
       if (showLowStock) {
         if (asset.type !== 'stock') return false;
-        const isLowStock = asset.minimum_quantity && asset.current_quantity && asset.current_quantity <= asset.minimum_quantity;
+        const isLowStock = asset.minimum_quantity !== null && 
+                          asset.minimum_quantity > 0 && 
+                          asset.current_quantity < asset.minimum_quantity;
         if (!isLowStock) return false;
       }
 

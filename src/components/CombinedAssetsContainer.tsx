@@ -485,10 +485,20 @@ export const CombinedAssetsContainer = () => {
       )}
 
       {/* Edit Stock Item Dialog */}
-      {selectedAsset && selectedAsset.type === 'stock' && showEditDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold mb-4">Edit Stock Item</h2>
+      {selectedAsset && selectedAsset.type === 'stock' && (
+        <Dialog open={showEditDialog} onOpenChange={(open) => {
+          if (!open) {
+            setShowEditDialog(false);
+            setSelectedAsset(null);
+          }
+        }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Stock Item</DialogTitle>
+              <DialogDescription>
+                Update the details for this stock item.
+              </DialogDescription>
+            </DialogHeader>
             <InventoryItemForm
               initialData={{
                 name: selectedAsset.name || '',
@@ -514,8 +524,8 @@ export const CombinedAssetsContainer = () => {
               isLoading={false}
               submitButtonText="Update Stock Item"
             />
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* View Asset Dialog */}

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { useOrganizationId } from '@/hooks/useOrganizationId';
 
 export interface CombinedAsset {
   id: string;
@@ -28,16 +28,27 @@ export interface CombinedAsset {
   updated_at: string;
 }
 
-export const useCombinedAssets = (showRemovedItems: boolean = false) => {
+export const useCombinedAssets = (showRemovedItems: boolean = false, searchQuery: string = '') => {
   const [assets, setAssets] = useState<CombinedAsset[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const organizationId = useOrganizationId();
 
-  const fetchAssets = async () => {
+  const fetchAssets = useCallback(async (query: string = '') => {
+    if (!organizationId) return;
+    
+    setLoading(true);
     try {
-      setLoading(true);
+      // If no query and haven't searched yet, show empty state
+      if (!query.trim() && !hasSearched) {
+        setAssets([]);
+        setTotalCount(0);
+        setLoading(false);
+        return;
+      }
 
-      // Fetch tools (assets)
+      // Build base query for tools with search
       let toolsQuery = supabase
         .from('tools')
         .select(`
@@ -52,42 +63,74 @@ export const useCombinedAssets = (showRemovedItems: boolean = false) => {
           legacy_storage_vicinity,
           created_at,
           updated_at
-        `);
-      
+        `)
+        .eq('organization_id', organizationId);
+
+      // Build base query for parts with search  
+      let partsQuery = supabase
+        .from('parts')
+        .select(`
+          id,
+          name,
+          description,
+          category,
+          current_quantity,
+          minimum_quantity,
+          unit,
+          image_url,
+          storage_location,
+          legacy_storage_vicinity,
+          created_at,
+          updated_at
+        `)
+        .eq('organization_id', organizationId);
+
+      // Apply search filters if query exists
+      if (query.trim()) {
+        toolsQuery = toolsQuery.or(`name.ilike.%${query}%,serial_number.ilike.%${query}%,description.ilike.%${query}%,storage_location.ilike.%${query}%`);
+        partsQuery = partsQuery.or(`name.ilike.%${query}%,description.ilike.%${query}%,storage_location.ilike.%${query}%`);
+      }
+
+      // Apply removal filter
       if (!showRemovedItems) {
         toolsQuery = toolsQuery.neq('status', 'removed');
       }
 
-      // Fetch parts (stock)
+      // Limit results for better performance
+      toolsQuery = toolsQuery.limit(50);
+      partsQuery = partsQuery.limit(50);
+
+      // Fetch tools and parts concurrently
       const [toolsResponse, partsResponse] = await Promise.all([
         toolsQuery.order('name'),
-        supabase
-          .from('parts')
-          .select(`
-            id,
-            name,
-            description,
-            category,
-            current_quantity,
-            minimum_quantity,
-            unit,
-            image_url,
-            storage_location,
-            legacy_storage_vicinity,
-            created_at,
-            updated_at
-          `)
-          .order('name')
+        partsQuery.order('name')
       ]);
 
       if (toolsResponse.error) throw toolsResponse.error;
       if (partsResponse.error) throw partsResponse.error;
 
-      // Fetch active checkouts for tools
-      const { data: checkoutsData, error: checkoutsError } = await supabase
-        .from('checkouts')
-        .select('tool_id, user_name, user_id')
-        .eq('is_returned', false);
+      const tools = toolsResponse.data || [];
+      const parts = partsResponse.data || [];
+
+      // Only fetch additional data if we have results
+      if (tools.length === 0 && parts.length === 0) {
+        setAssets([]);
+        setTotalCount(0);
+        setLoading(false);
+        return;
+      }
+
+      // Get tool IDs for fetching checkouts and issues
+      const toolIds = tools.map(tool => tool.id);
+
+      // Fetch checkouts only for returned tools
+      const { data: checkoutsData, error: checkoutsError } = toolIds.length > 0
+        ? await supabase
+            .from('checkouts')
+            .select('tool_id, user_name, user_id')
+            .eq('is_returned', false)
+            .in('tool_id', toolIds)
+        : { data: [], error: null };
 
       if (checkoutsError) {
         console.error('Error fetching checkouts:', checkoutsError);
@@ -99,12 +142,16 @@ export const useCombinedAssets = (showRemovedItems: boolean = false) => {
         checkoutMap.set(checkout.tool_id, { user_name: checkout.user_name, user_id: checkout.user_id });
       });
 
-      // Fetch tools with issues
-      const { data: issuesData, error: issuesError } = await supabase
-        .from('issues')
-        .select('context_id')
-        .eq('context_type', 'tool')
-        .eq('status', 'active');
+      // Fetch issues only for returned tools and parts
+      const allIds = [...toolIds, ...parts.map(part => part.id)];
+      
+      const { data: issuesData, error: issuesError } = allIds.length > 0
+        ? await supabase
+            .from('issues')
+            .select('context_id')
+            .eq('status', 'active')
+            .in('context_id', allIds)
+        : { data: [], error: null };
 
       if (issuesError) {
         console.error('Error fetching issues:', issuesError);
@@ -115,111 +162,156 @@ export const useCombinedAssets = (showRemovedItems: boolean = false) => {
       // Transform and combine data
       const transformedAssets: CombinedAsset[] = [
         // Transform tools to assets
-        ...(toolsResponse.data || []).map(tool => {
+        ...tools.map(tool => {
           const checkout = checkoutMap.get(tool.id);
           return {
-            ...tool,
+            id: tool.id,
+            name: tool.name,
+            description: tool.description,
+            category: tool.category,
             type: 'asset' as const,
-            has_issues: toolsWithIssues.has(tool.id),
-            is_checked_out: checkoutMap.has(tool.id),
+            status: tool.status as CombinedAsset['status'],
+            serial_number: tool.serial_number,
+            image_url: tool.image_url,
+            storage_location: tool.storage_location,
+            legacy_storage_vicinity: tool.legacy_storage_vicinity,
+            created_at: tool.created_at,
+            updated_at: tool.updated_at,
+            is_checked_out: !!checkout,
             checked_out_to: checkout?.user_name,
-            checked_out_user_id: checkout?.user_id
+            checked_out_user_id: checkout?.user_id,
+            has_issues: toolsWithIssues.has(tool.id),
+            current_quantity: null,
+            minimum_quantity: null,
+            unit: null
           };
         }),
         // Transform parts to stock
-        ...(partsResponse.data || []).map(part => ({
-          ...part,
+        ...parts.map(part => ({
+          id: part.id,
+          name: part.name,
+          description: part.description,
+          category: part.category,
           type: 'stock' as const,
-          has_issues: false,
-          is_checked_out: false
+          status: 'available' as const,
+          serial_number: null,
+          image_url: part.image_url,
+          storage_location: part.storage_location,
+          legacy_storage_vicinity: part.legacy_storage_vicinity,
+          created_at: part.created_at,
+          updated_at: part.updated_at,
+          is_checked_out: false,
+          checked_out_to: null,
+          checked_out_user_id: null,
+          has_issues: toolsWithIssues.has(part.id),
+          current_quantity: part.current_quantity,
+          minimum_quantity: part.minimum_quantity,
+          unit: part.unit
         }))
       ];
 
       setAssets(transformedAssets);
+      setTotalCount(transformedAssets.length);
+      
+      if (query.trim()) {
+        setHasSearched(true);
+      }
     } catch (error) {
-      console.error('Error fetching combined assets:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load assets",
-        variant: "destructive"
-      });
+      console.error('Error fetching assets:', error);
+      setAssets([]);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
-  };
+  }, [organizationId, showRemovedItems]);
+
+  const searchAssets = useCallback(async (query: string) => {
+    await fetchAssets(query);
+  }, [fetchAssets]);
+
+  const resetSearch = useCallback(() => {
+    setAssets([]);
+    setTotalCount(0);
+    setHasSearched(false);
+  }, []);
+
+  // Only auto-fetch if there's a search query
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      fetchAssets(searchQuery);
+    }
+  }, [searchQuery, showRemovedItems, fetchAssets]);
+
+  const refetch = useCallback(() => {
+    if (hasSearched || searchQuery.trim()) {
+      return fetchAssets(searchQuery);
+    }
+  }, [fetchAssets, hasSearched, searchQuery]);
 
   const createAsset = async (assetData: any, isAsset: boolean) => {
     try {
-      const table = isAsset ? 'tools' : 'parts';
-      const { data, error } = await supabase
-        .from(table)
-        .insert(assetData)
-        .select()
-        .single();
-
-      if (error) {
-        console.error(`Supabase error creating ${table}:`, error);
-        throw error;
+      if (isAsset) {
+        const { data, error } = await supabase
+          .from('tools')
+          .insert([assetData])
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data;
+      } else {
+        const { data, error } = await supabase
+          .from('parts')
+          .insert([assetData])
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data;
       }
-
-      // Add to local state
-      const newAsset: CombinedAsset = {
-        ...data,
-        type: isAsset ? 'asset' : 'stock',
-        has_issues: false,
-        is_checked_out: false
-      };
-      
-      setAssets(prev => [...prev, newAsset]);
-      return data;
     } catch (error) {
-      console.error(`Error creating ${isAsset ? 'asset' : 'stock item'}:`, error);
-      toast({
-        title: "Error",
-        description: `Failed to create ${isAsset ? 'asset' : 'stock item'}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive"
-      });
-      return null;
+      console.error('Error creating asset:', error);
+      throw error;
     }
   };
 
   const updateAsset = async (assetId: string, updates: any, isAsset: boolean) => {
     try {
       const table = isAsset ? 'tools' : 'parts';
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from(table)
         .update(updates)
-        .eq('id', assetId);
-
+        .eq('id', assetId)
+        .select()
+        .single();
+      
       if (error) throw error;
-
+      
       // Update local state
-      setAssets(prev => prev.map(asset => 
-        asset.id === assetId ? { ...asset, ...updates } : asset
-      ));
-
-      return true;
+      setAssets(prevAssets => 
+        prevAssets.map(asset => 
+          asset.id === assetId 
+            ? { ...asset, ...updates, updated_at: new Date().toISOString() }
+            : asset
+        )
+      );
+      
+      return data;
     } catch (error) {
-      console.error(`Error updating ${isAsset ? 'asset' : 'stock item'}:`, error);
-      toast({
-        title: "Error",
-        description: `Failed to update ${isAsset ? 'asset' : 'stock item'}`,
-        variant: "destructive"
-      });
-      return false;
+      console.error('Error updating asset:', error);
+      throw error;
     }
   };
 
-  useEffect(() => {
-    fetchAssets();
-  }, [showRemovedItems]);
-
-  return {
-    assets,
-    loading,
-    fetchAssets,
-    createAsset,
-    updateAsset,
-    refetch: fetchAssets
+  return { 
+    assets, 
+    loading, 
+    hasSearched,
+    totalCount,
+    searchAssets,
+    resetSearch,
+    createAsset, 
+    updateAsset, 
+    refetch 
   };
 };

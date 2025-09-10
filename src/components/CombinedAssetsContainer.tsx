@@ -1,33 +1,34 @@
-import { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Plus } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Plus } from "lucide-react";
 import { CombinedAssetFilters } from "./CombinedAssetFilters";
 import { CombinedAssetGrid } from "./CombinedAssetGrid";
 import { CombinedAssetDialog } from "./CombinedAssetDialog";
 import { ToolCheckoutDialog } from "./ToolCheckoutDialog";
 import { ToolCheckInDialog } from "./ToolCheckInDialog";
 import { IssueReportDialog } from "./IssueReportDialog";
-import { CreateIssueDialog } from "./CreateIssueDialog";
-import { ToolRemovalDialog } from "./tools/ToolRemovalDialog";
 import { EditToolForm } from "./tools/forms/EditToolForm";
 import { InventoryItemForm } from "./InventoryItemForm";
-import { ToolDetails } from "./tools/ToolDetails";
-import { StockDetails } from "./StockDetails";
 import { OrderDialog } from "./OrderDialog";
 import { ReceivingDialog } from "./ReceivingDialog";
-import { useCombinedAssets, CombinedAsset } from "@/hooks/useCombinedAssets";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ToolDetails } from "./tools/ToolDetails";
+import { StockDetails } from "./StockDetails";
+import { SearchPrompt } from "./SearchPrompt";
+import { useCombinedAssets } from "@/hooks/useCombinedAssets";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useToast } from "@/hooks/use-toast";
 import { useToolHistory } from "@/hooks/tools/useToolHistory";
 import { useToolIssues } from "@/hooks/useToolIssues";
 import { useInventoryIssues } from "@/hooks/useGenericIssues";
-import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { supabase } from "@/integrations/supabase/client";
+import type { CombinedAsset } from "@/hooks/useCombinedAssets";
 
 export const CombinedAssetsContainer = () => {
   const navigate = useNavigate();
@@ -35,12 +36,15 @@ export const CombinedAssetsContainer = () => {
   const { toast } = useToast();
   const organizationId = useOrganizationId();
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [showMyCheckedOut, setShowMyCheckedOut] = useState(false);
   const [showWithIssues, setShowWithIssues] = useState(false);
   const [showLowStock, setShowLowStock] = useState(false);
   const [showOnlyAssets, setShowOnlyAssets] = useState(false);
   const [showOnlyStock, setShowOnlyStock] = useState(false);
   const [showRemovedItems, setShowRemovedItems] = useState(false);
+  
+  // Dialog states
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
   const [showCheckinDialog, setShowCheckinDialog] = useState(false);
@@ -48,25 +52,36 @@ export const CombinedAssetsContainer = () => {
   const [showRemovalDialog, setShowRemovalDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showViewDialog, setShowViewDialog] = useState(false);
-  const [selectedAsset, setSelectedAsset] = useState<CombinedAsset | null>(null);
-  const [selectedAssetForDetails, setSelectedAssetForDetails] = useState<CombinedAsset | null>(null);
-  
-  // Stock dialog states
   const [showQuantityDialog, setShowQuantityDialog] = useState(false);
-  const [quantityOperation, setQuantityOperation] = useState<'add' | 'remove'>('add');
   const [showOrderDialog, setShowOrderDialog] = useState(false);
   const [showReceivingDialog, setShowReceivingDialog] = useState(false);
-  const [pendingOrders, setPendingOrders] = useState<Record<string, any[]>>({});
-  const [quantityChange, setQuantityChange] = useState({
-    amount: '',
-    reason: '',
-    supplierName: '',
-    supplierUrl: ''
-  });
-
-  const { assets, loading, createAsset, updateAsset, refetch } = useCombinedAssets(showRemovedItems);
   
-  // Tool history and issues for view dialog
+  // Selected asset states
+  const [selectedAsset, setSelectedAsset] = useState<CombinedAsset | null>(null);
+  const [selectedAssetForDetails, setSelectedAssetForDetails] = useState<CombinedAsset | null>(null);
+  const [quantityChangeDetails, setQuantityChangeDetails] = useState<{
+    type: 'add' | 'remove';
+    quantity: number;
+    reason: string;
+  }>({ type: 'add', quantity: 0, reason: '' });
+  
+  // Pending orders state
+  const [pendingOrders, setPendingOrders] = useState<Record<string, any[]>>({});
+
+  // Use the search-first assets hook
+  const { 
+    assets, 
+    loading, 
+    hasSearched, 
+    totalCount, 
+    searchAssets, 
+    resetSearch, 
+    createAsset, 
+    updateAsset, 
+    refetch 
+  } = useCombinedAssets(showRemovedItems, debouncedSearchTerm);
+
+  // Tool history and issues hooks
   const { toolHistory, currentCheckout, fetchToolHistory } = useToolHistory();
   const { issues: assetIssues, fetchIssues: fetchAssetIssues } = useToolIssues(
     selectedAssetForDetails?.type === 'asset' ? selectedAssetForDetails.id : null
@@ -108,16 +123,22 @@ export const CombinedAssetsContainer = () => {
     fetchPendingOrders();
   }, []);
 
-  // Filter assets based on current filters
-  const filteredAssets = useMemo(() => {
-    return assets.filter(asset => {
-      // Search filter
-      const matchesSearch = 
-        asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (asset.serial_number && asset.serial_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (asset.description && asset.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (asset.storage_location && asset.storage_location.toLowerCase().includes(searchTerm.toLowerCase()));
+  // Trigger search when debounced search term changes
+  useEffect(() => {
+    if (debouncedSearchTerm.trim()) {
+      searchAssets(debouncedSearchTerm);
+    } else if (hasSearched) {
+      resetSearch();
+    }
+  }, [debouncedSearchTerm, searchAssets, resetSearch, hasSearched]);
 
+  // Apply client-side filters to assets (now that we have search results)
+  const filteredAssets = useMemo(() => {
+    if (!hasSearched && !debouncedSearchTerm.trim()) {
+      return [];
+    }
+
+    return assets.filter(asset => {
       // Type filters
       if (showOnlyAssets && asset.type !== 'asset') return false;
       if (showOnlyStock && asset.type !== 'stock') return false;
@@ -137,9 +158,9 @@ export const CombinedAssetsContainer = () => {
         if (!isLowStock) return false;
       }
 
-      return matchesSearch;
+      return true;
     });
-  }, [assets, searchTerm, showOnlyAssets, showOnlyStock, showMyCheckedOut, showWithIssues, showLowStock, user?.email]);
+  }, [assets, showOnlyAssets, showOnlyStock, showMyCheckedOut, showWithIssues, showLowStock, user?.id, hasSearched, debouncedSearchTerm]);
 
   const handleCreateAsset = async (assetData: any, isAsset: boolean) => {
     const result = await createAsset(assetData, isAsset);
@@ -151,6 +172,7 @@ export const CombinedAssetsContainer = () => {
 
   const handleView = (asset: CombinedAsset) => {
     setSelectedAsset(asset);
+    setSelectedAssetForDetails(asset);
     setShowViewDialog(true);
     // Fetch additional data for view dialog if it's an asset
     if (asset.type === 'asset') {
@@ -184,66 +206,26 @@ export const CombinedAssetsContainer = () => {
     setShowIssueDialog(true);
   };
 
-  const handleShowAssetDetails = (asset: CombinedAsset) => {
-    // This should behave like clicking on the asset card - go to detail view
-    setSelectedAssetForDetails(asset);
-    if (asset.type === 'asset') {
-      fetchToolHistory(asset.id);
-      fetchAssetIssues();
-    } else {
-      fetchStockIssues();
-    }
-  };
-
-  const handleBackToAssets = () => {
-    setSelectedAssetForDetails(null);
-  };
-
-  // Stock quantity handlers
-  const handleAddQuantity = (asset: CombinedAsset) => {
+  const handleQuantityChange = (asset: CombinedAsset, type: 'add' | 'remove') => {
     setSelectedAsset(asset);
-    setQuantityOperation('add');
+    setQuantityChangeDetails({ type, quantity: 0, reason: '' });
     setShowQuantityDialog(true);
   };
 
-  const handleUseQuantity = (asset: CombinedAsset) => {
-    setSelectedAsset(asset);
-    setQuantityOperation('remove');
-    setShowQuantityDialog(true);
-  };
-
-  const handleOrderStock = (asset: CombinedAsset) => {
+  const handleOrder = (asset: CombinedAsset) => {
     setSelectedAsset(asset);
     setShowOrderDialog(true);
   };
 
-  const handleReceiveOrder = (asset: CombinedAsset) => {
-    const orders = pendingOrders[asset.id];
-    if (orders && orders.length > 0) {
-      setSelectedAsset(asset);
-      setShowReceivingDialog(true);
-    }
-  };
-
-  // Quantity update handler for stock items
-  const updateQuantity = async () => {
-    if (!selectedAsset || !quantityChange.amount || !user) return;
+  const updateQuantity = async (type: 'add' | 'remove', quantity: number, reason: string) => {
+    if (!selectedAsset || selectedAsset.type !== 'stock') return false;
 
     try {
-      const change = parseFloat(quantityChange.amount);
-      const currentQty = selectedAsset.current_quantity || 0;
-      const newQuantity = quantityOperation === 'add' ? currentQty + change : currentQty - change;
+      const currentQuantity = selectedAsset.current_quantity || 0;
+      const change = type === 'add' ? quantity : -quantity;
+      const newQuantity = Math.max(0, currentQuantity + change);
 
-      if (newQuantity < 0) {
-        toast({
-          title: "Error",
-          description: "Quantity cannot be negative",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Update the parts table
+      // Update the part quantity
       const { error } = await supabase
         .from('parts')
         .update({ current_quantity: newQuantity })
@@ -251,601 +233,344 @@ export const CombinedAssetsContainer = () => {
 
       if (error) throw error;
 
-      // Log the change to history
-      try {
-        const { error: historyError } = await supabase
-          .from('parts_history')
-          .insert([{
-            part_id: selectedAsset.id,
-            change_type: quantityOperation,
-            old_quantity: currentQty,
-            new_quantity: newQuantity,
-            quantity_change: quantityOperation === 'add' ? change : -change,
-            changed_by: user.id,
-            change_reason: quantityChange.reason || `Quantity ${quantityOperation}ed`,
-            supplier_name: quantityChange.supplierName || null,
-            supplier_url: quantityChange.supplierUrl || null,
-            organization_id: organizationId
-          }]);
+      // Log the change in parts_history
+      const { error: historyError } = await supabase
+        .from('parts_history')
+        .insert({
+          part_id: selectedAsset.id,
+          old_quantity: currentQuantity,
+          new_quantity: newQuantity,
+          quantity_change: change,
+          change_type: type === 'add' ? 'manual_add' : 'manual_remove',
+          change_reason: reason,
+          changed_by: user?.id,
+          organization_id: organizationId
+        });
 
-        if (historyError) {
-          console.error('Error logging history:', historyError);
-        }
-      } catch (historyError) {
-        console.error('History logging failed:', historyError);
-      }
+      if (historyError) throw historyError;
 
       toast({
         title: "Success",
-        description: `Quantity ${quantityOperation === 'add' ? 'increased' : 'decreased'} successfully`,
+        description: `Quantity ${type === 'add' ? 'added' : 'removed'} successfully`,
       });
 
-      setShowQuantityDialog(false);
-      setSelectedAsset(null);
-      setQuantityChange({ amount: '', reason: '', supplierName: '', supplierUrl: '' });
-      refetch();
+      await refetch();
+      return true;
     } catch (error) {
       console.error('Error updating quantity:', error);
       toast({
         title: "Error",
         description: "Failed to update quantity",
-        variant: "destructive",
+        variant: "destructive"
       });
+      return false;
     }
   };
 
-  const handleConfirmRemoval = async (reason: string, notes: string) => {
-    if (!selectedAsset) return;
+  const handleConfirmRemoval = async (assetId: string, reason: string) => {
+    if (!selectedAsset) return false;
 
     try {
-      const table = selectedAsset.type === 'asset' ? 'tools' : 'parts';
-      
       if (selectedAsset.type === 'asset') {
-        // For assets, set status to 'removed'
         const { error } = await supabase
           .from('tools')
-          .update({ status: 'removed' })
-          .eq('id', selectedAsset.id);
+          .update({ 
+            status: 'removed',
+            notes: reason 
+          })
+          .eq('id', assetId);
 
         if (error) throw error;
       } else {
-        // For stock items, you might want to delete or set a removed flag
-        // For now, we'll just show a message since parts table might not have status
-        toast({
-          title: "Feature Coming Soon",
-          description: "Stock item removal will be available soon.",
-        });
-        setShowRemovalDialog(false);
-        return;
+        // For stock items, we might handle removal differently
+        const { error } = await supabase
+          .from('parts')
+          .update({ 
+            current_quantity: 0,
+            description: `${selectedAsset.description || ''} [REMOVED: ${reason}]`.trim()
+          })
+          .eq('id', assetId);
+
+        if (error) throw error;
       }
 
-      await refetch();
-      setShowRemovalDialog(false);
-      setSelectedAsset(null);
-      
       toast({
         title: "Success",
-        description: `${selectedAsset.type === 'asset' ? 'Asset' : 'Stock item'} removed successfully`,
+        description: "Item removed successfully",
       });
+
+      await refetch();
+      return true;
     } catch (error) {
-      console.error('Error removing item:', error);
+      console.error('Error removing asset:', error);
       toast({
         title: "Error",
-        description: `Failed to remove ${selectedAsset.type === 'asset' ? 'asset' : 'stock item'}`,
+        description: "Failed to remove item",
         variant: "destructive"
       });
+      return false;
     }
   };
 
-  const handleEditSubmit = async (toolId: string, toolData: any) => {
-    if (!selectedAsset) return;
-
-    try {
-      await updateAsset(toolId, toolData, selectedAsset.type === 'asset');
+  const handleEditSubmit = async (assetId: string, updates: any) => {
+    const result = await updateAsset(assetId, updates, true);
+    if (result) {
       await refetch();
-      setShowEditDialog(false);
-      setSelectedAsset(null);
-      toast({
-        title: "Success",
-        description: `${selectedAsset.type === 'asset' ? 'Asset' : 'Stock item'} updated successfully`,
-      });
-    } catch (error) {
-      console.error('Error updating item:', error);
-      toast({
-        title: "Error",
-        description: `Failed to update ${selectedAsset.type === 'asset' ? 'asset' : 'stock item'}`,
-        variant: "destructive"
-      });
     }
+    return result;
   };
 
-  // Reuse the exact data conversion logic from the original Inventory page
-  const handleStockEditSubmit = async (formData: any, useMinimumQuantity: boolean) => {
-    if (!selectedAsset || selectedAsset.type !== 'stock') return;
-
-    try {
-      // Same data conversion as original Inventory page updatePart function
-      const updateData = {
-        name: formData.name,
-        description: formData.description,
-        current_quantity: formData.current_quantity,
-        minimum_quantity: useMinimumQuantity ? formData.minimum_quantity : null,
-        cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
-        unit: formData.unit,
-        storage_vicinity: formData.storage_vicinity,
-        storage_location: formData.storage_location,
-        image_url: formData.image_url
-      };
-
-      await updateAsset(selectedAsset.id, updateData, false);
+  const handleStockEditSubmit = async (partId: string, updates: any) => {
+    const result = await updateAsset(partId, updates, false);
+    if (result) {
       await refetch();
-      setShowEditDialog(false);
-      setSelectedAsset(null);
-      toast({
-        title: "Success",
-        description: "Stock item updated successfully",
-      });
-    } catch (error) {
-      console.error('Error updating stock item:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update stock item",
-        variant: "destructive"
-      });
     }
+    return result;
   };
 
-  if (loading) {
+  if (loading && hasSearched) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="text-center py-8">Loading combined assets...</div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
 
-  // Show asset detail view if selectedAssetForDetails is set
-  if (selectedAssetForDetails) {
-    if (selectedAssetForDetails.type === 'asset') {
-      return (
-        <ToolDetails
-          tool={selectedAssetForDetails as any}
-          toolHistory={toolHistory}
-          currentCheckout={null} // TODO: Add current checkout logic if needed
-          issues={issues}
-          onBack={handleBackToAssets}
-          onResolveIssue={(issue) => {
-            // Handle issue resolution
-          }}
-          onEditIssue={(issue) => {
-            // Handle issue editing
-          }}
-          onRefresh={() => {
-            fetchToolHistory(selectedAssetForDetails.id);
-          }}
-        />
-      );
-    } else if (selectedAssetForDetails.type === 'stock') {
-      return (
-        <StockDetails
-          stock={selectedAssetForDetails as any}
-          stockHistory={[]} // TODO: Add stock history hook
-          issues={issues}
-          onBack={handleBackToAssets}
-          onResolveIssue={(issue) => {
-            // Handle issue resolution
-          }}
-          onEditIssue={(issue) => {
-            // Handle issue editing
-          }}
-          onRefresh={() => {
-            // Refresh stock data
-          }}
-        />
-      );
-    }
+  // Show detailed view if an asset is selected
+  if (selectedAssetForDetails && showViewDialog) {
+    return selectedAssetForDetails.type === 'asset' ? (
+      <ToolDetails
+        tool={selectedAssetForDetails as any}
+        onBack={() => setShowViewDialog(false)}
+        toolHistory={toolHistory}
+        currentCheckout={currentCheckout}
+        issues={issues}
+        onCheckout={() => {
+          setShowViewDialog(false);
+          handleCheckout(selectedAssetForDetails);
+        }}
+        onCheckin={() => {
+          setShowViewDialog(false);
+          handleCheckin(selectedAssetForDetails);
+        }}
+        onEdit={() => {
+          setShowViewDialog(false);
+          handleEdit(selectedAssetForDetails);
+        }}
+        onReportIssue={() => {
+          setShowViewDialog(false);
+          handleManageIssues(selectedAssetForDetails);
+        }}
+        onRemove={() => {
+          setShowViewDialog(false);
+          handleRemove(selectedAssetForDetails);
+        }}
+        canEdit={canEditTools}
+        isAdmin={isAdmin}
+      />
+    ) : (
+      <StockDetails
+        part={selectedAssetForDetails as any}
+        onBack={() => setShowViewDialog(false)}
+        issues={issues}
+        onEdit={() => {
+          setShowViewDialog(false);
+          handleEdit(selectedAssetForDetails);
+        }}
+        onReportIssue={() => {
+          setShowViewDialog(false);
+          handleManageIssues(selectedAssetForDetails);
+        }}
+        onQuantityChange={(type) => {
+          setShowViewDialog(false);
+          handleQuantityChange(selectedAssetForDetails, type);
+        }}
+        onOrder={() => {
+          setShowViewDialog(false);
+          handleOrder(selectedAssetForDetails);
+        }}
+        canEdit={canEditTools}
+        isAdmin={isAdmin}
+        pendingOrders={pendingOrders[selectedAssetForDetails.id] || []}
+      />
+    );
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="outline" onClick={() => navigate('/dashboard')}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Dashboard
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold">Combined Assets</h1>
-          <p className="text-muted-foreground">
-            {filteredAssets.length} items ({assets.filter(a => a.type === 'asset').length} assets, {assets.filter(a => a.type === 'stock').length} stock items)
-          </p>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <CombinedAssetFilters
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        showMyCheckedOut={showMyCheckedOut}
-        setShowMyCheckedOut={setShowMyCheckedOut}
-        showWithIssues={showWithIssues}
-        setShowWithIssues={setShowWithIssues}
-        showLowStock={showLowStock}
-        setShowLowStock={setShowLowStock}
-        showOnlyAssets={showOnlyAssets}
-        setShowOnlyAssets={setShowOnlyAssets}
-        showOnlyStock={showOnlyStock}
-        setShowOnlyStock={setShowOnlyStock}
-        showRemovedItems={showRemovedItems}
-        setShowRemovedItems={setShowRemovedItems}
-        actionButton={
+    <div className="container mx-auto px-4 py-6 space-y-6">
+      {/* Main Content */}
+      <div className="flex-1 space-y-6">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Combined Assets</h1>
+            <p className="text-muted-foreground">
+              {hasSearched || debouncedSearchTerm.trim() 
+                ? `Found ${filteredAssets.length} item${filteredAssets.length !== 1 ? 's' : ''}`
+                : "Search to find tools and inventory items"
+              }
+            </p>
+          </div>
+          
           <Button onClick={() => setShowAddDialog(true)}>
             <Plus className="w-4 h-4 mr-2" />
-            Add Asset/Stock
+            Add Item
           </Button>
-        }
-      />
+        </div>
 
-      {/* Assets Grid */}
-      <CombinedAssetGrid
-        assets={filteredAssets}
-        canEdit={canEditTools}
-        isAdmin={isAdmin}
-        currentUserId={user?.id}
-        currentUserEmail={user?.email}
-            onView={handleShowAssetDetails}
+        {/* Filters - only show when we have results or are searching */}
+        {(hasSearched || debouncedSearchTerm.trim()) && (
+          <CombinedAssetFilters
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            showMyCheckedOut={showMyCheckedOut}
+            setShowMyCheckedOut={setShowMyCheckedOut}
+            showWithIssues={showWithIssues}
+            setShowWithIssues={setShowWithIssues}
+            showLowStock={showLowStock}
+            setShowLowStock={setShowLowStock}
+            showOnlyAssets={showOnlyAssets}
+            setShowOnlyAssets={setShowOnlyAssets}
+            showOnlyStock={showOnlyStock}
+            setShowOnlyStock={setShowOnlyStock}
+            showRemovedItems={showRemovedItems}
+            setShowRemovedItems={setShowRemovedItems}
+          />
+        )}
+
+        {/* Search Prompt or Results */}
+        {!hasSearched && !debouncedSearchTerm.trim() ? (
+          <SearchPrompt 
+            searchTerm={searchTerm}
+            onExampleSearch={setSearchTerm}
+          />
+        ) : loading ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-2 text-muted-foreground">Searching...</p>
+          </div>
+        ) : (
+          <CombinedAssetGrid
+            assets={filteredAssets}
+            onView={handleView}
             onEdit={handleEdit}
             onRemove={handleRemove}
             onCheckout={handleCheckout}
             onCheckin={handleCheckin}
-            onReportIssue={handleManageIssues}
             onManageIssues={handleManageIssues}
-            onAddQuantity={handleAddQuantity}
-            onUseQuantity={handleUseQuantity}
-            onOrderStock={handleOrderStock}
-            onReceiveOrder={handleReceiveOrder}
-        pendingOrders={pendingOrders}
+            canEditTools={canEditTools}
+            isAdmin={isAdmin}
+            pendingOrders={pendingOrders}
+          />
+        )}
+      </div>
+
+      {/* Dialogs */}
+      <ToolCheckoutDialog
+        open={showCheckoutDialog}
+        onOpenChange={setShowCheckoutDialog}
+        tool={selectedAsset?.type === 'asset' ? selectedAsset as any : null}
+        onSuccess={() => refetch()}
       />
 
-      {/* Add Asset Dialog */}
-      <CombinedAssetDialog
-        isOpen={showAddDialog}
-        onClose={() => setShowAddDialog(false)}
-        onSubmit={handleCreateAsset}
+      <ToolCheckInDialog
+        open={showCheckinDialog}
+        onOpenChange={setShowCheckinDialog}
+        tool={selectedAsset?.type === 'asset' ? selectedAsset as any : null}
+        onSuccess={() => refetch()}
       />
 
-      {/* Checkout Dialog */}
-      {selectedAsset && selectedAsset.type === 'asset' && (
-        <ToolCheckoutDialog
-          open={showCheckoutDialog}
-          onOpenChange={() => {
-            setShowCheckoutDialog(false);
-            setSelectedAsset(null);
-          }}
-          tool={selectedAsset as any}
-          onSuccess={() => {
-            refetch();
-            setShowCheckoutDialog(false);
-            setSelectedAsset(null);
-          }}
-        />
-      )}
-
-      {/* Check-in Dialog */}
-      {selectedAsset && selectedAsset.type === 'asset' && (
-        <ToolCheckInDialog
-          open={showCheckinDialog}
-          onOpenChange={() => {
-            setShowCheckinDialog(false);
-            setSelectedAsset(null);
-          }}
-          tool={selectedAsset as any}
-          onSuccess={() => {
-            refetch();
-            setShowCheckinDialog(false);
-            setSelectedAsset(null);
-          }}
-        />
-      )}
-
-      {/* Unified Issue Dialog for both assets and stock */}
-      {selectedAsset && (
-        <IssueReportDialog
-          open={showIssueDialog}
-          onOpenChange={() => {
-            setShowIssueDialog(false);
-            setSelectedAsset(null);
-          }}
-          asset={selectedAsset}
-          onSuccess={() => {
-            refetch();
-            setShowIssueDialog(false);
-            setSelectedAsset(null);
-          }}
-        />
-      )}
-
-      {/* Removal Dialog */}
-      {selectedAsset && selectedAsset.type === 'asset' && (
-        <ToolRemovalDialog
-          open={showRemovalDialog}
-          onOpenChange={() => {
-            setShowRemovalDialog(false);
-            setSelectedAsset(null);
-          }}
-          tool={selectedAsset as any}
-          onConfirm={handleConfirmRemoval}
-        />
-      )}
-
-      {/* Edit Tool Dialog */}
-      {selectedAsset && selectedAsset.type === 'asset' && (
+      {selectedAsset?.type === 'asset' && (
         <EditToolForm
+          open={showEditDialog}
+          onOpenChange={setShowEditDialog}
           tool={selectedAsset as any}
-          isOpen={showEditDialog}
-          onClose={() => {
-            setShowEditDialog(false);
-            setSelectedAsset(null);
-          }}
-          onSubmit={handleEditSubmit}
+          onSuccess={handleEditSubmit}
         />
       )}
 
-      {/* Edit Stock Item Dialog */}
-      {selectedAsset && selectedAsset.type === 'stock' && (
-        <Dialog open={showEditDialog} onOpenChange={(open) => {
-          if (!open) {
-            setShowEditDialog(false);
-            setSelectedAsset(null);
-          }
-        }}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Edit Stock Item</DialogTitle>
-              <DialogDescription>
-                Update the details for this stock item.
-              </DialogDescription>
-            </DialogHeader>
-            <InventoryItemForm
-              initialData={{
-                name: selectedAsset.name || '',
-                description: selectedAsset.description || '',
-                current_quantity: selectedAsset.current_quantity || 0,
-                minimum_quantity: selectedAsset.minimum_quantity || 0,
-                unit: selectedAsset.unit || 'pieces',
-                cost_per_unit: (selectedAsset.cost_per_unit || 0).toString(),
-                cost_evidence_url: selectedAsset.cost_evidence_url || '',
-                storage_vicinity: selectedAsset.storage_vicinity || '',
-                storage_location: selectedAsset.storage_location || ''
-              }}
-              editingPart={selectedAsset as any}
-              selectedImage={null}
-              setSelectedImage={() => {}}
-              onSubmit={handleStockEditSubmit}
-              onCancel={() => {
-                setShowEditDialog(false);
-                setSelectedAsset(null);
-              }}
-              isLoading={false}
-              submitButtonText="Update Stock Item"
-            />
-          </DialogContent>
-        </Dialog>
+      {selectedAsset?.type === 'stock' && (
+        <InventoryItemForm
+          open={showEditDialog}
+          onOpenChange={setShowEditDialog}
+          part={selectedAsset as any}
+          onSuccess={handleStockEditSubmit}
+        />
       )}
 
-      {/* View Asset Dialog */}
-      {selectedAsset && selectedAsset.type === 'asset' && showViewDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background rounded-lg w-full max-w-6xl max-h-[90vh] overflow-y-auto m-4">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">Asset Details</h2>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowViewDialog(false);
-                    setSelectedAsset(null);
-                  }}
-                >
-                  Close
-                </Button>
-              </div>
-              <ToolDetails
-                tool={selectedAsset as any}
-                toolHistory={toolHistory}
-                currentCheckout={currentCheckout}
-                issues={issues}
-                onBack={() => {
-                  setShowViewDialog(false);
-                  setSelectedAsset(null);
-                }}
-                onResolveIssue={() => {}}
-                onEditIssue={() => {}}
-                onRefresh={() => {
-                  if (selectedAsset) {
-                    fetchToolHistory(selectedAsset.id);
-                    fetchAssetIssues();
-                    refetch();
-                  }
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      <OrderDialog
+        open={showOrderDialog}
+        onOpenChange={setShowOrderDialog}
+        part={selectedAsset?.type === 'stock' ? selectedAsset as any : null}
+        onSuccess={() => refetch()}
+      />
 
-      {/* View Stock Item Dialog */}
-      {selectedAsset && selectedAsset.type === 'stock' && showViewDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto m-4">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">Stock Item Details</h2>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowViewDialog(false);
-                    setSelectedAsset(null);
-                  }}
-                >
-                  Close
-                </Button>
-              </div>
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <h3 className="font-medium">Basic Information</h3>
-                    <div className="mt-2 space-y-2 text-sm">
-                      <div><span className="font-medium">Name:</span> {selectedAsset.name}</div>
-                      <div><span className="font-medium">Description:</span> {selectedAsset.description || 'N/A'}</div>
-                      <div><span className="font-medium">Category:</span> {selectedAsset.category || 'N/A'}</div>
-                      <div><span className="font-medium">Unit:</span> {selectedAsset.unit || 'pieces'}</div>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="font-medium">Inventory Information</h3>
-                    <div className="mt-2 space-y-2 text-sm">
-                      <div><span className="font-medium">Current Quantity:</span> {selectedAsset.current_quantity || 0}</div>
-                      <div><span className="font-medium">Minimum Quantity:</span> {selectedAsset.minimum_quantity || 0}</div>
-                      <div><span className="font-medium">Cost per Unit:</span> {selectedAsset.cost_per_unit ? `$${selectedAsset.cost_per_unit}` : 'N/A'}</div>
-                      <div><span className="font-medium">Supplier:</span> {selectedAsset.supplier || 'N/A'}</div>
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <h3 className="font-medium">Storage Information</h3>
-                  <div className="mt-2 space-y-2 text-sm">
-                    <div><span className="font-medium">Storage Vicinity:</span> {selectedAsset.storage_vicinity || 'N/A'}</div>
-                    <div><span className="font-medium">Storage Location:</span> {selectedAsset.storage_location || 'N/A'}</div>
-                  </div>
-                </div>
-                {selectedAsset.image_url && (
-                  <div>
-                    <h3 className="font-medium">Image</h3>
-                    <img 
-                      src={selectedAsset.image_url} 
-                      alt={selectedAsset.name}
-                      className="mt-2 max-w-xs rounded-lg"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ReceivingDialog
+        open={showReceivingDialog}
+        onOpenChange={setShowReceivingDialog}
+        order={null}
+        part={selectedAsset?.type === 'stock' ? selectedAsset as any : null}
+        onSuccess={() => refetch()}
+      />
 
-      {/* Quantity Dialog */}
+      {/* Quantity Management Dialog */}
       <Dialog open={showQuantityDialog} onOpenChange={setShowQuantityDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {quantityOperation === 'add' ? 'Add Quantity' : 'Use/Remove Quantity'}
+              {quantityChangeDetails.type === 'add' ? 'Add' : 'Remove'} Quantity
             </DialogTitle>
-            <DialogDescription>
-              {selectedAsset && (
-                <>
-                  {quantityOperation === 'add' ? 'Add to' : 'Remove from'} {selectedAsset.name}
-                  <br />
-                  Current quantity: {selectedAsset.current_quantity} {selectedAsset.unit || 'units'}
-                </>
-              )}
-            </DialogDescription>
           </DialogHeader>
-
           <div className="space-y-4">
             <div>
-              <Label htmlFor="amount">Amount</Label>
+              <Label htmlFor="quantity">Quantity to {quantityChangeDetails.type}</Label>
               <Input
-                id="amount"
+                id="quantity"
                 type="number"
-                value={quantityChange.amount}
-                onChange={(e) => setQuantityChange(prev => ({ ...prev, amount: e.target.value }))}
-                placeholder="Enter amount"
                 min="0"
-                step="0.01"
+                value={quantityChangeDetails.quantity}
+                onChange={(e) => setQuantityChangeDetails(prev => ({ 
+                  ...prev, 
+                  quantity: parseInt(e.target.value) || 0 
+                }))}
               />
             </div>
-
             <div>
               <Label htmlFor="reason">Reason</Label>
-              <Textarea
+              <Input
                 id="reason"
-                value={quantityChange.reason}
-                onChange={(e) => setQuantityChange(prev => ({ ...prev, reason: e.target.value }))}
-                placeholder="Reason for change"
+                value={quantityChangeDetails.reason}
+                onChange={(e) => setQuantityChangeDetails(prev => ({ 
+                  ...prev, 
+                  reason: e.target.value 
+                }))}
+                placeholder="Enter reason for quantity change"
               />
             </div>
-
-            {quantityOperation === 'add' && (
-              <>
-                <div>
-                  <Label htmlFor="supplierName">Supplier Name (Optional)</Label>
-                  <Input
-                    id="supplierName"
-                    value={quantityChange.supplierName}
-                    onChange={(e) => setQuantityChange(prev => ({ ...prev, supplierName: e.target.value }))}
-                    placeholder="Supplier name"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="supplierUrl">Supplier URL (Optional)</Label>
-                  <Input
-                    id="supplierUrl"
-                    value={quantityChange.supplierUrl}
-                    onChange={(e) => setQuantityChange(prev => ({ ...prev, supplierUrl: e.target.value }))}
-                    placeholder="https://example.com/product-page"
-                  />
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => setShowQuantityDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={updateQuantity} disabled={!quantityChange.amount}>
-              {quantityOperation === 'add' ? 'Add to' : 'Remove from'} Stock
-            </Button>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setShowQuantityDialog(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  const success = await updateQuantity(
+                    quantityChangeDetails.type,
+                    quantityChangeDetails.quantity,
+                    quantityChangeDetails.reason
+                  );
+                  if (success) {
+                    setShowQuantityDialog(false);
+                    setQuantityChangeDetails({ type: 'add', quantity: 0, reason: '' });
+                  }
+                }}
+                disabled={quantityChangeDetails.quantity <= 0 || !quantityChangeDetails.reason.trim()}
+              >
+                Confirm
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Order Dialog */}
-      {selectedAsset && selectedAsset.type === 'stock' && (
-        <OrderDialog
-          isOpen={showOrderDialog}
-          onClose={() => {
-            setShowOrderDialog(false);
-            setSelectedAsset(null);
-          }}
-          partId={selectedAsset.id}
-          partName={selectedAsset.name}
-          onOrderCreated={() => {
-            // Refresh pending orders after creating an order
-            refetch();
-          }}
-        />
-      )}
-
-      {/* Receiving Dialog */}
-      {selectedAsset && selectedAsset.type === 'stock' && (
-        <ReceivingDialog
-          isOpen={showReceivingDialog}
-          onClose={() => {
-            setShowReceivingDialog(false);
-            setSelectedAsset(null);
-          }}
-          order={pendingOrders[selectedAsset.id]?.[0] || null}
-          part={selectedAsset as any}
-          onSuccess={() => {
-            refetch();
-            setShowReceivingDialog(false);
-            setSelectedAsset(null);
-          }}
-        />
-      )}
     </div>
   );
 };

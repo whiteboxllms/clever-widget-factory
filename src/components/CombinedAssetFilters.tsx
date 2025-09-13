@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Search, Filter, Plus, X } from "lucide-react";
+import { Search, Filter, Plus, X, ChevronDown } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface CombinedAssetFiltersProps {
   searchTerm: string;
@@ -40,6 +42,8 @@ export const CombinedAssetFilters = ({
   setShowRemovedItems,
   actionButton
 }: CombinedAssetFiltersProps) => {
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+
   return (
     <div className="space-y-4">
       {/* Search Bar */}
@@ -62,13 +66,26 @@ export const CombinedAssetFilters = ({
         )}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-        <div className="flex flex-wrap gap-4 items-center">
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium text-muted-foreground">Filters:</span>
-          </div>
+      {/* Collapsible Filters */}
+      <Collapsible open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
+        <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" className="flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              <span>Filters</span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${isFiltersOpen ? 'rotate-180' : ''}`} />
+            </Button>
+          </CollapsibleTrigger>
+          
+          {actionButton && (
+            <div className="w-full lg:w-auto">
+              {actionButton}
+            </div>
+          )}
+        </div>
+
+        <CollapsibleContent className="mt-4">
+          <div className="flex flex-wrap gap-4 items-center">
 
           <TooltipProvider>
             <Tooltip>
@@ -197,14 +214,9 @@ export const CombinedAssetFilters = ({
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-        </div>
-
-        {actionButton && (
-          <div className="w-full lg:w-auto">
-            {actionButton}
           </div>
-        )}
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 };

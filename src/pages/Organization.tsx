@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Trash2, Send, Users, Shield, User, Wrench, Star, Info, ToggleLeft, ToggleRight, ChevronDown, UserX, ArrowLeft } from 'lucide-react';
-import { EditableMemberName } from '@/components/EditableMemberName';
 import { EditableOrganizationName } from '@/components/EditableOrganizationName';
+import { EditableMemberName } from '@/components/EditableMemberName';
+import { EditableOrganizationDomain } from '@/components/EditableOrganizationDomain';
 import { useOrganizations } from '@/hooks/useOrganizations';
 import { useOrganization } from '@/hooks/useOrganization';
 import { useInvitations } from '@/hooks/useInvitations';
@@ -372,12 +373,15 @@ const Organization = () => {
               canEdit={isAdmin}
             />
           </div>
-          {targetOrganization.subdomain && (
-            <div>
-              <Label>Domain</Label>
-              <p className="text-lg font-medium">opa</p>
-            </div>
-          )}
+          <div>
+            <Label>Domain</Label>
+            <EditableOrganizationDomain
+              organizationId={targetOrganization.id}
+              currentDomain={targetOrganization.subdomain}
+              onDomainUpdated={loadOrganizationData}
+              canEdit={isAdmin}
+            />
+          </div>
         </CardContent>
       </Card>
 

@@ -49,13 +49,6 @@ export default function Dashboard() {
       color: "bg-green-500"
     },
     {
-      title: "Stock",
-      description: "Inventory management and tracking",
-      icon: Package,
-      path: "/inventory",
-      color: "bg-orange-500"
-    },
-    {
       title: "Actions",
       description: "Track and manage policy actions",
       icon: Target,

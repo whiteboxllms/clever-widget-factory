@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 
 export default function SettingsPage() {
   const { user, updatePassword, resetPassword } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -62,7 +65,11 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
-        <div className="p-4">
+        <div className="flex items-center gap-4 p-4">
+          <Button onClick={() => navigate('/dashboard')} variant="ghost" size="sm">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
           <h1 className="text-2xl font-bold">Account Settings</h1>
         </div>
       </header>

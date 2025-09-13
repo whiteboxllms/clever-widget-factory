@@ -272,8 +272,8 @@ export default function Actions() {
       return <Clock className="h-4 w-4 text-[hsl(var(--action-progress))]" />;
     }
     
-    // Blue: Ready to work (when plan_commitment is true or has policy)
-    if (action.plan_commitment || hasActualContent(action.policy)) {
+    // Blue: Ready to work (when BOTH plan_commitment is true AND has policy)
+    if (action.plan_commitment === true && hasActualContent(action.policy)) {
       return <CheckCircle className="h-4 w-4 text-[hsl(var(--action-ready))]" />;
     }
     
@@ -292,8 +292,8 @@ export default function Actions() {
       return 'bg-[hsl(var(--action-progress)/0.1)] text-[hsl(var(--action-progress))] border-[hsl(var(--action-progress)/0.2)]';
     }
     
-    // Blue: Ready to work (when plan_commitment is true or has policy)
-    if (action.plan_commitment || hasActualContent(action.policy)) {
+    // Blue: Ready to work (when BOTH plan_commitment is true AND has policy)
+    if (action.plan_commitment === true && hasActualContent(action.policy)) {
       return 'bg-background text-[hsl(var(--action-ready))] border-[hsl(var(--action-ready)/0.2)]';
     }
     
@@ -497,10 +497,10 @@ export default function Actions() {
                           
                           <div className="flex flex-wrap gap-2">
                             <Badge variant="outline" className={getStatusColor(action.status, action)}>
-                              {action.status === 'completed' ? 'Done' :
-                               hasActualContent(action.observations) ? 'In Progress' :
-                               action.plan_commitment || hasActualContent(action.policy) ? 'Ready to Work' :
-                               action.status.replace('_', ' ')}
+                               {action.status === 'completed' ? 'Done' :
+                                hasActualContent(action.observations) ? 'In Progress' :
+                                action.plan_commitment === true && hasActualContent(action.policy) ? 'Ready to Work' :
+                                action.status.replace('_', ' ')}
                             </Badge>
                             
                             {/* Action Type Indicator */}

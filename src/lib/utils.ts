@@ -46,13 +46,14 @@ export interface ActionBorderStyle {
 
 /**
  * Get consistent border styling for actions based on their state
- * Priority: Completed > Implementation > Policy > Assigned > Default
+ * Priority: Completed > Implementation > Policy (with commitment) > Assigned > Default
  */
 export function getActionBorderStyle(action: {
   status: string;
   policy?: string | null;
   observations?: string | null;
   assigned_to?: string | null;
+  plan_commitment?: boolean | null;
 }): ActionBorderStyle {
   const hasPolicy = hasActualContent(action.policy);
   const hasObservations = hasActualContent(action.observations);
@@ -76,8 +77,8 @@ export function getActionBorderStyle(action: {
     };
   }
   
-  // Blue border when there's a policy (ready to work)
-  if (hasPolicy) {
+  // Blue border when there's a policy AND plan commitment (ready to work)
+  if (hasPolicy && action.plan_commitment === true) {
     return {
       bgColor: '',
       borderColor: 'border-blue-500 border-2 shadow-blue-200 shadow-lg dark:border-blue-600 dark:shadow-blue-900',

@@ -285,25 +285,16 @@ export const CombinedAssetCard = ({
 
                 {/* Stock History Button */}
                 <InventoryHistoryDialog partId={asset.id} partName={asset.name}>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-12 px-2"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                          }}
-                        >
-                          <History className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>View History</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-12 px-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                  >
+                    <History className="h-4 w-4" />
+                  </Button>
                 </InventoryHistoryDialog>
               </div>
             </>

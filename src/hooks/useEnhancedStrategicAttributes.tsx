@@ -522,13 +522,21 @@ export function useEnhancedStrategicAttributes() {
 
   const getProactiveVsReactiveData = async (startDate?: string, endDate?: string) => {
     try {
+      console.log('getProactiveVsReactiveData called with:', { startDate, endDate });
+      
       // Get all actions in the date range
       let allActionsQuery = supabase
         .from('actions')
         .select('id, linked_issue_id, created_at');
 
       if (startDate && endDate) {
-        allActionsQuery = allActionsQuery.gte('created_at', startDate).lte('created_at', endDate);
+        // Convert endDate to end of day to include all actions from that date
+        const endOfDay = new Date(endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        const endDateISO = endOfDay.toISOString();
+        
+        console.log('Date range query:', { startDate, endDate, endDateISO });
+        allActionsQuery = allActionsQuery.gte('created_at', startDate).lte('created_at', endDateISO);
       }
 
       const { data: allActions, error: allError } = await allActionsQuery;

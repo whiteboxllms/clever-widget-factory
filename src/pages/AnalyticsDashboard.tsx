@@ -26,8 +26,13 @@ export default function AnalyticsDashboard() {
     const today = new Date();
     const twoWeeksAgo = new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000);
     
-    setEndDate(today.toISOString().split('T')[0]);
-    setStartDate(twoWeeksAgo.toISOString().split('T')[0]);
+    const todayString = today.toISOString().split('T')[0];
+    const twoWeeksAgoString = twoWeeksAgo.toISOString().split('T')[0];
+    
+    console.log('Setting default dates:', { start: twoWeeksAgoString, end: todayString, todayDate: today });
+    
+    setEndDate(todayString);
+    setStartDate(twoWeeksAgoString);
   }, []);
 
   // Process data for display - get ALL users for selection, not filtered by selectedUsers

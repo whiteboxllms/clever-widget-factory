@@ -152,9 +152,24 @@ export default function Actions() {
 
   const fetchProfiles = async () => {
     try {
+      // Get current user's organization ID
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+
+      const { data: userOrg, error: orgError } = await supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', userData.user?.id)
+        .single();
+      
+      if (orgError) throw orgError;
+
+      // Fetch only members from the same organization
       const { data, error } = await supabase
         .from('organization_members')
-        .select('id, user_id, full_name, role, super_admin, created_at');
+        .select('id, user_id, full_name, role, super_admin, created_at')
+        .eq('organization_id', userOrg.organization_id);
+      
       if (error) throw error;
       setProfiles(data || []);
     } catch (error) {

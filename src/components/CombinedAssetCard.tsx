@@ -217,8 +217,7 @@ export const CombinedAssetCard = ({
                       onUseQuantity(asset);
                     }}
                   >
-                    <Minus className="h-4 w-4 mr-1" />
-                    Use
+                    <Minus className="h-4 w-4" />
                   </Button>
                 )}
 
@@ -232,8 +231,7 @@ export const CombinedAssetCard = ({
                       onAddQuantity(asset);
                     }}
                   >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add
+                    <Plus className="h-4 w-4" />
                   </Button>
                 )}
 

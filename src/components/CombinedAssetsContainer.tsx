@@ -257,7 +257,7 @@ export const CombinedAssetsContainer = () => {
           .from('parts_history')
           .insert([{
             part_id: selectedAsset.id,
-            change_type: quantityOperation,
+            change_type: quantityOperation === 'add' ? 'quantity_add' : 'quantity_remove',
             old_quantity: currentQty,
             new_quantity: newQuantity,
             quantity_change: quantityOperation === 'add' ? change : -change,

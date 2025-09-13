@@ -253,6 +253,16 @@ export const CombinedAssetsContainer = () => {
 
       // Log the change to history
       try {
+        // Get the current authenticated user ID from the session
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        
+        if (!currentUser?.id) {
+          console.error('No authenticated user found for history logging');
+          throw new Error('User must be authenticated to modify stock quantities');
+        }
+        
+        console.log('Creating history entry with user ID:', currentUser.id);
+        
         const { error: historyError } = await supabase
           .from('parts_history')
           .insert([{
@@ -261,7 +271,7 @@ export const CombinedAssetsContainer = () => {
             old_quantity: currentQty,
             new_quantity: newQuantity,
             quantity_change: quantityOperation === 'add' ? change : -change,
-            changed_by: user.id,
+            changed_by: currentUser.id,
             change_reason: quantityChange.reason || `Quantity ${quantityOperation}ed`,
             supplier_name: quantityChange.supplierName || null,
             supplier_url: quantityChange.supplierUrl || null,
@@ -270,6 +280,8 @@ export const CombinedAssetsContainer = () => {
 
         if (historyError) {
           console.error('Error logging history:', historyError);
+        } else {
+          console.log('History entry created successfully');
         }
       } catch (historyError) {
         console.error('History logging failed:', historyError);

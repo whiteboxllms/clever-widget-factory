@@ -358,16 +358,10 @@ const Organization = () => {
           </div>
           {targetOrganization.subdomain && (
             <div>
-              <Label>Subdomain</Label>
-              <p className="text-lg font-medium">{targetOrganization.subdomain}</p>
+              <Label>Domain</Label>
+              <p className="text-lg font-medium">opa</p>
             </div>
           )}
-          <div>
-            <Label>Status</Label>
-            <Badge variant={targetOrganization.is_active ? "default" : "destructive"}>
-              {targetOrganization.is_active ? "Active" : "Inactive"}
-            </Badge>
-          </div>
         </CardContent>
       </Card>
 

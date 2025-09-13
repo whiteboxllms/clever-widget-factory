@@ -5,10 +5,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { CombinedAsset } from "@/hooks/useCombinedAssets";
 import { IssueCard } from "@/components/IssueCard";
+import { InventoryHistoryDialog } from "@/components/InventoryHistoryDialog";
 
 interface StockDetailsProps {
   stock: CombinedAsset;
-  stockHistory: any[];
   issues: any[];
   onBack: () => void;
   onResolveIssue: (issue: any) => void;
@@ -18,7 +18,6 @@ interface StockDetailsProps {
 
 export const StockDetails = ({
   stock,
-  stockHistory,
   issues,
   onBack,
   onResolveIssue,
@@ -123,49 +122,11 @@ export const StockDetails = ({
             </TabsContent>
 
             <TabsContent value="history" className="space-y-4">
-              <div className="space-y-4">
-                {stockHistory.map((record) => (
-                  <Card key={record.id}>
-                    <CardContent className="p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-medium">{record.change_type}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {new Date(record.changed_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <Badge variant="outline" className="capitalize">
-                          {record.change_type?.replace('_', ' ')}
-                        </Badge>
-                      </div>
-                      
-                      {record.quantity_change && (
-                        <p className="text-sm mb-2">
-                          <span className="font-medium">Quantity Change:</span> {record.quantity_change > 0 ? '+' : ''}{record.quantity_change}
-                        </p>
-                      )}
-                      
-                      {record.old_quantity !== null && record.new_quantity !== null && (
-                        <p className="text-sm mb-2">
-                          <span className="font-medium">Quantity:</span> {record.old_quantity} → {record.new_quantity}
-                        </p>
-                      )}
-                      
-                      {record.change_reason && (
-                        <p className="text-sm text-muted-foreground">
-                          {record.change_reason}
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-                
-                {stockHistory.length === 0 && (
-                  <p className="text-center text-muted-foreground py-8">
-                    No history available.
-                  </p>
-                )}
-              </div>
+              <InventoryHistoryDialog partId={stock.id} partName={stock.name}>
+                <Button variant="outline" className="w-full">
+                  View Complete History
+                </Button>
+              </InventoryHistoryDialog>
             </TabsContent>
           </Tabs>
         </div>

@@ -451,7 +451,6 @@ export const CombinedAssetsContainer = () => {
       return (
         <StockDetails
           stock={selectedAssetForDetails as any}
-          stockHistory={[]} // TODO: Add stock history hook
           issues={issues}
           onBack={handleBackToAssets}
           onResolveIssue={(issue) => {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Trash2, Send, Users, Shield, User, Wrench, Star, Info, ToggleLeft, ToggleRight, ChevronDown, UserX } from 'lucide-react';
+import { Trash2, Send, Users, Shield, User, Wrench, Star, Info, ToggleLeft, ToggleRight, ChevronDown, UserX, ArrowLeft } from 'lucide-react';
 import { EditableMemberName } from '@/components/EditableMemberName';
 import { EditableOrganizationName } from '@/components/EditableOrganizationName';
 import { useOrganizations } from '@/hooks/useOrganizations';
@@ -35,6 +35,7 @@ interface OrganizationMember {
 }
 
 const Organization = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { organizationId } = useParams();
   const { organization: currentOrg, isAdmin: isCurrentOrgAdmin } = useOrganization();
@@ -347,7 +348,13 @@ const Organization = () => {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Organization Settings</h1>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={() => navigate('/')}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Dashboard
+          </Button>
+          <h1 className="text-3xl font-bold">Organization Settings</h1>
+        </div>
       </div>
 
       {/* Organization Info */}

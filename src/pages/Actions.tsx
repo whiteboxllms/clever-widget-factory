@@ -230,6 +230,21 @@ export default function Actions() {
     fetchProfiles();
   }, []);
 
+  // Reset assignee filter if the selected assignee is not in active profiles
+  useEffect(() => {
+    if (assigneeFilter !== 'all' && assigneeFilter !== 'me' && assigneeFilter !== 'unassigned') {
+      const isAssigneeActive = profiles.some(profile => profile.user_id === assigneeFilter);
+      if (!isAssigneeActive) {
+        setAssigneeFilter('all');
+        toast({
+          title: 'Filter Reset',
+          description: 'Selected assignee is no longer active and has been cleared from filter',
+          variant: 'default'
+        });
+      }
+    }
+  }, [profiles, assigneeFilter]);
+
   useEffect(() => {
     let filtered = actions;
 
@@ -348,14 +363,11 @@ export default function Actions() {
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
     });
   
-  // Get unique assignees from actions
-  const uniqueAssignees = Array.from(
-    new Map(
-      actions
-        .filter(action => action.assignee?.full_name && action.assigned_to)
-        .map(action => [action.assigned_to, { user_id: action.assigned_to, full_name: action.assignee!.full_name }])
-    ).values()
-  );
+  // Use active profiles for assignee filter options
+  const assigneeOptions = profiles.map(profile => ({
+    user_id: profile.user_id,
+    full_name: profile.full_name
+  }));
 
   if (loading) {
     return (
@@ -447,7 +459,7 @@ export default function Actions() {
                   <SelectItem value="all">All Assignees</SelectItem>
                   <SelectItem value="me">Assigned to Me</SelectItem>
                   <SelectItem value="unassigned">Unassigned</SelectItem>
-                  {uniqueAssignees.map(assignee => (
+                  {assigneeOptions.map((assignee) => (
                     <SelectItem key={assignee.user_id} value={assignee.user_id}>
                       {assignee.full_name}
                     </SelectItem>

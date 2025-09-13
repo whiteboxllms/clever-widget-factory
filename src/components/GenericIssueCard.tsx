@@ -258,29 +258,28 @@ export function GenericIssueCard({
   return (
     <>
       <Card className={`border-l-4 ${getCardStyles()}`}>
-        <CardContent className="p-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1 flex-wrap">
+        <CardContent className="p-4 sm:p-3">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-2">
+            <div className="flex-1 min-w-0 space-y-2 sm:space-y-1">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-2 flex-wrap">
                 {showContext && (
                   <Badge 
                     variant="outline" 
-                    className={`text-xs ${getContextBadgeColor(issue.context_type)}`}
+                    className={`text-sm sm:text-xs ${getContextBadgeColor(issue.context_type)}`}
                   >
                     {getContextTypeIcon(issue.context_type)}
                     <span className="ml-1">{getContextLabel(issue.context_type)}</span>
                   </Badge>
                 )}
                 
-                 
                  {isResolved && (
-                    <Badge variant="outline" className="text-xs bg-green-100 text-green-800 border-green-200 dark:bg-green-950 dark:text-green-200 dark:border-green-800">
+                    <Badge variant="outline" className="text-sm sm:text-xs bg-green-100 text-green-800 border-green-200 dark:bg-green-950 dark:text-green-200 dark:border-green-800">
                       <CheckCircle className="h-3 w-3 mr-1" />
                       Resolved
                     </Badge>
                   )}
                 {showContext && (
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-sm sm:text-xs text-muted-foreground">
                     {new Date(issue.reported_at).toLocaleDateString()}
                   </span>
                 )}
@@ -288,10 +287,10 @@ export function GenericIssueCard({
               
               {renderContextualInfo()}
               
-              <p className="text-sm break-words mt-1">{issue.description}</p>
-              
+              <p className="text-sm break-words">{issue.description}</p>
+
               {issue.damage_assessment && (
-                <p className="text-sm text-orange-600 mt-1">
+                <p className="text-sm text-orange-600">
                   <strong>Damage:</strong> {issue.damage_assessment}
                 </p>
               )}
@@ -314,16 +313,17 @@ export function GenericIssueCard({
               )}
             </div>
             
-            <div className="flex gap-1 flex-shrink-0">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-1 sm:flex-shrink-0">
               {enableScorecard && issue.context_type === 'tool' && (
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={handleAssignScore}
-                  className={`h-7 px-2 text-xs ${existingScore ? 'border-green-500 text-green-600' : ''}`}
+                  className={`min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs ${existingScore ? 'border-green-500 text-green-600' : ''}`}
                   title={existingScore ? 'View Score' : 'Assign Score'}
                 >
-                  <Target className="h-3 w-3" />
+                  <Target className="h-4 w-4 sm:h-3 sm:w-3 mr-2 sm:mr-0" />
+                  <span className="sm:hidden">Score</span>
                 </Button>
               )}
 
@@ -332,7 +332,7 @@ export function GenericIssueCard({
                   size="sm"
                   variant="outline"
                   onClick={handleManageActions}
-                  className={`h-7 px-2 text-xs ${
+                  className={`min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs ${
                     existingActions.length > 0 
                       ? existingActions.some(action => action.status === 'completed')
                         ? 'border-green-500 text-green-600'
@@ -341,11 +341,10 @@ export function GenericIssueCard({
                   }`}
                   title={existingActions.length > 0 ? `Manage Actions (${existingActions.length})` : 'Create Action'}
                 >
-                  {existingActions.length > 0 ? (
-                    <Swords className="h-3 w-3" />
-                  ) : (
-                    <Swords className="h-3 w-3" />
-                  )}
+                  <Swords className="h-4 w-4 sm:h-3 sm:w-3 mr-2 sm:mr-0" />
+                  <span className="sm:hidden">
+                    {existingActions.length > 0 ? `Actions (${existingActions.length})` : 'Actions'}
+                  </span>
                 </Button>
               )}
 
@@ -354,9 +353,10 @@ export function GenericIssueCard({
                   size="sm"
                   variant="outline"
                   onClick={() => onEdit(issue)}
-                  className="h-7 px-2 text-xs"
+                  className="min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs"
                 >
-                  <Edit className="h-3 w-3" />
+                  <Edit className="h-4 w-4 sm:h-3 sm:w-3 mr-2 sm:mr-0" />
+                  <span className="sm:hidden">Edit</span>
                 </Button>
               )}
               
@@ -365,11 +365,12 @@ export function GenericIssueCard({
                   size="sm"
                   variant="outline"
                   onClick={() => onResolve(issue)}
-                  className="h-7 px-2 text-xs"
+                  className="min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs"
                   title="Detailed Resolve"
                 >
-                  <CheckCircle className="h-3 w-3 mr-1" />
-                  Resolve
+                  <CheckCircle className="h-4 w-4 sm:h-3 sm:w-3 mr-2 sm:mr-1" />
+                  <span className="hidden sm:inline">Resolve</span>
+                  <span className="sm:hidden">Resolve</span>
                 </Button>
               )}
               
@@ -379,10 +380,11 @@ export function GenericIssueCard({
                   variant="outline"
                   onClick={handleRemove}
                   disabled={isRemoving}
-                  className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                  className="min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs text-destructive hover:text-destructive"
                   title="Remove issue"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-4 w-4 sm:h-3 sm:w-3 mr-2 sm:mr-0" />
+                  <span className="sm:hidden">Remove</span>
                 </Button>
               )}
             </div>

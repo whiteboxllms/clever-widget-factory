@@ -29,7 +29,7 @@ const Auth = () => {
     const accessToken = searchParams.get('access_token');
     const token = searchParams.get('token');
     
-    if (type === 'recovery' && accessToken) {
+    if (type === 'recovery' && (accessToken || token)) {
       setIsPasswordReset(true);
     }
 

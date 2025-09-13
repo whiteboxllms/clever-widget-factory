@@ -86,15 +86,6 @@ export function getActionBorderStyle(action: {
     };
   }
   
-  // Amber for assigned but no content
-  if (isAssigned) {
-    return {
-      bgColor: 'bg-amber-50 dark:bg-amber-950',
-      borderColor: 'border-amber-200 dark:border-amber-800',
-      textColor: 'text-amber-900 dark:text-amber-100'
-    };
-  }
-  
   // Default styling (same as other cards like stock/tools)
   return {
     bgColor: '',

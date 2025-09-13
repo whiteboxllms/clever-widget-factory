@@ -171,6 +171,7 @@ export default function Actions() {
         .eq('organization_id', userOrg.organization_id);
       
       if (error) throw error;
+      console.log('Actions fetchProfiles: Found', data?.length, 'profiles:', data);
       setProfiles(data || []);
     } catch (error) {
       console.error('Error fetching profiles:', error);
@@ -681,16 +682,19 @@ export default function Actions() {
        </Tabs>
 
        {/* Action Dialog */}
-       <UnifiedActionDialog
-         open={isEditDialogOpen}
-         onOpenChange={(open) => {
-           if (!open) {
-             handleCancelEdit();
-           }
-         }}
-         action={editingAction || undefined}
-         onActionSaved={handleSaveAction}
-         profiles={profiles}
+        <UnifiedActionDialog
+          open={isEditDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              handleCancelEdit();
+            }
+          }}
+          action={editingAction || undefined}
+          onActionSaved={handleSaveAction}
+          profiles={(() => {
+            console.log('Actions: Passing profiles to dialog:', profiles);
+            return profiles;
+          })()}
        />
 
        {/* Score Dialog */}

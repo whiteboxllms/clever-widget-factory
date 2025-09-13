@@ -614,14 +614,17 @@ export function UnifiedActionDialog({
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Select assignee..." />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unassigned">Unassigned</SelectItem>
-                  {profiles.map((profile) => (
-                    <SelectItem key={profile.user_id} value={profile.user_id}>
-                      {profile.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+                 <SelectContent>
+                   <SelectItem value="unassigned">Unassigned</SelectItem>
+                   {profiles.map((profile) => {
+                     console.log('UnifiedActionDialog: Rendering profile:', profile);
+                     return (
+                       <SelectItem key={profile.user_id} value={profile.user_id}>
+                         {profile.full_name}
+                       </SelectItem>
+                     );
+                   })}
+                 </SelectContent>
               </Select>
             </div>
 

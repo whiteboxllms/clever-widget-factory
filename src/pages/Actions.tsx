@@ -164,11 +164,12 @@ export default function Actions() {
       
       if (orgError) throw orgError;
 
-      // Fetch only members from the same organization
+      // Fetch only active members from the same organization
       const { data, error } = await supabase
         .from('organization_members')
         .select('id, user_id, full_name, role, super_admin, created_at')
-        .eq('organization_id', userOrg.organization_id);
+        .eq('organization_id', userOrg.organization_id)
+        .eq('is_active', true);
       
       if (error) throw error;
       console.log('Actions fetchProfiles: Found', data?.length, 'profiles:', data);

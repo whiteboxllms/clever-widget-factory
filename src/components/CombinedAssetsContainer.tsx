@@ -297,7 +297,7 @@ export const CombinedAssetsContainer = () => {
               quantity_used: change,
               used_by: user.id,
               usage_description: quantityChange.reason || 'Manual stock usage from Combined Assets',
-              mission_id: null, // No specific mission for manual usage
+              mission_id: '00000000-0000-0000-0000-000000000000', // Placeholder for manual usage
               task_id: null,
               organization_id: organizationId
             }]);

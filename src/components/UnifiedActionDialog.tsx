@@ -208,6 +208,18 @@ export function UnifiedActionDialog({
     setIsCompleting(true);
     
     try {
+      // Get the current user for inventory logging
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser?.id) {
+        throw new Error('User must be authenticated to complete actions');
+      }
+
+      // Process required stock consumption if any
+      const requiredStock = formData.required_stock || [];
+      if (requiredStock.length > 0) {
+        await processStockConsumption(requiredStock, action.id, currentUser.id);
+      }
+
       // First save any pending changes
       const updateData = {
         title: formData.title,
@@ -242,7 +254,7 @@ export function UnifiedActionDialog({
 
       toast({
         title: "Success",
-        description: "Action saved and marked as ready for review"
+        description: "Action completed and stock consumption recorded"
       });
 
       onActionSaved();
@@ -251,11 +263,73 @@ export function UnifiedActionDialog({
       console.error('Error completing action:', error);
       toast({
         title: "Error",
-        description: "Failed to save and mark action as ready for review",
+        description: "Failed to complete action and record stock usage",
         variant: "destructive"
       });
     } finally {
       setIsCompleting(false);
+    }
+  };
+
+  const processStockConsumption = async (requiredStock: any[], actionId: string, userId: string) => {
+    for (const stockItem of requiredStock) {
+      try {
+        // Determine mission_id context based on action type
+        const missionId = formData.mission_id || '00000000-0000-0000-0000-000000000000';
+        
+        // Log to inventory_usage table
+        const { error: usageError } = await supabase
+          .from('inventory_usage')
+          .insert({
+            mission_id: missionId,
+            part_id: stockItem.part_id,
+            quantity_used: stockItem.quantity,
+            used_by: userId,
+            usage_description: `Used for action: ${formData.title} (Action ID: ${actionId})`,
+            organization_id: organizationId
+          });
+
+        if (usageError) throw usageError;
+
+        // Get current quantity and update parts table
+        const { data: partData, error: fetchError } = await supabase
+          .from('parts')
+          .select('current_quantity')
+          .eq('id', stockItem.part_id)
+          .single();
+
+        if (fetchError) throw fetchError;
+
+        const newQuantity = Math.max(0, (partData?.current_quantity || 0) - stockItem.quantity);
+        
+        const { error: updateError } = await supabase
+          .from('parts')
+          .update({ current_quantity: newQuantity })
+          .eq('id', stockItem.part_id);
+
+        if (updateError) throw updateError;
+
+        // Log to parts_history table
+        const { error: historyError } = await supabase
+          .from('parts_history')
+          .insert({
+            part_id: stockItem.part_id,
+            change_type: 'quantity_remove',
+            old_quantity: partData?.current_quantity || 0,
+            new_quantity: newQuantity,
+            quantity_change: -stockItem.quantity,
+            changed_by: userId,
+            change_reason: `Used for action: ${formData.title} - ${stockItem.quantity} ${stockItem.part_name}`,
+            organization_id: organizationId
+          });
+
+        if (historyError) {
+          console.error('Error creating parts history:', historyError);
+        }
+      } catch (error) {
+        console.error(`Error processing stock item ${stockItem.part_id}:`, error);
+        throw error;
+      }
     }
   };
 

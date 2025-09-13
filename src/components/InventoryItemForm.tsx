@@ -194,7 +194,7 @@ export function InventoryItemForm({
                 <Input
                   id="minimum_quantity"
                   type="number"
-                  step="1"
+                  step="0.01"
                   min="0"
                   value={formData.minimum_quantity}
                   onChange={(e) => updateFormData('minimum_quantity', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)}

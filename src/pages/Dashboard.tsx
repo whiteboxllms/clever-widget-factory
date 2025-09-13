@@ -9,6 +9,7 @@ import { AuthDiagnostics } from '@/components/AuthDiagnostics';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { EditableDisplayName } from '@/components/EditableDisplayName';
 import { useOrganization } from '@/hooks/useOrganization';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 export default function Dashboard() {
   const { user, signOut, isAdmin } = useAuth();
@@ -108,6 +109,16 @@ export default function Dashboard() {
             <EditableDisplayName />
           </div>
           <div className="flex items-center gap-4">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={() => navigate('/settings')} variant="outline" size="sm" className="p-2">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Settings</p>
+              </TooltipContent>
+            </Tooltip>
             <DebugModeToggle />
             <Button onClick={handleSignOut} variant="outline" size="sm">
               <LogOut className="h-4 w-4 mr-2" />

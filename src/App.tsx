@@ -31,6 +31,7 @@ import AdminOrganizations from "./pages/AdminOrganizations";
 import NotFound from "./pages/NotFound";
 import AnalyticsDashboard from "./pages/AnalyticsDashboard";
 import AcceptInvite from "./pages/AcceptInvite";
+import SettingsPage from "./pages/Settings";
 
 const queryClient = new QueryClient();
 
@@ -125,6 +126,11 @@ function AppContent() {
         <AdminRoute>
           <AnalyticsDashboard />
         </AdminRoute>
+      } />
+      <Route path="/settings" element={
+        <ProtectedRoute>
+          <SettingsPage />
+        </ProtectedRoute>
       } />
       <Route path="/organization" element={
         <ProtectedRoute>

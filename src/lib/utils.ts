@@ -95,10 +95,10 @@ export function getActionBorderStyle(action: {
     };
   }
   
-  // Default styling
+  // Default styling (same as other cards like stock/tools)
   return {
-    bgColor: 'bg-background',
-    borderColor: 'border-border',
-    textColor: 'text-foreground'
+    bgColor: '',
+    borderColor: '',
+    textColor: ''
   };
 }

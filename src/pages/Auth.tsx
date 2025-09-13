@@ -19,24 +19,37 @@ const Auth = () => {
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isPasswordReset, setIsPasswordReset] = useState(false);
-  const [showResetForm, setShowResetForm] = useState(false);
-  // Removed invitation state since magic links are handled by AcceptInvite page
-
-  useEffect(() => {
-    // Check for password reset link
+  
+  // Helper function to detect recovery parameters from both query and hash
+  const getRecoveryFlagFromUrl = () => {
     const type = searchParams.get('type');
     const accessToken = searchParams.get('access_token');
     const token = searchParams.get('token');
     
-    if (type === 'recovery' && (accessToken || token)) {
-      setIsPasswordReset(true);
+    // Check URL hash as well for Supabase tokens
+    const hash = window.location.hash;
+    const hashType = hash.includes('type=recovery');
+    const hashTokens = hash.includes('access_token=') || hash.includes('token=');
+    
+    return (type === 'recovery' && (accessToken || token)) || hashType || hashTokens;
+  };
+  
+  const [isPasswordReset, setIsPasswordReset] = useState(getRecoveryFlagFromUrl());
+  const [showResetForm, setShowResetForm] = useState(false);
+  // Removed invitation state since magic links are handled by AcceptInvite page
+
+  useEffect(() => {
+    // Update password reset state if URL changes
+    const isRecovery = getRecoveryFlagFromUrl();
+    if (isRecovery !== isPasswordReset) {
+      setIsPasswordReset(isRecovery);
+      setError(''); // Clear any previous errors
     }
 
     // Invitation tokens are no longer used in the new magic link system
     // Users are redirected to /accept-invite directly
 
-    // Redirect to dashboard if already authenticated and not in password reset flow
+    // Redirect to dashboard ONLY if authenticated AND not in password reset flow
     if (user && !isPasswordReset) {
       navigate('/dashboard');
     }

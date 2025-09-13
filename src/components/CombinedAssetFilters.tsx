@@ -68,7 +68,7 @@ export const CombinedAssetFilters = ({
 
       {/* Collapsible Filters */}
       <Collapsible open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
-        <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <CollapsibleTrigger asChild>
             <Button variant="outline" className="flex items-center gap-2">
               <Filter className="h-4 w-4" />
@@ -77,11 +77,7 @@ export const CombinedAssetFilters = ({
             </Button>
           </CollapsibleTrigger>
           
-          {actionButton && (
-            <div className="w-full lg:w-auto">
-              {actionButton}
-            </div>
-          )}
+          {actionButton}
         </div>
 
         <CollapsibleContent className="mt-4">

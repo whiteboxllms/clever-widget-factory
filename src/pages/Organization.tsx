@@ -139,7 +139,16 @@ const Organization = () => {
       const signedInMembers = membersWithAuth.filter((m: any) => m.auth_data.last_sign_in_at !== null);
       const pendingSignIn = membersWithAuth.filter((m: any) => m.auth_data.last_sign_in_at === null);
       
-      setMembers(signedInMembers);
+      // Sort signed-in members: active members first, then inactive
+      const sortedSignedInMembers = signedInMembers.sort((a: any, b: any) => {
+        // Active members first
+        if (a.is_active && !b.is_active) return -1;
+        if (!a.is_active && b.is_active) return 1;
+        // Then sort by name
+        return (a.full_name || '').localeCompare(b.full_name || '');
+      });
+      
+      setMembers(sortedSignedInMembers);
       setPendingMembers(pendingSignIn);
     } catch (error) {
       console.error('Error in loadMembers:', error);

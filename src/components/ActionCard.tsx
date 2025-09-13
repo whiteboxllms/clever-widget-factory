@@ -18,7 +18,7 @@ import { useTempPhotoStorage, type TempPhoto } from "@/hooks/useTempPhotoStorage
 import { useAssetScores } from "@/hooks/useAssetScores";
 import { ActionScoreDialog } from './ActionScoreDialog';
 import TiptapEditor from './TiptapEditor';
-import { hasActualContent, getActionBorderStyle } from '@/lib/utils';
+import { hasActualContent, sanitizeRichText, getActionBorderStyle } from '@/lib/utils';
 
 interface Profile {
   id: string;
@@ -214,7 +214,8 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     if (action.status === 'completed') return;
     
     try {
-      const updateData: { policy: string; assigned_to?: string } = { policy: editData.policy };
+      const normalizedPolicy = sanitizeRichText(editData.policy);
+      const updateData: { policy: string | null; assigned_to?: string } = { policy: normalizedPolicy };
       
       // If action is unassigned, assign it to the current user
       if (!action.assigned_to) {
@@ -253,8 +254,9 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
   // Save implementation to database
   const saveImplementation = async () => {
     try {
-      const updateData: { observations: string; status?: string; assigned_to?: string } = {
-        observations: editData.observations
+      const normalizedObservations = sanitizeRichText(editData.observations);
+      const updateData: { observations: string | null; status?: string; assigned_to?: string } = {
+        observations: normalizedObservations
       };
       
       // If action is unassigned, assign it to the current user
@@ -265,8 +267,8 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
         }
       }
       
-      // Only update status if action is not already in progress or completed and has content
-      if (action.status === 'not_started' && editData.observations.trim()) {
+      // Auto-set status to in_progress if observations exist and not completed
+      if (normalizedObservations && action.status !== 'completed') {
         updateData.status = 'in_progress';
       }
       
@@ -498,7 +500,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     }
 
     // Check if implementation has content
-    if (!action.observations || !action.observations.trim()) {
+    if (!hasActualContent(action.observations)) {
       toast({
         title: "Implementation Required",
         description: "Please add implementation notes before completing the action",

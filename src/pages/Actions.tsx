@@ -259,35 +259,45 @@ export default function Actions() {
   }, [actions, searchTerm, statusFilter, assigneeFilter, user]);
 
   const getStatusIcon = (status: string, action?: BaseAction) => {
-    // Blue: Ready to work (when plan_commitment is true)
-    if (action?.plan_commitment && status !== 'completed') {
+    if (!action) return <Circle className="h-4 w-4 text-muted-foreground" />;
+    
+    const borderStyle = getActionBorderStyle(action);
+    
+    if (status === 'completed') {
+      return <CheckCircle className="h-4 w-4 text-[hsl(var(--action-done))]" />;
+    }
+    
+    // Use implementation content to show in-progress, regardless of status field
+    if (hasActualContent(action.observations)) {
+      return <Clock className="h-4 w-4 text-[hsl(var(--action-progress))]" />;
+    }
+    
+    // Blue: Ready to work (when plan_commitment is true or has policy)
+    if (action.plan_commitment || hasActualContent(action.policy)) {
       return <CheckCircle className="h-4 w-4 text-[hsl(var(--action-ready))]" />;
     }
     
-    switch (status) {
-      case 'completed':
-        return <CheckCircle className="h-4 w-4 text-[hsl(var(--action-done))]" />;
-      case 'in_progress':
-        return <Clock className="h-4 w-4 text-[hsl(var(--action-progress))]" />;
-      default:
-        return <Circle className="h-4 w-4 text-muted-foreground" />;
-    }
+    return <Circle className="h-4 w-4 text-muted-foreground" />;
   };
 
   const getStatusColor = (status: string, action?: BaseAction) => {
-    // Blue: Ready to work (when plan_commitment is true)
-    if (action?.plan_commitment && status !== 'completed') {
+    if (!action) return 'bg-muted text-muted-foreground';
+    
+    if (status === 'completed') {
+      return 'bg-[hsl(var(--action-done)/0.1)] text-[hsl(var(--action-done))] border-[hsl(var(--action-done)/0.2)]';
+    }
+    
+    // Use implementation content to show in-progress, regardless of status field
+    if (hasActualContent(action.observations)) {
+      return 'bg-[hsl(var(--action-progress)/0.1)] text-[hsl(var(--action-progress))] border-[hsl(var(--action-progress)/0.2)]';
+    }
+    
+    // Blue: Ready to work (when plan_commitment is true or has policy)
+    if (action.plan_commitment || hasActualContent(action.policy)) {
       return 'bg-background text-[hsl(var(--action-ready))] border-[hsl(var(--action-ready)/0.2)]';
     }
     
-    switch (status) {
-      case 'completed':
-        return 'bg-[hsl(var(--action-done)/0.1)] text-[hsl(var(--action-done))] border-[hsl(var(--action-done)/0.2)]';
-      case 'in_progress':
-        return 'bg-[hsl(var(--action-progress)/0.1)] text-[hsl(var(--action-progress))] border-[hsl(var(--action-progress)/0.2)]';
-      default:
-        return 'bg-muted text-muted-foreground';
-    }
+    return 'bg-muted text-muted-foreground';
   };
 
   // Sort actions: in-progress first, then actions with implementation, then others
@@ -297,8 +307,8 @@ export default function Actions() {
     if (b.status === 'in_progress' && a.status !== 'in_progress') return 1;
     
     // Second priority: actions with implementation text (observations field)
-    const aHasImplementation = a.observations && a.observations.trim().length > 0;
-    const bHasImplementation = b.observations && b.observations.trim().length > 0;
+    const aHasImplementation = hasActualContent(a.observations);
+    const bHasImplementation = hasActualContent(b.observations);
     
     if (aHasImplementation && !bHasImplementation) return -1;
     if (bHasImplementation && !aHasImplementation) return 1;
@@ -487,9 +497,9 @@ export default function Actions() {
                           
                           <div className="flex flex-wrap gap-2">
                             <Badge variant="outline" className={getStatusColor(action.status, action)}>
-                              {action.plan_commitment && action.status !== 'completed' ? 'Ready to Work' : 
-                               action.status === 'completed' ? 'Done' :
-                               action.status === 'in_progress' ? 'In Progress' :
+                              {action.status === 'completed' ? 'Done' :
+                               hasActualContent(action.observations) ? 'In Progress' :
+                               action.plan_commitment || hasActualContent(action.policy) ? 'Ready to Work' :
                                action.status.replace('_', ' ')}
                             </Badge>
                             

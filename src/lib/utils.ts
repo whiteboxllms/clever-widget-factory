@@ -5,17 +5,37 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function hasActualContent(text?: string): boolean {
-  if (!text) return false;
+export function sanitizeRichText(text?: string | null): string | null {
+  if (!text) return null;
   
-  // Strip HTML tags and decode entities
-  const strippedText = text
-    .replace(/<[^>]*>/g, '') // Remove HTML tags
-    .replace(/&nbsp;/g, ' ') // Replace non-breaking spaces
-    .replace(/&[a-zA-Z0-9#]+;/g, '') // Remove other HTML entities
+  // Try to use DOMParser for better HTML parsing (client-side)
+  let strippedText: string;
+  if (typeof window !== 'undefined' && window.DOMParser) {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(text, 'text/html');
+      strippedText = doc.body.textContent || doc.body.innerText || '';
+    } catch {
+      // Fallback to regex if DOMParser fails
+      strippedText = text.replace(/<[^>]*>/g, '');
+    }
+  } else {
+    // Server-side or fallback: use regex
+    strippedText = text.replace(/<[^>]*>/g, '');
+  }
+  
+  // Clean up various whitespace and entities
+  strippedText = strippedText
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&[a-zA-Z0-9#]+;/g, '')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '') // Zero-width spaces
     .trim();
   
-  return strippedText.length > 0;
+  return strippedText.length > 0 ? text : null;
+}
+
+export function hasActualContent(text?: string | null): boolean {
+  return sanitizeRichText(text) !== null;
 }
 
 export interface ActionBorderStyle {
@@ -26,7 +46,7 @@ export interface ActionBorderStyle {
 
 /**
  * Get consistent border styling for actions based on their state
- * Priority: Completed > Policy > Implementation > Assigned > Default
+ * Priority: Completed > Implementation > Policy > Assigned > Default
  */
 export function getActionBorderStyle(action: {
   status: string;
@@ -47,21 +67,21 @@ export function getActionBorderStyle(action: {
     };
   }
   
-  // Blue border when there's a policy (ready to work) - takes priority over implementation
-  if (hasPolicy) {
-    return {
-      bgColor: '',
-      borderColor: 'border-blue-500 border-2 shadow-blue-200 shadow-lg dark:border-blue-600 dark:shadow-blue-900',
-      textColor: ''
-    };
-  }
-  
-  // Yellow border when there's implementation text but no policy (work in progress)
+  // Yellow border when there's implementation text (work in progress) - takes priority over policy
   if (hasObservations) {
     return {
       bgColor: 'bg-background',
       borderColor: 'border-yellow-500 border-2 shadow-yellow-200 shadow-lg dark:border-yellow-600 dark:shadow-yellow-900',
       textColor: 'text-foreground'
+    };
+  }
+  
+  // Blue border when there's a policy (ready to work)
+  if (hasPolicy) {
+    return {
+      bgColor: '',
+      borderColor: 'border-blue-500 border-2 shadow-blue-200 shadow-lg dark:border-blue-600 dark:shadow-blue-900',
+      textColor: ''
     };
   }
   

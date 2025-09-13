@@ -41,7 +41,7 @@ import TiptapEditor from './TiptapEditor';
 import { AssetSelector } from './AssetSelector';
 import { StockSelector } from './StockSelector';
 import { MultiParticipantSelector } from './MultiParticipantSelector';
-import { cn } from "@/lib/utils";
+import { cn, sanitizeRichText } from "@/lib/utils";
 import { BaseAction, Profile, ActionCreationContext } from "@/types/actions";
 
 interface UnifiedActionDialogProps {
@@ -378,11 +378,21 @@ export function UnifiedActionDialog({
     try {
       const estimatedDuration = estimatedDate ? estimatedDate.toISOString() : null;
 
+      // Normalize rich text content
+      const normalizedPolicy = sanitizeRichText(formData.policy);
+      const normalizedObservations = sanitizeRichText(formData.observations);
+      
+      // Auto-set status to in_progress if observations exist and not completed
+      let actionStatus = formData.status || 'not_started';
+      if (normalizedObservations && actionStatus !== 'completed') {
+        actionStatus = 'in_progress';
+      }
+
       const actionData: any = {
         title: formData.title.trim(),
         description: formData.description || null,
-        policy: formData.policy || null,
-        observations: formData.observations || null,
+        policy: normalizedPolicy,
+        observations: normalizedObservations,
         assigned_to: formData.assigned_to === 'unassigned' ? null : formData.assigned_to || null,
         participants: formData.participants || [],
         estimated_duration: estimatedDuration,
@@ -393,7 +403,7 @@ export function UnifiedActionDialog({
         asset_id: formData.asset_id || null,
         linked_issue_id: formData.linked_issue_id || null,
         issue_reference: formData.issue_reference || null,
-        status: formData.status || 'not_started',
+        status: actionStatus,
         plan_commitment: formData.plan_commitment || false
       };
 

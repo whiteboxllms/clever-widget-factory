@@ -90,12 +90,12 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
     try {
       let imageUrl = null;
       if (formData.image_file) {
-        const bucket = isAsset ? 'tool-images' : 'part-images';
+        const bucket = 'tool-images';
         const result = await uploadImages(formData.image_file, {
           bucket,
           maxSizeMB: 0.5,
           maxWidthOrHeight: 1920,
-          generateFileName: (file) => `${Date.now()}-${file.name}`
+          generateFileName: (file) => isAsset ? `${Date.now()}-${file.name}` : `parts/${Date.now()}-${file.name}`
         });
         
         if (Array.isArray(result)) {

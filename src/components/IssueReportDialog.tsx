@@ -34,8 +34,6 @@ interface IssueReportDialogProps {
 
 export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: IssueReportDialogProps) {
   const [description, setDescription] = useState("");
-  const [damageDuringUse, setDamageDuringUse] = useState(false);
-  const [incidentDescription, setIncidentDescription] = useState("");
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [uploadedImages, setUploadedImages] = useState<ImageUploadResult[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -101,14 +99,12 @@ export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: Issu
           context_id: asset.id,
           description,
           issue_type: 'general',
-          damage_assessment: incidentDescription || undefined,
+          
           report_photo_urls: photoUrls
         });
 
         // Reset form
         setDescription("");
-        setDamageDuringUse(false);
-        setIncidentDescription("");
         setSelectedImages([]);
         setUploadedImages([]);
       
@@ -310,37 +306,6 @@ export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: Issu
                     />
                   </div>
 
-                  {/* Damage During Use */}
-                  <Card className="bg-muted/50">
-                    <CardContent className="pt-4">
-                      <div className="flex items-center justify-between">
-                          <Label htmlFor="damageDuringUse" className="text-sm font-medium">
-                            Did the issue start while you were using it?
-                          </Label>
-                        <Switch
-                          id="damageDuringUse"
-                          checked={damageDuringUse}
-                          onCheckedChange={setDamageDuringUse}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {damageDuringUse && (
-                    <div>
-                      <Label htmlFor="incidentDescription">
-                        What Happened? *
-                      </Label>
-                      <Textarea
-                        id="incidentDescription"
-                        value={incidentDescription}
-                        onChange={(e) => setIncidentDescription(e.target.value)}
-                        placeholder="Please describe what you were doing when this occurred and any events that might have contributed to the issue..."
-                        rows={3}
-                        required={damageDuringUse}
-                      />
-                    </div>
-                  )}
 
                   {/* Image Upload Section */}
                   <div className="space-y-3">

@@ -54,7 +54,6 @@ export function CreateIssueDialog({
   const [description, setDescription] = useState('');
   const [damageAssessment, setDamageAssessment] = useState('');
   const [actualQuantity, setActualQuantity] = useState<number | ''>('');
-  const [damageDuringUse, setDamageDuringUse] = useState(false);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -177,9 +176,6 @@ export function CreateIssueDialog({
         if (damageAssessment) {
           issueData.damage_assessment = damageAssessment;
         }
-        if (damageDuringUse) {
-          issueData.is_misuse = true;
-        }
       }
 
       if (contextType === 'order' && selectedEntity) {
@@ -211,7 +207,6 @@ export function CreateIssueDialog({
     setDescription('');
     setDamageAssessment('');
     setActualQuantity('');
-    setDamageDuringUse(false);
     setSelectedImages([]);
     setSelectedEntity(null);
   };
@@ -367,21 +362,6 @@ export function CreateIssueDialog({
           {/* Tool-specific fields */}
           {contextType === 'tool' && (
             <>
-              {/* Damage During Use Switch */}
-              <Card className="bg-muted/50">
-                <CardContent className="pt-4">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="damageDuringUse" className="text-sm font-medium">
-                      Did the issue start while you were using it?
-                    </Label>
-                    <Switch
-                      id="damageDuringUse"
-                      checked={damageDuringUse}
-                      onCheckedChange={setDamageDuringUse}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
 
               {/* Damage Assessment - show for all tool issues */}
               <div>

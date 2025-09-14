@@ -121,22 +121,6 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
                 />
               </div>
 
-              {/* Incident Description */}
-              <Card className="bg-muted/50">
-                <CardContent className="pt-4">
-                  <div className="flex items-center justify-between">
-                      <Label htmlFor="damageDuringUse" className="text-sm font-medium">
-                        Did this happen while using the tool?
-                      </Label>
-                    <Switch
-                      id="damageDuringUse"
-                      checked={false}
-                      onCheckedChange={() => {}}
-                      disabled
-                    />
-                  </div>
-                </CardContent>
-              </Card>
 
               <div>
                 <Label htmlFor="damageAssessment">

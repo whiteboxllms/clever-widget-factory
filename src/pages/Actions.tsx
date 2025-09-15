@@ -513,12 +513,17 @@ export default function Actions() {
                     onClick={() => handleEditAction(action)}
                   >
                     <CardContent className="p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 space-y-3">
-                          <div className="flex items-center gap-3">
-                            {getStatusIcon(action.status, action)}
-                            <h3 className="text-lg font-semibold">{action.title}</h3>
-                          </div>
+                     <div className="space-y-3">
+                       <div className="flex items-center gap-3">
+                         {getStatusIcon(action.status, action)}
+                         <h3 className="text-lg font-semibold">{action.title}</h3>
+                       </div>
+                       <div className="text-xs text-muted-foreground">
+                         Updated: {new Date(action.updated_at).toLocaleString()}
+                         {action.estimated_completion_date && (
+                           <span className="ml-4">Expected: {new Date(action.estimated_completion_date).toLocaleDateString()}</span>
+                         )}
+                       </div>
                           
                           {action.description && (
                             <p className="text-muted-foreground">{action.description}</p>
@@ -576,18 +581,10 @@ export default function Actions() {
                                 </Badge>
                               ))
                             )}
-                          </div>
-                        </div>
-                        
-                        <div className="text-sm text-muted-foreground text-right">
-                          {action.estimated_completion_date && (
-                            <div>Expected: {new Date(action.estimated_completion_date).toLocaleDateString()}</div>
-                          )}
-                          <div>Updated: {new Date(action.updated_at).toLocaleString()}</div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                           </div>
+                       </div>
+                     </CardContent>
+                   </Card>
                 );
               })}
             </div>
@@ -612,12 +609,17 @@ export default function Actions() {
                   onClick={() => handleEditAction(action)}
                 >
                   <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 space-y-3">
-                        <div className="flex items-center gap-3">
-                          {getStatusIcon(action.status, action)}
-                          <h3 className="text-lg font-semibold">{action.title}</h3>
-                        </div>
+                     <div className="space-y-3">
+                       <div className="flex items-center gap-3">
+                         {getStatusIcon(action.status, action)}
+                         <h3 className="text-lg font-semibold">{action.title}</h3>
+                       </div>
+                       <div className="text-xs text-muted-foreground">
+                         {action.completed_at && (
+                           <span>Completed: {new Date(action.completed_at).toLocaleDateString()}</span>
+                         )}
+                         <span className={action.completed_at ? "ml-4" : ""}>Updated: {new Date(action.updated_at).toLocaleString()}</span>
+                       </div>
                         
                         {action.description && (
                           <p className="text-muted-foreground">{action.description}</p>
@@ -672,22 +674,14 @@ export default function Actions() {
                                </Badge>
                              ))
                            )}
-                        </div>
-                       </div>
-                       
-                        <div className="flex items-center gap-2">
-                          <ScoreButton action={action} onScoreAction={handleScoreAction} />
+                         </div>
                          
-                         <div className="text-sm text-muted-foreground text-right">
-                           {action.completed_at && (
-                             <div>Completed: {new Date(action.completed_at).toLocaleDateString()}</div>
-                           )}
-                           <div>Updated: {new Date(action.updated_at).toLocaleString()}</div>
+                         <div className="flex items-center gap-2">
+                           <ScoreButton action={action} onScoreAction={handleScoreAction} />
                          </div>
                        </div>
-                     </div>
-                   </CardContent>
-                 </Card>
+                     </CardContent>
+                   </Card>
                ))}
              </div>
            )}

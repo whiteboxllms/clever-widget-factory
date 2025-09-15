@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -596,7 +597,7 @@ export const CombinedAssetsContainer = () => {
         />
       )}
 
-      {/* Removal Dialog */}
+      {/* Removal Dialogs */}
       {selectedAsset && selectedAsset.type === 'asset' && (
         <ToolRemovalDialog
           open={showRemovalDialog}
@@ -607,6 +608,36 @@ export const CombinedAssetsContainer = () => {
           tool={selectedAsset as any}
           onConfirm={handleConfirmRemoval}
         />
+      )}
+
+      {selectedAsset && selectedAsset.type === 'stock' && (
+        <AlertDialog
+          open={showRemovalDialog}
+          onOpenChange={(open) => {
+            if (!open) {
+              setShowRemovalDialog(false);
+              setSelectedAsset(null);
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Stock Item</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete "{selectedAsset.name}"? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => handleConfirmRemoval('', '')}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
 
       {/* Edit Tool Dialog */}

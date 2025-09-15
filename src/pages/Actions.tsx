@@ -27,7 +27,7 @@ export default function Actions() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [assigneeFilter, setAssigneeFilter] = useState('all');
+  const [assigneeFilter, setAssigneeFilter] = useState('me');
   const [editingAction, setEditingAction] = useState<BaseAction | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);

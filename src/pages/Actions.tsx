@@ -382,7 +382,7 @@ export default function Actions() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Button variant="outline" onClick={() => navigate('/')}>
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -394,7 +394,7 @@ export default function Actions() {
             <p className="text-muted-foreground">Track and manage actions</p>
           </div>
         </div>
-        <Button onClick={handleCreateAction}>
+        <Button onClick={handleCreateAction} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           New Action
         </Button>

@@ -47,7 +47,7 @@ export default function Actions() {
           assignee:organization_members(id, user_id, full_name, role),
           mission:missions(id, title, mission_number, status)
         `)
-        .order('created_at', { ascending: false });
+        .order('updated_at', { ascending: false });
 
       if (error) throw error;
 
@@ -628,9 +628,25 @@ export default function Actions() {
                             <div className="text-xs text-muted-foreground mt-1">
                               <div className="flex flex-col sm:flex-row sm:flex-wrap gap-x-4 gap-y-1">
                                 {action.completed_at && (
-                                  <span>Completed: {new Date(action.completed_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}</span>
+                                  <span>Completed: {new Date(action.completed_at).toLocaleDateString('en-US', { 
+                                    year: '2-digit', 
+                                    month: 'numeric', 
+                                    day: 'numeric' 
+                                  }) + ' ' + new Date(action.completed_at).toLocaleTimeString('en-US', {
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                    hour12: true
+                                  })}</span>
                                 )}
-                                <span>Updated: {new Date(action.updated_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}</span>
+                                <span>Updated: {new Date(action.updated_at).toLocaleDateString('en-US', { 
+                                  year: '2-digit', 
+                                  month: 'numeric', 
+                                  day: 'numeric' 
+                                }) + ' ' + new Date(action.updated_at).toLocaleTimeString('en-US', {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                  hour12: true
+                                })}</span>
                               </div>
                             </div>
                           </div>

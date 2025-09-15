@@ -54,6 +54,7 @@ interface ActionCardProps {
     required_tools?: string[];
     linked_issue_id?: string;
     issue_reference?: string;
+    attachments?: string[];
   };
   profiles: Profile[];
   onUpdate: () => void;
@@ -176,21 +177,29 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     }
   };
 
-  // Load photos (only real photos now, temp photos come from storage)
+  // Load photos from action's attachments field
   const loadPhotos = async () => {
     if (!isExpanded && !isEditing) return;
     
     // Only load real photos for saved actions
     if (!action.id.startsWith('temp-')) {
+      // Get action with attachments field
       const { data, error } = await supabase
-        .from('mission_attachments')
-        .select('id, file_url, file_name')
-        .eq('task_id', action.id);
+        .from('actions')
+        .select('attachments')
+        .eq('id', action.id)
+        .single();
 
       if (error) {
-        console.error('Error loading photos:', error);
+        console.error('Error loading action attachments:', error);
       } else {
-        setPhotos(data || []);
+        // Convert attachment URLs to photo format
+        const attachmentPhotos = (data?.attachments || []).map((url: string, index: number) => ({
+          id: `attachment-${index}`,
+          file_url: url,
+          file_name: `Attachment ${index + 1}`
+        }));
+        setPhotos(attachmentPhotos);
       }
     }
   };
@@ -409,32 +418,38 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
 
           if (uploadError) throw uploadError;
 
-          // Save attachment record
-          const { data: attachmentData, error: attachmentError } = await supabase
-            .from('mission_attachments')
-            .insert({
-              task_id: action.id,
-              mission_id: action.mission_id,
-              organization_id: organizationId,
-              file_name: file.name,
-              file_url: uploadData.path,
-              file_type: compressionResult.file.type,
-              attachment_type: 'evidence',
-              uploaded_by: (await supabase.auth.getUser()).data.user?.id
-            })
-            .select()
+          // Get the full URL for the uploaded file
+          const { data: { publicUrl } } = supabase.storage
+            .from('mission-evidence')
+            .getPublicUrl(uploadData.path);
+
+          // Add to action's attachments array
+          const { data: currentAction, error: fetchError } = await supabase
+            .from('actions')
+            .select('attachments')
+            .eq('id', action.id)
             .single();
 
-          if (attachmentError) throw attachmentError;
+          if (fetchError) throw fetchError;
+
+          const currentAttachments = currentAction?.attachments || [];
+          const updatedAttachments = [...currentAttachments, publicUrl];
+
+          const { error: updateError } = await supabase
+            .from('actions')
+            .update({ attachments: updatedAttachments })
+            .eq('id', action.id);
+
+          if (updateError) throw updateError;
 
           enhancedToast.showUploadSuccess(file.name);
           enhancedToast.dismiss(uploadToast.id);
           
           // Add to photos list
           setPhotos(prev => [...prev, {
-            id: attachmentData.id,
-            file_url: attachmentData.file_url,
-            file_name: attachmentData.file_name
+            id: `attachment-${Date.now()}`,
+            file_url: publicUrl,
+            file_name: file.name
           }]);
 
           successCount++;

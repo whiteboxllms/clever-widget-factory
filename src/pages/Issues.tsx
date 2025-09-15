@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { GenericIssueCard } from "@/components/GenericIssueCard";
 import { CreateIssueDialog } from "@/components/CreateIssueDialog";
 import { IssueEditDialog } from "@/components/IssueEditDialog";
-import { IssueQuickResolveDialog } from "@/components/IssueQuickResolveDialog";
+
 import { useGenericIssues } from "@/hooks/useGenericIssues";
 import { ContextType, BaseIssue, getContextLabel } from "@/types/issues";
 
@@ -27,7 +27,8 @@ export default function Issues() {
     issues, 
     isLoading, 
     fetchIssues,
-    updateIssue
+    updateIssue,
+    resolveIssue
   } = useGenericIssues({
     contextType: contextFilter === 'all' ? undefined : contextFilter,
     status: statusFilter === 'all' ? undefined : statusFilter
@@ -49,11 +50,14 @@ export default function Issues() {
   const [createIssueOpen, setCreateIssueOpen] = useState(false);
   const [editingIssue, setEditingIssue] = useState<BaseIssue | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isResolveDialogOpen, setIsResolveDialogOpen] = useState(false);
 
-  const handleIssueResolve = (issue: BaseIssue) => {
-    setEditingIssue(issue);
-    setIsResolveDialogOpen(true);
+  const handleIssueResolve = async (issue: BaseIssue) => {
+    try {
+      await resolveIssue(issue.id);
+      await fetchIssues();
+    } catch (error) {
+      console.error('Error resolving issue:', error);
+    }
   };
 
   const handleIssueEdit = (issue: BaseIssue) => {
@@ -200,7 +204,6 @@ export default function Issues() {
                   <GenericIssueCard
                     key={issue.id}
                     issue={issue}
-                    onResolve={handleIssueResolve}
                     onEdit={handleIssueEdit}
                     onRefresh={fetchIssues}
                     showContext={false}
@@ -219,7 +222,6 @@ export default function Issues() {
             <GenericIssueCard
               key={issue.id}
               issue={issue}
-              onResolve={handleIssueResolve}
               onEdit={handleIssueEdit}
               onRefresh={fetchIssues}
               showContext={false}
@@ -246,17 +248,6 @@ export default function Issues() {
         onSuccess={handleEditSuccess}
       />
 
-      {/* Resolve Issue Dialog */}
-      <IssueQuickResolveDialog
-        open={isResolveDialogOpen}
-        onOpenChange={setIsResolveDialogOpen}
-        issue={editingIssue}
-        onSuccess={() => {
-          fetchIssues();
-          setIsResolveDialogOpen(false);
-          setEditingIssue(null);
-        }}
-      />
     </div>
   );
 }

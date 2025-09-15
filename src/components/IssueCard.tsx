@@ -10,7 +10,7 @@ import { createIssueAction } from "@/types/actions";
 import { ManageIssueActionsDialog } from "./ManageIssueActionsDialog";
 import { IssueScoreDialog } from "./IssueScoreDialog";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
-import { IssueQuickResolveDialog } from "./IssueQuickResolveDialog";
+
 import { useAssetScores, AssetScore } from "@/hooks/useAssetScores";
 import { useIssueActions } from "@/hooks/useIssueActions";
 import { getIssueTypeIcon, getIssueTypeColor } from "@/lib/issueTypeUtils";
@@ -43,7 +43,7 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
   const [showCreateActionDialog, setShowCreateActionDialog] = useState(false);
   const [showManageActionsDialog, setShowManageActionsDialog] = useState(false);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
-  const [showQuickResolveDialog, setShowQuickResolveDialog] = useState(false);
+  
   const [tool, setTool] = useState<any>(null);
   const [existingScore, setExistingScore] = useState<AssetScore | null>(null);
   const [existingActions, setExistingActions] = useState<any[]>([]);
@@ -277,10 +277,10 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
               variant="outline"
               onClick={() => onResolve(issue)}
               className="h-7 px-2 text-xs"
-              title="Resolve this issue with details"
+              title="Resolve this issue"
             >
               <CheckCircle className="h-3 w-3 mr-1" />
-              Resolve Issue
+              Resolve
             </Button>
             <Button
               size="sm"
@@ -344,12 +344,6 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
         />
       )}
 
-      <IssueQuickResolveDialog
-        open={showQuickResolveDialog}
-        onOpenChange={setShowQuickResolveDialog}
-        issue={issue as any}
-        onSuccess={onRefresh}
-      />
     </Card>
   );
 }

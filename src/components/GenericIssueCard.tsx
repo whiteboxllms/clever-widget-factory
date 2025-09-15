@@ -43,7 +43,7 @@ export function GenericIssueCard({
   const [showCreateActionDialog, setShowCreateActionDialog] = useState(false);
   const [showManageActionsDialog, setShowManageActionsDialog] = useState(false);
   const [profiles, setProfiles] = useState<any[]>([]);
-  const { removeIssue } = useGenericIssues();
+  const { removeIssue, resolveIssue } = useGenericIssues();
   const { getScoreForIssue } = useAssetScores();
   const { getActionsForIssue } = useIssueActions();
 
@@ -360,13 +360,20 @@ export function GenericIssueCard({
                 </Button>
               )}
               
-              {onResolve && !isResolved && (
+              {!isResolved && (
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => onResolve(issue)}
+                  onClick={async () => {
+                    try {
+                      await resolveIssue(issue.id);
+                      onRefresh();
+                    } catch (error) {
+                      console.error('Error resolving issue:', error);
+                    }
+                  }}
                   className="min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs"
-                  title="Detailed Resolve"
+                  title="Resolve Issue"
                 >
                   <CheckCircle className="h-4 w-4 sm:h-3 sm:w-3 mr-2 sm:mr-1" />
                   <span className="hidden sm:inline">Resolve</span>

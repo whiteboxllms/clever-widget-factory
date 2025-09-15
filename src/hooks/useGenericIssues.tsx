@@ -188,7 +188,7 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
 
   const resolveIssue = async (
     issueId: string, 
-    resolutionData: {
+    resolutionData?: {
       root_cause?: string;
       resolution_notes?: string;
       resolution_photo_urls?: string[];
@@ -197,7 +197,7 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
     return updateIssue(issueId, {
       status: 'resolved',
       resolved_at: new Date().toISOString(),
-      ...resolutionData
+      ...(resolutionData || {})
     });
   };
 

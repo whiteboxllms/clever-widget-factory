@@ -333,8 +333,6 @@ export const CombinedAssetsContainer = () => {
     if (!selectedAsset) return;
 
     try {
-      const table = selectedAsset.type === 'asset' ? 'tools' : 'parts';
-      
       if (selectedAsset.type === 'asset') {
         // For assets, set status to 'removed'
         const { error } = await supabase
@@ -344,14 +342,13 @@ export const CombinedAssetsContainer = () => {
 
         if (error) throw error;
       } else {
-        // For stock items, you might want to delete or set a removed flag
-        // For now, we'll just show a message since parts table might not have status
-        toast({
-          title: "Feature Coming Soon",
-          description: "Stock item removal will be available soon.",
-        });
-        setShowRemovalDialog(false);
-        return;
+        // For stock items, delete the record like the inventory page
+        const { error } = await supabase
+          .from('parts')
+          .delete()
+          .eq('id', selectedAsset.id);
+
+        if (error) throw error;
       }
 
       await refetch();

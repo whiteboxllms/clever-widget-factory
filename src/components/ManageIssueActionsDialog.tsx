@@ -11,6 +11,7 @@ import { useIssueActions } from "@/hooks/useIssueActions";
 import { UnifiedActionDialog } from "./UnifiedActionDialog";
 import { BaseAction, createIssueAction } from "@/types/actions";
 import { ActionCard } from "./ActionCard";
+import { useOrganizationId } from "@/hooks/useOrganizationId";
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -50,6 +51,7 @@ export function ManageIssueActionsDialog({
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingAction, setEditingAction] = useState<BaseAction | null>(null);
   const { getActionsForIssue, markActionComplete, markActionIncomplete, loading } = useIssueActions();
+  const organizationId = useOrganizationId();
 
   // Fetch actions and profiles when dialog opens
   useEffect(() => {
@@ -70,10 +72,12 @@ export function ManageIssueActionsDialog({
 
     // Fetch profiles for display names and tool name
     try {
-      // Always fetch profiles
+      // Always fetch profiles filtered by organization and active status
       const profilesResponse = await supabase
         .from('organization_members')
         .select('id, user_id, full_name, role')
+        .eq('organization_id', organizationId)
+        .eq('is_active', true)
         .order('full_name');
       
       if (profilesResponse.error) throw profilesResponse.error;

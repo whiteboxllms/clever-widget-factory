@@ -10,7 +10,7 @@ import { useToolFilters } from "@/hooks/tools/useToolFilters";
 import { useToolHistory, HistoryEntry } from "@/hooks/tools/useToolHistory";
 import { useToolsWithIssues } from "@/hooks/tools/useToolsWithIssues";
 import { useToolsWithUnassignedIssues } from "@/hooks/tools/useToolsWithUnassignedIssues";
-import { useToolIssues } from "@/hooks/useToolIssues";
+import { useToolIssues } from "@/hooks/useGenericIssues";
 import { useParentStructures } from "@/hooks/tools/useParentStructures";
 import { toolsService } from "@/services/toolsService";
 import { ToolFilters } from "../ToolFilters";

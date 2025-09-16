@@ -14,7 +14,7 @@ import { Tables, Database } from '@/integrations/supabase/types';
 import { ExternalLink, Info, AlertTriangle, Plus, Camera, X } from 'lucide-react';
 import { TOOL_CONDITION_OPTIONS } from '@/lib/constants';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useToolIssues } from '@/hooks/useToolIssues';
+import { useToolIssues } from '@/hooks/useGenericIssues';
 import { IssueCard } from '@/components/IssueCard';
 import { IssueResolutionDialog } from '@/components/IssueResolutionDialog';
 import { useImageUpload } from '@/hooks/useImageUpload';

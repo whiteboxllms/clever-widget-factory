@@ -19,7 +19,7 @@ import {
   Brain,
   Package 
 } from "lucide-react";
-import { ToolIssue } from "@/hooks/useToolIssues";
+import { BaseIssue } from "@/types/issues";
 import { ACTION_REQUIRED_OPTIONS } from "@/lib/constants";
 import { useAuth } from "@/hooks/useAuth";
 import { AttributeSelector } from "@/components/AttributeSelector";
@@ -27,11 +27,11 @@ import { WorkerSelector } from "@/components/WorkerSelector";
 import { useIssueRequirements } from "@/hooks/useWorkerAttributes";
 
 interface IssueWorkflowDialogProps {
-  issue: ToolIssue | null;
+  issue: BaseIssue | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
-  onUpdate: (issueId: string, updates: Partial<ToolIssue>) => Promise<boolean>;
+  onUpdate: (issueId: string, updates: Partial<BaseIssue>) => Promise<boolean>;
   userRole?: string;
 }
 
@@ -95,7 +95,7 @@ export function IssueWorkflowDialog({
 
     setIsSubmitting(true);
     try {
-      const updates: Partial<ToolIssue> = {};
+      const updates: Partial<BaseIssue> = {};
 
       // Tool Keeper actions (diagnosis)
       if (workflowStatus === 'diagnosed' && !issue.diagnosed_by) {

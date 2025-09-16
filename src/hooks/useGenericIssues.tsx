@@ -207,6 +207,36 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
     });
   };
 
+  const createIssuesFromText = async (
+    issuesText: string, 
+    issueType: BaseIssue['issue_type'] = 'efficiency',
+    isMisuse: boolean = false,
+    checkoutId?: string,
+    damageAssessment?: string,
+    efficiencyLossPercentage?: number,
+    reportPhotoUrls?: string[]
+  ) => {
+    if (!issuesText.trim() || !filters.contextId) return;
+
+    // Split text by lines and create individual issues
+    const issueDescriptions = issuesText
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+
+    for (const description of issueDescriptions) {
+      await createIssue({
+        context_type: filters.contextType!,
+        context_id: filters.contextId,
+        description,
+        issue_type: issueType,
+        damage_assessment: damageAssessment,
+        efficiency_loss_percentage: efficiencyLossPercentage,
+        report_photo_urls: reportPhotoUrls
+      });
+    }
+  };
+
   useEffect(() => {
     fetchIssues();
   }, [filters.contextType, filters.contextId, filters.status]);
@@ -216,6 +246,7 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
     isLoading,
     fetchIssues,
     createIssue,
+    createIssuesFromText,
     updateIssue,
     resolveIssue,
     removeIssue

@@ -25,7 +25,7 @@ import { useCombinedAssets, CombinedAsset } from "@/hooks/useCombinedAssets";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useToolHistory } from "@/hooks/tools/useToolHistory";
-import { useToolIssues } from "@/hooks/useToolIssues";
+import { useToolIssues } from "@/hooks/useGenericIssues";
 import { useInventoryIssues } from "@/hooks/useGenericIssues";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { supabase } from "@/integrations/supabase/client";

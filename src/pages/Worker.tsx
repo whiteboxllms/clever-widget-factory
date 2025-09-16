@@ -15,11 +15,11 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { ToolIssue } from '@/hooks/useToolIssues';
+import { BaseIssue } from '@/types/issues';
 import { IssueWorkflowDialog } from '@/components/IssueWorkflowDialog';
 import { useWorkerAttributes, WorkerAttribute, IssueRequirement, AttributeType } from '@/hooks/useWorkerAttributes';
 
-interface IssueWithTool extends ToolIssue {
+interface IssueWithTool extends BaseIssue {
   tool_name: string;
   tool_location: string;
   requirements?: IssueRequirement[];
@@ -45,7 +45,7 @@ export default function Worker() {
   const [assignedIssues, setAssignedIssues] = useState<IssueWithTool[]>([]);
   const [availableIssues, setAvailableIssues] = useState<IssueWithTool[]>([]);
   const [myAttributes, setMyAttributes] = useState<WorkerAttribute[]>([]);
-  const [selectedIssue, setSelectedIssue] = useState<ToolIssue | null>(null);
+  const [selectedIssue, setSelectedIssue] = useState<BaseIssue | null>(null);
   const [isWorkflowDialogOpen, setIsWorkflowDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -221,7 +221,7 @@ export default function Worker() {
     }
   };
 
-  const handleIssueUpdate = async (issueId: string, updates: Partial<ToolIssue>) => {
+  const handleIssueUpdate = async (issueId: string, updates: Partial<BaseIssue>) => {
     try {
       const { error } = await supabase
         .from('issues')

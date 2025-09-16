@@ -563,10 +563,10 @@ export default function Actions() {
                              </Badge>
                              
                              {/* Action Type Indicator */}
-                             {action.asset ? (
-                               <Badge variant="outline" className="bg-blue-100 text-blue-800 max-w-full">
-                                 <span className="truncate">Asset: {action.asset.name.length > 20 ? `${action.asset.name.substring(0, 20)}...` : action.asset.name}</span>
-                               </Badge>
+                              {action.asset ? (
+                                <Badge variant="outline" className="bg-blue-100 text-blue-600 border-blue-300 max-w-full">
+                                  <span className="truncate">Asset: {action.asset.name.length > 20 ? `${action.asset.name.substring(0, 20)}...` : action.asset.name}</span>
+                                </Badge>
                              ) : action.issue_tool ? (
                                <Badge variant="outline" className="bg-orange-100 text-orange-800 max-w-full">
                                  <span className="truncate">Issue Tool: {action.issue_tool.name.length > 15 ? `${action.issue_tool.name.substring(0, 15)}...` : action.issue_tool.name}</span>

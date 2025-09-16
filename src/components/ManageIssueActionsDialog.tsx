@@ -187,6 +187,7 @@ export function ManageIssueActionsDialog({
                       onUpdate={fetchActionsAndProfiles}
                       compact={true}
                       onToggleComplete={handleToggleComplete}
+                      onEdit={() => setEditingAction(action)}
                     />
                   ))}
                 </div>
@@ -226,8 +227,7 @@ export function ManageIssueActionsDialog({
         onActionSaved={() => {
           setShowCreateDialog(false);
           setEditingAction(null);
-          fetchActionsAndProfiles();
-          onRefresh();
+          handleActionCreated();
         }}
         isCreating={showCreateDialog}
       />

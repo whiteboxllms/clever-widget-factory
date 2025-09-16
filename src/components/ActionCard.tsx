@@ -946,6 +946,19 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
             {/* Compact mode buttons */}
             {compact && (
               <div className="flex justify-end gap-2 pt-4 border-t">
+                {onEdit && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit();
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    Edit
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="outline"

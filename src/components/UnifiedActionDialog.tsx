@@ -586,7 +586,7 @@ export function UnifiedActionDialog({
 
           {/* Description */}
           <div>
-            <Label htmlFor="description">Background</Label>
+            <Label htmlFor="description">Existing State</Label>
             <Textarea
               id="description"
               value={formData.description || ''}

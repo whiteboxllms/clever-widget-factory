@@ -124,7 +124,7 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
 
               <div>
                 <Label htmlFor="damageAssessment">
-                  What Happened?
+                  Damage Assessment (if applicable)
                 </Label>
                 <Textarea
                   id="damageAssessment"

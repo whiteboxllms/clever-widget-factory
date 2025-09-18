@@ -192,14 +192,7 @@ export const ToolsContainer = () => {
           tool={selectedTool}
           toolHistory={toolHistory}
           currentCheckout={currentCheckout}
-          issues={issues}
           onBack={handleBackToTools}
-          onResolveIssue={handleResolveIssue}
-          onEditIssue={handleEditIssue}
-          onRefresh={() => {
-            fetchTools();
-            fetchIssues();
-          }}
         />
         
         <IssueResolutionDialog

@@ -444,17 +444,7 @@ export const CombinedAssetsContainer = () => {
           tool={selectedAssetForDetails as any}
           toolHistory={toolHistory}
           currentCheckout={null} // TODO: Add current checkout logic if needed
-          issues={issues}
           onBack={handleBackToAssets}
-          onResolveIssue={(issue) => {
-            // Handle issue resolution
-          }}
-          onEditIssue={(issue) => {
-            // Handle issue editing
-          }}
-          onRefresh={() => {
-            fetchToolHistory(selectedAssetForDetails.id);
-          }}
         />
       );
     } else if (selectedAssetForDetails.type === 'stock') {
@@ -726,19 +716,9 @@ export const CombinedAssetsContainer = () => {
                 tool={selectedAsset as any}
                 toolHistory={toolHistory}
                 currentCheckout={currentCheckout}
-                issues={issues}
                 onBack={() => {
                   setShowViewDialog(false);
                   setSelectedAsset(null);
-                }}
-                onResolveIssue={() => {}}
-                onEditIssue={() => {}}
-                onRefresh={() => {
-                  if (selectedAsset) {
-                    fetchToolHistory(selectedAsset.id);
-                    fetchAssetIssues();
-                    refetch();
-                  }
                 }}
               />
             </div>

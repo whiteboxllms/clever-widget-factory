@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tool } from "@/hooks/tools/useToolsData";
 import { CheckoutHistory, HistoryEntry, IssueHistoryEntry } from "@/hooks/tools/useToolHistory";
 import { ToolStatusBadge } from "./ToolStatusBadge";
-import { IssueCard } from "@/components/IssueCard";
+
 
 import { AlertTriangle, Bug, Shield, Wrench, Clock } from "lucide-react";
 import { getIssueTypeIconName } from "@/lib/issueTypeUtils";
@@ -15,22 +15,14 @@ interface ToolDetailsProps {
   tool: Tool;
   toolHistory: HistoryEntry[];
   currentCheckout: { user_name: string } | null;
-  issues: any[];
   onBack: () => void;
-  onResolveIssue: (issue: any) => void;
-  onEditIssue?: (issue: any) => void;
-  onRefresh?: () => void;
 }
 
 export const ToolDetails = ({
   tool,
   toolHistory,
   currentCheckout,
-  issues,
-  onBack,
-  onResolveIssue,
-  onEditIssue,
-  onRefresh
+  onBack
 }: ToolDetailsProps) => {
   const isCheckoutHistory = (record: HistoryEntry): record is CheckoutHistory => {
     return record.type !== 'issue_change';
@@ -75,9 +67,8 @@ export const ToolDetails = ({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <Tabs defaultValue="details" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="details">Details</TabsTrigger>
-              <TabsTrigger value="issues">Issues</TabsTrigger>
               <TabsTrigger value="history">History</TabsTrigger>
             </TabsList>
             
@@ -132,26 +123,6 @@ export const ToolDetails = ({
             </TabsContent>
 
 
-            <TabsContent value="issues" className="space-y-4">
-              <div className="space-y-4">
-                
-                {issues.map((issue) => (
-                  <IssueCard
-                    key={issue.id}
-                    issue={issue}
-                    onResolve={() => onResolveIssue(issue)}
-                    onEdit={onEditIssue ? () => onEditIssue(issue) : undefined}
-                    onRefresh={onRefresh || (() => {})}
-                  />
-                ))}
-                
-                {issues.length === 0 && (
-                  <p className="text-center text-muted-foreground py-8">
-                    No issues reported.
-                  </p>
-                )}
-              </div>
-            </TabsContent>
 
             <TabsContent value="history" className="space-y-4">
               <div className="space-y-4">

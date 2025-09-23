@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useActionProfiles } from "@/hooks/useActionProfiles";
 import { ArrowLeft, Rocket, Flag, Calendar, User, CheckCircle, Clock, AlertCircle, ChevronRight, ExternalLink, Wrench, Microscope, GraduationCap, Hammer, Lightbulb, ChevronDown, ChevronUp } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { MissionTemplates } from '@/components/MissionTemplates';
@@ -66,8 +67,10 @@ const Missions = () => {
     toast
   } = useToast();
   const [missions, setMissions] = useState<Mission[]>([]);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Use standardized profiles for consistent "Assigned to" dropdown
+  const { profiles } = useActionProfiles();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showTemplates, setShowTemplates] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -209,7 +212,6 @@ const Missions = () => {
   }, []);
   useEffect(() => {
     fetchMissions();
-    fetchProfiles();
     checkUserRole();
 
     // Subscribe to real-time changes in mission_tasks table with targeted updates
@@ -256,21 +258,8 @@ const Missions = () => {
     setIsAdmin(member?.role === 'admin');
     setIsContributorOrAdmin(member?.role === 'admin' || member?.role === 'contributor');
   };
-  const fetchProfiles = async () => {
-    const {
-      data,
-      error
-    } = await supabase.from('organization_members').select('id, user_id, full_name, role, super_admin, created_at');
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load user profiles",
-        variant: "destructive"
-      });
-    } else {
-      setProfiles(data || []);
-    }
-  };
+  // Use standardized profile hook instead of manual fetching
+  // This ensures consistent "Assigned to" dropdown across all action contexts
   const fetchMissions = async () => {
     setLoading(true);
     const {

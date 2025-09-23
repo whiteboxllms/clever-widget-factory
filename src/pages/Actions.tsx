@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
+import { useActionProfiles } from '@/hooks/useActionProfiles';
 import { Bolt, Plus, Filter, Search, Clock, CheckCircle, Circle, User, AlertTriangle, Wrench, ArrowLeft, Target, X } from 'lucide-react';
 import { UnifiedActionDialog } from '@/components/UnifiedActionDialog';
 import { ActionScoreDialog } from '@/components/ActionScoreDialog';
@@ -31,8 +32,10 @@ export default function Actions() {
   const [editingAction, setEditingAction] = useState<BaseAction | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
+  
+  // Use standardized profiles for consistent "Assigned to" dropdown
+  const { profiles } = useActionProfiles();
   const [scoringAction, setScoringAction] = useState<BaseAction | null>(null);
   const [existingScore, setExistingScore] = useState<any>(null);
 
@@ -150,34 +153,7 @@ export default function Actions() {
     }
   };
 
-  const fetchProfiles = async () => {
-    try {
-      // Get current user's organization ID
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
-
-      const { data: userOrg, error: orgError } = await supabase
-        .from('organization_members')
-        .select('organization_id')
-        .eq('user_id', userData.user?.id)
-        .single();
-      
-      if (orgError) throw orgError;
-
-      // Fetch only active members from the same organization
-      const { data, error } = await supabase
-        .from('organization_members')
-        .select('id, user_id, full_name, role, super_admin, created_at')
-        .eq('organization_id', userOrg.organization_id)
-        .eq('is_active', true);
-      
-      if (error) throw error;
-      console.log('Actions fetchProfiles: Found', data?.length, 'profiles:', data);
-      setProfiles(data || []);
-    } catch (error) {
-      console.error('Error fetching profiles:', error);
-    }
-  };
+  // Profiles are now handled by useActionProfiles hook for consistency
 
   const handleEditAction = (action: BaseAction) => {
     console.log('Actions page: Clicking action with ID:', action.id, 'and policy:', action.policy);
@@ -227,7 +203,6 @@ export default function Actions() {
 
   useEffect(() => {
     fetchActions();
-    fetchProfiles();
   }, []);
 
   // Reset assignee filter if the selected assignee is not in active profiles

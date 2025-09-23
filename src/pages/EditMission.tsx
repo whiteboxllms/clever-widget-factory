@@ -7,6 +7,7 @@ import { SimpleMissionForm } from '@/components/SimpleMissionForm';
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useActionProfiles } from "@/hooks/useActionProfiles";
 
 interface Mission {
   id: string;
@@ -60,8 +61,10 @@ export default function EditMission() {
   const { toast } = useToast();
   
   const [mission, setMission] = useState<Mission | null>(null);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Use standardized profiles for consistent "Assigned to" dropdown
+  const { profiles } = useActionProfiles();
   const [isContributorOrAdmin, setIsContributorOrAdmin] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   
@@ -82,7 +85,6 @@ export default function EditMission() {
     }
     
     fetchMissionData();
-    fetchProfiles();
     checkUserPermissions();
   }, [missionId, user]);
 
@@ -174,17 +176,7 @@ export default function EditMission() {
     }
   };
 
-  const fetchProfiles = async () => {
-    const { data: profilesData, error: profilesError } = await supabase
-      .from('organization_members')
-      .select('id, user_id, full_name, role, super_admin, created_at');
-    
-    if (profilesError) {
-      console.error('Error fetching profiles:', profilesError);
-    } else {
-      setProfiles(profilesData || []);
-    }
-  };
+  // Profiles are now handled by useActionProfiles hook for consistency
 
   const checkUserPermissions = async () => {
     if (!user) return;

@@ -11,7 +11,7 @@ import { useIssueActions } from "@/hooks/useIssueActions";
 import { UnifiedActionDialog } from "./UnifiedActionDialog";
 import { BaseAction, createIssueAction } from "@/types/actions";
 import { ActionCard } from "./ActionCard";
-import { useOrganizationId } from "@/hooks/useOrganizationId";
+import { useActionProfiles } from "@/hooks/useActionProfiles";
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -46,12 +46,13 @@ export function ManageIssueActionsDialog({
   onRefresh
 }: ManageIssueActionsDialogProps) {
   const [actions, setActions] = useState<BaseAction[]>([]);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [toolName, setToolName] = useState<string>("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingAction, setEditingAction] = useState<BaseAction | null>(null);
   const { getActionsForIssue, markActionComplete, markActionIncomplete, loading } = useIssueActions();
-  const organizationId = useOrganizationId();
+  
+  // Use standardized profiles for consistent "Assigned to" dropdown
+  const { profiles } = useActionProfiles();
 
   // Fetch actions and profiles when dialog opens
   useEffect(() => {
@@ -70,20 +71,8 @@ export function ManageIssueActionsDialog({
     const issueActions = await getActionsForIssue(issue.id);
     setActions(issueActions);
 
-    // Fetch profiles for display names and tool name
+    // Fetch tool name if tool_id exists
     try {
-      // Always fetch profiles filtered by organization and active status
-      const profilesResponse = await supabase
-        .from('organization_members')
-        .select('id, user_id, full_name, role')
-        .eq('organization_id', organizationId)
-        .eq('is_active', true)
-        .order('full_name');
-      
-      if (profilesResponse.error) throw profilesResponse.error;
-      setProfiles(profilesResponse.data || []);
-
-      // Only fetch tool if tool_id exists
       if (issue.tool_id) {
         const toolResponse = await supabase
           .from('tools')
@@ -101,7 +90,7 @@ export function ManageIssueActionsDialog({
         setToolName(""); 
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('Error fetching tool name:', error);
     }
   };
 

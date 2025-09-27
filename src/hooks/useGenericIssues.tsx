@@ -73,6 +73,7 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
         workflow_status: issueData.workflow_status || 'reported',
         issue_metadata: issueData.issue_metadata || {},
         report_photo_urls: issueData.report_photo_urls || [],
+        damage_assessment: issueData.damage_assessment,
         reported_by: user.data.user.id
       };
 

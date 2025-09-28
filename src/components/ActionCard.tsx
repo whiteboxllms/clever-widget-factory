@@ -900,16 +900,28 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
               {(photos.length > 0 || tempPhotos.length > 0) ? (
                 <div className="grid grid-cols-3 gap-3">
                   {/* Real photos */}
-                  {photos.map((photo) => (
-                    <div key={photo.id} className="relative group">
-                      <img
-                        src={`https://oskwnlhuuxjfuwnjuavn.supabase.co/storage/v1/object/public/mission-evidence/${photo.file_url}`}
-                        alt={photo.file_name}
-                        className="w-full h-24 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
-                        onClick={() => window.open(`https://oskwnlhuuxjfuwnjuavn.supabase.co/storage/v1/object/public/mission-evidence/${photo.file_url}`, '_blank')}
-                      />
-                    </div>
-                  ))}
+                  {photos.map((photo) => {
+                    const photoUrl = photo.file_url.startsWith('http') 
+                      ? photo.file_url 
+                      : supabase.storage.from('mission-evidence').getPublicUrl(photo.file_url).data.publicUrl;
+                    
+                    return (
+                      <div key={photo.id} className="relative group">
+                        <img
+                          src={photoUrl}
+                          alt={photo.file_name}
+                          className="w-full h-24 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={() => window.open(photoUrl, '_blank')}
+                          onError={(e) => {
+                            if (!photo.file_url.startsWith('http')) {
+                              const fallbackUrl = supabase.storage.from('mission-attachments').getPublicUrl(photo.file_url).data.publicUrl;
+                              (e.currentTarget as HTMLImageElement).src = fallbackUrl;
+                            }
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
                   
                   {/* Temp photos for unsaved actions */}
                   {tempPhotos.map((photo, index) => (

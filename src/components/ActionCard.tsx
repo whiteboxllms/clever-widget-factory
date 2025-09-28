@@ -504,8 +504,12 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
   };
 
   const handleCompleteAction = async () => {
+    // Use current editData values for validation (includes unsaved changes)
+    const currentPolicy = editData.policy;
+    const currentObservations = editData.observations;
+    
     // Check if plan has content
-    if (!action.policy || !action.policy.trim()) {
+    if (!currentPolicy || !currentPolicy.trim()) {
       toast({
         title: "Policy Required",
         description: "Please add a policy before completing the action",
@@ -515,7 +519,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     }
 
     // Check if implementation has content
-    if (!hasActualContent(action.observations)) {
+    if (!hasActualContent(currentObservations)) {
       toast({
         title: "Implementation Required",
         description: "Please add implementation notes before completing the action",
@@ -527,15 +531,41 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     setIsCompleting(true);
     
     try {
+      // Prepare update data with unsaved changes
+      const normalizedPolicy = sanitizeRichText(currentPolicy);
+      const normalizedObservations = sanitizeRichText(currentObservations);
+      
+      const updateData: {
+        policy: string | null;
+        observations: string | null;
+        status: string;
+        completed_at: string;
+        assigned_to?: string;
+      } = {
+        policy: normalizedPolicy,
+        observations: normalizedObservations,
+        status: 'completed',
+        completed_at: new Date().toISOString()
+      };
+      
+      // If action is unassigned, assign it to the current user
+      if (!action.assigned_to) {
+        const { data: user } = await supabase.auth.getUser();
+        if (user.user) {
+          updateData.assigned_to = user.user.id;
+        }
+      }
+
       const { error } = await supabase
         .from('actions')
-        .update({
-          status: 'completed',
-          completed_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', action.id);
 
       if (error) throw error;
+
+      // Clear unsaved change flags since we just saved everything
+      setHasUnsavedPolicy(false);
+      setHasUnsavedImplementation(false);
 
       toast({
         title: "Action Completed!",

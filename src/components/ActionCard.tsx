@@ -179,7 +179,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
 
   // Load photos from action's attachments field
   const loadPhotos = async () => {
-    if (!isExpanded && !isEditing) return;
+    if (!isExpanded && !isEditing && !compact) return;
     
     // Only load real photos for saved actions
     if (!action.id.startsWith('temp-')) {

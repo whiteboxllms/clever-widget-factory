@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
@@ -129,7 +129,7 @@ export const useActionScores = (actionId?: string) => {
     }
   };
 
-  const getScoreForAction = async (actionId: string) => {
+  const getScoreForAction = useCallback(async (actionId: string) => {
     try {
       const { data, error } = await supabase
         .from('action_scores')
@@ -160,7 +160,7 @@ export const useActionScores = (actionId?: string) => {
       console.error('Error fetching score for action:', error);
       return null;
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (actionId) {

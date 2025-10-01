@@ -36,7 +36,7 @@ import {
   CheckCircle,
   Target
 } from "lucide-react";
-import { useImageUpload } from "@/hooks/useImageUpload";
+import { useFileUpload } from "@/hooks/useFileUpload";
 import TiptapEditor from './TiptapEditor';
 import { AssetSelector } from './AssetSelector';
 import { StockSelector } from './StockSelector';
@@ -75,7 +75,7 @@ export function UnifiedActionDialog({
   const [currentActionId, setCurrentActionId] = useState<string | null>(null);
   const [currentContextType, setCurrentContextType] = useState<string | null>(null);
   
-  const { uploadImages, isUploading } = useImageUpload();
+  const { uploadFiles, isUploading } = useFileUpload();
 
   // Initialize form data when dialog opens - preserve state for same session
   useEffect(() => {
@@ -340,7 +340,7 @@ export function UnifiedActionDialog({
 
     try {
       const fileArray = Array.from(files);
-      const uploadResults = await uploadImages(fileArray, {
+      const uploadResults = await uploadFiles(fileArray, {
         bucket: 'mission-attachments'
       });
       
@@ -777,12 +777,12 @@ export function UnifiedActionDialog({
 
           {/* Attachments */}
           <div>
-            <Label className="text-sm font-medium">Before, during and after photos</Label>
+            <Label className="text-sm font-medium">Attachments (Images & PDFs)</Label>
             <div className="mt-1">
               <input
                 type="file"
                 multiple
-                accept="image/*"
+                accept="image/*,.pdf"
                 onChange={handleFileUpload}
                 className="hidden"
                 id="attachmentUpload"
@@ -796,7 +796,7 @@ export function UnifiedActionDialog({
                 className="w-full"
               >
                 <Paperclip className="h-4 w-4 mr-2" />
-                {isUploading ? 'Uploading...' : 'Upload Photos/Documents'}
+                {isUploading ? 'Uploading...' : 'Upload Images & PDFs'}
               </Button>
             </div>
             
@@ -805,24 +805,38 @@ export function UnifiedActionDialog({
               <div className="mt-3 space-y-2">
                 <p className="text-sm text-muted-foreground">Uploaded attachments:</p>
                 <div className="flex flex-wrap gap-2">
-                  {(formData.attachments || []).map((url, index) => (
-                    <div key={index} className="relative">
-                      <img
-                        src={url}
-                        alt={`Attachment ${index + 1}`}
-                        className="h-16 w-16 object-cover rounded border cursor-pointer"
-                        onClick={() => window.open(url, '_blank')}
-                      />
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => removeAttachment(index)}
-                        className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0"
-                      >
-                        ×
-                      </Button>
-                    </div>
-                  ))}
+                  {(formData.attachments || []).map((url, index) => {
+                    const isPdf = url.toLowerCase().endsWith('.pdf');
+                    return (
+                      <div key={index} className="relative">
+                        {isPdf ? (
+                          <div
+                            className="h-16 w-16 flex items-center justify-center bg-muted rounded border cursor-pointer hover:bg-muted/80"
+                            onClick={() => window.open(url, '_blank')}
+                          >
+                            <svg className="h-8 w-8 text-destructive" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                        ) : (
+                          <img
+                            src={url}
+                            alt={`Attachment ${index + 1}`}
+                            className="h-16 w-16 object-cover rounded border cursor-pointer"
+                            onClick={() => window.open(url, '_blank')}
+                          />
+                        )}
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => removeAttachment(index)}
+                          className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0"
+                        >
+                          ×
+                        </Button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

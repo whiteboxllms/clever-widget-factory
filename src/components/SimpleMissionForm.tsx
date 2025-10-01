@@ -693,7 +693,7 @@ export function SimpleMissionForm({
             return (
             <div key={index} className={`${getActionBorderColor()} rounded-lg p-4 hover:shadow-md transition-shadow`}>
               <div className="flex items-center justify-between">
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-2">
                     {/* Phase display removed - tasks no longer have phases */}
                     <h4 className="font-medium">{task.title || `Action ${index + 1}`}</h4>
@@ -723,7 +723,7 @@ export function SimpleMissionForm({
                     <div className="mt-2">
                       <p className="text-sm text-muted-foreground font-medium">Policy:</p>
                       <div 
-                        className="text-sm prose prose-sm max-w-none line-clamp-2"
+                        className="text-sm prose prose-sm max-w-none line-clamp-2 break-words overflow-hidden"
                         dangerouslySetInnerHTML={{ __html: task.policy }}
                       />
                     </div>

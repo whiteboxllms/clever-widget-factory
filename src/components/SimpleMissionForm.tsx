@@ -121,7 +121,9 @@ export function SimpleMissionForm({
         mission_id: task.mission_id,
         estimated_completion_date: task.estimated_duration ? new Date(task.estimated_duration) : undefined,
         actual_duration: task.actual_duration || '',
-        required_tools: task.required_tools || []
+        required_tools: task.required_tools || [],
+        required_stock: task.required_stock || [],
+        attachments: task.attachments || []
       })) || [];
 
       setFormData(prev => ({ ...prev, actions: updatedTasks }));
@@ -209,7 +211,9 @@ export function SimpleMissionForm({
             assigned_to: action.assigned_to,
             status: action.status,
             estimated_completion_date: action.estimated_duration ? new Date(action.estimated_duration) : undefined,
-            required_tools: action.required_tools || []
+            required_tools: action.required_tools || [],
+            required_stock: action.required_stock || [],
+            attachments: action.attachments || []
           }));
 
           setFormData(prev => ({ 

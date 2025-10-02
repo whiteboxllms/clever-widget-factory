@@ -10,22 +10,20 @@ import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useActionProfiles } from "@/hooks/useActionProfiles";
-import { ArrowLeft, Rocket, Flag, Calendar, User, CheckCircle, Clock, AlertCircle, ChevronRight, ExternalLink, Wrench, Microscope, GraduationCap, Hammer, Lightbulb, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Rocket, Flag, Calendar, User, CheckCircle, Clock, AlertCircle, Wrench, Microscope, GraduationCap, Hammer, Lightbulb, ChevronDown, ChevronUp, Filter, Settings } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { MissionTemplates } from '@/components/MissionTemplates';
 import { SimpleMissionForm } from '@/components/SimpleMissionForm';
-import { MissionTaskList } from '@/components/MissionTaskList';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 
 import { withAuth, checkUserRole as checkUserRoleAuth } from '@/lib/authUtils';
+import { hasActualContent } from '@/lib/utils';
 interface Mission {
   id: string;
   mission_number: number;
   title: string;
   problem_statement: string;
-  resources_required: string;
-  all_materials_available: boolean;
   status: string;
   created_by: string;
   qa_assigned_to: string;
@@ -53,9 +51,11 @@ interface Profile {
 interface Task {
   id?: string;
   title: string;
+  description?: string;
   policy?: string;
   observations?: string;
   assigned_to: string | null;
+  plan_commitment?: boolean | null;
 }
 const Missions = () => {
   const navigate = useNavigate();
@@ -75,9 +75,25 @@ const Missions = () => {
   const [showTemplates, setShowTemplates] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isContributorOrAdmin, setIsContributorOrAdmin] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
-  const [expandedMissions, setExpandedMissions] = useState<Set<string>>(new Set());
+  const [selectedTemplate, setSelectedTemplate] = useState<{
+    id: string;
+    name: string;
+    description: string;
+    icon: React.ComponentType<{ className?: string }>;
+    category: string;
+    defaultTasks: Array<{
+      title: string;
+      description: string;
+      plan?: string;
+      observations?: string;
+    }>;
+    estimatedDuration: string;
+    color: string;
+  } | null>(null);
   const [expandedProblemStatements, setExpandedProblemStatements] = useState<Set<string>>(new Set());
+  const [showCompletedMissions, setShowCompletedMissions] = useState(false);
+  const [showBackloggedMissions, setShowBackloggedMissions] = useState(false);
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
 
   // Debouncing for real-time updates
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -97,24 +113,25 @@ const Missions = () => {
     };
     return iconMap[iconName] || Wrench; // Default to Wrench if not found
   };
-  interface SelectedResource {
-    id: string;
-    name: string;
-    quantity?: number;
-    unit?: string;
-    type: 'part' | 'tool';
-    status: 'planned' | 'used' | 'returned';
-    usedAt?: string;
-    usedBy?: string;
-  }
+
+  // Convert icon component to string name
+  const getIconName = (iconComponent: React.ComponentType<{ className?: string }>) => {
+    const iconNameMap: {
+      [key: string]: string;
+    } = {
+      'Wrench': 'Wrench',
+      'Microscope': 'Microscope',
+      'GraduationCap': 'GraduationCap',
+      'Hammer': 'Hammer',
+      'Lightbulb': 'Lightbulb'
+    };
+    return iconNameMap[iconComponent.name] || 'Wrench';
+  };
 
   // Form state for creating missions
   const [formData, setFormData] = useState({
     title: '',
     problem_statement: '',
-    resources_required: '',
-    selected_resources: [] as SelectedResource[],
-    all_materials_available: false,
     qa_assigned_to: user?.id || (() => {
       throw new Error('User must be authenticated to create missions');
     })(),
@@ -127,148 +144,24 @@ const Missions = () => {
     }] as Task[]
   });
 
-  // Updated function to determine mission color based on task content analysis and QA feedback
-  const getMissionTheme = (mission: Mission) => {
-    // If no tasks, show blank state
-    if (!mission.task_count || mission.task_count === 0) {
-      return {
-        bg: 'bg-card',
-        text: 'text-card-foreground',
-        border: 'border-task-blank-border'
-      };
-    }
-
-    // Priority 1: If all tasks are completed but no QA feedback, keep yellow (mission still in progress)
-    if (mission.completed_task_count === mission.task_count) {
-      // If QA feedback is provided, show green (fully complete)
-      if (mission.qa_feedback && mission.qa_feedback.trim()) {
-        return {
-          bg: 'bg-card',
-          text: 'text-card-foreground',
-          border: 'border-task-complete-border border-2'
-        };
-      }
-      // If no QA feedback yet, keep yellow (mission still in progress awaiting QA)
-      return {
-        bg: 'bg-card',
-        text: 'text-card-foreground',
-        border: 'border-task-implementation-border border-2'
-      };
-    }
-
-    // Priority 2: If any tasks have implementation (in progress), show yellow
-    if (mission.tasks_with_implementation_count && mission.tasks_with_implementation_count > 0) {
-      return {
-        bg: 'bg-card',
-        text: 'text-card-foreground',
-        border: 'border-task-implementation-border border-2'
-      };
-    }
-
-    // Priority 3: If any tasks have plans but no implementation, show blue
-    if (mission.tasks_with_policies_count && mission.tasks_with_policies_count > 0) {
-      return {
-        bg: 'bg-card',
-        text: 'text-card-foreground',
-        border: 'border-task-plan-border border-2'
-      };
-    }
-
-    // Default blank state
-    return {
-      bg: 'bg-card',
-      text: 'text-card-foreground',
-      border: 'border-task-blank-border'
-    };
-  };
-
-  // Targeted state update function for real-time changes
-  const updateMissionTaskCounts = useCallback((missionId: string, tasks: any[]) => {
-    setMissions(prevMissions => {
-      return prevMissions.map(mission => {
-        if (mission.id !== missionId) return mission;
-        const completedTasks = tasks.filter((task: any) => task.status === 'completed');
-        const tasksWithPolicies = tasks.filter((task: any) => task.policy && task.policy.trim());
-        const tasksWithImplementation = tasks.filter((task: any) => task.observations && task.observations.trim());
-        return {
-          ...mission,
-          task_count: tasks.length,
-          completed_task_count: completedTasks.length,
-          tasks_with_policies_count: tasksWithPolicies.length,
-          tasks_with_implementation_count: tasksWithImplementation.length
-        };
-      });
-    });
-  }, []);
-
-  // Debounced mission refresh for structural changes
-  const debouncedMissionRefresh = useCallback((delay: number = 500) => {
-    if (updateTimeoutRef.current) {
-      clearTimeout(updateTimeoutRef.current);
-    }
-    updateTimeoutRef.current = setTimeout(() => {
-      fetchMissions();
-    }, delay);
-  }, []);
-  useEffect(() => {
-    fetchMissions();
-    checkUserRole();
-
-    // Subscribe to real-time changes in mission_tasks table with targeted updates
-    const channel = supabase.channel('mission-tasks-changes').on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'actions'
-    }, async payload => {
-      console.log('Task update received:', payload);
-
-      // For INSERT and DELETE events, we need to refresh to get accurate counts
-      if (payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
-        debouncedMissionRefresh();
-        return;
-      }
-
-      // For UPDATE events, we can do targeted updates to prevent focus loss
-      if (payload.eventType === 'UPDATE' && payload.new) {
-        const taskData = payload.new;
-        const missionId = taskData.mission_id;
-        if (missionId) {
-          // Fetch updated tasks for just this mission
-          const {
-            data: updatedTasks
-          } = await supabase.from('actions').select('id, status, plan, observations').eq('mission_id', missionId);
-          if (updatedTasks) {
-            updateMissionTaskCounts(missionId, updatedTasks);
-          }
-        }
-      }
-    }).subscribe();
-    return () => {
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-      }
-      supabase.removeChannel(channel);
-    };
-  }, [debouncedMissionRefresh, updateMissionTaskCounts]);
-  const checkUserRole = async () => {
+  const checkUserRole = useCallback(async () => {
     if (!user) return;
     const {
       data: member
     } = await supabase.from('organization_members').select('role').eq('user_id', user.id).single();
     setIsAdmin(member?.role === 'admin');
     setIsContributorOrAdmin(member?.role === 'admin' || member?.role === 'contributor');
-  };
+  }, [user]);
+
   // Use standardized profile hook instead of manual fetching
   // This ensures consistent "Assigned to" dropdown across all action contexts
-  const fetchMissions = async () => {
+  const fetchMissions = useCallback(async () => {
     setLoading(true);
     const {
       data,
       error
     } = await supabase.from('missions').select(`
         *,
-        creator:profiles!missions_created_by_fkey(full_name),
-        qa_person:profiles!missions_qa_assigned_to_fkey(full_name),
         actions(
           id,
           status, 
@@ -277,7 +170,7 @@ const Missions = () => {
           linked_issue_id,
           issue_reference
         )
-      `).order('created_at', {
+      `).eq('organization_id', organizationId).order('created_at', {
       ascending: false
     });
     if (error) {
@@ -287,15 +180,34 @@ const Missions = () => {
         variant: "destructive"
       });
     } else {
+      // Get all unique user IDs for name lookup
+      const userIds = [...new Set([
+        ...data?.map(m => m.created_by).filter(Boolean) || [],
+        ...data?.map(m => m.qa_assigned_to).filter(Boolean) || []
+      ])];
+      
+      // Fetch names from organization_members table
+      const { data: memberData } = await supabase
+        .from('organization_members')
+        .select('user_id, full_name')
+        .eq('organization_id', organizationId)
+        .in('user_id', userIds);
+      
+      // Create a lookup map
+      const nameMap = new Map();
+      memberData?.forEach(member => {
+        nameMap.set(member.user_id, member.full_name);
+      });
+      
       const missionsWithNames = data?.map(mission => {
         const tasks = mission.actions || [];
-        const completedTasks = tasks.filter((task: any) => task.status === 'completed');
-        const tasksWithPolicies = tasks.filter((task: any) => task.policy && task.policy.trim());
-        const tasksWithImplementation = tasks.filter((task: any) => task.observations && task.observations.trim());
+        const completedTasks = tasks.filter((task) => task.status === 'completed');
+        const tasksWithPolicies = tasks.filter((task) => hasActualContent(task.policy));
+        const tasksWithImplementation = tasks.filter((task) => hasActualContent(task.observations));
         return {
           ...mission,
-          creator_name: mission.creator?.full_name || 'Unknown',
-          qa_name: mission.qa_person?.full_name || 'Unassigned',
+          creator_name: nameMap.get(mission.created_by) || 'Unknown',
+          qa_name: mission.qa_assigned_to ? (nameMap.get(mission.qa_assigned_to) || 'Unassigned') : 'Unassigned',
           task_count: tasks.length,
           completed_task_count: completedTasks.length,
           tasks_with_policies_count: tasksWithPolicies.length,
@@ -323,8 +235,177 @@ const Missions = () => {
       }
     }
     setLoading(false);
+  }, [organizationId, toast]);
+
+  // Updated function to determine mission color based on task content analysis and QA feedback
+  const getMissionTheme = (mission: Mission) => {
+    // Special handling for archived and removed missions
+    if (mission.status === 'archived') {
+      return {
+        bg: 'bg-card',
+        text: 'text-card-foreground',
+        border: 'border-gray-400 border-2'
+      };
+    }
+    
+    if (mission.status === 'removed') {
+      return {
+        bg: 'bg-card',
+        text: 'text-card-foreground',
+        border: 'border-red-400 border-2'
+      };
+    }
+    
+    if (mission.status === 'cancelled') {
+      return {
+        bg: 'bg-card',
+        text: 'text-card-foreground',
+        border: 'border-orange-400 border-2'
+      };
+    }
+
+    // If no tasks, show blank state
+    if (!mission.task_count || mission.task_count === 0) {
+      return {
+        bg: 'bg-card',
+        text: 'text-card-foreground',
+        border: 'border-task-blank-border'
+      };
+    }
+
+    // Priority 1: If all tasks are completed but no QA feedback, keep yellow (mission still in progress)
+    if (mission.completed_task_count === mission.task_count) {
+      // If QA feedback is provided, show green (fully complete)
+      if (mission.qa_feedback && mission.qa_feedback.trim()) {
+        return {
+          bg: 'bg-card',
+          text: 'text-card-foreground',
+          border: 'border-task-complete-border border-2'
+        };
+      }
+      // If no QA feedback yet, keep yellow (mission still in progress awaiting QA)
+      return {
+        bg: 'bg-card',
+        text: 'text-card-foreground',
+        border: 'border-task-implementation-border border-2'
+      };
+    }
+
+    // Priority 2: If any tasks have implementation AND had first a plan, show yellow
+    // This ensures proper progression: Gray → Blue → Yellow → Green
+    if (mission.tasks_with_implementation_count && mission.tasks_with_implementation_count > 0 && mission.tasks_with_policies_count > 0) {
+      return {
+        bg: 'bg-card',
+        text: 'text-card-foreground',
+        border: 'border-task-implementation-border border-2'
+      };
+    }
+
+    // Priority 3: If any tasks have plans but no implementation, show blue
+    if (mission.tasks_with_policies_count && mission.tasks_with_policies_count > 0) {
+      return {
+        bg: 'bg-card',
+        text: 'text-card-foreground',
+        border: 'border-task-plan-border border-2'
+      };
+    }
+
+    // Default blank state
+    return {
+      bg: 'bg-card',
+      text: 'text-card-foreground',
+      border: 'border-task-blank-border'
+    };
   };
-  const handleTemplateSelect = (template: any) => {
+
+  // Targeted state update function for real-time changes
+  const updateMissionTaskCounts = useCallback((missionId: string, tasks: Array<{
+    id: string;
+    status: string;
+    policy?: string;
+    observations?: string;
+  }>) => {
+    setMissions(prevMissions => {
+      return prevMissions.map(mission => {
+        if (mission.id !== missionId) return mission;
+        const completedTasks = tasks.filter((task) => task.status === 'completed');
+        const tasksWithPolicies = tasks.filter((task) => task.policy && task.policy.trim());
+        const tasksWithImplementation = tasks.filter((task) => task.observations && task.observations.trim());
+        return {
+          ...mission,
+          task_count: tasks.length,
+          completed_task_count: completedTasks.length,
+          tasks_with_policies_count: tasksWithPolicies.length,
+          tasks_with_implementation_count: tasksWithImplementation.length
+        };
+      });
+    });
+  }, []);
+
+  // Debounced mission refresh for structural changes
+  const debouncedMissionRefresh = useCallback((delay: number = 500) => {
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+    }
+    updateTimeoutRef.current = setTimeout(() => {
+      fetchMissions();
+    }, delay);
+  }, [fetchMissions]);
+  useEffect(() => {
+    fetchMissions();
+    checkUserRole();
+
+    // Subscribe to real-time changes in mission_tasks table with targeted updates
+    const channel = supabase.channel('mission-tasks-changes').on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'actions'
+    }, async payload => {
+      console.log('Task update received:', payload);
+
+      // For INSERT and DELETE events, we need to refresh to get accurate counts
+      if (payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
+        debouncedMissionRefresh();
+        return;
+      }
+
+      // For UPDATE events, we can do targeted updates to prevent focus loss
+      if (payload.eventType === 'UPDATE' && payload.new) {
+        const taskData = payload.new;
+        const missionId = taskData.mission_id;
+        if (missionId) {
+          // Fetch updated tasks for just this mission
+          const {
+            data: updatedTasks
+          } = await supabase.from('actions').select('id, status, policy, observations').eq('mission_id', missionId);
+          if (updatedTasks) {
+            updateMissionTaskCounts(missionId, updatedTasks);
+          }
+        }
+      }
+    }).subscribe();
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+      supabase.removeChannel(channel);
+    };
+  }, [fetchMissions, checkUserRole, debouncedMissionRefresh, updateMissionTaskCounts]);
+  const handleTemplateSelect = (template: {
+    id: string;
+    name: string;
+    description: string;
+    icon: React.ComponentType<{ className?: string }>;
+    category: string;
+    defaultTasks: Array<{
+      title: string;
+      description: string;
+      plan?: string;
+      observations?: string;
+    }>;
+    estimatedDuration: string;
+    color: string;
+  }) => {
     setSelectedTemplate(template);
     setShowTemplates(false);
 
@@ -332,24 +413,16 @@ const Missions = () => {
     setFormData({
       title: '',
       problem_statement: '',
-      resources_required: '',
-      selected_resources: [],
-      all_materials_available: false,
       qa_assigned_to: user?.id || (() => {
         throw new Error('User must be authenticated to create missions');
       })(),
       // Default to current user
-      actions: template.defaultTasks.length > 0 ? template.defaultTasks.map((task: any) => ({
+      actions: template.defaultTasks.length > 0 ? template.defaultTasks.map((task) => ({
         title: task.title,
-        policy: task.policy || '',
+        policy: task.plan || '',
         observations: task.observations || '',
         assigned_to: null
-      })) : [{
-        title: '',
-        policy: '',
-        observations: '',
-        assigned_to: null
-      }]
+      })) : []
     });
   };
   const handleCreateMission = async () => {
@@ -391,21 +464,15 @@ const Missions = () => {
         } = await supabase.from('missions').insert({
           title: formData.title,
           problem_statement: formData.problem_statement,
-          resources_required: formData.selected_resources.length > 0 ? formData.selected_resources.map(r => {
-            const quantity = r.quantity || 1;
-            const unit = r.unit || (r.type === 'part' ? 'pieces' : '');
-            return `${r.name}${quantity > 1 ? `: ${quantity}${unit ? ' ' + unit : ''}` : ''}`;
-          }).join(', ') : formData.resources_required,
-          all_materials_available: formData.all_materials_available,
           created_by: session.user.id,
           qa_assigned_to: formData.qa_assigned_to || null,
           template_id: selectedTemplate?.id || null,
           template_name: selectedTemplate?.name || null,
           template_color: selectedTemplate?.color || null,
-          template_icon: selectedTemplate?.icon?.name || null,
+          template_icon: selectedTemplate?.icon ? getIconName(selectedTemplate.icon) : null,
           organization_id: organizationId
           // mission_number will be auto-generated by the trigger
-        } as any).select().single();
+        }).select().single();
         if (missionError) throw missionError;
 
         // Handle both new tasks from form and existing orphaned tasks
@@ -421,9 +488,11 @@ const Missions = () => {
             .insert(tasksToCreate.map(task => ({
               mission_id: missionData.id,
               title: task.title,
+              description: task.description || null,
               policy: task.policy || null,
               observations: task.observations || null,
               assigned_to: task.assigned_to || null,
+              plan_commitment: task.plan_commitment || false,
               organization_id: organizationId
             })))
             .select();
@@ -495,13 +564,14 @@ const Missions = () => {
   const handleEditClick = (mission: Mission) => {
     navigate(`/missions/${mission.id}/edit`);
   };
+
+  const handleCardClick = (mission: Mission) => {
+    navigate(`/missions/${mission.id}/edit`);
+  };
   const resetFormData = () => {
     setFormData({
       title: '',
       problem_statement: '',
-      resources_required: '',
-      selected_resources: [],
-      all_materials_available: false,
       qa_assigned_to: user?.id || (() => {
         throw new Error('User must be authenticated to create missions');
       })(),
@@ -519,17 +589,6 @@ const Missions = () => {
     setShowTemplates(true);
     setSelectedTemplate(null);
     resetFormData();
-  };
-  const toggleMissionExpanded = (missionId: string) => {
-    setExpandedMissions(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(missionId)) {
-        newSet.delete(missionId);
-      } else {
-        newSet.add(missionId);
-      }
-      return newSet;
-    });
   };
   const toggleProblemStatement = (missionId: string) => {
     setExpandedProblemStatements(prev => {
@@ -552,6 +611,12 @@ const Missions = () => {
         return <User className="h-4 w-4" />;
       case 'completed':
         return <CheckCircle className="h-4 w-4" />;
+      case 'cancelled':
+        return <Clock className="h-4 w-4" />;
+      case 'archived':
+        return <Flag className="h-4 w-4" />;
+      case 'removed':
+        return <AlertCircle className="h-4 w-4" />;
       default:
         return <Flag className="h-4 w-4" />;
     }
@@ -566,6 +631,12 @@ const Missions = () => {
         return 'outline';
       case 'completed':
         return 'default';
+      case 'cancelled':
+        return 'destructive';
+      case 'archived':
+        return 'secondary';
+      case 'removed':
+        return 'destructive';
       default:
         return 'default';
     }
@@ -583,6 +654,34 @@ const Missions = () => {
     }
     return "Create New Mission";
   };
+
+  // Filter missions based on status and user preferences
+  const filteredMissions = missions.filter(mission => {
+    // Always show active missions (planning, in_progress, qa_review)
+    if (['planning', 'in_progress', 'qa_review'].includes(mission.status)) {
+      return true;
+    }
+    
+    // Show completed missions if user wants to see them
+    if (mission.status === 'completed') {
+      return showCompletedMissions;
+    }
+    
+    // Show backlogged missions (cancelled, archived, removed) if user wants to see them
+    if (['cancelled', 'archived', 'removed'].includes(mission.status)) {
+      return showBackloggedMissions;
+    }
+    
+    return false;
+  });
+
+  // Group missions by status for better organization
+  const groupedMissions = {
+    active: filteredMissions.filter(m => ['planning', 'in_progress', 'qa_review'].includes(m.status)),
+    completed: filteredMissions.filter(m => m.status === 'completed'),
+    backlogged: filteredMissions.filter(m => ['cancelled', 'archived', 'removed'].includes(m.status))
+  };
+
   return <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="flex items-center justify-between p-4">
@@ -619,12 +718,108 @@ const Missions = () => {
                   </DialogDescription>
                 </DialogHeader>
                 
-                {showTemplates ? <MissionTemplates onSelectTemplate={handleTemplateSelect} onClose={resetDialog} /> : <SimpleMissionForm formData={formData} setFormData={setFormData} profiles={profiles} onSubmit={handleCreateMission} onCancel={resetDialog} defaultTasks={selectedTemplate?.defaultTasks} selectedTemplate={selectedTemplate} />}
+                {showTemplates ? <MissionTemplates onSelectTemplate={handleTemplateSelect} onClose={resetDialog} /> : <SimpleMissionForm formData={formData} setFormData={setFormData} profiles={profiles} onSubmit={handleCreateMission} onCancel={resetDialog} defaultTasks={selectedTemplate?.defaultTasks?.map(task => ({
+                  title: task.title,
+                  policy: task.plan || '',
+                  observations: task.observations || '',
+                  assigned_to: null
+                })) || []} selectedTemplate={selectedTemplate ? {
+                  id: selectedTemplate.id,
+                  name: selectedTemplate.name,
+                  color: selectedTemplate.color,
+                  icon: selectedTemplate.icon
+                } : undefined} />}
               </DialogContent>
             </Dialog>}
 
         </div>
       </header>
+
+      {/* Compressed Filter Section */}
+      <div className="border-b bg-card/50">
+        <div className="px-6 py-3">
+          <Collapsible open={isFilterExpanded} onOpenChange={setIsFilterExpanded}>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" className="h-auto p-2 hover:bg-muted/50">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  <span className="text-sm font-medium">Mission Filters</span>
+                  {(showCompletedMissions || showBackloggedMissions) && (
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 bg-primary rounded-full" />
+                      <span className="text-xs text-muted-foreground">
+                        ({groupedMissions.completed.length + groupedMissions.backlogged.length} hidden)
+                      </span>
+                    </div>
+                  )}
+                  {isFilterExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </div>
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-3">
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-3">
+                  <Label htmlFor="show-completed" className="text-sm font-medium flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4" />
+                    Show Completed
+                  </Label>
+                  <div className="relative">
+                    <input
+                      id="show-completed"
+                      type="checkbox"
+                      checked={showCompletedMissions}
+                      onChange={(e) => setShowCompletedMissions(e.target.checked)}
+                      className="sr-only"
+                    />
+                    <div 
+                      className={`w-11 h-6 rounded-full transition-colors cursor-pointer ${
+                        showCompletedMissions ? 'bg-primary' : 'bg-muted'
+                      }`}
+                      onClick={() => setShowCompletedMissions(!showCompletedMissions)}
+                    >
+                      <div 
+                        className={`w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
+                          showCompletedMissions ? 'translate-x-5' : 'translate-x-0.5'
+                        }`}
+                        style={{ marginTop: '2px' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  <Label htmlFor="show-backlogged" className="text-sm font-medium flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Show Backlogged
+                  </Label>
+                  <div className="relative">
+                    <input
+                      id="show-backlogged"
+                      type="checkbox"
+                      checked={showBackloggedMissions}
+                      onChange={(e) => setShowBackloggedMissions(e.target.checked)}
+                      className="sr-only"
+                    />
+                    <div 
+                      className={`w-11 h-6 rounded-full transition-colors cursor-pointer ${
+                        showBackloggedMissions ? 'bg-primary' : 'bg-muted'
+                      }`}
+                      onClick={() => setShowBackloggedMissions(!showBackloggedMissions)}
+                    >
+                      <div 
+                        className={`w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
+                          showBackloggedMissions ? 'translate-x-5' : 'translate-x-0.5'
+                        }`}
+                        style={{ marginTop: '2px' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
+      </div>
 
       <main className="p-6">
         <div className="max-w-7xl mx-auto">
@@ -634,21 +829,24 @@ const Missions = () => {
               <p className="text-muted-foreground">
                 {isAdmin ? "Create your first mission to get started." : "No missions have been created yet."}
               </p>
-            </div> : <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {missions.map(mission => {
+            </div> : <div className="space-y-8">
+              {/* Active Missions */}
+              {groupedMissions.active.length > 0 && (
+                <div>
+                  <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5" />
+                    Active Missions ({groupedMissions.active.length})
+                  </h2>
+                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {groupedMissions.active.map(mission => {
             const missionTheme = getMissionTheme(mission);
-            return <Card key={`mission-${mission.id}`} className={`hover:shadow-lg transition-shadow ${missionTheme.border}`}>
+            return <Card key={`mission-${mission.id}`} className={`hover:shadow-lg transition-shadow cursor-pointer ${missionTheme.border}`} onClick={() => handleCardClick(mission)}>
                     <CardHeader>
                       <div className="flex items-start justify-between">
                          <CardTitle className="flex items-center gap-2">
                            {getStatusIcon(mission.status)}
                            MISSION-{String(mission.mission_number).padStart(3, '0')}: {mission.title}
                          </CardTitle>
-                         <div className="flex items-center gap-2">
-                           {(mission.created_by === user?.id || isContributorOrAdmin) && <Button variant="ghost" size="sm" onClick={() => handleEditClick(mission)} className="h-6 w-6 p-0">
-                               <ExternalLink className="h-3 w-3" />
-                             </Button>}
-                         </div>
                       </div>
                       <Collapsible open={expandedProblemStatements.has(mission.id)} onOpenChange={() => toggleProblemStatement(mission.id)}>
                         <CollapsibleTrigger asChild>
@@ -671,17 +869,9 @@ const Missions = () => {
                     <CardContent>
                       <div className="space-y-2 text-sm text-muted-foreground">
                         <div className="flex items-center gap-2">
-                          <User className="h-4 w-4" />
-                          Created by: {mission.creator_name}
-                        </div>
-                        <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4" />
                           {new Date(mission.created_at).toLocaleDateString()}
                         </div>
-                        {mission.qa_name !== 'Unassigned' && <div className="flex items-center gap-2">
-                            <CheckCircle className="h-4 w-4" />
-                            QA: {mission.qa_name}
-                          </div>}
                         
                         {/* Progress indicator */}
                         {mission.task_count && mission.task_count > 0 && <div className="pt-2">
@@ -699,68 +889,168 @@ const Missions = () => {
                             </div>
                           </div>}
                         
-                        {/* Task expansion for missions with tasks */}
-                        {mission.task_count && mission.task_count > 0 && <Collapsible open={expandedMissions.has(mission.id)} onOpenChange={() => toggleMissionExpanded(mission.id)}>
-                            <CollapsibleTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-auto p-1 mt-2">
-                                <ChevronRight className={`h-4 w-4 transition-transform ${expandedMissions.has(mission.id) ? 'rotate-90' : ''}`} />
-                                <span className="text-xs">
-                                  {expandedMissions.has(mission.id) ? 'Hide' : 'Show'} Tasks
-                                </span>
-                              </Button>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent className="mt-2">
-                               <MissionTaskList missionId={mission.id} profiles={profiles} canEdit={isContributorOrAdmin || mission.created_by === user?.id} missionNumber={mission.mission_number} />
-                             </CollapsibleContent>
-                           </Collapsible>}
 
-                         {/* QA Feedback Section */}
-                         {(isAdmin || mission.created_by === user?.id || mission.status === 'completed') && <div className={`mt-4 p-3 rounded-lg bg-muted/50 ${mission.status === 'completed' && (!mission.qa_feedback || !mission.qa_feedback.trim()) ? 'border-2 border-task-plan-border' // Blue border when ready to be filled
-                  : 'border'}`}>
-                             <Label className="text-sm font-medium">QA Feedback</Label>
-                             <Textarea value={mission.qa_feedback || ''} onChange={async e => {
-                      const newFeedback = e.target.value;
-                      // Update mission locally first for immediate feedback
-                      setMissions(prev => prev.map(m => m.id === mission.id ? {
-                        ...m,
-                        qa_feedback: newFeedback
-                      } : m));
-                    }} onBlur={async e => {
-                      const newFeedback = e.target.value;
-                      // Save to database on blur
-                      try {
-                        const {
-                          error
-                        } = await supabase.from('missions').update({
-                          qa_feedback: newFeedback
-                        }).eq('id', mission.id);
-                        if (error) throw error;
-                        toast({
-                          title: "QA Feedback Saved",
-                          description: "QA feedback has been updated successfully."
-                        });
-                      } catch (error) {
-                        console.error('Error saving QA feedback:', error);
-                        toast({
-                          title: "Error",
-                          description: "Failed to save QA feedback",
-                          variant: "destructive"
-                        });
-                        // Revert the local change on error
-                        setMissions(prev => prev.map(m => m.id === mission.id ? {
-                          ...m,
-                          qa_feedback: mission.qa_feedback
-                        } : m));
-                      }
-                    }} placeholder={mission.status === 'completed' ? "Enter QA review and feedback..." : "QA feedback will be available once mission is completed"} disabled={mission.status !== 'completed'} rows={3} className="mt-1 text-sm" />
-                           </div>}
                       </div>
                     </CardContent>
                   </Card>;
-          })}
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Completed Missions */}
+              {groupedMissions.completed.length > 0 && (
+                <Collapsible open={showCompletedMissions} onOpenChange={setShowCompletedMissions}>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" className="h-auto p-0 text-left justify-start hover:bg-transparent">
+                      <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                        <CheckCircle className="h-5 w-5" />
+                        Completed Missions ({groupedMissions.completed.length})
+                        {showCompletedMissions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </h2>
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                      {groupedMissions.completed.map(mission => {
+                        const missionTheme = getMissionTheme(mission);
+                        return <Card key={`mission-${mission.id}`} className={`hover:shadow-lg transition-shadow cursor-pointer ${missionTheme.border}`} onClick={() => handleCardClick(mission)}>
+                          <CardHeader>
+                            <div className="flex items-start justify-between">
+                               <CardTitle className="flex items-center gap-2">
+                                 {getStatusIcon(mission.status)}
+                                 MISSION-{String(mission.mission_number).padStart(3, '0')}: {mission.title}
+                               </CardTitle>
+                            </div>
+                            <Collapsible open={expandedProblemStatements.has(mission.id)} onOpenChange={() => toggleProblemStatement(mission.id)}>
+                              <CollapsibleTrigger asChild>
+                                <Button variant="ghost" className="h-auto p-0 text-left justify-start hover:bg-transparent">
+                                  <CardDescription className="flex items-center gap-2 break-words">
+                                    {mission.problem_statement.length > 100 ? <span className="break-words whitespace-pre-wrap">
+                                        {expandedProblemStatements.has(mission.id) ? mission.problem_statement : `${mission.problem_statement.substring(0, 100)}...`}
+                                      </span> : <span className="break-words whitespace-pre-wrap">
+                                        {mission.problem_statement}
+                                      </span>}
+                                    {mission.problem_statement.length > 100 && (expandedProblemStatements.has(mission.id) ? <ChevronUp className="h-3 w-3 flex-shrink-0" /> : <ChevronDown className="h-3 w-3 flex-shrink-0" />)}
+                                  </CardDescription>
+                                </Button>
+                              </CollapsibleTrigger>
+                            </Collapsible>
+                            <a href={`https://www.perplexity.ai/spaces/stargazer-assistant-F45qc1H7SmeN5wF1nxJobg?q=${encodeURIComponent(mission.problem_statement)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-2">
+                              🤖 Collaborate with AI on this mission →
+                            </a>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-2 text-sm text-muted-foreground">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4" />
+                                {new Date(mission.created_at).toLocaleDateString()}
+                              </div>
+                              
+                              {/* Progress indicator */}
+                              {mission.task_count && mission.task_count > 0 && <div className="pt-2">
+                                  <div className="flex items-center justify-between text-xs mb-1">
+                                    <span>Progress</span>
+                                    <span>{getProgressPercentage(mission)}%</span>
+                                  </div>
+                                  <div className="w-full bg-muted rounded-full h-2">
+                                    <div className="bg-primary h-2 rounded-full transition-all duration-300" style={{
+                              width: `${getProgressPercentage(mission)}%`
+                            }} />
+                                  </div>
+                                  <div className="text-xs mt-1">
+                                    {mission.completed_task_count || 0} of {mission.task_count} tasks completed
+                                  </div>
+                                </div>}
+                              
+
+                            </div>
+                          </CardContent>
+                        </Card>;
+                      })}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+
+              {/* Backlogged Missions */}
+              {groupedMissions.backlogged.length > 0 && (
+                <Collapsible open={showBackloggedMissions} onOpenChange={setShowBackloggedMissions}>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" className="h-auto p-0 text-left justify-start hover:bg-transparent">
+                      <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                        <Clock className="h-5 w-5" />
+                        Backlogged Missions ({groupedMissions.backlogged.length})
+                        {showBackloggedMissions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </h2>
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                      {groupedMissions.backlogged.map(mission => {
+                        const missionTheme = getMissionTheme(mission);
+                        return <Card key={`mission-${mission.id}`} className={`hover:shadow-lg transition-shadow cursor-pointer ${missionTheme.border} opacity-75`} onClick={() => handleCardClick(mission)}>
+                          <CardHeader>
+                            <div className="flex items-start justify-between">
+                               <CardTitle className="flex items-center gap-2">
+                                 {getStatusIcon(mission.status)}
+                                 MISSION-{String(mission.mission_number).padStart(3, '0')}: {mission.title}
+                               </CardTitle>
+                            </div>
+                            <Collapsible open={expandedProblemStatements.has(mission.id)} onOpenChange={() => toggleProblemStatement(mission.id)}>
+                              <CollapsibleTrigger asChild>
+                                <Button variant="ghost" className="h-auto p-0 text-left justify-start hover:bg-transparent">
+                                  <CardDescription className="flex items-center gap-2 break-words">
+                                    {mission.problem_statement.length > 100 ? <span className="break-words whitespace-pre-wrap">
+                                        {expandedProblemStatements.has(mission.id) ? mission.problem_statement : `${mission.problem_statement.substring(0, 100)}...`}
+                                      </span> : <span className="break-words whitespace-pre-wrap">
+                                        {mission.problem_statement}
+                                      </span>}
+                                    {mission.problem_statement.length > 100 && (expandedProblemStatements.has(mission.id) ? <ChevronUp className="h-3 w-3 flex-shrink-0" /> : <ChevronDown className="h-3 w-3 flex-shrink-0" />)}
+                                  </CardDescription>
+                                </Button>
+                              </CollapsibleTrigger>
+                            </Collapsible>
+                            <a href={`https://www.perplexity.ai/spaces/stargazer-assistant-F45qc1H7SmeN5wF1nxJobg?q=${encodeURIComponent(mission.problem_statement)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-2">
+                              🤖 Collaborate with AI on this mission →
+                            </a>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-2 text-sm text-muted-foreground">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4" />
+                                {new Date(mission.created_at).toLocaleDateString()}
+                              </div>
+                              
+                              {/* Progress indicator */}
+                              {mission.task_count && mission.task_count > 0 && <div className="pt-2">
+                                  <div className="flex items-center justify-between text-xs mb-1">
+                                    <span>Progress</span>
+                                    <span>{getProgressPercentage(mission)}%</span>
+                                  </div>
+                                  <div className="w-full bg-muted rounded-full h-2">
+                                    <div className="bg-primary h-2 rounded-full transition-all duration-300" style={{
+                              width: `${getProgressPercentage(mission)}%`
+                            }} />
+                                  </div>
+                                  <div className="text-xs mt-1">
+                                    {mission.completed_task_count || 0} of {mission.task_count} tasks completed
+                                  </div>
+                                </div>}
+                              
+
+                            </div>
+                          </CardContent>
+                        </Card>;
+                      })}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
             </div>}
         </div>
       </main>
+
     </div>;
 };
 export default Missions;

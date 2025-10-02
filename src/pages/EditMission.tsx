@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Trash2, Archive } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator, BreadcrumbPage } from "@/components/ui/breadcrumb";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SimpleMissionForm } from '@/components/SimpleMissionForm';
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,11 +12,10 @@ import { useActionProfiles } from "@/hooks/useActionProfiles";
 
 interface Mission {
   id: string;
+  mission_number: number;
   title: string;
   problem_statement: string;
   status: string;
-  resources_required: string;
-  all_materials_available: boolean;
   qa_assigned_to: string;
   created_by: string;
   template_name?: string;
@@ -43,16 +43,6 @@ interface Profile {
   role: string;
 }
 
-interface SelectedResource {
-  id: string;
-  name: string;
-  quantity?: number;
-  unit?: string;
-  type: 'part' | 'tool';
-  status: 'planned' | 'used' | 'returned';
-  usedAt?: string;
-  usedBy?: string;
-}
 
 export default function EditMission() {
   const { missionId } = useParams<{ missionId: string }>();
@@ -67,12 +57,12 @@ export default function EditMission() {
   const { profiles } = useActionProfiles();
   const [isContributorOrAdmin, setIsContributorOrAdmin] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [backlogDialogOpen, setBacklogDialogOpen] = useState(false);
   
   const [formData, setFormData] = useState({
     title: '',
     problem_statement: '',
-    selected_resources: [] as SelectedResource[],
-    all_materials_available: false,
     qa_assigned_to: '',
     actions: [] as Task[]
   });
@@ -131,23 +121,10 @@ export default function EditMission() {
         setSelectedTemplate(missionTemplate);
       }
 
-      // Parse resources if they exist
-      let parsedResources: SelectedResource[] = [];
-      if (missionData.resources_required) {
-        try {
-          parsedResources = JSON.parse(missionData.resources_required);
-        } catch (e) {
-          // Fallback for old string format
-          parsedResources = [];
-        }
-      }
-
       // Set form data
       setFormData({
         title: missionData.title,
         problem_statement: missionData.problem_statement,
-        selected_resources: parsedResources,
-        all_materials_available: missionData.all_materials_available || false,
         qa_assigned_to: missionData.qa_assigned_to || '',
         actions: tasksData?.map(task => ({
           id: task.id, // Include the task ID for proper edit detection
@@ -210,10 +187,6 @@ export default function EditMission() {
         .update({
           title: data.title,
           problem_statement: data.problem_statement,
-          resources_required: data.selected_resources && data.selected_resources.length > 0 ? 
-            JSON.stringify(data.selected_resources) : 
-            null,
-          all_materials_available: data.all_materials_available,
           qa_assigned_to: data.qa_assigned_to || null,
           updated_at: new Date().toISOString()
         })
@@ -226,6 +199,9 @@ export default function EditMission() {
         title: "Mission Updated",
         description: "Mission details have been saved successfully."
       });
+      
+      // Navigate back to missions list after successful save
+      navigate('/missions');
     } catch (error) {
       console.error('Mission save failed:', error);
       toast({
@@ -239,6 +215,98 @@ export default function EditMission() {
 
   const handleCancel = () => {
     navigate('/missions');
+  };
+
+  // Remove mission function
+  const handleRemoveMission = async () => {
+    if (!user || !mission) {
+      console.error('Missing user or mission data:', { user: !!user, mission: !!mission });
+      return;
+    }
+    
+    console.log('Attempting to remove mission:', {
+      id: mission.id, 
+      title: mission.title,
+      currentStatus: mission.status,
+      missionNumber: mission.mission_number
+    });
+    
+    try {
+      const { error } = await supabase
+        .from('missions')
+        .update({
+          status: 'cancelled',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', mission.id);
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+
+      console.log('Mission successfully removed');
+      toast({
+        title: "Mission Removed",
+        description: `Mission MISSION-${String(mission.mission_number).padStart(3, '0')} has been removed.`,
+      });
+
+      // Navigate back to missions
+      navigate('/missions');
+    } catch (error) {
+      console.error('Error removing mission:', error);
+      toast({
+        title: "Remove Failed",
+        description: `Failed to remove mission: ${error.message || 'Unknown error'}`,
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Move to backlog function
+  const handleMoveToBacklog = async () => {
+    if (!user || !mission) {
+      console.error('Missing user or mission data:', { user: !!user, mission: !!mission });
+      return;
+    }
+    
+    console.log('Attempting to move mission to backlog:', {
+      id: mission.id, 
+      title: mission.title,
+      currentStatus: mission.status,
+      missionNumber: mission.mission_number
+    });
+    
+    try {
+      const { error } = await supabase
+        .from('missions')
+        .update({
+          status: 'cancelled',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', mission.id);
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+
+      console.log('Mission successfully moved to backlog');
+      toast({
+        title: "Mission Moved to Backlog",
+        description: `Mission MISSION-${String(mission.mission_number).padStart(3, '0')} has been moved to the backlog.`,
+      });
+
+      // Navigate back to missions
+      navigate('/missions');
+    } catch (error) {
+      console.error('Error moving mission to backlog:', error);
+      toast({
+        title: "Move to Backlog Failed",
+        description: `Failed to move mission to backlog: ${error.message || 'Unknown error'}`,
+        variant: "destructive"
+      });
+    }
   };
 
   if (loading) {
@@ -277,24 +345,11 @@ export default function EditMission() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center gap-4 mb-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/missions')}
-              className="flex items-center gap-2"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Back to Missions
-            </Button>
-          </div>
           
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <BreadcrumbLink onClick={() => navigate('/missions')} className="cursor-pointer">
-                  Missions
-                </BreadcrumbLink>
+                <BreadcrumbPage>Missions</BreadcrumbPage>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
               <BreadcrumbItem>
@@ -308,7 +363,7 @@ export default function EditMission() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto p-6">
+      <main className="max-w-4xl mx-auto p-6 relative">
         <SimpleMissionForm 
           formData={formData} 
           setFormData={setFormData}
@@ -318,8 +373,63 @@ export default function EditMission() {
           isEditing={true} 
           selectedTemplate={selectedTemplate} 
           missionId={missionId}
+          onRemoveMission={() => setDeleteDialogOpen(true)}
+          canRemoveMission={mission?.created_by === user?.id || isContributorOrAdmin}
+          onMoveToBacklog={() => setBacklogDialogOpen(true)}
+          canMoveToBacklog={mission?.created_by === user?.id || isContributorOrAdmin}
         />
       </main>
+
+      {/* Remove Mission Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Mission</DialogTitle>
+            <DialogDescription>
+              Remove this mission? It'll be marked as removed and hidden from the list.
+              {mission && (
+                <div className="mt-2 p-3 bg-muted rounded-lg">
+                  <strong>MISSION-{String(mission.mission_number).padStart(3, '0')}: {mission.title}</strong>
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleRemoveMission}>
+              Remove Mission
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Move to Backlog Dialog */}
+      <Dialog open={backlogDialogOpen} onOpenChange={setBacklogDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move Mission to Backlog</DialogTitle>
+            <DialogDescription>
+              Move this mission to the backlog? It will be hidden from active missions but can be viewed in the backlog section.
+              {mission && (
+                <div className="mt-2 p-3 bg-muted rounded-lg">
+                  <strong>MISSION-{String(mission.mission_number).padStart(3, '0')}: {mission.title}</strong>
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setBacklogDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="outline" onClick={handleMoveToBacklog} className="text-orange-600 hover:text-orange-700 hover:border-orange-300">
+              <Archive className="h-4 w-4 mr-2" />
+              Move to Backlog
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,9 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronDown, ChevronRight, Plus, Upload, Image, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Upload, Image, X, Trash2, Archive, Info } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ResourceSelector } from '@/components/ResourceSelector';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -18,6 +18,7 @@ import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 
 import { useTempPhotoStorage } from "@/hooks/useTempPhotoStorage";
+import { hasActualContent } from "@/lib/utils";
 import { getStandardActionsForTemplate } from "@/lib/standardActionBlocks";
 import { UnifiedActionDialog } from './UnifiedActionDialog';
 import { createMissionAction, BaseAction, ActionCreationContext } from '@/types/actions';
@@ -25,13 +26,16 @@ import { createMissionAction, BaseAction, ActionCreationContext } from '@/types/
 interface Task {
   id?: string; // Add optional id field
   title: string;
+  description?: string;
   policy?: string;
   observations?: string;
   assigned_to: string | null;
   status?: string; // Add optional status field
   estimated_completion_date?: Date;
   required_tools?: string[];
+  plan_commitment?: boolean | null;
   required_stock?: { part_id: string; quantity: number; part_name: string; }[];
+  attachments?: string[];
 }
 
 interface Profile {
@@ -41,29 +45,27 @@ interface Profile {
   role: string;
 }
 
-interface SelectedResource {
-  id: string;
-  name: string;
-  quantity?: number;
-  unit?: string;
-  type: 'part' | 'tool';
-  status: 'planned' | 'used' | 'returned';
-  usedAt?: string;
-  usedBy?: string;
-}
 
 interface SimpleMissionFormProps {
   formData: {
     title: string;
     problem_statement: string;
-    selected_resources: SelectedResource[];
-    all_materials_available: boolean;
     qa_assigned_to: string;
     actions: Task[];
   };
-  setFormData: (data: any) => void;
+  setFormData: (data: (prev: {
+    title: string;
+    problem_statement: string;
+    qa_assigned_to: string;
+    actions: Task[];
+  }) => {
+    title: string;
+    problem_statement: string;
+    qa_assigned_to: string;
+    actions: Task[];
+  }) => void;
   profiles: Profile[];
-  onSubmit: () => Promise<any>;
+  onSubmit: () => Promise<{ missionId: string; taskIdMap: Record<string, string> } | void>;
   onCancel: () => void;
   defaultTasks?: Task[];
   selectedTemplate?: {
@@ -74,6 +76,10 @@ interface SimpleMissionFormProps {
   };
   isEditing?: boolean;
   missionId?: string; // Add mission ID prop
+  onRemoveMission?: () => void;
+  canRemoveMission?: boolean;
+  onMoveToBacklog?: () => void;
+  canMoveToBacklog?: boolean;
 }
 
 export function SimpleMissionForm({ 
@@ -85,7 +91,11 @@ export function SimpleMissionForm({
   defaultTasks = [],
   selectedTemplate,
   isEditing = false,
-  missionId // Add mission ID parameter
+  missionId, // Add mission ID parameter
+  onRemoveMission,
+  canRemoveMission = false,
+  onMoveToBacklog,
+  canMoveToBacklog = false
 }: SimpleMissionFormProps) {
   const organizationId = useOrganizationId();
   const { toast } = useToast();
@@ -97,9 +107,22 @@ export function SimpleMissionForm({
   const [creatingNewTask, setCreatingNewTask] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [problemPhotos, setProblemPhotos] = useState<Array<{id: string; file_url: string; file_name: string}>>([]);
+  const [draftMissionId, setDraftMissionId] = useState<string | null>(null);
+
+  // Convert icon component to string name for database storage
+  const getIconName = (iconComponent: React.ComponentType<{ className?: string }>) => {
+    const iconMap: { [key: string]: string } = {
+      'Wrench': 'Wrench',
+      'Microscope': 'Microscope', 
+      'GraduationCap': 'GraduationCap',
+      'Hammer': 'Hammer',
+      'Lightbulb': 'Lightbulb'
+    };
+    return iconMap[iconComponent.name] || 'Wrench';
+  };
 
   // Helper function to reload tasks from database
-  const loadTasksFromDatabase = async () => {
+  const loadTasksFromDatabase = useCallback(async () => {
     if (!missionId) return;
     
     try {
@@ -114,21 +137,25 @@ export function SimpleMissionForm({
       const updatedTasks = tasksData?.map(task => ({
         id: task.id,
         title: task.title,
+        description: task.description || '',
         policy: task.policy || '',
         observations: task.observations || '',
         assigned_to: task.assigned_to,
         status: task.status,
+        plan_commitment: task.plan_commitment || false,
         mission_id: task.mission_id,
         estimated_completion_date: task.estimated_duration ? new Date(task.estimated_duration) : undefined,
         actual_duration: task.actual_duration || '',
-        required_tools: task.required_tools || []
+        required_tools: task.required_tools || [],
+        required_stock: Array.isArray(task.required_stock) ? task.required_stock as { part_id: string; quantity: number; part_name: string; }[] : [],
+        attachments: task.attachments || []
       })) || [];
 
       setFormData(prev => ({ ...prev, actions: updatedTasks }));
     } catch (error) {
       console.error('Error loading tasks:', error);
     }
-  };
+  }, [missionId, setFormData]);
 
   // Load existing problem photos when editing
   useEffect(() => {
@@ -136,6 +163,20 @@ export function SimpleMissionForm({
       loadExistingProblemPhotos();
     }
   }, [isEditing, missionId]);
+
+  // Load tasks from database when editing a mission
+  useEffect(() => {
+    if (isEditing && missionId) {
+      loadTasksFromDatabase();
+    }
+  }, [isEditing, missionId, loadTasksFromDatabase]);
+
+  // Remove default blank action for custom missions (no template) in create mode
+  useEffect(() => {
+    if (!isEditing && !selectedTemplate && formData.actions.length === 1 && !formData.actions[0].title?.trim()) {
+      setFormData(prev => ({ ...prev, actions: [] }));
+    }
+  }, [isEditing, selectedTemplate, formData.actions.length, formData.actions, setFormData]);
 
   // Initialize with default tasks if provided
   useEffect(() => {
@@ -177,51 +218,105 @@ export function SimpleMissionForm({
     }
   };
 
-  const addTask = () => {
+  const addTask = async () => {
+    // If this is the first action and we're in create mode, create a draft mission first
+    if (!isEditing && !draftMissionId && formData.actions.length === 0) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          toast({
+            title: "Error",
+            description: "User not authenticated",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        // Create draft mission
+        const { data: missionData, error: missionError } = await supabase
+          .from('missions')
+          .insert({
+            title: formData.title || 'Draft Mission',
+            problem_statement: formData.problem_statement || 'Draft mission - details to be filled',
+            created_by: user.id,
+            qa_assigned_to: formData.qa_assigned_to || null,
+            template_id: selectedTemplate?.id || null,
+            template_name: selectedTemplate?.name || null,
+            template_color: selectedTemplate?.color || null,
+            template_icon: selectedTemplate?.icon ? getIconName(selectedTemplate.icon) : null,
+            organization_id: organizationId,
+            status: 'draft' // Mark as draft
+          })
+          .select()
+          .single();
+
+        if (missionError) throw missionError;
+        
+        setDraftMissionId(missionData.id);
+        toast({
+          title: "Draft Mission Created",
+          description: "Mission created as draft. Actions will be saved immediately."
+        });
+      } catch (error) {
+        console.error('Error creating draft mission:', error);
+        toast({
+          title: "Error",
+          description: "Failed to create draft mission",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
     setCreatingNewTask(true);
     setTaskDialogOpen(true);
   };
+
+  const mapActionToTask = (action: any): Task => ({
+    id: action.id,
+    title: action.title,
+    description: action.description || '',
+    policy: action.policy || '',
+    observations: action.observations || '',
+    assigned_to: action.assigned_to,
+    status: action.status,
+    plan_commitment: action.plan_commitment || false,
+    estimated_completion_date: action.estimated_duration ? new Date(action.estimated_duration) : undefined,
+    required_tools: (action.required_tools || []) as string[],
+    required_stock: (Array.isArray(action.required_stock) ? action.required_stock : []) as { part_id: string; quantity: number; part_name: string; }[],
+    attachments: (action.attachments || []) as string[]
+  });
 
   const handleCreateTask = async () => {
     // Reload task list from database to reflect new task
     if (isEditing && missionId) {
       loadTasksFromDatabase();
-    } else {
-      // During mission creation, fetch any orphaned actions created for this organization
-      // that don't have a mission_id yet and add them to the form
-      try {
-        const { data: orphanedActions, error } = await supabase
-          .from('actions')
-          .select('*')
-          .is('mission_id', null)
-          .eq('organization_id', organizationId)
-          .order('created_at', { ascending: true });
-
-        if (error) throw error;
-
-        if (orphanedActions && orphanedActions.length > 0) {
-          // Convert to form data format and add to existing actions
-          const newActions = orphanedActions.map(action => ({
-            id: action.id,
-            title: action.title,
-            policy: action.policy || '',
-            observations: action.observations || '',
-            assigned_to: action.assigned_to,
-            status: action.status,
-            estimated_completion_date: action.estimated_duration ? new Date(action.estimated_duration) : undefined,
-            required_tools: action.required_tools || []
-          }));
-
-          setFormData(prev => ({ 
-            ...prev, 
-            actions: [...prev.actions.filter(a => a.title.trim()), ...newActions]
-          }));
-        }
-      } catch (error) {
-        console.error('Error loading orphaned actions:', error);
-      }
     }
     setCreatingNewTask(false);
+    setTaskDialogOpen(false);
+  };
+
+  const handleActionCreated = (saved?: any) => {
+    if (!saved) return handleCreateTask();
+    const task = mapActionToTask(saved);
+    setFormData(prev => ({
+      ...prev,
+      actions: [...prev.actions.filter(a => a.title.trim()), task]
+    }));
+    setCreatingNewTask(false);
+    setTaskDialogOpen(false);
+  };
+
+  const handleActionEdited = (saved?: any) => {
+    if (!saved) return handleEditTask();
+    const task = mapActionToTask(saved);
+    const index = editingTaskIndex;
+    if (index === null) return handleEditTask();
+    setFormData(prev => ({
+      ...prev,
+      actions: prev.actions.map((t, i) => (i === index ? task : t))
+    }));
+    setEditingTaskIndex(null);
     setTaskDialogOpen(false);
   };
 
@@ -256,6 +351,41 @@ export function SimpleMissionForm({
     // Reload task list from database to reflect changes
     if (isEditing && missionId) {
       loadTasksFromDatabase();
+    } else if (draftMissionId) {
+      // During draft mission creation, load tasks from the draft mission
+      handleCreateTask();
+    } else {
+      // Fallback: refresh only the edited action from DB so changes appear
+      const index = editingTaskIndex;
+      const edited = index !== null ? formData.actions[index] : null;
+      if (edited?.id) {
+        (async () => {
+          const { data } = await supabase
+            .from('actions')
+            .select('*')
+            .eq('id', edited.id)
+            .single();
+          if (!data) return;
+          const updated: Task = {
+            id: data.id,
+            title: data.title,
+            description: data.description || '',
+            policy: data.policy || '',
+            observations: data.observations || '',
+            assigned_to: data.assigned_to,
+            status: data.status,
+            plan_commitment: data.plan_commitment || false,
+            estimated_completion_date: data.estimated_duration ? new Date(data.estimated_duration) : undefined,
+            required_tools: (data.required_tools || []) as string[],
+            required_stock: (Array.isArray(data.required_stock) ? data.required_stock : []) as { part_id: string; quantity: number; part_name: string; }[],
+            attachments: (data.attachments || []) as string[]
+          };
+          setFormData(prev => ({
+            ...prev,
+            actions: prev.actions.map((t, i) => (i === index ? updated : t))
+          }));
+        })();
+      }
     }
     setEditingTaskIndex(null);
     setTaskDialogOpen(false);
@@ -419,6 +549,41 @@ export function SimpleMissionForm({
   // Enhanced onSubmit to handle temporary photo migration
   const handleSubmit = async () => {
     try {
+      // If we have a draft mission, update it instead of creating new
+      if (draftMissionId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          toast({
+            title: "Error",
+            description: "User not authenticated",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        // Update the draft mission to final status
+        const { error: updateError } = await supabase
+          .from('missions')
+          .update({
+            title: formData.title,
+            problem_statement: formData.problem_statement,
+            qa_assigned_to: formData.qa_assigned_to,
+            status: 'active' // Change from draft to active
+          })
+          .eq('id', draftMissionId);
+
+        if (updateError) throw updateError;
+
+        toast({
+          title: "Mission Updated",
+          description: "Draft mission has been finalized successfully"
+        });
+
+        // Navigate to missions page
+        window.location.href = '/missions';
+        return;
+      }
+
       // Call onSubmit and get the result with mission and task IDs
       const result = await onSubmit();
       
@@ -462,12 +627,12 @@ export function SimpleMissionForm({
         </div>
         
         <div>
-          <Label htmlFor="problem_statement">Problem Statement *</Label>
+          <Label htmlFor="problem_statement">Background *</Label>
           <Textarea
             id="problem_statement"
             value={formData.problem_statement}
             onChange={(e) => setFormData(prev => ({ ...prev, problem_statement: e.target.value }))}
-            placeholder="Describe the problem this mission addresses"
+            placeholder="What are you at and what does success looks like"
             rows={3}
           />
           <div className="mt-2">
@@ -484,8 +649,8 @@ export function SimpleMissionForm({
 
         {/* Problem Photos */}
         <div>
-          <Label className="text-sm font-medium">Problem Evidence Photos</Label>
-          <div className="mt-2">
+          <div className="flex items-center gap-3">
+            <Label className="text-sm font-medium">Photos</Label>
             <input
               type="file"
               accept="image/*"
@@ -499,7 +664,7 @@ export function SimpleMissionForm({
               className="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition-colors"
             >
               <Upload className="h-4 w-4" />
-              {isImageUploading ? 'Uploading...' : 'Upload Problem Photo'}
+              {isImageUploading ? 'Uploading...' : 'Upload Photos'}
             </label>
           </div>
           
@@ -538,70 +703,49 @@ export function SimpleMissionForm({
 
         {/* QA Assignment - Required Field */}
         <div>
-          <Label htmlFor="qa_assigned_to">QA Assigned To *</Label>
-          <Select value={formData.qa_assigned_to} onValueChange={(value) => 
-            setFormData(prev => ({ ...prev, qa_assigned_to: value }))
-          }>
-            <SelectTrigger>
-              <SelectValue placeholder="Select QA person" />
-            </SelectTrigger>
-            <SelectContent>
-              {profiles.filter(p => p.role === 'admin').map((profile) => (
-                <SelectItem key={profile.user_id} value={profile.user_id}>
-                  {profile.full_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-3">
+            <Label htmlFor="qa_assigned_to">QA Assigned To *</Label>
+            <Select value={formData.qa_assigned_to} onValueChange={(value) => 
+              setFormData(prev => ({ ...prev, qa_assigned_to: value }))
+            }>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Select QA person" />
+              </SelectTrigger>
+              <SelectContent>
+                {profiles.filter(p => p.role === 'admin').map((profile) => (
+                  <SelectItem key={profile.user_id} value={profile.user_id}>
+                    {profile.full_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        {/* Materials Available Checkbox */}
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="all_materials_available"
-            checked={formData.all_materials_available}
-            onCheckedChange={(checked) => 
-              setFormData(prev => ({ ...prev, all_materials_available: !!checked }))
-            }
-          />
-          <Label htmlFor="all_materials_available">
-            All planned materials are available for this project
-          </Label>
-        </div>
       </div>
 
-      {/* Resources */}
-      <ResourceSelector
-        selectedResources={formData.selected_resources}
-        onResourcesChange={(resources) => 
-          setFormData(prev => ({ ...prev, selected_resources: resources }))
-        }
-        assignedTasks={formData.actions
-          .filter(task => task.title.trim() && task.assigned_to)
-          .map(task => task.title)
-        }
-        assignedUsers={formData.actions
-          .filter(task => task.assigned_to)
-          .map(task => ({
-            user_id: task.assigned_to,
-            full_name: profiles.find(p => p.user_id === task.assigned_to)?.full_name || 'Unknown'
-          }))
-          .filter((user, index, self) => 
-            index === self.findIndex(u => u.user_id === user.user_id)
-          ) // Remove duplicates
-        }
-        missionId={missionId}
-      />
 
       {/* Actions Section */}
       <Collapsible open={showTasks} onOpenChange={setShowTasks}>
         <CollapsibleTrigger asChild>
-          <Button variant="ghost" className="w-full justify-between p-0">
-            <span className="font-medium">
-              Actions {formData.actions.filter(t => t.title.trim()).length > 0 && 
-                `(${formData.actions.filter(t => t.title.trim()).length})`}
-            </span>
-            {showTasks ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          <Button variant="ghost" className="w-full p-0">
+            <div className="flex items-center gap-3 w-full">
+              <span className="font-medium">
+                Actions {formData.actions.filter(t => t.title.trim()).length > 0 && 
+                  `(${formData.actions.filter(t => t.title.trim()).length})`}
+              </span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Break down your mission into specific actions (optional)</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              {showTasks ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </div>
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-4 mt-4">
@@ -614,11 +758,11 @@ export function SimpleMissionForm({
             }}
             context={{
               type: 'mission',
-              parentId: missionId,
-              prefilledData: createMissionAction(missionId || '')
+              parentId: draftMissionId || missionId,
+              prefilledData: createMissionAction(draftMissionId || missionId || '')
             }}
             profiles={profiles}
-            onActionSaved={handleCreateTask}
+            onActionSaved={(saved) => handleActionCreated(saved)}
             isCreating={true}
           />
 
@@ -632,27 +776,25 @@ export function SimpleMissionForm({
             action={editingTaskIndex !== null && formData.actions && formData.actions[editingTaskIndex] ? {
               id: formData.actions[editingTaskIndex].id || '',
               title: formData.actions[editingTaskIndex].title,
-              description: '',
+              description: formData.actions[editingTaskIndex].description || '',
               policy: formData.actions[editingTaskIndex].policy,
               observations: formData.actions[editingTaskIndex].observations,
               assigned_to: formData.actions[editingTaskIndex].assigned_to,
               status: formData.actions[editingTaskIndex].status || 'not_started',
+              plan_commitment: formData.actions[editingTaskIndex].plan_commitment || false,
               mission_id: missionId || '',
               estimated_duration: formData.actions[editingTaskIndex].estimated_completion_date?.toISOString(),
               required_tools: formData.actions[editingTaskIndex].required_tools,
               required_stock: formData.actions[editingTaskIndex].required_stock,
+              attachments: formData.actions[editingTaskIndex].attachments,
               created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              attachments: []
+              updated_at: new Date().toISOString()
             } as BaseAction : undefined}
             profiles={profiles}
-            onActionSaved={handleEditTask}
+            onActionSaved={(saved) => handleActionEdited(saved)}
           />
           
-          <div className="flex justify-between items-center">
-            <p className="text-sm text-muted-foreground">
-              Break down your mission into specific actions (optional)
-            </p>
+          <div className="flex items-center gap-3">
             <div className="flex gap-2">
               {selectedTemplate && formData.actions.length === 0 && (
                 <Button type="button" variant="outline" size="sm" onClick={loadStandardTasks}>
@@ -668,25 +810,28 @@ export function SimpleMissionForm({
           
           {formData.actions.map((task, index) => {
             // Determine border color based on action status
+            // Progression: Gray (no border) → Blue (plan + commitment) → Yellow (implementation) → Green (completed)
             const getActionBorderColor = () => {
-              const hasPolicy = task.policy?.trim();
+              const hasPolicy = hasActualContent(task.policy);
+              const hasObservations = hasActualContent(task.observations);
+              const hasPlanCommitment = task.plan_commitment === true;
               
               // Green border for completed actions  
               if (task.status === 'completed') {
                 return 'border-emerald-500 border-2 shadow-emerald-200 shadow-lg';
               }
               
-              // Blue border when there's a plan (ready to work)
-              if (hasPolicy) {
-                return 'border-blue-500 border-2 shadow-blue-200 shadow-lg';
-              }
-              
-              // Yellow border when assigned but no plan yet (in progress)
-              if (task.assigned_to) {
+              // Yellow border when there's implementation AND there was first a plan
+              if (hasObservations && hasPolicy && hasPlanCommitment) {
                 return 'border-yellow-500 border-2 shadow-yellow-200 shadow-lg';
               }
               
-              // Default border
+              // Blue border when there's a plan AND commitment (ready to work)
+              if (hasPolicy && hasPlanCommitment) {
+                return 'border-blue-500 border-2 shadow-blue-200 shadow-lg';
+              }
+              
+              // Default border (gray - no special styling)
               return 'border';
             };
 
@@ -699,19 +844,12 @@ export function SimpleMissionForm({
                     <h4 className="font-medium">{task.title || `Action ${index + 1}`}</h4>
                   </div>
                   
-                  <div className="grid grid-cols-3 gap-4 text-sm text-muted-foreground">
+                  <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
                     <div>
                       <span className="font-medium">Assigned:</span> {
                         task.assigned_to 
                           ? profiles.find(p => p.user_id === task.assigned_to)?.full_name || 'Unknown'
                           : 'Unassigned'
-                      }
-                    </div>
-                    <div>
-                      <span className="font-medium">Completion:</span> {
-                        task.estimated_completion_date 
-                          ? format(task.estimated_completion_date, "MMM d, yyyy")
-                          : 'Not set'
                       }
                     </div>
                     <div>
@@ -767,25 +905,86 @@ export function SimpleMissionForm({
       </Collapsible>
       
       {/* Actions */}
-      <div className="flex justify-end space-x-2 pt-4 border-t">
-        <Button variant="outline" onClick={onCancel}>
-          {isEditing ? 'Back to Missions' : 'Cancel'}
-        </Button>
-        {isEditing ? (
-          <Button 
-            onClick={onSubmit}
-            variant="default"
-          >
-            Save Mission
-          </Button>
-        ) : (
-          <Button 
-            onClick={handleSubmit}
-            className={selectedTemplate ? `${selectedTemplate.color} hover:opacity-90` : ''}
-          >
-            Create Mission
-          </Button>
+      <div className="flex justify-between pt-4 border-t">
+        {/* Left side - Action buttons (only when editing) */}
+        {isEditing && (
+          <div className="flex items-center gap-1">
+            {/* Remove Mission button */}
+            {canRemoveMission && onRemoveMission && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      onClick={onRemoveMission}
+                      className="flex items-center gap-2 text-gray-500 hover:text-red-600 hover:border-red-300"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Remove Mission</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            
+            {/* Move to Backlog button */}
+            {canMoveToBacklog && onMoveToBacklog && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      onClick={onMoveToBacklog}
+                      className="flex items-center gap-2 text-gray-500 hover:text-orange-600 hover:border-orange-300"
+                    >
+                      <Archive className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Move to Backlog</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
         )}
+        
+        {/* Right side - Cancel and Save/Create buttons */}
+        <div className="flex space-x-2 ml-auto">
+          <Button variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          {isEditing ? (
+            <Button 
+              onClick={onSubmit}
+              variant="default"
+            >
+              Save
+            </Button>
+          ) : (
+            (() => {
+              const isCreateValid = Boolean(
+                formData.title && formData.title.trim() &&
+                formData.problem_statement && formData.problem_statement.trim()
+              );
+              const enabledClasses = 'bg-primary text-black hover:bg-primary/90 opacity-100';
+              const disabledClasses = 'bg-muted text-muted-foreground opacity-50 cursor-not-allowed';
+              const baseClasses = 'transition-colors';
+              const colorClasses = selectedTemplate ? `${selectedTemplate.color} text-black opacity-100 hover:opacity-90` : enabledClasses;
+              return (
+                <Button
+                  onClick={handleSubmit}
+                  disabled={!isCreateValid}
+                  className={`${baseClasses} ${isCreateValid ? colorClasses : disabledClasses}`}
+                >
+                  {draftMissionId ? 'Finalize Mission' : 'Create Mission'}
+                </Button>
+              );
+            })()
+          )}
+        </div>
       </div>
     </div>
   );

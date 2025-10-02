@@ -46,7 +46,8 @@ export interface ActionBorderStyle {
 
 /**
  * Get consistent border styling for actions based on their state
- * Priority: Completed > Implementation > Policy (with commitment) > Assigned > Default
+ * Progression: Gray (no border) → Blue (plan + commitment) → Yellow (implementation) → Green (completed)
+ * Yellow can only occur if there was first a plan (blue state)
  */
 export function getActionBorderStyle(action: {
   status: string;
@@ -58,6 +59,7 @@ export function getActionBorderStyle(action: {
   const hasPolicy = hasActualContent(action.policy);
   const hasObservations = hasActualContent(action.observations);
   const isAssigned = Boolean(action.assigned_to);
+  const hasPlanCommitment = action.plan_commitment === true;
   
   // Green border for completed actions
   if (action.status === 'completed') {
@@ -68,8 +70,9 @@ export function getActionBorderStyle(action: {
     };
   }
   
-  // Yellow border when there's implementation text (work in progress) - takes priority over policy
-  if (hasObservations) {
+  // Yellow border when there's implementation text AND there was first a plan
+  // This ensures proper progression: Gray → Blue → Yellow → Green
+  if (hasObservations && hasPolicy && hasPlanCommitment) {
     return {
       bgColor: 'bg-background',
       borderColor: 'border-yellow-500 border-2 shadow-yellow-200 shadow-lg dark:border-yellow-600 dark:shadow-yellow-900',
@@ -78,7 +81,7 @@ export function getActionBorderStyle(action: {
   }
   
   // Blue border when there's a policy AND plan commitment (ready to work)
-  if (hasPolicy && action.plan_commitment === true) {
+  if (hasPolicy && hasPlanCommitment) {
     return {
       bgColor: '',
       borderColor: 'border-blue-500 border-2 shadow-blue-200 shadow-lg dark:border-blue-600 dark:shadow-blue-900',
@@ -86,7 +89,7 @@ export function getActionBorderStyle(action: {
     };
   }
   
-  // Default styling (same as other cards like stock/tools)
+  // Default styling (gray - no border) - initial state
   return {
     bgColor: '',
     borderColor: '',

@@ -41,7 +41,7 @@ import TiptapEditor from './TiptapEditor';
 import { AssetSelector } from './AssetSelector';
 import { StockSelector } from './StockSelector';
 import { MultiParticipantSelector } from './MultiParticipantSelector';
-import { cn, sanitizeRichText } from "@/lib/utils";
+import { cn, sanitizeRichText, getActionBorderStyle } from "@/lib/utils";
 import { BaseAction, Profile, ActionCreationContext } from "@/types/actions";
 
 interface UnifiedActionDialogProps {
@@ -50,7 +50,7 @@ interface UnifiedActionDialogProps {
   action?: BaseAction;
   context?: ActionCreationContext;
   profiles: Profile[];
-  onActionSaved: () => void;
+  onActionSaved: (saved?: BaseAction) => void;
   isCreating?: boolean;
 }
 
@@ -118,6 +118,7 @@ export function UnifiedActionDialog({
             observations: '',
             assigned_to: null,
             status: 'not_started',
+            plan_commitment: false,
             required_tools: [],
             required_stock: [],
             attachments: []
@@ -478,15 +479,19 @@ export function UnifiedActionDialog({
         linked_issue_id: formData.linked_issue_id || null,
         issue_reference: formData.issue_reference || null,
         status: actionStatus,
-        plan_commitment: formData.plan_commitment || false
+        plan_commitment: formData.plan_commitment || false,
+        organization_id: organizationId
       };
+
 
 
       if (isCreating || !action?.id) {
         // Creating new action
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('actions')
-          .insert(actionData);
+          .insert(actionData)
+          .select('*')
+          .single();
 
         if (error) throw error;
 
@@ -494,12 +499,15 @@ export function UnifiedActionDialog({
           title: "Success",
           description: "Action created successfully"
         });
+        onActionSaved(data as unknown as BaseAction);
       } else {
         // Updating existing action
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('actions')
           .update(actionData)
-          .eq('id', action.id);
+          .eq('id', action.id)
+          .select('*')
+          .single();
 
         if (error) throw error;
 
@@ -507,9 +515,8 @@ export function UnifiedActionDialog({
           title: "Success",
           description: "Action updated successfully"
         });
+        onActionSaved(data as unknown as BaseAction);
       }
-
-      onActionSaved();
       onOpenChange(false);
     } catch (error) {
       console.error('Error saving action:', error);
@@ -523,11 +530,20 @@ export function UnifiedActionDialog({
     }
   };
 
+  // Get border styling based on current form data
+  const borderStyle = getActionBorderStyle({
+    status: formData.status || 'not_started',
+    policy: formData.policy,
+    observations: formData.observations,
+    assigned_to: formData.assigned_to,
+    plan_commitment: formData.plan_commitment
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn(
         "max-w-4xl max-h-[90vh] overflow-y-auto",
-        formData.plan_commitment && "border-2 border-[hsl(var(--action-ready-border))]"
+        borderStyle.borderColor
       )}>
         <DialogHeader>
           <DialogTitle>{getDialogTitle()}</DialogTitle>
@@ -591,7 +607,7 @@ export function UnifiedActionDialog({
               id="description"
               value={formData.description || ''}
               onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              placeholder="Brief description of the action..."
+              placeholder="Provide some background."
               className="mt-1"
               rows={3}
             />

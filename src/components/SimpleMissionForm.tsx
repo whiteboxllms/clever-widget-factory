@@ -32,6 +32,7 @@ interface Task {
   estimated_completion_date?: Date;
   required_tools?: string[];
   required_stock?: { part_id: string; quantity: number; part_name: string; }[];
+  attachments?: string[];
 }
 
 interface Profile {
@@ -645,9 +646,9 @@ export function SimpleMissionForm({
               estimated_duration: formData.actions[editingTaskIndex].estimated_completion_date?.toISOString(),
               required_tools: formData.actions[editingTaskIndex].required_tools,
               required_stock: formData.actions[editingTaskIndex].required_stock,
+              attachments: formData.actions[editingTaskIndex].attachments,
               created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              attachments: []
+              updated_at: new Date().toISOString()
             } as BaseAction : undefined}
             profiles={profiles}
             onActionSaved={handleEditTask}

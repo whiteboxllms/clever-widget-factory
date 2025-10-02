@@ -22,10 +22,3 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.vercel
-
-# Env files
-.env
-.env.*
-!.env.local.example
-db_cluster-01-10-2025@17-02-34.backup

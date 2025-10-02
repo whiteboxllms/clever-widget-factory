@@ -32,7 +32,6 @@ interface Task {
   estimated_completion_date?: Date;
   required_tools?: string[];
   required_stock?: { part_id: string; quantity: number; part_name: string; }[];
-  attachments?: string[];
 }
 
 interface Profile {
@@ -122,9 +121,7 @@ export function SimpleMissionForm({
         mission_id: task.mission_id,
         estimated_completion_date: task.estimated_duration ? new Date(task.estimated_duration) : undefined,
         actual_duration: task.actual_duration || '',
-        required_tools: task.required_tools || [],
-        required_stock: task.required_stock || [],
-        attachments: task.attachments || []
+        required_tools: task.required_tools || []
       })) || [];
 
       setFormData(prev => ({ ...prev, actions: updatedTasks }));
@@ -212,9 +209,7 @@ export function SimpleMissionForm({
             assigned_to: action.assigned_to,
             status: action.status,
             estimated_completion_date: action.estimated_duration ? new Date(action.estimated_duration) : undefined,
-            required_tools: action.required_tools || [],
-            required_stock: action.required_stock || [],
-            attachments: action.attachments || []
+            required_tools: action.required_tools || []
           }));
 
           setFormData(prev => ({ 
@@ -646,9 +641,9 @@ export function SimpleMissionForm({
               estimated_duration: formData.actions[editingTaskIndex].estimated_completion_date?.toISOString(),
               required_tools: formData.actions[editingTaskIndex].required_tools,
               required_stock: formData.actions[editingTaskIndex].required_stock,
-              attachments: formData.actions[editingTaskIndex].attachments,
               created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
+              updated_at: new Date().toISOString(),
+              attachments: []
             } as BaseAction : undefined}
             profiles={profiles}
             onActionSaved={handleEditTask}

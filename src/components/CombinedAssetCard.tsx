@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Wrench, Package, Eye, Edit, Trash2, LogOut, LogIn, AlertTriangle, AlertCircle, Plus, Minus, ShoppingCart, History } from "lucide-react";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { InventoryHistoryDialog } from "./InventoryHistoryDialog";
+import { useVisibleImage } from "@/hooks/useVisibleImage";
 
 interface CombinedAsset {
   id: string;
@@ -67,6 +68,7 @@ export const CombinedAssetCard = ({
   hasPendingOrders,
   onShowHistory
 }: CombinedAssetCardProps) => {
+  const { containerRef, imageUrl } = useVisibleImage(asset.id, asset.type, asset.image_url);
   const getStatusBadge = () => {
     if (asset.type === 'asset') {
       if (asset.is_checked_out) {
@@ -127,15 +129,20 @@ export const CombinedAssetCard = ({
       </CardHeader>
 
       <CardContent className="pt-0">
-        {asset.image_url && (
-          <div className="mb-3">
+        <div ref={containerRef} className="mb-3">
+          {imageUrl ? (
             <img
-              src={asset.image_url}
+              src={imageUrl}
               alt={asset.name}
               className="w-full h-32 object-cover rounded-md border"
+              loading="lazy"
+              decoding="async"
+              fetchpriority="low"
             />
-          </div>
-        )}
+          ) : (
+            <div className="w-full h-32 rounded-md border bg-muted animate-pulse" />
+          )}
+        </div>
 
         <div className="space-y-2 text-sm text-muted-foreground">
           {asset.serial_number && (

@@ -10,6 +10,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 interface CombinedAssetFiltersProps {
   searchTerm: string;
   setSearchTerm: (term: string) => void;
+  searchDescriptions: boolean;
+  setSearchDescriptions: (show: boolean) => void;
   showMyCheckedOut: boolean;
   setShowMyCheckedOut: (show: boolean) => void;
   showWithIssues: boolean;
@@ -28,6 +30,8 @@ interface CombinedAssetFiltersProps {
 export const CombinedAssetFilters = ({
   searchTerm,
   setSearchTerm,
+  searchDescriptions,
+  setSearchDescriptions,
   showMyCheckedOut,
   setShowMyCheckedOut,
   showWithIssues,
@@ -50,9 +54,15 @@ export const CombinedAssetFilters = ({
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search assets and stock by name, serial number, or storage location..."
+          placeholder="Search by name, serial number, or storage location..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          }}
           className="pl-10 pr-10"
         />
         {searchTerm && (
@@ -144,6 +154,17 @@ export const CombinedAssetFilters = ({
           </TooltipProvider>
 
           <div className="flex items-center gap-4">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="search-descriptions"
+                checked={searchDescriptions}
+                onCheckedChange={setSearchDescriptions}
+              />
+              <Label htmlFor="search-descriptions" className="text-sm">
+                Include Descriptions
+              </Label>
+            </div>
+
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -31,16 +31,45 @@ export interface CombinedAsset {
   updated_at: string;
 }
 
-export const useCombinedAssets = (showRemovedItems: boolean = false) => {
+type AssetsQueryOptions = {
+  search?: string;
+  limit?: number;
+  page?: number;
+  searchDescriptions?: boolean;
+};
+
+export const useCombinedAssets = (showRemovedItems: boolean = false, options?: AssetsQueryOptions) => {
   const [assets, setAssets] = useState<CombinedAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const isFetchingRef = useRef(false);
+  const latestRequestIdRef = useRef(0);
+  const currentSearchRef = useRef<string | undefined>(options?.search);
+  const currentLimitRef = useRef<number>(options?.limit ?? 50);
+  const currentPageRef = useRef<number>(options?.page ?? 0);
 
-  const fetchAssets = async () => {
+  const fetchAssets = async (overrides?: AssetsQueryOptions & { append?: boolean }) => {
+    if (isFetchingRef.current) {
+      console.warn('[perf] assets: fetch ignored because a request is already in-flight');
+      return;
+    }
+    isFetchingRef.current = true;
+    const requestId = ++latestRequestIdRef.current;
     try {
+      console.time('[perf] assets: total fetchAssets');
+      performance.mark('assets_fetch_start');
       setLoading(true);
+      // compute effective query params
+      const effectiveSearch = overrides?.search ?? currentSearchRef.current;
+      const effectiveLimit = overrides?.limit ?? currentLimitRef.current;
+      const effectivePage = overrides?.page ?? currentPageRef.current;
+      const includeDescriptions = overrides?.searchDescriptions ?? options?.searchDescriptions ?? false;
+      if (overrides?.search !== undefined) currentSearchRef.current = overrides.search;
+      if (overrides?.limit !== undefined) currentLimitRef.current = overrides.limit!;
+      if (overrides?.page !== undefined) currentPageRef.current = overrides.page!;
 
       // Fetch tools (assets)
+      console.time('[perf] assets: build toolsQuery');
       let toolsQuery = supabase
         .from('tools')
         .select(`
@@ -51,90 +80,124 @@ export const useCombinedAssets = (showRemovedItems: boolean = false) => {
           status,
           serial_number,
           parent_structure_id,
-          image_url,
           storage_location,
           legacy_storage_vicinity,
           created_at,
           updated_at
         `);
+      console.timeEnd('[perf] assets: build toolsQuery');
       
       if (!showRemovedItems) {
         toolsQuery = toolsQuery.neq('status', 'removed');
       }
 
-      // Fetch parts (stock)
-      const [toolsResponse, partsResponse] = await Promise.all([
-        toolsQuery.order('name'),
-        supabase
-          .from('parts')
-          .select(`
-            id,
-            name,
-            description,
-            category,
-            current_quantity,
-            minimum_quantity,
-            unit,
-            parent_structure_id,
-            image_url,
-            storage_location,
-            legacy_storage_vicinity,
-            created_at,
-            updated_at
-          `)
-          .order('name')
-      ]);
+      if (effectiveSearch && effectiveSearch.trim() !== '') {
+        const term = `%${effectiveSearch.trim()}%`;
+        const fields = [
+          `name.ilike.${term}`,
+          `serial_number.ilike.${term}`,
+          `category.ilike.${term}`,
+          `storage_location.ilike.${term}`
+        ];
+        if (includeDescriptions) fields.push(`description.ilike.${term}`);
+        toolsQuery = toolsQuery.or(fields.join(','));
+      }
 
-      if (toolsResponse.error) throw toolsResponse.error;
-      if (partsResponse.error) throw partsResponse.error;
+      const toolsOffset = effectivePage * effectiveLimit;
+      const toolsRangeEnd = toolsOffset + effectiveLimit - 1;
+      toolsQuery = toolsQuery.order('name').range(toolsOffset, toolsRangeEnd);
 
-      // Fetch active checkouts for tools
-      const { data: checkoutsData, error: checkoutsError } = await supabase
+      // Build parts (stock) query
+      console.time('[perf] assets: build partsQuery');
+      let partsQuery = supabase
+        .from('parts')
+        .select(`
+          id,
+          name,
+          description,
+          category,
+          current_quantity,
+          minimum_quantity,
+          unit,
+          parent_structure_id,
+          storage_location,
+          legacy_storage_vicinity,
+          created_at,
+          updated_at
+        `);
+      console.timeEnd('[perf] assets: build partsQuery');
+
+      if (effectiveSearch && effectiveSearch.trim() !== '') {
+        const term = `%${effectiveSearch.trim()}%`;
+        const fields = [
+          `name.ilike.${term}`,
+          `category.ilike.${term}`,
+          `storage_location.ilike.${term}`
+        ];
+        if (includeDescriptions) fields.push(`description.ilike.${term}`);
+        partsQuery = partsQuery.or(fields.join(','));
+      }
+
+      const partsOffset = toolsOffset; // keep same paging window size for both
+      const partsRangeEnd = partsOffset + effectiveLimit - 1;
+      partsQuery = partsQuery.order('name').range(partsOffset, partsRangeEnd);
+
+      // Kick off all independent requests in parallel
+      console.time('[perf] assets: parallel fetch');
+      const toolsPromise = toolsQuery;
+      const partsPromise = partsQuery;
+      const checkoutsPromise = supabase
         .from('checkouts')
         .select('tool_id, user_name, user_id')
         .eq('is_returned', false);
-
-      if (checkoutsError) {
-        console.error('Error fetching checkouts:', checkoutsError);
-      }
-
-      // Create checkout map
-      const checkoutMap = new Map<string, { user_name: string; user_id: string }>();
-      checkoutsData?.forEach(checkout => {
-        checkoutMap.set(checkout.tool_id, { user_name: checkout.user_name, user_id: checkout.user_id });
-      });
-
-      // Fetch tools with issues
-      const { data: issuesData, error: issuesError } = await supabase
+      const issuesPromise = supabase
         .from('issues')
         .select('context_id')
         .eq('context_type', 'tool')
         .eq('status', 'active');
-
-      if (issuesError) {
-        console.error('Error fetching issues:', issuesError);
-      }
-
-      const toolsWithIssues = new Set(issuesData?.map(issue => issue.context_id) || []);
-
-      // Fetch parent structures for resolving area names
-      const { data: parentStructuresData, error: parentError } = await supabase
+      const parentsPromise = supabase
         .from('tools')
         .select('id, name')
         .in('category', ['Infrastructure', 'Container'])
         .neq('status', 'removed');
 
-      if (parentError) {
-        console.error('Error fetching parent structures:', parentError);
-      }
+      const [toolsResponse, partsResponse, checkoutsResp, issuesResp, parentsResp] = await Promise.all([
+        toolsPromise,
+        partsPromise,
+        checkoutsPromise,
+        issuesPromise,
+        parentsPromise
+      ]);
+      console.timeEnd('[perf] assets: parallel fetch');
+
+      if (toolsResponse.error) throw toolsResponse.error;
+      if (partsResponse.error) throw partsResponse.error;
+      if (checkoutsResp.error) console.error('Error fetching checkouts:', checkoutsResp.error);
+      if (issuesResp.error) console.error('Error fetching issues:', issuesResp.error);
+      if (parentsResp.error) console.error('Error fetching parent structures:', parentsResp.error);
+
+      // Build helper maps
+      console.time('[perf] assets: build checkoutMap');
+      const checkoutMap = new Map<string, { user_name: string; user_id: string }>();
+      checkoutsResp.data?.forEach(checkout => {
+        checkoutMap.set(checkout.tool_id, { user_name: checkout.user_name, user_id: checkout.user_id });
+      });
+      console.timeEnd('[perf] assets: build checkoutMap');
+
+      console.time('[perf] assets: build toolsWithIssues');
+      const toolsWithIssues = new Set(issuesResp.data?.map(issue => issue.context_id) || []);
+      console.timeEnd('[perf] assets: build toolsWithIssues');
 
       // Create parent structure name map
+      console.time('[perf] assets: build parentStructureMap');
       const parentStructureMap = new Map<string, string>();
-      parentStructuresData?.forEach(parent => {
+      parentsResp.data?.forEach(parent => {
         parentStructureMap.set(parent.id, parent.name);
       });
+      console.timeEnd('[perf] assets: build parentStructureMap');
 
       // Transform and combine data
+      console.time('[perf] assets: transform+combine');
       const transformedAssets: CombinedAsset[] = [
         // Transform tools to assets
         ...(toolsResponse.data || []).map(tool => {
@@ -164,8 +227,25 @@ export const useCombinedAssets = (showRemovedItems: boolean = false) => {
           };
         })
       ];
-
-      setAssets(transformedAssets);
+      console.timeEnd('[perf] assets: transform+combine');
+      console.time('[perf] assets: set state');
+      if (latestRequestIdRef.current === requestId) {
+        if (overrides?.append) {
+          setAssets(prev => [...prev, ...transformedAssets]);
+        } else {
+          setAssets(transformedAssets);
+        }
+      } else {
+        console.warn('[perf] assets: stale response discarded');
+      }
+      console.timeEnd('[perf] assets: set state');
+      performance.mark('assets_fetch_end');
+      performance.measure('assets_fetch_total', 'assets_fetch_start', 'assets_fetch_end');
+      const [measure] = performance.getEntriesByName('assets_fetch_total');
+      if (measure) {
+        console.log('[perf] assets: total fetchAssets ms', Math.round(measure.duration));
+        performance.clearMeasures('assets_fetch_total');
+      }
     } catch (error) {
       console.error('Error fetching combined assets:', error);
       toast({
@@ -174,15 +254,20 @@ export const useCombinedAssets = (showRemovedItems: boolean = false) => {
         variant: "destructive"
       });
     } finally {
-      setLoading(false);
+      console.timeEnd('[perf] assets: total fetchAssets');
+      if (latestRequestIdRef.current === requestId) {
+        setLoading(false);
+      }
+      isFetchingRef.current = false;
     }
   };
 
-  const createAsset = async (assetData: any, isAsset: boolean) => {
+  const createAsset = async (assetData: Record<string, unknown>, isAsset: boolean) => {
     try {
       const table = isAsset ? 'tools' : 'parts';
       const { data, error } = await supabase
         .from(table)
+        // @ts-expect-error: Insert shape varies per table; validated server-side
         .insert(assetData)
         .select()
         .single();
@@ -195,7 +280,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false) => {
       // Log creation event for stock items only (parts_history)
       if (!isAsset) {
         try {
-          const partData = data as any; // Type assertion for parts data
+          const partData = data as Partial<CombinedAsset>;
           await supabase
             .from('parts_history')
             .insert({
@@ -234,7 +319,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false) => {
     }
   };
 
-  const updateAsset = async (assetId: string, updates: any, isAsset: boolean) => {
+  const updateAsset = async (assetId: string, updates: Partial<CombinedAsset>, isAsset: boolean) => {
     try {
       const table = isAsset ? 'tools' : 'parts';
       const { error } = await supabase
@@ -263,6 +348,9 @@ export const useCombinedAssets = (showRemovedItems: boolean = false) => {
 
   useEffect(() => {
     fetchAssets();
+    // If StrictMode double-invokes effects in dev, the in-flight guard above
+    // ensures we will not duplicate concurrent requests.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showRemovedItems]);
 
   return {

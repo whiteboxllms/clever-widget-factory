@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus, BarChart3 } from "lucide-react";
@@ -42,6 +42,7 @@ export const CombinedAssetsContainer = () => {
   const [showOnlyAssets, setShowOnlyAssets] = useState(false);
   const [showOnlyStock, setShowOnlyStock] = useState(false);
   const [showRemovedItems, setShowRemovedItems] = useState(false);
+  const [searchDescriptions, setSearchDescriptions] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
   const [showCheckinDialog, setShowCheckinDialog] = useState(false);
@@ -65,7 +66,21 @@ export const CombinedAssetsContainer = () => {
     supplierUrl: ''
   });
 
-  const { assets, loading, createAsset, updateAsset, refetch } = useCombinedAssets(showRemovedItems);
+  const [page, setPage] = useState(0);
+  const [limit] = useState(50);
+  const searchRef = useRef(searchTerm);
+  const debounceTimerRef = useRef<number | undefined>(undefined);
+  const { assets, loading, createAsset, updateAsset, refetch, fetchAssets } = useCombinedAssets(showRemovedItems, {
+    search: searchTerm,
+    limit,
+    page,
+    searchDescriptions
+  });
+
+  useEffect(() => {
+    // Mark container mount once; avoid console.time duplicate label warnings on re-render
+    performance.mark('container_mount');
+  }, []);
   
   // Tool history and issues for view dialog
   const { toolHistory, currentCheckout, fetchToolHistory } = useToolHistory();
@@ -109,15 +124,43 @@ export const CombinedAssetsContainer = () => {
     fetchPendingOrders();
   }, []);
 
+  // Debounce search to reduce server calls
+  useEffect(() => {
+    if (debounceTimerRef.current) window.clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = window.setTimeout(() => {
+      const term = searchTerm.trim();
+      if (term !== searchRef.current) {
+        searchRef.current = term;
+        setPage(0);
+        fetchAssets({ search: term, page: 0, limit, append: false });
+      }
+    }, 250);
+    return () => {
+      if (debounceTimerRef.current) window.clearTimeout(debounceTimerRef.current);
+    };
+  }, [searchTerm]);
+
+  // Initial fetch and when showRemovedItems changes
+  useEffect(() => {
+    setPage(0);
+    fetchAssets({ search: searchRef.current, page: 0, limit, append: false });
+  }, [showRemovedItems, searchDescriptions]);
+
   // Filter assets based on current filters
   const filteredAssets = useMemo(() => {
+    console.time('[perf] container: filter assets');
+    performance.mark('filter_start');
+    const lower = searchTerm.toLowerCase();
     return assets.filter(asset => {
-      // Search filter
-      const matchesSearch = 
-        asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (asset.serial_number && asset.serial_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (asset.description && asset.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (asset.storage_location && asset.storage_location.toLowerCase().includes(searchTerm.toLowerCase()));
+      // If server-side search is active, skip client text search to avoid double filtering
+      const matchesSearch = lower
+        ? true
+        : (
+          asset.name.toLowerCase().includes(lower) ||
+          (asset.serial_number && asset.serial_number.toLowerCase().includes(lower)) ||
+          (asset.description && asset.description.toLowerCase().includes(lower)) ||
+          (asset.storage_location && asset.storage_location.toLowerCase().includes(lower))
+        );
 
       // Type filters
       if (showOnlyAssets && asset.type !== 'asset') return false;
@@ -140,7 +183,21 @@ export const CombinedAssetsContainer = () => {
 
       return matchesSearch;
     });
+    // eslint-disable-next-line no-unreachable
+    // unreachable comment to indicate end timing after return not possible; use finally-like outside
   }, [assets, searchTerm, showOnlyAssets, showOnlyStock, showMyCheckedOut, showWithIssues, showLowStock, user?.email]);
+
+  // Measure after filtering recalculates by referencing its dependencies
+  useEffect(() => {
+    performance.mark('filter_end');
+    performance.measure('filter_total', 'filter_start', 'filter_end');
+    const [measure] = performance.getEntriesByName('filter_total');
+    if (measure) {
+      console.log('[perf] container: filter ms', Math.round(measure.duration), 'assets', assets.length);
+      performance.clearMeasures('filter_total');
+    }
+    console.timeEnd('[perf] container: filter assets');
+  }, [filteredAssets]);
 
   const handleCreateAsset = async (assetData: any, isAsset: boolean) => {
     const result = await createAsset(assetData, isAsset);
@@ -428,12 +485,9 @@ export const CombinedAssetsContainer = () => {
     }
   };
 
+  // Do not early-return on loading; keep previous results visible and show a small indicator
   if (loading) {
-    return (
-      <div className="container mx-auto p-6">
-        <div className="text-center py-8">Loading combined assets...</div>
-      </div>
-    );
+    performance.mark('loading_ui_shown');
   }
 
   // Show asset detail view if selectedAssetForDetails is set
@@ -469,6 +523,7 @@ export const CombinedAssetsContainer = () => {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
+      {(() => { performance.mark('container_first_paint'); return null; })()}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -481,6 +536,9 @@ export const CombinedAssetsContainer = () => {
             <p className="text-muted-foreground">
               {filteredAssets.length} items ({assets.filter(a => a.type === 'asset').length} assets, {assets.filter(a => a.type === 'stock').length} stock items)
             </p>
+            {loading && (
+              <p className="text-xs text-muted-foreground">Loading…</p>
+            )}
           </div>
         </div>
         <Button
@@ -498,6 +556,8 @@ export const CombinedAssetsContainer = () => {
       <CombinedAssetFilters
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
+        searchDescriptions={searchDescriptions}
+        setSearchDescriptions={setSearchDescriptions}
         showMyCheckedOut={showMyCheckedOut}
         setShowMyCheckedOut={setShowMyCheckedOut}
         showWithIssues={showWithIssues}
@@ -538,6 +598,19 @@ export const CombinedAssetsContainer = () => {
             onReceiveOrder={handleReceiveOrder}
         pendingOrders={pendingOrders}
       />
+
+      <div className="flex justify-center">
+        <Button
+          variant="outline"
+          onClick={() => {
+            const nextPage = page + 1;
+            setPage(nextPage);
+            fetchAssets({ page: nextPage, limit, search: searchRef.current, append: true });
+          }}
+        >
+          Load more
+        </Button>
+      </div>
 
       {/* Add Asset Dialog */}
       <CombinedAssetDialog

@@ -134,3 +134,16 @@ export const getActionTypeFromAction = (action: BaseAction): ActionCreationConte
   if (action.linked_issue_id) return 'issue';
   return 'asset';
 };
+
+export interface ImplementationUpdate {
+  id: string;
+  action_id: string;
+  updated_by: string;
+  update_text: string;
+  update_type: 'progress' | 'blocker' | 'question' | 'completion';
+  created_at: string;
+  updated_by_profile?: {
+    full_name: string;
+    user_id: string;
+  };
+}

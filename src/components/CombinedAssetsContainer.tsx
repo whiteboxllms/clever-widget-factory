@@ -464,6 +464,7 @@ export const CombinedAssetsContainer = () => {
         unit: formData.unit,
         parent_structure_id: formData.parent_structure_id,
         storage_location: formData.storage_location,
+        accountable_person_id: formData.accountable_person_id === "none" ? null : formData.accountable_person_id,
         image_url: formData.image_url
       };
 
@@ -724,6 +725,7 @@ export const CombinedAssetsContainer = () => {
             setSelectedAsset(null);
           }}
           onSubmit={handleEditSubmit}
+          isLeadership={isAdmin}
         />
       )}
 
@@ -751,7 +753,8 @@ export const CombinedAssetsContainer = () => {
                 unit: selectedAsset.unit || 'pieces',
                 cost_per_unit: (selectedAsset.cost_per_unit || 0).toString(),
                 parent_structure_id: selectedAsset.parent_structure_id || '',
-                storage_location: selectedAsset.storage_location || ''
+                storage_location: selectedAsset.storage_location || '',
+                accountable_person_id: selectedAsset.accountable_person_id || ''
               }}
               editingPart={selectedAsset as any}
               selectedImage={null}
@@ -763,6 +766,7 @@ export const CombinedAssetsContainer = () => {
               }}
               isLoading={false}
               submitButtonText="Update Stock Item"
+              isLeadership={isAdmin}
             />
           </DialogContent>
         </Dialog>

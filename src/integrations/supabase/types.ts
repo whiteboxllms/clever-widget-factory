@@ -911,6 +911,7 @@ export type Database = {
       }
       parts: {
         Row: {
+          accountable_person_id: string | null
           category: string | null
           cost_evidence_url: string | null
           cost_per_unit: number | null
@@ -932,6 +933,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          accountable_person_id?: string | null
           category?: string | null
           cost_evidence_url?: string | null
           cost_per_unit?: number | null
@@ -953,6 +955,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          accountable_person_id?: string | null
           category?: string | null
           cost_evidence_url?: string | null
           cost_per_unit?: number | null
@@ -1351,6 +1354,7 @@ export type Database = {
       }
       tools: {
         Row: {
+          accountable_person_id: string | null
           actual_location: string | null
           audit_status: string | null
           category: string | null
@@ -1374,6 +1378,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          accountable_person_id?: string | null
           actual_location?: string | null
           audit_status?: string | null
           category?: string | null
@@ -1397,6 +1402,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          accountable_person_id?: string | null
           actual_location?: string | null
           audit_status?: string | null
           category?: string | null

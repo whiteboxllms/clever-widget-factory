@@ -12,15 +12,18 @@ import { useToast } from "@/hooks/use-toast";
 import { TOOL_CATEGORY_OPTIONS } from "@/lib/constants";
 import { LocationFieldsGroup } from "@/components/shared/LocationFieldsGroup";
 import { useParentStructures } from "@/hooks/tools/useParentStructures";
+import { useAuth } from "@/hooks/useAuth";
+import { useActionProfiles } from "@/hooks/useActionProfiles";
 
 interface EditToolFormProps {
   tool: Tool | null;
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (toolId: string, updates: any) => Promise<void>;
+  isLeadership?: boolean;
 }
 
-export const EditToolForm = ({ tool, isOpen, onClose, onSubmit }: EditToolFormProps) => {
+export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, isLeadership = false }: EditToolFormProps) => {
   const [editData, setEditData] = useState({
     name: tool?.name || "",
     description: tool?.description || "",
@@ -29,6 +32,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit }: EditToolFormPr
     parent_structure_id: tool?.parent_structure_id || "none",
     storage_location: tool?.storage_location || "",
     serial_number: tool?.serial_number || "",
+    accountable_person_id: tool?.accountable_person_id || "none",
     image_file: null as File | null,
   });
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -36,7 +40,8 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit }: EditToolFormPr
   const { toast } = useToast();
   const { uploadImages, isUploading } = useImageUpload();
   const { parentStructures, loading: isLoadingParentStructures } = useParentStructures();
-  
+  const { isAdmin } = useAuth();
+  const { profiles } = useActionProfiles();
 
   // Update form data when tool changes
   useEffect(() => {
@@ -49,6 +54,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit }: EditToolFormPr
         parent_structure_id: tool.parent_structure_id || "none",
         storage_location: tool.storage_location || "",
         serial_number: tool.serial_number || "",
+        accountable_person_id: tool.accountable_person_id || "none",
         image_file: null,
       });
       setImagePreview(null);
@@ -95,6 +101,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit }: EditToolFormPr
         parent_structure_id: editData.parent_structure_id === "none" ? null : editData.parent_structure_id,
         storage_location: editData.storage_location || null,
         serial_number: editData.serial_number || null,
+        accountable_person_id: editData.accountable_person_id === "none" ? null : editData.accountable_person_id,
         image_url: imageUrl
       };
 
@@ -123,12 +130,12 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit }: EditToolFormPr
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Tool: {tool.name}</DialogTitle>
+          <DialogTitle>Edit Asset: {tool.name}</DialogTitle>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="edit-name">Tool Name *</Label>
+            <Label htmlFor="edit-name">Asset Name *</Label>
             <Input
               id="edit-name"
               value={editData.name}
@@ -192,21 +199,49 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit }: EditToolFormPr
             parentStructures={parentStructures}
           />
 
-          <div>
-            <Label htmlFor="edit-status">Status</Label>
-            <Select
-              value={editData.status}
-              onValueChange={(value) => setEditData(prev => ({ ...prev, status: value }))}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="available">Available</SelectItem>
-                <SelectItem value="unavailable">Unavailable</SelectItem>
-                <SelectItem value="unable_to_find">Unable to Find</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="edit-status">Status</Label>
+              <Select
+                value={editData.status}
+                onValueChange={(value) => setEditData(prev => ({ ...prev, status: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="available">Available</SelectItem>
+                  <SelectItem value="unavailable">Unavailable</SelectItem>
+                  <SelectItem value="unable_to_find">Unable to Find</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="edit-accountable">Accountable Person</Label>
+              <Select
+                value={editData.accountable_person_id}
+                onValueChange={(value) => setEditData(prev => ({ ...prev, accountable_person_id: value }))}
+                disabled={!isLeadership}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select accountable person" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No one assigned</SelectItem>
+                  {profiles.map((profile) => (
+                    <SelectItem key={profile.user_id} value={profile.user_id}>
+                      {profile.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!isLeadership && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Only leadership can change accountable person
+                </p>
+              )}
+            </div>
           </div>
 
           <div>
@@ -258,7 +293,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit }: EditToolFormPr
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting || !editData.name.trim()}>
-              {isSubmitting ? "Updating..." : "Update Tool"}
+              {isSubmitting ? "Updating..." : "Update Asset"}
             </Button>
           </div>
         </form>

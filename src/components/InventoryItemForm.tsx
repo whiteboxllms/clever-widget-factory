@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Upload, Info } from 'lucide-react';
 import { LocationFieldsGroup } from '@/components/shared/LocationFieldsGroup';
 import { useParentStructures } from '@/hooks/tools/useParentStructures';
+import { useActionProfiles } from '@/hooks/useActionProfiles';
 
 // Supplier interface removed - supplier tracking moved to stock additions
 
@@ -41,6 +42,7 @@ interface FormData {
   unit: string;
   parent_structure_id: string | null;
   storage_location: string;
+  accountable_person_id: string;
 }
 
 interface InventoryItemFormProps {
@@ -52,6 +54,7 @@ interface InventoryItemFormProps {
   onCancel: () => void;
   submitButtonText: string;
   editingPart?: Part | null;
+  isLeadership?: boolean;
 }
 
 export function InventoryItemForm({
@@ -62,9 +65,11 @@ export function InventoryItemForm({
   onSubmit,
   onCancel,
   submitButtonText,
-  editingPart
+  editingPart,
+  isLeadership = false
 }: InventoryItemFormProps) {
   const { parentStructures, loading: isLoadingParentStructures } = useParentStructures();
+  const { profiles } = useActionProfiles();
   const [formData, setFormData] = useState<FormData>({
     name: '',
     description: '',
@@ -74,10 +79,12 @@ export function InventoryItemForm({
     unit: 'pieces',
     parent_structure_id: '',
     storage_location: '',
+    accountable_person_id: 'none',
     ...initialData
   });
 
   const [useMinimumQuantity, setUseMinimumQuantity] = useState(false);
+
 
   // Initialize form data when editing
   useEffect(() => {
@@ -90,7 +97,8 @@ export function InventoryItemForm({
         cost_per_unit: editingPart.cost_per_unit?.toString() || '',
         unit: editingPart.unit || 'pieces',
         parent_structure_id: editingPart.parent_structure_id,
-        storage_location: editingPart.storage_location || ''
+        storage_location: editingPart.storage_location || '',
+        accountable_person_id: editingPart.accountable_person_id || 'none'
       });
       setUseMinimumQuantity(editingPart.minimum_quantity !== null && editingPart.minimum_quantity > 0);
     }
@@ -263,6 +271,32 @@ export function InventoryItemForm({
             isLoadingAreas={isLoadingParentStructures}
             parentStructures={parentStructures}
           />
+        </div>
+
+        <div>
+          <Label htmlFor="accountable_person">Accountable Person</Label>
+          <Select
+            value={formData.accountable_person_id}
+            onValueChange={(value) => updateFormData('accountable_person_id', value)}
+            disabled={!isLeadership}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select accountable person" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No one assigned</SelectItem>
+              {profiles.map((profile) => (
+                <SelectItem key={profile.user_id} value={profile.user_id}>
+                  {profile.full_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {!isLeadership && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Only leadership can change accountable person
+            </p>
+          )}
         </div>
       </div>
 

@@ -558,6 +558,7 @@ export default function Inventory() {
         // supplier_id removed - tracking moved to stock additions
         parent_structure_id: formData.parent_structure_id,
         storage_location: formData.storage_location,
+        accountable_person_id: formData.accountable_person_id === "none" ? null : formData.accountable_person_id,
         image_url: imageUrl
       };
 

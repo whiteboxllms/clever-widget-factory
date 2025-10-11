@@ -25,6 +25,9 @@ interface CombinedAsset {
   is_checked_out?: boolean;
   checked_out_to?: string;
   checked_out_user_id?: string;
+  accountable_person_id?: string;
+  accountable_person_name?: string; // Will be populated from user lookup
+  accountable_person_color?: string; // Favorite color of accountable person
 }
 
 interface CombinedAssetCardProps {
@@ -137,7 +140,7 @@ export const CombinedAssetCard = ({
               className="w-full h-32 object-cover rounded-md border"
               loading="lazy"
               decoding="async"
-              fetchpriority="low"
+                fetchPriority="low"
             />
           ) : (
             <div className="w-full h-32 rounded-md border bg-muted animate-pulse" />
@@ -150,6 +153,7 @@ export const CombinedAssetCard = ({
               <span className="font-medium">Serial:</span> {asset.serial_number}
             </div>
           )}
+          
           
           {asset.type === 'stock' && (
             <div>
@@ -171,6 +175,15 @@ export const CombinedAssetCard = ({
               <span className="font-medium">Location:</span>{' '}
               {asset.area_display}
               {asset.storage_location && ` • ${asset.storage_location}`}
+            </div>
+          )}
+
+          {asset.accountable_person_name && (
+            <div>
+              <span className="font-medium">Accountable:</span> 
+              <span style={{ color: asset.accountable_person_color || '#6B7280' }} className="ml-1">
+                {asset.accountable_person_name}
+              </span>
             </div>
           )}
 

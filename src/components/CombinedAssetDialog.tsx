@@ -7,12 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Upload, X, Wrench, Package, Info } from "lucide-react";
+import { Wrench, Package, Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useImageUpload } from "@/hooks/useImageUpload";
 import { useToast } from "@/hooks/use-toast";
 import { TOOL_CATEGORY_OPTIONS } from "@/lib/constants";
 import { LocationFieldsGroup } from "@/components/shared/LocationFieldsGroup";
+import { FileAttachmentManager } from "@/components/shared/FileAttachmentManager";
 import { useParentStructures } from "@/hooks/tools/useParentStructures";
 
 interface CombinedAssetForm {
@@ -27,7 +27,7 @@ interface CombinedAssetForm {
   status: string;
   parent_structure_id: string;
   storage_location: string;
-  image_file: File | null;
+  attachments: string[];
 }
 
 interface CombinedAssetDialogProps {
@@ -50,14 +50,12 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
     status: "available",
     parent_structure_id: "none",
     storage_location: "",
-    image_file: null,
+    attachments: [],
   });
   
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [useMinimumQuantity, setUseMinimumQuantity] = useState(false);
   const { toast } = useToast();
-  const { uploadImages, isUploading } = useImageUpload();
   const { parentStructures, loading: isLoadingParentStructures } = useParentStructures();
 
   // Determine if this is an asset based on serial number
@@ -69,15 +67,6 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
     }
   }, [initialName]);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setFormData(prev => ({ ...prev, image_file: file }));
-      const reader = new FileReader();
-      reader.onload = () => setImagePreview(reader.result as string);
-      reader.readAsDataURL(file);
-    }
-  };
 
   const updateFormData = (field: keyof CombinedAssetForm, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -88,22 +77,8 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
     setIsSubmitting(true);
 
     try {
-      let imageUrl = null;
-      if (formData.image_file) {
-        const bucket = 'tool-images';
-        const result = await uploadImages(formData.image_file, {
-          bucket,
-          maxSizeMB: 0.5,
-          maxWidthOrHeight: 1920,
-          generateFileName: (file) => isAsset ? `${Date.now()}-${file.name}` : `parts/${Date.now()}-${file.name}`
-        });
-        
-        if (Array.isArray(result)) {
-          imageUrl = result[0].url;
-        } else {
-          imageUrl = result.url;
-        }
-      }
+      // Convert attachments array to image_url for database compatibility
+      const imageUrl = formData.attachments.length > 0 ? formData.attachments[0] : null;
 
       if (isAsset) {
         // Create asset (tool)
@@ -150,9 +125,8 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
         status: "available",
         parent_structure_id: "none",
         storage_location: "",
-        image_file: null,
+        attachments: [],
       });
-      setImagePreview(null);
       setUseMinimumQuantity(false);
       onClose();
 
@@ -379,45 +353,14 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
 
             {/* Image Upload */}
             <div className="col-span-2">
-              <Label>Item Image</Label>
-              <div className="mt-2">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="hidden"
-                  id="image-upload"
-                />
-                <label
-                  htmlFor="image-upload"
-                  className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Choose Image
-                </label>
-              </div>
-              
-              {imagePreview && (
-                <div className="mt-4 relative">
-                  <img
-                    src={imagePreview}
-                    alt="Item preview"
-                    className="w-32 h-32 object-cover rounded-md border"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
-                    onClick={() => {
-                      setImagePreview(null);
-                      updateFormData('image_file', null);
-                    }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
+              <FileAttachmentManager
+                attachments={formData.attachments}
+                onAttachmentsChange={(attachments) => updateFormData('attachments', attachments)}
+                bucket="tool-images"
+                label="Item Images & Documents"
+                disabled={isSubmitting}
+                maxFiles={5}
+              />
             </div>
           </div>
 
@@ -427,7 +370,7 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
             </Button>
             <Button 
               type="submit" 
-              disabled={isSubmitting || isUploading || !formData.name.trim()}
+              disabled={isSubmitting || !formData.name.trim()}
             >
               {isSubmitting ? "Adding..." : `Add ${isAsset ? 'Asset' : 'Stock Item'}`}
             </Button>

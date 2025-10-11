@@ -299,6 +299,7 @@ export const ToolsContainer = () => {
           navigate('/tools');
         }}
         onSubmit={handleUpdateTool}
+        isLeadership={isAdmin}
       />
 
       <ToolCheckoutDialog

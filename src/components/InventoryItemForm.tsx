@@ -7,9 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Upload, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { LocationFieldsGroup } from '@/components/shared/LocationFieldsGroup';
+import { FileAttachmentManager } from '@/components/shared/FileAttachmentManager';
 import { useParentStructures } from '@/hooks/tools/useParentStructures';
+import { useActionProfiles } from '@/hooks/useActionProfiles';
 
 // Supplier interface removed - supplier tracking moved to stock additions
 
@@ -28,6 +30,7 @@ interface Part {
   parent_structure_id: string | null;
   storage_location: string | null;
   image_url: string | null;
+  accountable_person_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -41,30 +44,34 @@ interface FormData {
   unit: string;
   parent_structure_id: string | null;
   storage_location: string;
+  accountable_person_id: string;
 }
 
 interface InventoryItemFormProps {
   initialData?: Partial<FormData>;
-  selectedImage: File | null;
-  setSelectedImage: (file: File | null) => void;
+  attachments: string[];
+  onAttachmentsChange: (attachments: string[]) => void;
   isLoading: boolean;
   onSubmit: (data: FormData, useMinimumQuantity: boolean) => void;
   onCancel: () => void;
   submitButtonText: string;
   editingPart?: Part | null;
+  isLeadership?: boolean;
 }
 
 export function InventoryItemForm({
   initialData,
-  selectedImage,
-  setSelectedImage,
+  attachments,
+  onAttachmentsChange,
   isLoading,
   onSubmit,
   onCancel,
   submitButtonText,
-  editingPart
+  editingPart,
+  isLeadership = false
 }: InventoryItemFormProps) {
   const { parentStructures, loading: isLoadingParentStructures } = useParentStructures();
+  const { profiles } = useActionProfiles();
   const [formData, setFormData] = useState<FormData>({
     name: '',
     description: '',
@@ -74,10 +81,12 @@ export function InventoryItemForm({
     unit: 'pieces',
     parent_structure_id: '',
     storage_location: '',
+    accountable_person_id: 'none',
     ...initialData
   });
 
   const [useMinimumQuantity, setUseMinimumQuantity] = useState(false);
+
 
   // Initialize form data when editing
   useEffect(() => {
@@ -90,7 +99,8 @@ export function InventoryItemForm({
         cost_per_unit: editingPart.cost_per_unit?.toString() || '',
         unit: editingPart.unit || 'pieces',
         parent_structure_id: editingPart.parent_structure_id,
-        storage_location: editingPart.storage_location || ''
+        storage_location: editingPart.storage_location || '',
+        accountable_person_id: editingPart.accountable_person_id || 'none'
       });
       setUseMinimumQuantity(editingPart.minimum_quantity !== null && editingPart.minimum_quantity > 0);
     }
@@ -100,7 +110,7 @@ export function InventoryItemForm({
     onSubmit(formData, useMinimumQuantity);
   };
 
-  const updateFormData = (field: keyof FormData, value: any) => {
+  const updateFormData = (field: keyof FormData, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -125,37 +135,6 @@ export function InventoryItemForm({
             onChange={(e) => updateFormData('description', e.target.value)}
             placeholder="Enter item description"
           />
-        </div>
-
-        <div className="col-span-2">
-          <Label htmlFor="image">Picture</Label>
-          <div className="flex items-center gap-4">
-            <Input
-              id="image"
-              type="file"
-              accept="image/*"
-              onChange={(e) => setSelectedImage(e.target.files?.[0] || null)}
-              className="flex-1"
-            />
-            <Upload className="h-4 w-4 text-muted-foreground" />
-          </div>
-          {editingPart?.image_url && !selectedImage && (
-            <div className="mt-2 p-2 border rounded-lg bg-muted/20">
-              <p className="text-sm text-muted-foreground">
-                Current image: ✓ Image attached
-              </p>
-              <img 
-                src={editingPart.image_url} 
-                alt={editingPart.name}
-                className="mt-2 w-20 h-20 object-cover rounded border"
-              />
-            </div>
-          )}
-          {selectedImage && (
-            <p className="text-sm text-muted-foreground mt-2">
-              Selected: {selectedImage.name} (will replace current image)
-            </p>
-          )}
         </div>
 
         {/* Supplier selection removed - supplier info will be captured during stock additions */}
@@ -262,6 +241,44 @@ export function InventoryItemForm({
             areaRequired={true}
             isLoadingAreas={isLoadingParentStructures}
             parentStructures={parentStructures}
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="accountable_person">Accountable Person</Label>
+          <Select
+            value={formData.accountable_person_id}
+            onValueChange={(value) => updateFormData('accountable_person_id', value)}
+            disabled={!isLeadership}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select accountable person" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No one assigned</SelectItem>
+              {profiles.map((profile) => (
+                <SelectItem key={profile.user_id} value={profile.user_id}>
+                  {profile.full_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {!isLeadership && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Only leadership can change accountable person
+            </p>
+          )}
+        </div>
+
+        {/* Item Images & Documents - moved to bottom */}
+        <div className="col-span-2">
+          <FileAttachmentManager
+            attachments={attachments}
+            onAttachmentsChange={onAttachmentsChange}
+            bucket="tool-images"
+            label="Item Images & Documents"
+            disabled={isLoading}
+            maxFiles={5}
           />
         </div>
       </div>

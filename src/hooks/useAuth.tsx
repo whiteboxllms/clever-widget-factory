@@ -8,7 +8,7 @@ interface AuthContextType {
   loading: boolean;
   isAdmin: boolean;
   isContributor: boolean;
-  
+  isLeadership: boolean;
   canEditTools: boolean;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
@@ -26,6 +26,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isContributor, setIsContributor] = useState(false);
+  const [isLeadership, setIsLeadership] = useState(false);
   
   const [canEditTools, setCanEditTools] = useState(false);
 
@@ -49,11 +50,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const userRole = member?.role;
             setIsAdmin(userRole === 'admin');
             setIsContributor(userRole === 'contributor');
+            setIsLeadership(userRole === 'admin' || userRole === 'leadership');
             setCanEditTools(userRole === 'admin' || userRole === 'contributor');
           }, 0);
         } else {
           setIsAdmin(false);
           setIsContributor(false);
+          setIsLeadership(false);
           setCanEditTools(false);
         }
         
@@ -77,10 +80,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const userRole = member?.role;
           setIsAdmin(userRole === 'admin');
           setIsContributor(userRole === 'contributor');
+          setIsLeadership(userRole === 'admin' || userRole === 'leadership');
           setCanEditTools(userRole === 'admin' || userRole === 'contributor');
       } else {
         setIsAdmin(false);
         setIsContributor(false);
+        setIsLeadership(false);
         setCanEditTools(false);
       }
       
@@ -154,7 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       isAdmin,
       isContributor,
-      
+      isLeadership,
       canEditTools,
       signUp,
       signIn,

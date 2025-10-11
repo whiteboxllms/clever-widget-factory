@@ -17,6 +17,7 @@ import { DEFAULT_DONE_DEFINITION } from "@/lib/constants";
 import { useTempPhotoStorage, type TempPhoto } from "@/hooks/useTempPhotoStorage";
 import { useAssetScores } from "@/hooks/useAssetScores";
 import { ActionScoreDialog } from './ActionScoreDialog';
+import { ActionImplementationUpdates } from './ActionImplementationUpdates';
 import TiptapEditor from './TiptapEditor';
 import { hasActualContent, sanitizeRichText, getActionBorderStyle } from '@/lib/utils';
 
@@ -55,6 +56,7 @@ interface ActionCardProps {
     linked_issue_id?: string;
     issue_reference?: string;
     attachments?: string[];
+    implementation_update_count?: number;
   };
   profiles: Profile[];
   onUpdate: () => void;
@@ -83,20 +85,16 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
   
   // Focus tracking states
   const [isPolicyFocused, setIsPolicyFocused] = useState(false);
-  const [isImplementationFocused, setIsImplementationFocused] = useState(false);
   
   // Unsaved changes tracking
   const [hasUnsavedPolicy, setHasUnsavedPolicy] = useState(false);
-  const [hasUnsavedImplementation, setHasUnsavedImplementation] = useState(false);
   
   // Auto-save states
   const [isSavingPolicy, setIsSavingPolicy] = useState(false);
-  const [isSavingImplementation, setIsSavingImplementation] = useState(false);
   
   const [editData, setEditData] = useState({
     title: action.title,
     policy: action.policy || '',
-    observations: action.observations || '',
     assigned_to: action.assigned_to
   });
 
@@ -110,14 +108,12 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     setEditData(prev => ({
       title: action.title,
       policy: isPolicyFocused ? prev.policy : (action.policy || ''),
-      observations: isImplementationFocused ? prev.observations : (action.observations || ''),
       assigned_to: action.assigned_to
     }));
     
     // Reset unsaved flags when action updates from external source
     if (!isPolicyFocused) setHasUnsavedPolicy(false);
-    if (!isImplementationFocused) setHasUnsavedImplementation(false);
-  }, [action.title, action.policy, action.observations, action.assigned_to, isPolicyFocused, isImplementationFocused]);
+  }, [action.title, action.policy, action.assigned_to, isPolicyFocused]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -126,15 +122,13 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
         e.preventDefault();
         if (isPolicyFocused && hasUnsavedPolicy) {
           savePolicy();
-        } else if (isImplementationFocused && hasUnsavedImplementation) {
-          saveImplementation();
         }
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isPolicyFocused, isImplementationFocused, hasUnsavedPolicy, hasUnsavedImplementation]);
+  }, [isPolicyFocused, hasUnsavedPolicy]);
 
   // Auto-save implementation for plan field
   useEffect(() => {
@@ -148,19 +142,6 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
 
     return () => clearTimeout(timeoutId);
   }, [editData.policy, hasUnsavedPolicy, isSavingPolicy]);
-
-  // Auto-save implementation for implementation field
-  useEffect(() => {
-    if (!hasUnsavedImplementation || isSavingImplementation) return;
-    
-    const timeoutId = setTimeout(async () => {
-      setIsSavingImplementation(true);
-      await saveImplementation();
-      setIsSavingImplementation(false);
-    }, 5000); // Save after 5 seconds of inactivity
-
-    return () => clearTimeout(timeoutId);
-  }, [editData.observations, hasUnsavedImplementation, isSavingImplementation]);
 
   // Load photos and scores for actions when component mounts
   useEffect(() => {
@@ -260,63 +241,11 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     }
   };
 
-  // Save implementation to database
-  const saveImplementation = async () => {
-    try {
-      const normalizedObservations = sanitizeRichText(editData.observations);
-      const updateData: { observations: string | null; status?: string; assigned_to?: string } = {
-        observations: normalizedObservations
-      };
-      
-      // If action is unassigned, assign it to the current user
-      if (!action.assigned_to) {
-        const { data: user } = await supabase.auth.getUser();
-        if (user.user) {
-          updateData.assigned_to = user.user.id;
-        }
-      }
-      
-      // Auto-set status to in_progress if observations exist and not completed
-      if (normalizedObservations && action.status !== 'completed') {
-        updateData.status = 'in_progress';
-      }
-      
-      const { error } = await supabase
-        .from('actions')
-        .update(updateData)
-        .eq('id', action.id);
-
-      if (error) throw error;
-      
-      setHasUnsavedImplementation(false);
-      // Don't call onUpdate() here to prevent disruptive refreshes
-      
-      // Show subtle success feedback
-      toast({
-        title: "Implementation saved",
-        description: "Your implementation has been automatically saved",
-        duration: 2000,
-      });
-    } catch (error) {
-      console.error('Error updating action observations:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save implementation",
-        variant: "destructive",
-      });
-    }
-  };
 
   // Plan change handler - just update local state
   const handlePolicyChange = (value: string) => {
     setEditData(prev => ({ ...prev, policy: value }));
     setHasUnsavedPolicy(value !== (action.policy || ''));
-  };
-
-  // Implementation change handler - just update local state
-  const handleImplementationChange = (value: string) => {
-    setEditData(prev => ({ ...prev, observations: value }));
-    setHasUnsavedImplementation(value !== (action.observations || ''));
   };
 
   // Focus handlers
@@ -328,17 +257,6 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     // Small delay to prevent immediate clearing when switching between editor elements
     setTimeout(() => {
       setIsPolicyFocused(false);
-    }, 100);
-  };
-
-  const handleImplementationFocus = () => {
-    setIsImplementationFocused(true);
-  };
-
-  const handleImplementationBlur = () => {
-    // Small delay to prevent immediate clearing when switching between editor elements
-    setTimeout(() => {
-      setIsImplementationFocused(false);
     }, 100);
   };
 
@@ -506,7 +424,6 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
   const handleCompleteAction = async () => {
     // Use current editData values for validation (includes unsaved changes)
     const currentPolicy = editData.policy;
-    const currentObservations = editData.observations;
     
     // Check if plan has content
     if (!currentPolicy || !currentPolicy.trim()) {
@@ -518,11 +435,21 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
       return;
     }
 
-    // Check if implementation has content
-    if (!hasActualContent(currentObservations)) {
+    // Check if there are any implementation updates
+    const { data: updates, error: updatesError } = await supabase
+      .from('action_implementation_updates')
+      .select('id')
+      .eq('action_id', action.id)
+      .limit(1);
+
+    if (updatesError) {
+      console.error('Error checking updates:', updatesError);
+    }
+
+    if (!updates || updates.length === 0) {
       toast({
         title: "Implementation Required",
-        description: "Please add implementation notes before completing the action",
+        description: "Please add at least one implementation update before completing",
         variant: "destructive",
       });
       return;
@@ -533,17 +460,14 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     try {
       // Prepare update data with unsaved changes
       const normalizedPolicy = sanitizeRichText(currentPolicy);
-      const normalizedObservations = sanitizeRichText(currentObservations);
       
       const updateData: {
         policy: string | null;
-        observations: string | null;
         status: string;
         completed_at: string;
         assigned_to?: string;
       } = {
         policy: normalizedPolicy,
-        observations: normalizedObservations,
         status: 'completed',
         completed_at: new Date().toISOString()
       };
@@ -565,7 +489,6 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
 
       // Clear unsaved change flags since we just saved everything
       setHasUnsavedPolicy(false);
-      setHasUnsavedImplementation(false);
 
       toast({
         title: "Action Completed!",
@@ -663,16 +586,6 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
             />
           </div>
 
-          <div>
-            <Label htmlFor="observations">Implementation Notes</Label>
-            <Textarea
-              id="observations"
-              value={editData.observations}
-              onChange={(e) => setEditData(prev => ({ ...prev, observations: e.target.value }))}
-              placeholder="Document implementation progress..."
-              className="mt-1 min-h-[100px]"
-            />
-          </div>
 
           <div>
             <Label htmlFor="assigned_to">Assigned To</Label>
@@ -791,13 +704,13 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                   <Target className="h-3 w-3" />
                 </Button>
                 {/* Auto-save indicators */}
-                {(isSavingPolicy || isSavingImplementation) && (
+                {isSavingPolicy && (
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Save className="w-3 h-3 animate-pulse" />
                     Saving...
                   </div>
                 )}
-                {(hasUnsavedPolicy || hasUnsavedImplementation) && !(isSavingPolicy || isSavingImplementation) && (
+                {hasUnsavedPolicy && !isSavingPolicy && (
                   <div className="flex items-center gap-1 text-xs text-amber-600">
                     <Save className="w-3 h-3" />
                     Unsaved
@@ -824,9 +737,9 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                 </div>
               )}
               {action.issue_reference && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Link className="w-3 h-3" />
-                  <span className="text-xs">From: {action.issue_reference}</span>
+                <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                  <Link className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                  <span className="text-xs break-words">From: {action.issue_reference}</span>
                 </div>
               )}
             </div>
@@ -851,21 +764,12 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
               </div>
             </div>
 
-            {/* Implementation Section */}
-            <div>
-              <div className="flex items-center mb-2">
-                <Label className="text-sm font-medium">Implementation</Label>
-              </div>
-              <div className="border rounded-lg min-h-[120px]">
-                 <TiptapEditor
-                   value={editData.observations}
-                   onChange={handleImplementationChange}
-                   onFocus={handleImplementationFocus}
-                   onBlur={handleImplementationBlur}
-                   placeholder="Document implementation progress and observations..."
-                 />
-              </div>
-            </div>
+            {/* Implementation Updates Section */}
+            <ActionImplementationUpdates
+              actionId={action.id}
+              profiles={profiles}
+              onUpdate={onUpdate}
+            />
 
             {/* Evidence Photos */}
             <div>
@@ -961,22 +865,10 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                       {isSavingPolicy ? 'Saving Plan...' : 'Save Plan'}
                     </Button>
                   )}
-                  {hasUnsavedImplementation && (
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      onClick={saveImplementation}
-                      disabled={isSavingImplementation}
-                      className="h-8 text-xs"
-                    >
-                      <Save className="w-3 h-3 mr-1" />
-                      {isSavingImplementation ? 'Saving Implementation...' : 'Save Implementation'}
-                    </Button>
-                  )}
                 </div>
                 <Button 
                   onClick={handleCompleteAction}
-                  disabled={isCompleting || !action.policy?.trim() || !action.observations?.trim()}
+                  disabled={isCompleting || !action.policy?.trim()}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
                   <CheckCircle className="w-4 h-4 mr-2" />

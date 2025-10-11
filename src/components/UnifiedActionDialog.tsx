@@ -38,7 +38,9 @@ import {
   Target
 } from "lucide-react";
 import { useFileUpload } from "@/hooks/useFileUpload";
+import { useAuth } from "@/hooks/useAuth";
 import TiptapEditor from './TiptapEditor';
+import { ActionImplementationUpdates } from './ActionImplementationUpdates';
 import { AssetSelector } from './AssetSelector';
 import { StockSelector } from './StockSelector';
 import { MultiParticipantSelector } from './MultiParticipantSelector';
@@ -65,6 +67,7 @@ export function UnifiedActionDialog({
   isCreating = false
 }: UnifiedActionDialogProps) {
   const { toast } = useToast();
+  const { isLeadership } = useAuth();
   const organizationId = useOrganizationId();
   const [formData, setFormData] = useState<Partial<BaseAction>>({});
   const [missionData, setMissionData] = useState<any>(null);
@@ -116,7 +119,6 @@ export function UnifiedActionDialog({
             title: '',
             description: '',
             policy: '',
-            observations: '',
             assigned_to: null,
             status: 'not_started',
             plan_commitment: false,
@@ -187,21 +189,31 @@ export function UnifiedActionDialog({
     return formData.linked_issue_id || formData.issue_reference;
   };
 
-  // Helper to check if observations (implementation notes) have content
-  const hasImplementationNotes = () => {
-    if (!formData.observations) return false;
-    // Strip HTML tags and check if there's actual text content
-    const textContent = formData.observations.replace(/<[^>]*>/g, '').trim();
-    return textContent.length > 0;
+  // Helper to check if there are implementation updates
+  const hasImplementationNotes = async () => {
+    if (!action?.id) return false;
+    
+    try {
+      const { data: updates } = await supabase
+        .from('action_implementation_updates')
+        .select('id')
+        .eq('action_id', action.id)
+        .limit(1);
+      
+      return updates && updates.length > 0;
+    } catch (error) {
+      console.error('Error checking implementation updates:', error);
+      return false;
+    }
   };
 
   const handleReadyForReview = async () => {
     if (!action?.id) return;
     
-    if (!hasImplementationNotes()) {
+    if (!(await hasImplementationNotes())) {
       toast({
         title: "Error",
-        description: "Please add implementation notes before marking as ready for review",
+        description: "Please add at least one implementation update before marking as ready for review",
         variant: "destructive"
       });
       return;
@@ -227,7 +239,6 @@ export function UnifiedActionDialog({
         title: formData.title,
         description: formData.description,
         policy: formData.policy,
-        observations: formData.observations,
         assigned_to: formData.assigned_to,
         estimated_duration: formData.estimated_duration,
         required_tools: formData.required_tools,
@@ -456,19 +467,13 @@ export function UnifiedActionDialog({
 
       // Normalize rich text content
       const normalizedPolicy = sanitizeRichText(formData.policy);
-      const normalizedObservations = sanitizeRichText(formData.observations);
       
-      // Auto-set status to in_progress if observations exist and not completed
       let actionStatus = formData.status || 'not_started';
-      if (normalizedObservations && actionStatus !== 'completed') {
-        actionStatus = 'in_progress';
-      }
 
       const actionData: any = {
         title: formData.title.trim(),
         description: formData.description || null,
         policy: normalizedPolicy,
-        observations: normalizedObservations,
         assigned_to: formData.assigned_to === 'unassigned' ? null : formData.assigned_to || null,
         participants: formData.participants || [],
         estimated_duration: estimatedDuration,
@@ -533,12 +538,13 @@ export function UnifiedActionDialog({
 
   // Get border styling based on current form data
   const borderStyle = getActionBorderStyle({
-    status: formData.status || 'not_started',
+    status: action?.status || formData.status || 'not_started',
     policy: formData.policy,
-    observations: formData.observations,
     assigned_to: formData.assigned_to,
-    plan_commitment: formData.plan_commitment
+    plan_commitment: formData.plan_commitment,
+    implementation_update_count: action?.implementation_update_count
   });
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -693,19 +699,41 @@ export function UnifiedActionDialog({
               </Popover>
             </div>
 
-            {/* Plan Commitment Toggle - Only show when assigned */}
-            {formData.assigned_to && formData.assigned_to !== 'unassigned' && (
+            {/* Plan Commitment Toggle - Only show when assigned and user is leadership */}
+            {formData.assigned_to && formData.assigned_to !== 'unassigned' && isLeadership && (
               <div className="col-span-3 pt-2 border-t border-border">
                 <div className="flex items-start space-x-3">
                   <Switch
                     id="plan-commitment"
                     checked={formData.plan_commitment || false}
-                    onCheckedChange={(checked) => {
+                    onCheckedChange={async (checked) => {
                       setFormData({
                         ...formData, 
                         plan_commitment: checked,
                         status: checked ? 'in_progress' : 'not_started'
                       });
+                      
+                      // Create implementation update when toggled
+                      if (action?.id) {
+                        try {
+                          const { data: { user } } = await supabase.auth.getUser();
+                          if (user) {
+                            const updateText = checked 
+                              ? "Leadership approved this action plan and committed to implementation."
+                              : "Leadership withdrew approval of this action plan.";
+                            
+                            await supabase
+                              .from('action_implementation_updates')
+                              .insert({
+                                action_id: action.id,
+                                update_text: updateText,
+                                updated_by: user.id
+                              });
+                          }
+                        } catch (error) {
+                          console.error('Error creating implementation update:', error);
+                        }
+                      }
                     }}
                   />
                   <Label 
@@ -715,7 +743,7 @@ export function UnifiedActionDialog({
                     {(() => {
                       const assignee = profiles.find(p => p.user_id === formData.assigned_to);
                       const assigneeName = assignee?.full_name || 'The assignee';
-                      return `${assigneeName} and admin agreed to this action plan.`;
+                      return `${assigneeName} and leadership agreed to this action plan.`;
                     })()}
                   </Label>
                 </div>
@@ -757,7 +785,23 @@ export function UnifiedActionDialog({
           </div>
 
           {/* Rich Text Content */}
-          <Tabs defaultValue="plan" className="w-full">
+          <Tabs defaultValue={(() => {
+            // Check both action.policy and formData.policy to handle different states
+            const policyToCheck = formData.policy || action?.policy || '';
+            const hasPolicy = policyToCheck && 
+              policyToCheck.trim() && 
+              policyToCheck !== '<p></p>' && 
+              policyToCheck !== '<p><br></p>' &&
+              policyToCheck !== '<p>&nbsp;</p>';
+            console.log('Tab defaulting logic:', {
+              actionPolicy: action?.policy,
+              formDataPolicy: formData.policy,
+              policyToCheck,
+              hasPolicy,
+              defaultValue: hasPolicy ? 'observations' : 'plan'
+            });
+            return hasPolicy ? "observations" : "plan";
+          })()} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="plan">Policy</TabsTrigger>
               <TabsTrigger value="observations">Implementation</TabsTrigger>
@@ -778,17 +822,20 @@ export function UnifiedActionDialog({
             </TabsContent>
 
             <TabsContent value="observations" className="mt-4">
-              <div>
-                <Label>Implementation Notes</Label>
-                <div className="mt-2 border rounded-lg">
-                 <TiptapEditor
-                   key={`observations-${action?.id || 'new'}`}
-                   value={formData.observations || ''}
-                   onChange={(value) => setFormData(prev => ({ ...prev, observations: value }))}
-                   placeholder="Document the implementation progress and observations..."
-                 />
+              {action?.id ? (
+                <ActionImplementationUpdates
+                  actionId={action.id}
+                  profiles={profiles}
+                  onUpdate={() => {
+                    // Refresh the action data if needed
+                    onActionSaved?.();
+                  }}
+                />
+              ) : (
+                <div className="text-center text-muted-foreground py-8">
+                  <p>Save the action first to add implementation updates</p>
                 </div>
-              </div>
+              )}
             </TabsContent>
           </Tabs>
 
@@ -882,7 +929,7 @@ export function UnifiedActionDialog({
             {!isCreating && action?.id && action.status !== 'completed' && (
               <Button
                 onClick={handleReadyForReview}
-                disabled={!hasImplementationNotes() || isCompleting || isSubmitting}
+                disabled={isCompleting || isSubmitting}
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 <CheckCircle className="h-4 w-4 mr-2" />

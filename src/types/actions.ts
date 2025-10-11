@@ -28,6 +28,7 @@ export interface BaseAction {
   scoring_data?: any;
   plan_commitment?: boolean | null;
   participants?: string[];
+  implementation_update_count?: number;
   
   // Related objects (populated by joins)
   assignee?: {
@@ -140,10 +141,10 @@ export interface ImplementationUpdate {
   action_id: string;
   updated_by: string;
   update_text: string;
-  update_type: 'progress' | 'blocker' | 'question' | 'completion';
   created_at: string;
   updated_by_profile?: {
     full_name: string;
     user_id: string;
+    favorite_color?: string | null;
   };
 }

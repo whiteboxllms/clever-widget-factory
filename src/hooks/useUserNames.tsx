@@ -70,8 +70,8 @@ export function useUserNames(userIds: string[] = []) {
       const usersData = membersResult.data || [];
       const profilesData = profilesResult.data || [];
       
-      // Create a map of user_id to favorite_color
-      const colorMap = new Map(profilesData.map(p => [p.user_id, p.favorite_color]));
+      // Create a map of user_id (favorite_color removed as column doesn't exist)
+      const colorMap = new Map();
 
       // Update cache
       const newMap = new Map<string, string>();

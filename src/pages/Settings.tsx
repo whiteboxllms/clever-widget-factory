@@ -36,15 +36,16 @@ export default function SettingsPage() {
     if (!user) return;
     
     try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('favorite_color')
-        .eq('user_id', user.id)
-        .single();
+      // Favorite color feature temporarily disabled - column doesn't exist in database
+      // const { data } = await supabase
+      //   .from('profiles')
+      //   .select('favorite_color')
+      //   .eq('user_id', user.id)
+      //   .single();
       
-      if (data?.favorite_color) {
-        setFavoriteColor(data.favorite_color);
-      }
+      // if (data?.favorite_color) {
+      //   setFavoriteColor(data.favorite_color);
+      // }
     } catch (error) {
       console.error('Error fetching favorite color:', error);
     }
@@ -55,12 +56,13 @@ export default function SettingsPage() {
     
     setColorLoading(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ favorite_color: color })
-        .eq('user_id', user.id);
+      // Favorite color feature temporarily disabled - column doesn't exist in database
+      // const { error } = await supabase
+      //   .from('profiles')
+      //   .update({ favorite_color: color })
+      //   .eq('user_id', user.id);
 
-      if (error) throw error;
+      // if (error) throw error;
 
       setFavoriteColor(color);
       toast({

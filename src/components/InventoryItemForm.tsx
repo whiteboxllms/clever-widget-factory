@@ -57,6 +57,8 @@ interface InventoryItemFormProps {
   submitButtonText: string;
   editingPart?: Part | null;
   isLeadership?: boolean;
+  selectedImage?: File | null;
+  setSelectedImage?: (image: File | null) => void;
 }
 
 export function InventoryItemForm({

@@ -47,6 +47,7 @@ interface Part {
   parent_structure_id: string | null;
   storage_location: string | null;
   image_url: string | null;
+  accountable_person_id: string | null;
   created_at: string;
   updated_at: string;
   // Allow other properties from database
@@ -176,6 +177,8 @@ export default function Inventory() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [editSelectedImage, setEditSelectedImage] = useState<File | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [attachments, setAttachments] = useState<string[]>([]);
+  const [editAttachments, setEditAttachments] = useState<string[]>([]);
   // Supplier dialog states removed - tracking moved to stock additions
   
   const [expandedDescriptions, setExpandedDescriptions] = useState<Set<string>>(new Set());
@@ -987,6 +990,8 @@ export default function Inventory() {
                 initialData={newPart}
                 selectedImage={selectedImage}
                 setSelectedImage={setSelectedImage}
+                attachments={attachments}
+                onAttachmentsChange={setAttachments}
                 isLoading={uploadingImage}
                 onSubmit={addPart}
                 onCancel={() => setShowAddDialog(false)}
@@ -1330,6 +1335,8 @@ export default function Inventory() {
               <InventoryItemForm
                 selectedImage={editSelectedImage}
                 setSelectedImage={setEditSelectedImage}
+                attachments={editAttachments}
+                onAttachmentsChange={setEditAttachments}
                 isLoading={uploadingImage}
                 onSubmit={updatePart}
                 onCancel={() => {

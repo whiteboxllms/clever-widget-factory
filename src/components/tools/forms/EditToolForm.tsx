@@ -31,7 +31,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, isLeadership = f
     parent_structure_id: tool?.parent_structure_id || "none",
     storage_location: tool?.storage_location || "",
     serial_number: tool?.serial_number || "",
-    accountable_person_id: tool?.accountable_person_id || "none",
+    accountable_person_id: (tool as any)?.accountable_person_id || "none",
     attachments: tool?.image_url ? [tool.image_url] : [],
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,7 +51,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, isLeadership = f
         parent_structure_id: tool.parent_structure_id || "none",
         storage_location: tool.storage_location || "",
         serial_number: tool.serial_number || "",
-        accountable_person_id: tool.accountable_person_id || "none",
+        accountable_person_id: (tool as any)?.accountable_person_id || "none",
         attachments: tool.image_url ? [tool.image_url] : [],
       });
     }

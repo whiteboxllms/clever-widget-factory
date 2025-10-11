@@ -206,7 +206,7 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
             </Button>
             <Button 
               type="submit" 
-              disabled={isSubmitting || isUploading || !newTool.name.trim()}
+              disabled={isSubmitting || !newTool.name.trim()}
             >
               {isSubmitting ? "Adding..." : "Add Asset"}
             </Button>

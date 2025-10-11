@@ -51,15 +51,30 @@ export interface ActionBorderStyle {
  */
 export function getActionBorderStyle(action: {
   status: string;
+  title?: string;
   policy?: string | null;
-  observations?: string | null;
   assigned_to?: string | null;
   plan_commitment?: boolean | null;
+  implementation_update_count?: number;
 }): ActionBorderStyle {
   const hasPolicy = hasActualContent(action.policy);
-  const hasObservations = hasActualContent(action.observations);
+  const hasImplementationUpdates = action.implementation_update_count && action.implementation_update_count > 0;
   const isAssigned = Boolean(action.assigned_to);
   const hasPlanCommitment = action.plan_commitment === true;
+
+  // Debug logging for "Setup corporate bank account" action
+  if (action.title && action.title.includes('Setup corporate bank account')) {
+    console.log('Border debug for Setup corporate bank account:', {
+      title: action.title,
+      hasPolicy,
+      hasImplementationUpdates,
+      implementation_update_count: action.implementation_update_count,
+      hasPlanCommitment,
+      plan_commitment: action.plan_commitment,
+      assigned_to: action.assigned_to
+    });
+  }
+
   
   // Green border for completed actions
   if (action.status === 'completed') {
@@ -70,9 +85,9 @@ export function getActionBorderStyle(action: {
     };
   }
   
-  // Yellow border when there's implementation text AND there was first a plan
+  // Yellow border when there are implementation updates AND there was first a plan
   // This ensures proper progression: Gray → Blue → Yellow → Green
-  if (hasObservations && hasPolicy && hasPlanCommitment) {
+  if (hasImplementationUpdates && hasPolicy && hasPlanCommitment) {
     return {
       bgColor: 'bg-background',
       borderColor: 'border-yellow-500 border-2 shadow-yellow-200 shadow-lg dark:border-yellow-600 dark:shadow-yellow-900',

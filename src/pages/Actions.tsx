@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { useActionProfiles } from '@/hooks/useActionProfiles';
-import { Bolt, Plus, Filter, Search, Clock, CheckCircle, Circle, User, AlertTriangle, Wrench, ArrowLeft, Target, X } from 'lucide-react';
+import { Bolt, Plus, Filter, Search, CheckCircle, User, AlertTriangle, Wrench, ArrowLeft, Target, X } from 'lucide-react';
 import { UnifiedActionDialog } from '@/components/UnifiedActionDialog';
 import { ActionScoreDialog } from '@/components/ActionScoreDialog';
 import { ScoreButton } from '@/components/ScoreButton';
@@ -37,6 +37,12 @@ export default function Actions() {
   // Use standardized profiles for consistent "Assigned to" dropdown
   const { profiles } = useActionProfiles();
   const [scoringAction, setScoringAction] = useState<BaseAction | null>(null);
+
+  // Helper function to get user color
+  const getUserColor = (userId: string) => {
+    const profile = profiles.find(p => p.user_id === userId);
+    return profile?.favorite_color || '#6B7280'; // Default gray if no color set
+  };
   const [existingScore, setExistingScore] = useState<any>(null);
 
   const { getScoreForAction } = useActionScores();
@@ -115,7 +121,7 @@ export default function Actions() {
         }
       }
 
-      setActions(data?.map(item => ({
+      const actions = data?.map(item => ({
         ...item,
         required_stock: Array.isArray(item.required_stock) ? item.required_stock : [],
         participants_details: item.participants?.map(participantId => 
@@ -140,7 +146,21 @@ export default function Actions() {
           : null,
         issue_tool: issueToolsData.find(issue => issue.id === item.linked_issue_id) ? 
           issueToolsInfo.find(tool => tool.id === issueToolsData.find(issue => issue.id === item.linked_issue_id)?.context_id) || null : null
-      })) as unknown as BaseAction[] || []);
+      })) as unknown as BaseAction[] || [];
+
+      // Fetch implementation update counts for all actions
+      const actionsWithCounts = await Promise.all(
+        actions.map(async (action) => {
+          const { count } = await supabase
+            .from('action_implementation_updates')
+            .select('*', { count: 'exact', head: true })
+            .eq('action_id', action.id);
+          
+          return { ...action, implementation_update_count: count || 0 };
+        })
+      );
+
+      setActions(actionsWithCounts);
     } catch (error) {
       console.error('Error fetching actions:', error);
       toast({
@@ -155,9 +175,33 @@ export default function Actions() {
 
   // Profiles are now handled by useActionProfiles hook for consistency
 
-  const handleEditAction = (action: BaseAction) => {
+  const handleEditAction = async (action: BaseAction) => {
     console.log('Actions page: Clicking action with ID:', action.id, 'and policy:', action.policy);
-    setEditingAction(action);
+    
+    // Fetch the latest action data to ensure we have the most up-to-date attachments
+    try {
+      const { data: latestAction, error } = await supabase
+        .from('actions')
+        .select('*')
+        .eq('id', action.id)
+        .single();
+      
+      if (error) throw error;
+      
+      // Calculate implementation_update_count like in fetchActions
+      const { count } = await supabase
+        .from('action_implementation_updates')
+        .select('*', { count: 'exact', head: true })
+        .eq('action_id', action.id);
+      
+      const actionWithCount = { ...latestAction, implementation_update_count: count || 0 };
+      setEditingAction(actionWithCount as unknown as BaseAction);
+    } catch (error) {
+      console.error('Error fetching latest action data:', error);
+      // Fallback to the action data we have
+      setEditingAction(action);
+    }
+    
     setIsCreating(false);
     setIsEditDialogOpen(true);
   };
@@ -265,27 +309,6 @@ export default function Actions() {
     setFilteredActions(filtered);
   }, [actions, searchTerm, statusFilter, assigneeFilter, user]);
 
-  const getStatusIcon = (status: string, action?: BaseAction) => {
-    if (!action) return <Circle className="h-4 w-4 text-muted-foreground" />;
-    
-    const borderStyle = getActionBorderStyle(action);
-    
-    if (status === 'completed') {
-      return <CheckCircle className="h-4 w-4 text-[hsl(var(--action-done))]" />;
-    }
-    
-    // Use implementation content to show in-progress, regardless of status field
-    if (hasActualContent(action.observations)) {
-      return <Clock className="h-4 w-4 text-[hsl(var(--action-progress))]" />;
-    }
-    
-    // Blue: Ready to work (when BOTH plan_commitment is true AND has policy)
-    if (action.plan_commitment === true && hasActualContent(action.policy)) {
-      return <CheckCircle className="h-4 w-4 text-[hsl(var(--action-ready))]" />;
-    }
-    
-    return <Circle className="h-4 w-4 text-muted-foreground" />;
-  };
 
   const getStatusColor = (status: string, action?: BaseAction) => {
     if (!action) return 'bg-muted text-muted-foreground';
@@ -294,13 +317,18 @@ export default function Actions() {
       return 'bg-[hsl(var(--action-done)/0.1)] text-[hsl(var(--action-done))] border-[hsl(var(--action-done)/0.2)]';
     }
     
-    // Use implementation content to show in-progress, regardless of status field
-    if (hasActualContent(action.observations)) {
+    const hasPolicy = hasActualContent(action.policy);
+    const hasImplementationUpdates = action.implementation_update_count && action.implementation_update_count > 0;
+    const hasPlanCommitment = action.plan_commitment === true;
+    
+    
+    // Yellow: Implementation updates AND there was first a plan (matches edit dialog logic)
+    if (hasImplementationUpdates && hasPolicy && hasPlanCommitment) {
       return 'bg-[hsl(var(--action-progress)/0.1)] text-[hsl(var(--action-progress))] border-[hsl(var(--action-progress)/0.2)]';
     }
     
     // Blue: Ready to work (when BOTH plan_commitment is true AND has policy)
-    if (action.plan_commitment === true && hasActualContent(action.policy)) {
+    if (hasPolicy && hasPlanCommitment) {
       return 'bg-background text-[hsl(var(--action-ready))] border-[hsl(var(--action-ready)/0.2)]';
     }
     
@@ -490,9 +518,6 @@ export default function Actions() {
                      <CardContent className="p-6">
                       <div className="space-y-3">
                         <div className="flex items-start gap-3">
-                          <div className="flex-shrink-0 mt-1">
-                            {getStatusIcon(action.status, action)}
-                          </div>
                           <div className="flex-1 min-w-0">
                             <h3 className="text-lg font-semibold break-words leading-tight">{action.title}</h3>
                             <div className="text-xs text-muted-foreground mt-1">
@@ -530,13 +555,6 @@ export default function Actions() {
                            )}
                            
                            <div className="flex flex-wrap gap-2">
-                             <Badge variant="outline" className={getStatusColor(action.status, action)}>
-                                {action.status === 'completed' ? 'Done' :
-                                 hasActualContent(action.observations) ? 'In Progress' :
-                                 action.plan_commitment === true && hasActualContent(action.policy) ? 'Ready to Work' :
-                                 action.status.replace('_', ' ')}
-                             </Badge>
-                             
                              {/* Action Type Indicator */}
                               {action.asset ? (
                                 <Badge variant="outline" className="bg-blue-100 text-blue-600 border-blue-300 max-w-full">
@@ -546,15 +564,7 @@ export default function Actions() {
                                <Badge variant="outline" className="bg-orange-100 text-orange-800 max-w-full">
                                  <span className="truncate">Issue Tool: {action.issue_tool.name.length > 15 ? `${action.issue_tool.name.substring(0, 15)}...` : action.issue_tool.name}</span>
                                </Badge>
-                             ) : action.mission ? (
-                               <Badge variant="outline" className="bg-indigo-100 text-indigo-800">
-                                 Mission Action
-                               </Badge>
-                             ) : (
-                               <Badge variant="outline" className="bg-gray-100 text-gray-800">
-                                 General Action
-                               </Badge>
-                             )}
+                             ) : null}
                              
                              {action.mission && (
                                <Badge variant="outline" className="bg-indigo-100 text-indigo-800 max-w-full">
@@ -563,7 +573,14 @@ export default function Actions() {
                              )}
                              
                              {action.assignee ? (
-                               <Badge variant="outline" className="flex items-center gap-1 max-w-full">
+                               <Badge 
+                                 variant="outline" 
+                                 className="flex items-center gap-1 max-w-full"
+                                 style={{ 
+                                   borderColor: getUserColor(action.assignee.user_id),
+                                   color: getUserColor(action.assignee.user_id)
+                                 }}
+                               >
                                  <User className="h-3 w-3 flex-shrink-0" />
                                  <span className="truncate">{action.assignee.full_name}</span>
                                </Badge>
@@ -575,7 +592,15 @@ export default function Actions() {
                              
                              {action.participants_details && action.participants_details.length > 0 && (
                                action.participants_details.map(participant => (
-                                 <Badge key={participant.user_id} variant="secondary" className="flex items-center gap-1 max-w-full">
+                                 <Badge 
+                                   key={participant.user_id} 
+                                   variant="secondary" 
+                                   className="flex items-center gap-1 max-w-full"
+                                   style={{ 
+                                     borderColor: getUserColor(participant.user_id),
+                                     color: getUserColor(participant.user_id)
+                                   }}
+                                 >
                                    <User className="h-3 w-3 flex-shrink-0" />
                                    <span className="truncate">{participant.full_name}</span>
                                  </Badge>
@@ -611,9 +636,6 @@ export default function Actions() {
                    <CardContent className="p-6">
                       <div className="space-y-3">
                         <div className="flex items-start gap-3">
-                          <div className="flex-shrink-0 mt-1">
-                            {getStatusIcon(action.status, action)}
-                          </div>
                           <div className="flex-1 min-w-0">
                             <h3 className="text-lg font-semibold break-words leading-tight">{action.title}</h3>
                             <div className="text-xs text-muted-foreground mt-1">
@@ -653,15 +675,7 @@ export default function Actions() {
                              <Badge variant="outline" className="bg-orange-100 text-orange-800 max-w-full">
                                <span className="truncate">Issue Tool: {action.issue_tool.name.length > 15 ? `${action.issue_tool.name.substring(0, 15)}...` : action.issue_tool.name}</span>
                              </Badge>
-                           ) : action.mission ? (
-                             <Badge variant="outline" className="bg-indigo-100 text-indigo-800">
-                               Mission Action
-                             </Badge>
-                           ) : (
-                             <Badge variant="outline" className="bg-gray-100 text-gray-800">
-                               General Action
-                             </Badge>
-                           )}
+                           ) : null}
                            
                            {action.mission && (
                              <Badge variant="outline" className="bg-indigo-100 text-indigo-800 max-w-full">

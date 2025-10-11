@@ -1,8 +1,63 @@
-# Welcome to your Lovable project
+# Clever Widget Factory
+
+A comprehensive asset management and accountability system built with React, TypeScript, and Supabase.
 
 ## Project info
 
 **URL**: https://lovable.dev/projects/79911e5f-8077-4490-a4d5-cbe8b4da048d
+
+## Local Development Setup
+
+### Prerequisites
+
+- Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- Supabase CLI installed - [install Supabase CLI](https://supabase.com/docs/guides/cli/getting-started)
+
+### Database Setup
+
+This project uses Supabase as the database backend. To set up your local development environment with the latest database schema and data:
+
+1. **Start Supabase locally:**
+   ```sh
+   supabase start
+   ```
+
+2. **Restore the database from backup:**
+   ```sh
+   # Stop the local Supabase instance
+   supabase stop
+   
+   # Restore from the backup file
+   supabase db reset --db-url "postgresql://postgres:postgres@localhost:54322/postgres" --file db_cluster-10-10-2025@17-03-17.backup
+   
+   # Start Supabase again
+   supabase start
+   ```
+
+3. **Verify the database is running:**
+   ```sh
+   supabase status
+   ```
+
+### Application Setup
+
+Follow these steps to get the application running:
+
+```sh
+# Step 1: Clone the repository
+git clone <YOUR_GIT_URL>
+
+# Step 2: Navigate to the project directory
+cd clever-widget-factory
+
+# Step 3: Install the necessary dependencies
+npm i
+
+# Step 4: Start the development server
+npm run dev
+```
+
+The application will be available at `http://localhost:8080` (or the port shown in your terminal).
 
 ## How can I edit this code?
 
@@ -17,24 +72,6 @@ Changes made via Lovable will be committed automatically to this repo.
 **Use your preferred IDE**
 
 If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
 
 **Edit a file directly in GitHub**
 
@@ -54,11 +91,49 @@ npm run dev
 
 This project is built with:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- **Frontend**: React 18, TypeScript, Vite
+- **UI Components**: shadcn-ui, Radix UI, Tailwind CSS
+- **Database**: Supabase (PostgreSQL)
+- **Authentication**: Supabase Auth
+- **State Management**: React Query (TanStack Query)
+- **Forms**: React Hook Form with Zod validation
+- **Rich Text**: Tiptap editor
+- **Image Processing**: Browser Image Compression
+- **Date Handling**: date-fns
+- **Icons**: Lucide React
+
+## Database Management
+
+### Backup and Restore
+
+The project includes database backup files for easy setup:
+
+- `db_cluster-10-10-2025@17-03-17.backup` - Latest database backup
+- `db_cluster-05-10-2025@17-08-06.backup` - Previous backup
+
+### Creating New Backups
+
+To create a new backup of your local database:
+
+```sh
+# Create a backup
+supabase db dump --file "db_cluster-$(date +%d-%m-%Y@%H-%M-%S).backup"
+```
+
+### Database Migrations
+
+Database schema changes are managed through Supabase migrations located in the `supabase/migrations/` directory. To apply migrations:
+
+```sh
+supabase db push
+```
+
+## Development Workflow
+
+1. **Database Changes**: Make schema changes through Supabase migrations
+2. **Local Development**: Use the local Supabase instance with the backup data
+3. **Testing**: Test changes locally before deploying
+4. **Deployment**: Deploy through Lovable or your preferred method
 
 ## How can I deploy this project?
 

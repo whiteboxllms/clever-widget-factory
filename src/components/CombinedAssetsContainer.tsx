@@ -28,6 +28,7 @@ import { useToolHistory } from "@/hooks/tools/useToolHistory";
 import { useToolIssues } from "@/hooks/useGenericIssues";
 import { useInventoryIssues } from "@/hooks/useGenericIssues";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
+import { useImageUpload } from "@/hooks/useImageUpload";
 import { supabase } from "@/integrations/supabase/client";
 
 export const CombinedAssetsContainer = () => {
@@ -35,6 +36,7 @@ export const CombinedAssetsContainer = () => {
   const { user, canEditTools, isAdmin } = useAuth();
   const { toast } = useToast();
   const organizationId = useOrganizationId();
+  const { uploadImages, isUploading } = useImageUpload();
   const [searchTerm, setSearchTerm] = useState("");
   const [showMyCheckedOut, setShowMyCheckedOut] = useState(false);
   const [showWithIssues, setShowWithIssues] = useState(false);
@@ -65,6 +67,10 @@ export const CombinedAssetsContainer = () => {
     supplierName: '',
     supplierUrl: ''
   });
+
+  // Image state for stock editing
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [stockAttachments, setStockAttachments] = useState<string[]>([]);
 
   const [page, setPage] = useState(0);
   const [limit] = useState(50);
@@ -219,6 +225,12 @@ export const CombinedAssetsContainer = () => {
 
   const handleEdit = (asset: CombinedAsset) => {
     setSelectedAsset(asset);
+    // Initialize attachments with existing image if available
+    if (asset.type === 'stock' && asset.image_url) {
+      setStockAttachments([asset.image_url]);
+    } else {
+      setStockAttachments([]);
+    }
     setShowEditDialog(true);
   };
 
@@ -454,6 +466,9 @@ export const CombinedAssetsContainer = () => {
     if (!selectedAsset || selectedAsset.type !== 'stock') return;
 
     try {
+      // Convert attachments array to image_url for database compatibility
+      const imageUrl = stockAttachments.length > 0 ? stockAttachments[0] : selectedAsset.image_url;
+
       // Same data conversion as original Inventory page updatePart function
       const updateData = {
         name: formData.name,
@@ -464,12 +479,14 @@ export const CombinedAssetsContainer = () => {
         unit: formData.unit,
         parent_structure_id: formData.parent_structure_id,
         storage_location: formData.storage_location,
-        image_url: formData.image_url
+        accountable_person_id: formData.accountable_person_id === "none" ? null : formData.accountable_person_id,
+        image_url: imageUrl
       };
 
       await updateAsset(selectedAsset.id, updateData, false);
       await refetch();
       setShowEditDialog(false);
+      setSelectedImage(null); // Reset image state
       setSelectedAsset(null);
       toast({
         title: "Success",
@@ -722,8 +739,10 @@ export const CombinedAssetsContainer = () => {
           onClose={() => {
             setShowEditDialog(false);
             setSelectedAsset(null);
+            setSelectedImage(null); // Reset image state when closing
           }}
           onSubmit={handleEditSubmit}
+          isLeadership={isAdmin}
         />
       )}
 
@@ -751,18 +770,21 @@ export const CombinedAssetsContainer = () => {
                 unit: selectedAsset.unit || 'pieces',
                 cost_per_unit: (selectedAsset.cost_per_unit || 0).toString(),
                 parent_structure_id: selectedAsset.parent_structure_id || '',
-                storage_location: selectedAsset.storage_location || ''
+                storage_location: selectedAsset.storage_location || '',
+                accountable_person_id: selectedAsset.accountable_person_id || ''
               }}
               editingPart={selectedAsset as any}
-              selectedImage={null}
-              setSelectedImage={() => {}}
+              attachments={stockAttachments}
+              onAttachmentsChange={setStockAttachments}
               onSubmit={handleStockEditSubmit}
               onCancel={() => {
                 setShowEditDialog(false);
                 setSelectedAsset(null);
+                setStockAttachments([]); // Reset attachments when canceling
               }}
-              isLoading={false}
+              isLoading={isUploading}
               submitButtonText="Update Stock Item"
+              isLeadership={isAdmin}
             />
           </DialogContent>
         </Dialog>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useUserNames } from '@/hooks/useUserNames';
 
 export interface CombinedAsset {
   id: string;
@@ -27,6 +28,9 @@ export interface CombinedAsset {
   is_checked_out?: boolean;
   checked_out_to?: string;
   checked_out_user_id?: string;
+  accountable_person_id?: string;
+  accountable_person_name?: string; // Resolved name from accountable_person_id
+  accountable_person_color?: string; // Favorite color of accountable person
   created_at: string;
   updated_at: string;
 }
@@ -44,6 +48,14 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
   const { toast } = useToast();
   const isFetchingRef = useRef(false);
   const latestRequestIdRef = useRef(0);
+  
+  // Get all accountable person IDs from current assets for user name fetching
+  const accountablePersonIds = Array.from(new Set(
+    assets.flatMap(asset => asset.accountable_person_id ? [asset.accountable_person_id] : [])
+  ));
+  
+  // Use shared hook for user names (cached)
+  const { getUserName, getUserColor } = useUserNames(accountablePersonIds);
   const currentSearchRef = useRef<string | undefined>(options?.search);
   const currentLimitRef = useRef<number>(options?.limit ?? 50);
   const currentPageRef = useRef<number>(options?.page ?? 0);
@@ -82,6 +94,8 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
           parent_structure_id,
           storage_location,
           legacy_storage_vicinity,
+          accountable_person_id,
+          image_url,
           created_at,
           updated_at
         `);
@@ -122,6 +136,8 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
           parent_structure_id,
           storage_location,
           legacy_storage_vicinity,
+          accountable_person_id,
+          image_url,
           created_at,
           updated_at
         `);
@@ -196,6 +212,16 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
       });
       console.timeEnd('[perf] assets: build parentStructureMap');
 
+      // Collect all unique accountable person IDs for shared hook
+      console.time('[perf] assets: collect accountablePersonIds');
+      const accountablePersonIds = Array.from(new Set([
+        ...(toolsResponse.data || []).map(tool => tool.accountable_person_id).filter(Boolean),
+        ...(partsResponse.data || []).map(part => part.accountable_person_id).filter(Boolean)
+      ]));
+      console.timeEnd('[perf] assets: collect accountablePersonIds');
+
+      // Note: User names will be fetched separately using useUserNames hook
+
       // Transform and combine data
       console.time('[perf] assets: transform+combine');
       const transformedAssets: CombinedAsset[] = [
@@ -203,6 +229,8 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
         ...(toolsResponse.data || []).map(tool => {
           const checkout = checkoutMap.get(tool.id);
           const parentStructureName = tool.parent_structure_id ? parentStructureMap.get(tool.parent_structure_id) : null;
+          const accountablePersonName = tool.accountable_person_id ? getUserName(tool.accountable_person_id) : null;
+          const accountablePersonColor = tool.accountable_person_id ? getUserColor(tool.accountable_person_id) : null;
           return {
             ...tool,
             type: 'asset' as const,
@@ -211,19 +239,25 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
             has_issues: toolsWithIssues.has(tool.id),
             is_checked_out: checkoutMap.has(tool.id),
             checked_out_to: checkout?.user_name,
-            checked_out_user_id: checkout?.user_id
+            checked_out_user_id: checkout?.user_id,
+            accountable_person_name: accountablePersonName,
+            accountable_person_color: accountablePersonColor
           };
         }),
         // Transform parts to stock
         ...(partsResponse.data || []).map(part => {
           const parentStructureName = part.parent_structure_id ? parentStructureMap.get(part.parent_structure_id) : null;
+          const accountablePersonName = part.accountable_person_id ? getUserName(part.accountable_person_id) : null;
+          const accountablePersonColor = part.accountable_person_id ? getUserColor(part.accountable_person_id) : null;
           return {
             ...part,
             type: 'stock' as const,
             parent_structure_name: parentStructureName,
             area_display: parentStructureName || part.legacy_storage_vicinity,
             has_issues: false,
-            is_checked_out: false
+            is_checked_out: false,
+            accountable_person_name: accountablePersonName,
+            accountable_person_color: accountablePersonColor
           };
         })
       ];

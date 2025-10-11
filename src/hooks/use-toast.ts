@@ -172,7 +172,7 @@ function toast({ ...props }: Toast) {
   if (!isError) {
     setTimeout(() => {
       dispatch({ type: "DISMISS_TOAST", toastId: id })
-    }, 5000) // 5 second auto-dismiss for non-error toasts
+    }, 1000) // 1 second auto-dismiss for non-error toasts
   }
 
   return {

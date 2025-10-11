@@ -5,6 +5,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -547,6 +548,9 @@ export function UnifiedActionDialog({
       )}>
         <DialogHeader>
           <DialogTitle>{getDialogTitle()}</DialogTitle>
+          <DialogDescription>
+            {isCreating ? 'Create a new action with details and assignments' : 'Edit action details and assignments'}
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-6">
@@ -632,14 +636,11 @@ export function UnifiedActionDialog({
                 </SelectTrigger>
                  <SelectContent>
                    <SelectItem value="unassigned">Unassigned</SelectItem>
-                   {profiles.map((profile) => {
-                     console.log('UnifiedActionDialog: Rendering profile:', profile);
-                     return (
-                       <SelectItem key={profile.user_id} value={profile.user_id}>
-                         {profile.full_name}
-                       </SelectItem>
-                     );
-                   })}
+                   {profiles.map((profile) => (
+                     <SelectItem key={profile.user_id} value={profile.user_id}>
+                       {profile.full_name}
+                     </SelectItem>
+                   ))}
                  </SelectContent>
               </Select>
             </div>

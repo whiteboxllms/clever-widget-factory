@@ -150,14 +150,3 @@ supabase db push
 3. **Testing**: Test changes locally before deploying
 4. **Deployment**: Deploy through Lovable or your preferred method
 
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/79911e5f-8077-4490-a4d5-cbe8b4da048d) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)

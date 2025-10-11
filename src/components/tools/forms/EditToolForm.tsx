@@ -5,12 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, X } from "lucide-react";
 import { Tool } from "@/hooks/tools/useToolsData";
-import { useImageUpload } from "@/hooks/useImageUpload";
 import { useToast } from "@/hooks/use-toast";
 import { TOOL_CATEGORY_OPTIONS } from "@/lib/constants";
 import { LocationFieldsGroup } from "@/components/shared/LocationFieldsGroup";
+import { FileAttachmentManager } from "@/components/shared/FileAttachmentManager";
 import { useParentStructures } from "@/hooks/tools/useParentStructures";
 import { useAuth } from "@/hooks/useAuth";
 import { useActionProfiles } from "@/hooks/useActionProfiles";
@@ -33,12 +32,10 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, isLeadership = f
     storage_location: tool?.storage_location || "",
     serial_number: tool?.serial_number || "",
     accountable_person_id: tool?.accountable_person_id || "none",
-    image_file: null as File | null,
+    attachments: tool?.image_url ? [tool.image_url] : [],
   });
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
-  const { uploadImages, isUploading } = useImageUpload();
   const { parentStructures, loading: isLoadingParentStructures } = useParentStructures();
   const { isAdmin } = useAuth();
   const { profiles } = useActionProfiles();
@@ -55,21 +52,11 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, isLeadership = f
         storage_location: tool.storage_location || "",
         serial_number: tool.serial_number || "",
         accountable_person_id: tool.accountable_person_id || "none",
-        image_file: null,
+        attachments: tool.image_url ? [tool.image_url] : [],
       });
-      setImagePreview(null);
     }
   }, [tool]);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setEditData(prev => ({ ...prev, image_file: file }));
-      const reader = new FileReader();
-      reader.onload = () => setImagePreview(reader.result as string);
-      reader.readAsDataURL(file);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,22 +64,9 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, isLeadership = f
     
     setIsSubmitting(true);
     try {
-      let imageUrl = tool.image_url;
-      if (editData.image_file) {
-        const result = await uploadImages(editData.image_file, {
-          bucket: 'tool-images',
-          maxSizeMB: 0.5,
-          maxWidthOrHeight: 1920,
-          generateFileName: (file) => `${Date.now()}-${file.name}`
-        });
-        
-        if (Array.isArray(result)) {
-          imageUrl = result[0].url;
-        } else {
-          imageUrl = result.url;
-        }
-      }
-
+      // Convert attachments array back to image_url for database compatibility
+      const imageUrl = editData.attachments.length > 0 ? editData.attachments[0] : null;
+      
       const updateData = {
         name: editData.name,
         description: editData.description || null,
@@ -244,49 +218,14 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, isLeadership = f
             </div>
           </div>
 
-          <div>
-            <Label>Tool Image</Label>
-            <div className="mt-2">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="hidden"
-                id="edit-image-upload"
-              />
-              <label
-                htmlFor="edit-image-upload"
-                className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                Choose Image
-              </label>
-            </div>
-            
-            {(imagePreview || tool?.image_url) && (
-              <div className="mt-4 relative">
-                <img
-                  src={imagePreview || tool?.image_url}
-                  alt="Tool preview"
-                  className="w-32 h-32 object-cover rounded-md border"
-                />
-                {imagePreview && (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
-                    onClick={() => {
-                      setImagePreview(null);
-                      setEditData(prev => ({ ...prev, image_file: null }));
-                    }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
+          <FileAttachmentManager
+            attachments={editData.attachments}
+            onAttachmentsChange={(attachments) => setEditData(prev => ({ ...prev, attachments }))}
+            bucket="tool-images"
+            label="Tool Image"
+            disabled={isSubmitting}
+            maxFiles={1}
+          />
 
           <div className="flex justify-end gap-2 pt-4">
             <Button type="button" variant="outline" onClick={onClose}>

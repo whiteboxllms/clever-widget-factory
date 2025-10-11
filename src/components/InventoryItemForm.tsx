@@ -7,8 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Upload, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { LocationFieldsGroup } from '@/components/shared/LocationFieldsGroup';
+import { FileAttachmentManager } from '@/components/shared/FileAttachmentManager';
 import { useParentStructures } from '@/hooks/tools/useParentStructures';
 import { useActionProfiles } from '@/hooks/useActionProfiles';
 
@@ -29,6 +30,7 @@ interface Part {
   parent_structure_id: string | null;
   storage_location: string | null;
   image_url: string | null;
+  accountable_person_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -47,8 +49,8 @@ interface FormData {
 
 interface InventoryItemFormProps {
   initialData?: Partial<FormData>;
-  selectedImage: File | null;
-  setSelectedImage: (file: File | null) => void;
+  attachments: string[];
+  onAttachmentsChange: (attachments: string[]) => void;
   isLoading: boolean;
   onSubmit: (data: FormData, useMinimumQuantity: boolean) => void;
   onCancel: () => void;
@@ -59,8 +61,8 @@ interface InventoryItemFormProps {
 
 export function InventoryItemForm({
   initialData,
-  selectedImage,
-  setSelectedImage,
+  attachments,
+  onAttachmentsChange,
   isLoading,
   onSubmit,
   onCancel,
@@ -108,7 +110,7 @@ export function InventoryItemForm({
     onSubmit(formData, useMinimumQuantity);
   };
 
-  const updateFormData = (field: keyof FormData, value: any) => {
+  const updateFormData = (field: keyof FormData, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -133,37 +135,6 @@ export function InventoryItemForm({
             onChange={(e) => updateFormData('description', e.target.value)}
             placeholder="Enter item description"
           />
-        </div>
-
-        <div className="col-span-2">
-          <Label htmlFor="image">Picture</Label>
-          <div className="flex items-center gap-4">
-            <Input
-              id="image"
-              type="file"
-              accept="image/*"
-              onChange={(e) => setSelectedImage(e.target.files?.[0] || null)}
-              className="flex-1"
-            />
-            <Upload className="h-4 w-4 text-muted-foreground" />
-          </div>
-          {editingPart?.image_url && !selectedImage && (
-            <div className="mt-2 p-2 border rounded-lg bg-muted/20">
-              <p className="text-sm text-muted-foreground">
-                Current image: ✓ Image attached
-              </p>
-              <img 
-                src={editingPart.image_url} 
-                alt={editingPart.name}
-                className="mt-2 w-20 h-20 object-cover rounded border"
-              />
-            </div>
-          )}
-          {selectedImage && (
-            <p className="text-sm text-muted-foreground mt-2">
-              Selected: {selectedImage.name} (will replace current image)
-            </p>
-          )}
         </div>
 
         {/* Supplier selection removed - supplier info will be captured during stock additions */}
@@ -297,6 +268,18 @@ export function InventoryItemForm({
               Only leadership can change accountable person
             </p>
           )}
+        </div>
+
+        {/* Item Images & Documents - moved to bottom */}
+        <div className="col-span-2">
+          <FileAttachmentManager
+            attachments={attachments}
+            onAttachmentsChange={onAttachmentsChange}
+            bucket="tool-images"
+            label="Item Images & Documents"
+            disabled={isLoading}
+            maxFiles={5}
+          />
         </div>
       </div>
 

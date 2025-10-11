@@ -5,11 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, X } from "lucide-react";
-import { useImageUpload } from "@/hooks/useImageUpload";
 import { useToast } from "@/hooks/use-toast";
 import { TOOL_CATEGORY_OPTIONS } from "@/lib/constants";
 import { LocationFieldsGroup } from "@/components/shared/LocationFieldsGroup";
+import { FileAttachmentManager } from "@/components/shared/FileAttachmentManager";
 import { useParentStructures } from "@/hooks/tools/useParentStructures";
 
 interface NewToolForm {
@@ -20,7 +19,7 @@ interface NewToolForm {
   parent_structure_id: string;
   storage_location: string;
   serial_number: string;
-  image_file: File | null;
+  attachments: string[];
 }
 
 interface AddToolFormProps {
@@ -39,12 +38,10 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
     parent_structure_id: "none",
     storage_location: "",
     serial_number: "",
-    image_file: null,
+    attachments: [],
   });
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
-  const { uploadImages, isUploading } = useImageUpload();
   const { parentStructures, loading: isLoadingParentStructures } = useParentStructures();
   
 
@@ -54,36 +51,14 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
     }
   }, [initialName]);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setNewTool(prev => ({ ...prev, image_file: file }));
-      const reader = new FileReader();
-      reader.onload = () => setImagePreview(reader.result as string);
-      reader.readAsDataURL(file);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
-      let imageUrl = null;
-      if (newTool.image_file) {
-        const result = await uploadImages(newTool.image_file, {
-          bucket: 'tool-images',
-          maxSizeMB: 0.5,
-          maxWidthOrHeight: 1920,
-          generateFileName: (file) => `${Date.now()}-${file.name}`
-        });
-        
-        if (Array.isArray(result)) {
-          imageUrl = result[0].url;
-        } else {
-          imageUrl = result.url;
-        }
-      }
+      // Convert attachments array to image_url for database compatibility
+      const imageUrl = newTool.attachments.length > 0 ? newTool.attachments[0] : null;
 
       const toolData = {
         name: newTool.name,
@@ -108,14 +83,13 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
         parent_structure_id: "none",
         storage_location: "",
         serial_number: "",
-        image_file: null,
+        attachments: [],
       });
-      setImagePreview(null);
       onClose();
 
       toast({
         title: "Success",
-        description: "Tool added successfully"
+        description: "Asset added successfully"
       });
     } catch (error) {
       console.error('Error adding tool:', error);
@@ -217,47 +191,14 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
             </Select>
           </div>
 
-          <div>
-            <Label>Asset Image</Label>
-            <div className="mt-2">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="hidden"
-                id="image-upload"
-              />
-              <label
-                htmlFor="image-upload"
-                className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                Choose Image
-              </label>
-            </div>
-            
-            {imagePreview && (
-              <div className="mt-4 relative">
-                <img
-                  src={imagePreview}
-                  alt="Asset preview"
-                  className="w-32 h-32 object-cover rounded-md border"
-                />
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
-                  onClick={() => {
-                    setImagePreview(null);
-                    setNewTool(prev => ({ ...prev, image_file: null }));
-                  }}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
-          </div>
+          <FileAttachmentManager
+            attachments={newTool.attachments}
+            onAttachmentsChange={(attachments) => setNewTool(prev => ({ ...prev, attachments }))}
+            bucket="tool-images"
+            label="Asset Image"
+            disabled={isSubmitting}
+            maxFiles={1}
+          />
 
           <div className="flex justify-end gap-2 pt-4">
             <Button type="button" variant="outline" onClick={onClose}>

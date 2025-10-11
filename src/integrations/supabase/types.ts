@@ -91,6 +91,7 @@ export type Database = {
           attachments: string[] | null
           completed_at: string | null
           created_at: string
+          created_by: string | null
           description: string | null
           estimated_duration: string | null
           evidence_description: string | null
@@ -111,6 +112,7 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           actual_duration?: string | null
@@ -119,6 +121,7 @@ export type Database = {
           attachments?: string[] | null
           completed_at?: string | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           estimated_duration?: string | null
           evidence_description?: string | null
@@ -139,6 +142,7 @@ export type Database = {
           status?: string
           title: string
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           actual_duration?: string | null
@@ -147,6 +151,7 @@ export type Database = {
           attachments?: string[] | null
           completed_at?: string | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           estimated_duration?: string | null
           evidence_description?: string | null
@@ -167,6 +172,7 @@ export type Database = {
           status?: string
           title?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -196,6 +202,45 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "missions"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      action_implementation_updates: {
+        Row: {
+          action_id: string
+          created_at: string
+          id: string
+          update_text: string
+          updated_by: string
+        }
+        Insert: {
+          action_id: string
+          created_at?: string
+          id?: string
+          update_text: string
+          updated_by: string
+        }
+        Update: {
+          action_id?: string
+          created_at?: string
+          id?: string
+          update_text?: string
+          updated_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "action_implementation_updates_action_id_fkey"
+            columns: ["action_id"]
+            isOneToOne: false
+            referencedRelation: "actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_implementation_updates_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -1134,6 +1179,7 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          favorite_color: string | null
           full_name: string | null
           id: string
           super_admin: boolean | null
@@ -1142,6 +1188,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          favorite_color?: string | null
           full_name?: string | null
           id?: string
           super_admin?: boolean | null
@@ -1150,6 +1197,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          favorite_color?: string | null
           full_name?: string | null
           id?: string
           super_admin?: boolean | null

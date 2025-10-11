@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Database backups (use Git LFS for versioned backups)
+*.backup
+!backups/*.backup

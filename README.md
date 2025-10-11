@@ -17,6 +17,21 @@ A comprehensive asset management and accountability system built with React, Typ
 
 This project uses Supabase as the database backend. To set up your local development environment with the latest database schema and data:
 
+#### Quick Setup (Recommended)
+
+Use the automated restoration script:
+
+```sh
+# For local development (default)
+./scripts/restore-and-migrate.sh
+
+# For production (requires PROD_DATABASE_URL environment variable)
+export PROD_DATABASE_URL="postgresql://user:password@host:port/database"
+./scripts/restore-and-migrate.sh --prod
+```
+
+#### Manual Setup
+
 1. **Start Supabase locally:**
    ```sh
    supabase start
@@ -28,7 +43,7 @@ This project uses Supabase as the database backend. To set up your local develop
    supabase stop
    
    # Restore from the backup file
-   supabase db reset --db-url "postgresql://postgres:postgres@localhost:54322/postgres" --file db_cluster-10-10-2025@17-03-17.backup
+   supabase db reset --db-url "postgresql://postgres:postgres@localhost:54322/postgres" --file backups/db_cluster-10-10-2025@17-03-17.backup
    
    # Start Supabase again
    supabase start
@@ -108,7 +123,7 @@ This project is built with:
 
 The project includes database backup files for easy setup:
 
-- `db_cluster-10-10-2025@17-03-17.backup` - Latest database backup
+- `backups/db_cluster-10-10-2025@17-03-17.backup` - Latest database backup
 - `db_cluster-05-10-2025@17-08-06.backup` - Previous backup
 
 ### Creating New Backups

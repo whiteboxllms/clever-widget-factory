@@ -26,3 +26,7 @@ dist-ssr
 # Database backups (use Git LFS for versioned backups)
 *.backup
 !backups/*.backup
+
+# Supabase temporary files
+supabase/.temp/
+supabase/.branches/

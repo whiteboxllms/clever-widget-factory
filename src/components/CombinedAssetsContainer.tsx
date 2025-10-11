@@ -70,6 +70,7 @@ export const CombinedAssetsContainer = () => {
 
   // Image state for stock editing
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [stockAttachments, setStockAttachments] = useState<string[]>([]);
 
   const [page, setPage] = useState(0);
   const [limit] = useState(50);
@@ -224,6 +225,12 @@ export const CombinedAssetsContainer = () => {
 
   const handleEdit = (asset: CombinedAsset) => {
     setSelectedAsset(asset);
+    // Initialize attachments with existing image if available
+    if (asset.type === 'stock' && asset.image_url) {
+      setStockAttachments([asset.image_url]);
+    } else {
+      setStockAttachments([]);
+    }
     setShowEditDialog(true);
   };
 
@@ -459,23 +466,8 @@ export const CombinedAssetsContainer = () => {
     if (!selectedAsset || selectedAsset.type !== 'stock') return;
 
     try {
-      let imageUrl = selectedAsset.image_url; // Keep existing image by default
-      
-      // Upload new image if one was selected
-      if (selectedImage) {
-        const result = await uploadImages(selectedImage, {
-          bucket: 'tool-images',
-          maxSizeMB: 0.5,
-          maxWidthOrHeight: 1920,
-          generateFileName: (file) => `parts/${Date.now()}-${file.name}`
-        });
-        
-        if (Array.isArray(result)) {
-          imageUrl = result[0].url;
-        } else {
-          imageUrl = result.url;
-        }
-      }
+      // Convert attachments array to image_url for database compatibility
+      const imageUrl = stockAttachments.length > 0 ? stockAttachments[0] : selectedAsset.image_url;
 
       // Same data conversion as original Inventory page updatePart function
       const updateData = {
@@ -782,13 +774,13 @@ export const CombinedAssetsContainer = () => {
                 accountable_person_id: selectedAsset.accountable_person_id || ''
               }}
               editingPart={selectedAsset as any}
-              selectedImage={selectedImage}
-              setSelectedImage={setSelectedImage}
+              attachments={stockAttachments}
+              onAttachmentsChange={setStockAttachments}
               onSubmit={handleStockEditSubmit}
               onCancel={() => {
                 setShowEditDialog(false);
                 setSelectedAsset(null);
-                setSelectedImage(null); // Reset image state when canceling
+                setStockAttachments([]); // Reset attachments when canceling
               }}
               isLoading={isUploading}
               submitButtonText="Update Stock Item"

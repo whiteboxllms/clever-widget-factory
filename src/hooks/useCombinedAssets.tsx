@@ -95,6 +95,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
           storage_location,
           legacy_storage_vicinity,
           accountable_person_id,
+          image_url,
           created_at,
           updated_at
         `);
@@ -136,6 +137,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
           storage_location,
           legacy_storage_vicinity,
           accountable_person_id,
+          image_url,
           created_at,
           updated_at
         `);

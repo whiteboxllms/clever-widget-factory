@@ -28,6 +28,7 @@ import { useToolHistory } from "@/hooks/tools/useToolHistory";
 import { useToolIssues } from "@/hooks/useGenericIssues";
 import { useInventoryIssues } from "@/hooks/useGenericIssues";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
+import { useImageUpload } from "@/hooks/useImageUpload";
 import { supabase } from "@/integrations/supabase/client";
 
 export const CombinedAssetsContainer = () => {
@@ -35,6 +36,7 @@ export const CombinedAssetsContainer = () => {
   const { user, canEditTools, isAdmin } = useAuth();
   const { toast } = useToast();
   const organizationId = useOrganizationId();
+  const { uploadImages, isUploading } = useImageUpload();
   const [searchTerm, setSearchTerm] = useState("");
   const [showMyCheckedOut, setShowMyCheckedOut] = useState(false);
   const [showWithIssues, setShowWithIssues] = useState(false);
@@ -65,6 +67,9 @@ export const CombinedAssetsContainer = () => {
     supplierName: '',
     supplierUrl: ''
   });
+
+  // Image state for stock editing
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
 
   const [page, setPage] = useState(0);
   const [limit] = useState(50);
@@ -454,6 +459,24 @@ export const CombinedAssetsContainer = () => {
     if (!selectedAsset || selectedAsset.type !== 'stock') return;
 
     try {
+      let imageUrl = selectedAsset.image_url; // Keep existing image by default
+      
+      // Upload new image if one was selected
+      if (selectedImage) {
+        const result = await uploadImages(selectedImage, {
+          bucket: 'tool-images',
+          maxSizeMB: 0.5,
+          maxWidthOrHeight: 1920,
+          generateFileName: (file) => `parts/${Date.now()}-${file.name}`
+        });
+        
+        if (Array.isArray(result)) {
+          imageUrl = result[0].url;
+        } else {
+          imageUrl = result.url;
+        }
+      }
+
       // Same data conversion as original Inventory page updatePart function
       const updateData = {
         name: formData.name,
@@ -465,12 +488,13 @@ export const CombinedAssetsContainer = () => {
         parent_structure_id: formData.parent_structure_id,
         storage_location: formData.storage_location,
         accountable_person_id: formData.accountable_person_id === "none" ? null : formData.accountable_person_id,
-        image_url: formData.image_url
+        image_url: imageUrl
       };
 
       await updateAsset(selectedAsset.id, updateData, false);
       await refetch();
       setShowEditDialog(false);
+      setSelectedImage(null); // Reset image state
       setSelectedAsset(null);
       toast({
         title: "Success",
@@ -723,6 +747,7 @@ export const CombinedAssetsContainer = () => {
           onClose={() => {
             setShowEditDialog(false);
             setSelectedAsset(null);
+            setSelectedImage(null); // Reset image state when closing
           }}
           onSubmit={handleEditSubmit}
           isLeadership={isAdmin}
@@ -757,14 +782,15 @@ export const CombinedAssetsContainer = () => {
                 accountable_person_id: selectedAsset.accountable_person_id || ''
               }}
               editingPart={selectedAsset as any}
-              selectedImage={null}
-              setSelectedImage={() => {}}
+              selectedImage={selectedImage}
+              setSelectedImage={setSelectedImage}
               onSubmit={handleStockEditSubmit}
               onCancel={() => {
                 setShowEditDialog(false);
                 setSelectedAsset(null);
+                setSelectedImage(null); // Reset image state when canceling
               }}
-              isLoading={false}
+              isLoading={isUploading}
               submitButtonText="Update Stock Item"
               isLeadership={isAdmin}
             />

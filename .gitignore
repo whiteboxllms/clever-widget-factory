@@ -30,3 +30,4 @@ dist-ssr
 # Supabase temporary files
 supabase/.temp/
 supabase/.branches/
+supabase/config.toml

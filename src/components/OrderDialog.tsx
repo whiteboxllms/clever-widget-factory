@@ -164,7 +164,8 @@ export function OrderDialog({
               step="0.01"
               value={formData.quantity}
               onChange={(e) => setFormData(prev => ({ ...prev, quantity: e.target.value }))}
-              placeholder="Enter quantity"
+              placeholder="0.1"
+              inputMode="decimal"
               required
             />
           </div>

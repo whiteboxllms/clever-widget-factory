@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +31,7 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
     fetchUpdates();
     getCurrentUser();
   }, [actionId]);
+
 
   const getCurrentUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -312,6 +313,7 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
             onChange={setNewUpdateText}
             placeholder="Add your implementation update..."
             className="min-h-[120px]"
+            autoFocus={true}
           />
         </div>
         <div className="flex justify-end mt-2 mb-4">

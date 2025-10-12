@@ -582,13 +582,67 @@ export default function Inventory() {
           throw new Error('User must be authenticated to update stock items');
         }
         
-        // Check if quantity changed
+        // Track all field changes
+        const changes: string[] = [];
+        
+        // Check each field for changes
+        if (editingPart.name !== formData.name) {
+          changes.push(`name: '${editingPart.name}' → '${formData.name}'`);
+        }
+        
+        if (editingPart.description !== formData.description) {
+          const oldDesc = editingPart.description || '(empty)';
+          const newDesc = formData.description || '(empty)';
+          changes.push(`description: '${oldDesc}' → '${newDesc}'`);
+        }
+        
+        if (editingPart.current_quantity !== formData.current_quantity) {
+          changes.push(`quantity: ${editingPart.current_quantity} → ${formData.current_quantity}`);
+        }
+        
+        if (editingPart.minimum_quantity !== (useMinimumQuantity ? formData.minimum_quantity : null)) {
+          const oldMin = editingPart.minimum_quantity || '(none)';
+          const newMin = useMinimumQuantity ? formData.minimum_quantity || '(none)' : '(none)';
+          changes.push(`minimum quantity: ${oldMin} → ${newMin}`);
+        }
+        
+        if (editingPart.cost_per_unit !== (formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null)) {
+          const oldCost = editingPart.cost_per_unit || '(none)';
+          const newCost = formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : '(none)';
+          changes.push(`cost per unit: ${oldCost} → ${newCost}`);
+        }
+        
+        if (editingPart.unit !== formData.unit) {
+          const oldUnit = editingPart.unit || '(none)';
+          const newUnit = formData.unit || '(none)';
+          changes.push(`unit: '${oldUnit}' → '${newUnit}'`);
+        }
+        
+        if (editingPart.parent_structure_id !== formData.parent_structure_id) {
+          changes.push(`storage structure: '${editingPart.parent_structure_id || '(none)'}' → '${formData.parent_structure_id || '(none)'}'`);
+        }
+        
+        if (editingPart.storage_location !== formData.storage_location) {
+          const oldLocation = editingPart.storage_location || '(none)';
+          const newLocation = formData.storage_location || '(none)';
+          changes.push(`storage location: '${oldLocation}' → '${newLocation}'`);
+        }
+        
+        if (editingPart.accountable_person_id !== (formData.accountable_person_id === "none" ? null : formData.accountable_person_id)) {
+          changes.push(`accountable person: '${editingPart.accountable_person_id || '(none)'}' → '${formData.accountable_person_id === "none" ? "(none)" : formData.accountable_person_id || "(none)"}'`);
+        }
+        
+        if (editingPart.image_url !== imageUrl) {
+          changes.push(`image: ${editingPart.image_url ? 'updated' : 'added'}`);
+        }
+        
+        // Determine change type and reason
         const oldQuantity = editingPart.current_quantity;
         const newQuantity = formData.current_quantity;
         const quantityChanged = oldQuantity !== newQuantity;
         
         let changeType = 'update';
-        let changeReason = 'Item details updated';
+        let changeReason = changes.length > 0 ? changes.join(', ') : 'Item details updated';
         
         if (quantityChanged) {
           if (newQuantity > oldQuantity) {
@@ -779,29 +833,7 @@ export default function Inventory() {
           // Don't fail the operation if history logging fails
         }
 
-        // If this is a quantity removal (usage), also log it to inventory_usage for activity tracking
-        if (quantityOperation === 'remove') {
-          try {
-            const { error: usageError } = await supabase
-              .from('inventory_usage')
-              .insert([{
-                mission_id: '00000000-0000-0000-0000-000000000000', // Use a special UUID for manual usage
-                part_id: quantityPart.id,
-                quantity_used: amount,
-                used_by: currentUser.id,
-                usage_description: quantityChange.reason || `Manual usage: ${amount} ${quantityPart.unit || 'pieces'} of ${quantityPart.name}`,
-                organization_id: organizationId
-              }]);
-
-            if (usageError) {
-              console.error('Error logging usage to inventory_usage:', usageError);
-              // Don't fail the operation if usage logging fails
-            }
-          } catch (usageError) {
-            console.error('Usage logging failed:', usageError);
-            // Continue with success flow even if usage logging fails
-          }
-        }
+        // Note: inventory_usage table doesn't exist - usage is tracked in parts_history above
       } catch (historyError) {
         console.error('History logging failed:', historyError);
         // Continue with success flow even if history fails

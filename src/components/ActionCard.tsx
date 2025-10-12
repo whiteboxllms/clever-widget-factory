@@ -19,7 +19,8 @@ import { useAssetScores } from "@/hooks/useAssetScores";
 import { ActionScoreDialog } from './ActionScoreDialog';
 import { ActionImplementationUpdates } from './ActionImplementationUpdates';
 import TiptapEditor from './TiptapEditor';
-import { hasActualContent, sanitizeRichText, getActionBorderStyle } from '@/lib/utils';
+import { hasActualContent, sanitizeRichText, getActionBorderStyle, processStockConsumption } from '@/lib/utils';
+import { BaseAction } from '@/types/actions';
 
 interface Profile {
   id: string;
@@ -35,29 +36,7 @@ interface ActionPhoto {
 }
 
 interface ActionCardProps {
-  action: {
-    id: string;
-    title: string;
-    policy?: string;
-    observations?: string;
-    assigned_to?: string | null;
-    participants?: string[];
-    participants_details?: {
-      id: string;
-      user_id: string;
-      full_name: string;
-      role: string;
-    }[];
-    status: string;
-    mission_id?: string;
-    estimated_duration?: string;
-    actual_duration?: string;
-    required_tools?: string[];
-    linked_issue_id?: string;
-    issue_reference?: string;
-    attachments?: string[];
-    implementation_update_count?: number;
-  };
+  action: BaseAction;
   profiles: Profile[];
   onUpdate: () => void;
   isEditing?: boolean;
@@ -458,6 +437,25 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     setIsCompleting(true);
     
     try {
+      // Get the current user for inventory logging
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser?.id) {
+        throw new Error('User must be authenticated to complete actions');
+      }
+
+      // Process required stock consumption if any
+      const requiredStock = action.required_stock || [];
+      if (requiredStock.length > 0) {
+        await processStockConsumption(
+          requiredStock, 
+          action.id, 
+          currentUser.id, 
+          action.title, 
+          organizationId,
+          action.mission_id
+        );
+      }
+
       // Prepare update data with unsaved changes
       const normalizedPolicy = sanitizeRichText(currentPolicy);
       
@@ -474,10 +472,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
       
       // If action is unassigned, assign it to the current user
       if (!action.assigned_to) {
-        const { data: user } = await supabase.auth.getUser();
-        if (user.user) {
-          updateData.assigned_to = user.user.id;
-        }
+        updateData.assigned_to = currentUser.id;
       }
 
       const { error } = await supabase
@@ -492,7 +487,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
 
       toast({
         title: "Action Completed!",
-        description: "Great work! The action has been marked as complete.",
+        description: "Great work! The action has been marked as complete and stock consumption recorded.",
       });
 
       onUpdate();
@@ -500,7 +495,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
       console.error('Error completing action:', error);
       toast({
         title: "Error",
-        description: "Failed to complete action",
+        description: "Failed to complete action and record stock usage",
         variant: "destructive",
       });
     } finally {
@@ -558,33 +553,71 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
   const theme = getActionTheme();
 
   if (isEditing) {
+    // Check if action should default to implementation updates based on border color logic
+    const policyToCheck = action.policy || '';
+    const hasPolicy = policyToCheck && 
+      policyToCheck.trim() && 
+      policyToCheck !== '<p></p>' && 
+      policyToCheck !== '<p><br></p>' &&
+      policyToCheck !== '<p>&nbsp;</p>';
+    const hasPlanCommitment = action.plan_commitment === true;
+    
+    // Use same logic as border colors:
+    // Blue border: hasPolicy && hasPlanCommitment (ready to work)
+    // Yellow border: hasImplementationUpdates && hasPolicy && hasPlanCommitment (implementation in progress)
+    const shouldDefaultToImplementation = hasPolicy && hasPlanCommitment;
+
     return (
       <Card className={`${theme.bgColor} ${theme.borderColor}`}>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Create New Action</CardTitle>
+          <CardTitle className="text-base">
+            {shouldDefaultToImplementation ? 'Update Action Implementation' : 'Create New Action'}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="title">Action Title</Label>
-            <Input
-              id="title"
-              value={editData.title}
-              onChange={(e) => setEditData(prev => ({ ...prev, title: e.target.value }))}
-              placeholder="Enter action title..."
-              className="mt-1"
-            />
-          </div>
+          {/* Only show title field if there's no plan commitment */}
+          {!shouldDefaultToImplementation && (
+            <div>
+              <Label htmlFor="title">Action Title</Label>
+              <Input
+                id="title"
+                value={editData.title}
+                onChange={(e) => setEditData(prev => ({ ...prev, title: e.target.value }))}
+                placeholder="Enter action title..."
+                className="mt-1"
+                autoFocus
+              />
+            </div>
+          )}
 
-          <div>
-            <Label htmlFor="policy">Policy</Label>
-            <Textarea
-              id="policy"
-              value={editData.policy}
-              onChange={(e) => setEditData(prev => ({ ...prev, policy: e.target.value }))}
-              placeholder="Describe the policy for this action..."
-              className="mt-1 min-h-[100px]"
-            />
-          </div>
+          {/* Only show policy field if there's no plan commitment */}
+          {!shouldDefaultToImplementation && (
+            <div>
+              <Label htmlFor="policy">Policy</Label>
+              <Textarea
+                id="policy"
+                value={editData.policy}
+                onChange={(e) => setEditData(prev => ({ ...prev, policy: e.target.value }))}
+                placeholder="Describe the policy for this action..."
+                className="mt-1 min-h-[100px]"
+                autoFocus={shouldDefaultToImplementation}
+              />
+            </div>
+          )}
+
+          {/* Show implementation updates section if there's a plan commitment */}
+          {shouldDefaultToImplementation && (
+            <div>
+              <Label>Implementation Updates</Label>
+              <div className="mt-2">
+                <ActionImplementationUpdates 
+                  actionId={action.id}
+                  onUpdate={onUpdate}
+                  profiles={profiles}
+                />
+              </div>
+            </div>
+          )}
 
 
           <div>

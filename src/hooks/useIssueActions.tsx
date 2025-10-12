@@ -2,9 +2,12 @@ import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { BaseAction } from '@/types/actions';
+import { processStockConsumption } from '@/lib/utils';
+import { useOrganizationId } from '@/hooks/useOrganizationId';
 
 export const useIssueActions = () => {
   const [loading, setLoading] = useState(false);
+  const organizationId = useOrganizationId();
 
   const getActionsForIssue = useCallback(async (issueId: string): Promise<BaseAction[]> => {
     setLoading(true);
@@ -33,33 +36,52 @@ export const useIssueActions = () => {
     }
   }, []);
 
-  const markActionComplete = useCallback(async (actionId: string): Promise<boolean> => {
+  const markActionComplete = useCallback(async (action: BaseAction): Promise<boolean> => {
     try {
+      // Get the current user for inventory logging
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser?.id) {
+        throw new Error('User must be authenticated to complete actions');
+      }
+
+      // Process required stock consumption if any
+      const requiredStock = action.required_stock || [];
+      if (requiredStock.length > 0) {
+        await processStockConsumption(
+          requiredStock, 
+          action.id, 
+          currentUser.id, 
+          action.title, 
+          organizationId,
+          action.mission_id
+        );
+      }
+
       const { error } = await supabase
         .from('actions')
         .update({
           status: 'completed',
           completed_at: new Date().toISOString()
         })
-        .eq('id', actionId);
+        .eq('id', action.id);
 
       if (error) throw error;
 
       toast({
         title: 'Success',
-        description: 'Action marked as complete'
+        description: 'Action marked as complete and stock consumption recorded'
       });
       return true;
     } catch (error) {
       console.error('Error marking action complete:', error);
       toast({
         title: 'Error',
-        description: 'Failed to mark action as complete',
+        description: 'Failed to mark action as complete and record stock usage',
         variant: 'destructive'
       });
       return false;
     }
-  }, []);
+  }, [organizationId]);
 
   const markActionIncomplete = useCallback(async (actionId: string): Promise<boolean> => {
     try {

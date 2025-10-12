@@ -31,6 +31,7 @@ export function StockSelector({ selectedStock, onStockChange }: StockSelectorPro
   const [searchTerm, setSearchTerm] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [inputValues, setInputValues] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -71,7 +72,7 @@ export function StockSelector({ selectedStock, onStockChange }: StockSelectorPro
     if (!isAlreadySelected) {
       const newStockItem: SelectedStockItem = {
         part_id: item.id,
-        quantity: 1,
+        quantity: 0.1,
         part_name: item.name
       };
       onStockChange([...selectedStock, newStockItem]);
@@ -95,6 +96,28 @@ export function StockSelector({ selectedStock, onStockChange }: StockSelectorPro
         ? { ...item, quantity }
         : item
     ));
+  };
+
+  const handleQuantityChange = (partId: string, value: string) => {
+    // Update local input state immediately for responsive editing
+    setInputValues(prev => ({ ...prev, [partId]: value }));
+    
+    // Parse and update the actual quantity if valid
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue) && numValue > 0) {
+      updateQuantity(partId, numValue);
+    }
+  };
+
+  const handleQuantityBlur = (partId: string, value: string) => {
+    // On blur, ensure we have a valid value
+    const numValue = parseFloat(value);
+    if (isNaN(numValue) || numValue <= 0) {
+      updateQuantity(partId, 0.1);
+      setInputValues(prev => ({ ...prev, [partId]: '0.1' }));
+    } else {
+      setInputValues(prev => ({ ...prev, [partId]: value }));
+    }
   };
 
   return (
@@ -125,9 +148,12 @@ export function StockSelector({ selectedStock, onStockChange }: StockSelectorPro
                   type="number"
                   min="0.01"
                   step="0.01"
-                  value={stockItem.quantity}
-                  onChange={(e) => updateQuantity(stockItem.part_id, parseFloat(e.target.value) || 0.01)}
+                  value={inputValues[stockItem.part_id] ?? stockItem.quantity.toString()}
+                  onChange={(e) => handleQuantityChange(stockItem.part_id, e.target.value)}
+                  onBlur={(e) => handleQuantityBlur(stockItem.part_id, e.target.value)}
                   className="w-20"
+                  placeholder="0.1"
+                  inputMode="decimal"
                 />
                 <Button
                   size="sm"

@@ -2,7 +2,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Search, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, ClipboardList, BarChart3, Building2, Settings } from 'lucide-react';
+import { LogOut, Search, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, ClipboardList, BarChart3, Building2, Settings, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DebugModeToggle } from '@/components/DebugModeToggle';
 import { AuthDiagnostics } from '@/components/AuthDiagnostics';
@@ -75,6 +75,13 @@ export default function Dashboard() {
       icon: BarChart3,
       path: "/dashboard/analytics",
       color: "bg-indigo-500"
+    },
+    {
+      title: "Reports Test",
+      description: "Test the report generation system",
+      icon: FileText,
+      path: "/reports/test",
+      color: "bg-orange-500"
     },
     {
       title: "Organization Settings",

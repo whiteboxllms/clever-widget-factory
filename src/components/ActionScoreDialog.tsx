@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Copy, User, Calendar, Wrench, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
-import { useScoringPrompts } from "@/hooks/useScoringPrompts";
+import { usePrompts } from "@/hooks/usePrompts";
 import { useActionScores, ActionScore } from "@/hooks/useActionScores";
 import { ScoreEntryForm } from "./ScoreEntryForm";
 import { ScoreDisplayCard } from "./ScoreDisplayCard";
@@ -49,7 +49,7 @@ export function ActionScoreDialog({
   const [linkedIssue, setLinkedIssue] = useState<any>(null);
 
   const { toast } = useToast();
-  const { prompts } = useScoringPrompts();
+  const { prompts } = usePrompts();
   const { createScore, updateScore } = useActionScores();
 
   // Determine asset context for the action

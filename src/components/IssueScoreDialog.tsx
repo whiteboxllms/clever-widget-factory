@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useScoringPrompts } from '@/hooks/useScoringPrompts';
+import { usePrompts } from '@/hooks/usePrompts';
 import { useAssetScores, AssetScore } from '@/hooks/useAssetScores';
 import { useToast } from '@/hooks/use-toast';
 import { ScoreEntryForm } from './ScoreEntryForm';
@@ -44,7 +44,7 @@ interface IssueScoreDialogProps {
 }
 
 export function IssueScoreDialog({ open, onOpenChange, issue, tool, existingScore, onScoreUpdated }: IssueScoreDialogProps) {
-  const { prompts, getDefaultPrompt } = useScoringPrompts();
+  const { prompts, getDefaultPrompt } = usePrompts();
   const { createScore, updateScore } = useAssetScores();
   const { toast } = useToast();
   

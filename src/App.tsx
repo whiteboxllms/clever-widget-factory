@@ -32,6 +32,7 @@ import NotFound from "./pages/NotFound";
 import AnalyticsDashboard from "./pages/AnalyticsDashboard";
 import AcceptInvite from "./pages/AcceptInvite";
 import SettingsPage from "./pages/Settings";
+import ReportsTestPage from "./pages/ReportsTestPage";
 
 const queryClient = new QueryClient();
 
@@ -120,6 +121,11 @@ function AppContent() {
       <Route path="/prompts" element={
         <ProtectedRoute>
           <ScoringPrompts />
+        </ProtectedRoute>
+      } />
+      <Route path="/reports/test" element={
+        <ProtectedRoute>
+          <ReportsTestPage />
         </ProtectedRoute>
       } />
       <Route path="/dashboard/analytics" element={

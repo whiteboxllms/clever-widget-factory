@@ -14,6 +14,7 @@ interface TiptapEditorProps {
   placeholder?: string;
   className?: string;
   readOnly?: boolean;
+  autoFocus?: boolean;
 }
 
 const TiptapEditor: React.FC<TiptapEditorProps> = ({
@@ -24,6 +25,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   placeholder = 'Start typing...',
   className,
   readOnly = false,
+  autoFocus = false,
 }) => {
   const editor = useEditor({
     extensions: [
@@ -57,6 +59,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       editor.commands.setContent(value || '');
     }
   }, [editor, value]);
+
+  // Auto-focus when autoFocus prop is true
+  useEffect(() => {
+    if (autoFocus && editor) {
+      // Small delay to ensure the editor is fully rendered
+      const timer = setTimeout(() => {
+        editor.commands.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [autoFocus, editor]);
 
   if (!editor) {
     return null;

@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { supabase } from "@/integrations/supabase/client"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -110,4 +111,67 @@ export function getActionBorderStyle(action: {
     borderColor: '',
     textColor: ''
   };
+}
+
+/**
+ * Process stock consumption for an action when it's completed
+ * This function handles decrementing stock quantities and logging usage
+ */
+export async function processStockConsumption(
+  requiredStock: { part_id: string; quantity: number; part_name: string; }[],
+  actionId: string,
+  userId: string,
+  actionTitle: string,
+  organizationId: string,
+  missionId?: string
+): Promise<void> {
+  if (!requiredStock || requiredStock.length === 0) {
+    return; // No stock to process
+  }
+
+  for (const stockItem of requiredStock) {
+    try {
+      // Get current quantity and update parts table
+      const { data: partData, error: fetchError } = await supabase
+        .from('parts')
+        .select('current_quantity')
+        .eq('id', stockItem.part_id)
+        .single();
+
+      if (fetchError) {
+        console.error(`Failed to fetch part ${stockItem.part_id}:`, fetchError);
+        throw new Error(`Part with ID ${stockItem.part_id} not found or access denied`);
+      }
+
+      const newQuantity = Math.max(0, (partData?.current_quantity || 0) - stockItem.quantity);
+      
+      const { error: updateError } = await supabase
+        .from('parts')
+        .update({ current_quantity: newQuantity })
+        .eq('id', stockItem.part_id);
+
+      if (updateError) throw updateError;
+
+      // Log to parts_history table
+      const { error: historyError } = await supabase
+        .from('parts_history')
+        .insert({
+          part_id: stockItem.part_id,
+          change_type: 'quantity_remove',
+          old_quantity: partData?.current_quantity || 0,
+          new_quantity: newQuantity,
+          quantity_change: -stockItem.quantity,
+          changed_by: userId,
+          change_reason: `Used for action: ${actionTitle} - ${stockItem.quantity} ${stockItem.part_name}`,
+          organization_id: organizationId
+        });
+
+      if (historyError) {
+        console.error('Error creating parts history:', historyError);
+      }
+    } catch (error) {
+      console.error(`Error processing stock item ${stockItem.part_id}:`, error);
+      throw error;
+    }
+  }
 }

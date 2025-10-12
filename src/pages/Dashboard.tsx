@@ -2,7 +2,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Package, Search, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, ClipboardList, BarChart3, Building2, Settings } from 'lucide-react';
+import { LogOut, Search, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, ClipboardList, BarChart3, Building2, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DebugModeToggle } from '@/components/DebugModeToggle';
 import { AuthDiagnostics } from '@/components/AuthDiagnostics';
@@ -47,13 +47,6 @@ export default function Dashboard() {
       icon: Box,
       path: "/combined-assets",
       color: "bg-green-500"
-    },
-    {
-      title: "Stock",
-      description: "Manage inventory and parts",
-      icon: Package,
-      path: "/inventory",
-      color: "bg-orange-500"
     },
     {
       title: "Actions",

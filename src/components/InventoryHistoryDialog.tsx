@@ -51,30 +51,12 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
 
       if (partsError) throw partsError;
 
-      // Fetch from inventory_usage table with mission details (LEFT JOIN to include manual usage)
-      const { data: missionUsage, error: missionError } = await supabase
-        .from('inventory_usage')
-        .select(`
-          *,
-          missions(
-            id,
-            mission_number,
-            title,
-            status
-          )
-        `)
-        .eq('part_id', partId)
-        .order('created_at', { ascending: false });
-
-      if (missionError) throw missionError;
+      // Note: inventory_usage table doesn't exist - all usage is tracked in parts_history
 
       // Get unique user IDs from parts history
       const userIds = new Set<string>();
       partsHistory?.forEach(entry => {
         if (entry.changed_by) userIds.add(entry.changed_by);
-      });
-      missionUsage?.forEach(usage => {
-        if (usage.used_by) userIds.add(usage.used_by);
       });
 
       // Fetch user names using the database function
@@ -93,41 +75,14 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
         }
       }
 
-      // Convert mission usage to history entry format
-      const missionHistoryEntries: HistoryEntry[] = (missionUsage || []).map(usage => {
-        const missionData = usage.missions as any;
-        const isManualUsage = !missionData || !usage.mission_id;
-        
-        return {
-          id: usage.id,
-          change_type: isManualUsage ? 'manual_usage' : 'mission_usage',
-          old_quantity: null,
-          new_quantity: null,
-          quantity_change: -usage.quantity_used,
-          changed_by: usage.used_by,
-          changed_by_name: userMap[usage.used_by] || (isManualUsage ? 'User' : 'Mission Team'),
-          change_reason: isManualUsage 
-            ? usage.usage_description || 'Manual usage'
-            : `Used for Mission #${missionData?.mission_number}: ${missionData?.title}`,
-          changed_at: usage.created_at,
-          mission_id: usage.mission_id,
-          mission_number: missionData?.mission_number,
-          mission_title: missionData?.title,
-          usage_description: usage.usage_description
-        };
-      });
-
       // Add user names to parts history entries
       const partsHistoryWithNames: HistoryEntry[] = (partsHistory || []).map(entry => ({
         ...entry,
         changed_by_name: userMap[entry.changed_by] || 'Unknown User'
       }));
 
-      // Combine and sort all history entries
-      const allHistory = [
-        ...partsHistoryWithNames,
-        ...missionHistoryEntries
-      ].sort((a, b) => new Date(b.changed_at).getTime() - new Date(a.changed_at).getTime());
+      // Sort all history entries by date
+      const allHistory = partsHistoryWithNames.sort((a, b) => new Date(b.changed_at).getTime() - new Date(a.changed_at).getTime());
 
       setHistory(allHistory);
     } catch (error) {
@@ -176,7 +131,7 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
       case 'manual_usage':
         return `Used ${Math.abs(entry.quantity_change!)} items (manual usage)`;
       case 'update':
-        return 'Updated item details';
+        return entry.change_reason || 'Updated item details';
       case 'create':
         return 'Created item';
       default:
@@ -317,7 +272,16 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
                                 </div>
                                 {entry.change_reason && (
                                   <div className="text-sm text-muted-foreground mt-1">
-                                    Reason: {entry.change_reason}
+                                    {entry.change_type === 'update' ? (
+                                      <div>
+                                        <div className="font-medium mb-1">Changes:</div>
+                                        <div className="bg-gray-50 p-2 rounded text-xs font-mono">
+                                          {entry.change_reason}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div>Reason: {entry.change_reason}</div>
+                                    )}
                                   </div>
                                 )}
                               </div>

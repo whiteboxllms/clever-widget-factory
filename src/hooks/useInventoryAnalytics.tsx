@@ -173,25 +173,9 @@ export function useInventoryAnalytics() {
         throw historyError;
       }
 
-      // Fetch detailed usage data with part, mission, and user information
-      const { data: usageData, error: usageError } = await supabase
-        .from("inventory_usage")
-        .select(`
-          id,
-          used_by,
-          created_at,
-          usage_description,
-          quantity_used,
-          part_id,
-          mission_id,
-          task_id
-        `)
-        .gte("created_at", sevenDaysAgo.toISOString());
-
-      if (usageError) {
-        console.error("Error fetching usage data:", usageError);
-        throw usageError;
-      }
+      // Note: inventory_usage table doesn't exist - all usage is tracked in parts_history
+      // Skip usage data fetch since it's not available
+      const usageData: any[] = [];
 
       // Fetch all user profiles for name mapping using secure function
       const { data: profilesData, error: profilesError } = await supabase

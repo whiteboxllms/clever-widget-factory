@@ -318,19 +318,7 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
     }
 
     try {
-      // Record inventory usage
-      const { error } = await supabase
-        .from('inventory_usage')
-        .insert({
-          mission_id: missionId,
-          part_id: resource.id,
-          quantity_used: resource.quantity || 1,
-          used_by: user.id,
-          usage_description: `Used ${resource.quantity || 1} ${resource.unit || 'pieces'} of ${resource.name} for mission`,
-          organization_id: organizationId
-        });
-
-      if (error) throw error;
+      // Note: inventory_usage table doesn't exist - usage is tracked in parts_history below
 
       // Get current quantity first, then update
       const { data: partData, error: fetchError } = await supabase

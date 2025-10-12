@@ -98,7 +98,7 @@ export function ManageIssueActionsDialog({
     const isCompleted = action.status === 'completed';
     const success = isCompleted 
       ? await markActionIncomplete(action.id)
-      : await markActionComplete(action.id);
+      : await markActionComplete(action);
     
     if (success) {
       await fetchActionsAndProfiles();

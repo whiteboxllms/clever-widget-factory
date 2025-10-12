@@ -37,6 +37,7 @@ export function CombinedAssetSelector({ selectedAssets, onAssetsChange }: Combin
   const [searchTerm, setSearchTerm] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [inputValues, setInputValues] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -102,7 +103,7 @@ export function CombinedAssetSelector({ selectedAssets, onAssetsChange }: Combin
         id: asset.id,
         name: asset.name,
         type: asset.type,
-        quantity: asset.type === 'stock' ? 1 : undefined
+        quantity: asset.type === 'stock' ? 0.1 : undefined
       };
       onAssetsChange([...selectedAssets, newAsset]);
       setShowSearch(false);
@@ -125,6 +126,28 @@ export function CombinedAssetSelector({ selectedAssets, onAssetsChange }: Combin
         ? { ...asset, quantity }
         : asset
     ));
+  };
+
+  const handleQuantityChange = (assetId: string, value: string) => {
+    // Update local input state immediately for responsive editing
+    setInputValues(prev => ({ ...prev, [assetId]: value }));
+    
+    // Parse and update the actual quantity if valid
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue) && numValue > 0) {
+      updateQuantity(assetId, numValue);
+    }
+  };
+
+  const handleQuantityBlur = (assetId: string, value: string) => {
+    // On blur, ensure we have a valid value
+    const numValue = parseFloat(value);
+    if (isNaN(numValue) || numValue <= 0) {
+      updateQuantity(assetId, 0.1);
+      setInputValues(prev => ({ ...prev, [assetId]: '0.1' }));
+    } else {
+      setInputValues(prev => ({ ...prev, [assetId]: value }));
+    }
   };
 
   return (
@@ -165,9 +188,12 @@ export function CombinedAssetSelector({ selectedAssets, onAssetsChange }: Combin
                     type="number"
                     min="0.01"
                     step="0.01"
-                    value={asset.quantity || 1}
-                    onChange={(e) => updateQuantity(asset.id, parseFloat(e.target.value) || 0.01)}
+                    value={inputValues[asset.id] ?? (asset.quantity || 0.1).toString()}
+                    onChange={(e) => handleQuantityChange(asset.id, e.target.value)}
+                    onBlur={(e) => handleQuantityBlur(asset.id, e.target.value)}
                     className="w-20"
+                    placeholder="0.1"
+                    inputMode="decimal"
                   />
                 )}
                 <Button

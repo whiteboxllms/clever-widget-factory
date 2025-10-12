@@ -78,6 +78,36 @@ export function UnifiedActionDialog({
   const [isFormInitialized, setIsFormInitialized] = useState(false);
   const [currentActionId, setCurrentActionId] = useState<string | null>(null);
   const [currentContextType, setCurrentContextType] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>('');
+  
+  // Compute the default tab based on action state
+  const getDefaultTab = () => {
+    if (action && !isCreating) {
+      const policyToCheck = action.policy || '';
+      const hasPolicy = policyToCheck && 
+        policyToCheck.trim() && 
+        policyToCheck !== '<p></p>' && 
+        policyToCheck !== '<p><br></p>' &&
+        policyToCheck !== '<p>&nbsp;</p>';
+      const hasPlanCommitment = action.plan_commitment === true;
+      
+      // Use same logic as border colors:
+      // Blue border: hasPolicy && hasPlanCommitment (ready to work)
+      // Yellow border: hasImplementationUpdates && hasPolicy && hasPlanCommitment (implementation in progress)
+      const shouldDefaultToImplementation = hasPolicy && hasPlanCommitment;
+      
+      console.log('Computing default tab:', {
+        actionPolicy: action.policy,
+        hasPolicy,
+        hasPlanCommitment,
+        shouldDefaultToImplementation,
+        defaultTab: shouldDefaultToImplementation ? 'observations' : 'plan'
+      });
+      
+      return shouldDefaultToImplementation ? 'observations' : 'plan';
+    }
+    return 'plan';
+  };
   
   const { uploadFiles, isUploading } = useFileUpload();
 
@@ -287,23 +317,6 @@ export function UnifiedActionDialog({
   const processStockConsumption = async (requiredStock: any[], actionId: string, userId: string) => {
     for (const stockItem of requiredStock) {
       try {
-        // Determine mission_id context based on action type
-        const missionId = formData.mission_id || '00000000-0000-0000-0000-000000000000';
-        
-        // Log to inventory_usage table
-        const { error: usageError } = await supabase
-          .from('inventory_usage')
-          .insert({
-            mission_id: missionId,
-            part_id: stockItem.part_id,
-            quantity_used: stockItem.quantity,
-            used_by: userId,
-            usage_description: `Used for action: ${formData.title} (Action ID: ${actionId})`,
-            organization_id: organizationId
-          });
-
-        if (usageError) throw usageError;
-
         // Get current quantity and update parts table
         const { data: partData, error: fetchError } = await supabase
           .from('parts')
@@ -311,7 +324,10 @@ export function UnifiedActionDialog({
           .eq('id', stockItem.part_id)
           .single();
 
-        if (fetchError) throw fetchError;
+        if (fetchError) {
+          console.error(`Failed to fetch part ${stockItem.part_id}:`, fetchError);
+          throw new Error(`Part with ID ${stockItem.part_id} not found or access denied`);
+        }
 
         const newQuantity = Math.max(0, (partData?.current_quantity || 0) - stockItem.quantity);
         
@@ -785,23 +801,7 @@ export function UnifiedActionDialog({
           </div>
 
           {/* Rich Text Content */}
-          <Tabs defaultValue={(() => {
-            // Check both action.policy and formData.policy to handle different states
-            const policyToCheck = formData.policy || action?.policy || '';
-            const hasPolicy = policyToCheck && 
-              policyToCheck.trim() && 
-              policyToCheck !== '<p></p>' && 
-              policyToCheck !== '<p><br></p>' &&
-              policyToCheck !== '<p>&nbsp;</p>';
-            console.log('Tab defaulting logic:', {
-              actionPolicy: action?.policy,
-              formDataPolicy: formData.policy,
-              policyToCheck,
-              hasPolicy,
-              defaultValue: hasPolicy ? 'observations' : 'plan'
-            });
-            return hasPolicy ? "observations" : "plan";
-          })()} className="w-full">
+          <Tabs value={activeTab || getDefaultTab()} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="plan">Policy</TabsTrigger>
               <TabsTrigger value="observations">Implementation</TabsTrigger>

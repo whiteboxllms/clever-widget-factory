@@ -25,6 +25,7 @@ interface CombinedAsset {
   is_checked_out?: boolean;
   checked_out_to?: string;
   checked_out_user_id?: string;
+  checked_out_date?: string;
   accountable_person_id?: string;
   accountable_person_name?: string; // Will be populated from user lookup
   accountable_person_color?: string; // Favorite color of accountable person
@@ -167,6 +168,19 @@ export const CombinedAssetCard = ({
           {asset.is_checked_out && asset.checked_out_to && (
             <div>
               <span className="font-medium">Checked out to:</span> {asset.checked_out_to}
+              {asset.checked_out_date && (
+                <div className="text-xs text-muted-foreground mt-1">
+                  Since {new Date(asset.checked_out_date).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                  }) + ' at ' + new Date(asset.checked_out_date).toLocaleTimeString('en-US', {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                  })}
+                </div>
+              )}
             </div>
           )}
 

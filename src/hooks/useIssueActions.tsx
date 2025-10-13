@@ -4,6 +4,7 @@ import { toast } from '@/hooks/use-toast';
 import { BaseAction } from '@/types/actions';
 import { processStockConsumption } from '@/lib/utils';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
+import { autoCheckinToolsForAction } from '@/lib/autoToolCheckout';
 
 export const useIssueActions = () => {
   const [loading, setLoading] = useState(false);
@@ -66,6 +67,18 @@ export const useIssueActions = () => {
         .eq('id', action.id);
 
       if (error) throw error;
+
+      // Auto-checkin tools
+      try {
+        await autoCheckinToolsForAction({
+          actionId: action.id,
+          organizationId: organizationId,
+          checkinReason: 'Action completed',
+          notes: 'Auto-checked in when action was completed'
+        });
+      } catch (checkinError) {
+        console.error('Auto-checkin failed:', checkinError);
+      }
 
       toast({
         title: 'Success',

@@ -28,6 +28,7 @@ export interface CombinedAsset {
   is_checked_out?: boolean;
   checked_out_to?: string;
   checked_out_user_id?: string;
+  checked_out_date?: string;
   accountable_person_id?: string;
   accountable_person_name?: string; // Resolved name from accountable_person_id
   accountable_person_color?: string; // Favorite color of accountable person
@@ -40,6 +41,7 @@ type AssetsQueryOptions = {
   limit?: number;
   page?: number;
   searchDescriptions?: boolean;
+  showLowStock?: boolean;
 };
 
 export const useCombinedAssets = (showRemovedItems: boolean = false, options?: AssetsQueryOptions) => {
@@ -76,6 +78,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
       const effectiveLimit = overrides?.limit ?? currentLimitRef.current;
       const effectivePage = overrides?.page ?? currentPageRef.current;
       const includeDescriptions = overrides?.searchDescriptions ?? options?.searchDescriptions ?? false;
+      const effectiveShowLowStock = overrides?.showLowStock ?? options?.showLowStock ?? false;
       if (overrides?.search !== undefined) currentSearchRef.current = overrides.search;
       if (overrides?.limit !== undefined) currentLimitRef.current = overrides.limit!;
       if (overrides?.page !== undefined) currentPageRef.current = overrides.page!;
@@ -154,9 +157,21 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
         partsQuery = partsQuery.or(fields.join(','));
       }
 
-      const partsOffset = toolsOffset; // keep same paging window size for both
-      const partsRangeEnd = partsOffset + effectiveLimit - 1;
-      partsQuery = partsQuery.order('name').range(partsOffset, partsRangeEnd);
+      // When showing low stock, we need to fetch ALL parts to find all low stock items
+      // instead of just the paginated subset
+      if (effectiveShowLowStock) {
+        // Don't apply pagination when filtering for low stock - we need all parts
+        // Filter for parts that have minimum_quantity set and are greater than 0
+        partsQuery = partsQuery
+          .not('minimum_quantity', 'is', null)
+          .gt('minimum_quantity', 0)
+          .order('name');
+      } else {
+        // Normal pagination for other cases
+        const partsOffset = toolsOffset; // keep same paging window size for both
+        const partsRangeEnd = partsOffset + effectiveLimit - 1;
+        partsQuery = partsQuery.order('name').range(partsOffset, partsRangeEnd);
+      }
 
       // Kick off all independent requests in parallel
       console.time('[perf] assets: parallel fetch');
@@ -164,7 +179,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
       const partsPromise = partsQuery;
       const checkoutsPromise = supabase
         .from('checkouts')
-        .select('tool_id, user_name, user_id')
+        .select('tool_id, user_name, user_id, checkout_date')
         .eq('is_returned', false);
       const issuesPromise = supabase
         .from('issues')
@@ -194,9 +209,13 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
 
       // Build helper maps
       console.time('[perf] assets: build checkoutMap');
-      const checkoutMap = new Map<string, { user_name: string; user_id: string }>();
+      const checkoutMap = new Map<string, { user_name: string; user_id: string; checkout_date: string }>();
       checkoutsResp.data?.forEach(checkout => {
-        checkoutMap.set(checkout.tool_id, { user_name: checkout.user_name, user_id: checkout.user_id });
+        checkoutMap.set(checkout.tool_id, { 
+          user_name: checkout.user_name, 
+          user_id: checkout.user_id,
+          checkout_date: checkout.checkout_date
+        });
       });
       console.timeEnd('[perf] assets: build checkoutMap');
 
@@ -224,9 +243,37 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
 
       // Transform and combine data
       console.time('[perf] assets: transform+combine');
+      
+      // Transform parts to stock first
+      let transformedParts = (partsResponse.data || []).map(part => {
+        const parentStructureName = part.parent_structure_id ? parentStructureMap.get(part.parent_structure_id) : null;
+        const accountablePersonName = part.accountable_person_id ? getUserName(part.accountable_person_id) : null;
+        const accountablePersonColor = part.accountable_person_id ? getUserColor(part.accountable_person_id) : null;
+        return {
+          ...part,
+          type: 'stock' as const,
+          parent_structure_name: parentStructureName,
+          area_display: parentStructureName || part.legacy_storage_vicinity,
+          has_issues: false,
+          is_checked_out: false,
+          accountable_person_name: accountablePersonName,
+          accountable_person_color: accountablePersonColor
+        };
+      });
+
+      // Apply low stock filtering client-side if needed
+      if (effectiveShowLowStock) {
+        transformedParts = transformedParts.filter(part => 
+          part.minimum_quantity !== null && 
+          part.minimum_quantity > 0 && 
+          part.current_quantity < part.minimum_quantity
+        );
+      }
+
       const transformedAssets: CombinedAsset[] = [
-        // Transform tools to assets
-        ...(toolsResponse.data || []).map(tool => {
+        // Only include tools (assets) when NOT showing low stock
+        // When showing low stock, we only want stock items
+        ...(effectiveShowLowStock ? [] : (toolsResponse.data || []).map(tool => {
           const checkout = checkoutMap.get(tool.id);
           const parentStructureName = tool.parent_structure_id ? parentStructureMap.get(tool.parent_structure_id) : null;
           const accountablePersonName = tool.accountable_person_id ? getUserName(tool.accountable_person_id) : null;
@@ -240,26 +287,13 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
             is_checked_out: checkoutMap.has(tool.id),
             checked_out_to: checkout?.user_name,
             checked_out_user_id: checkout?.user_id,
+            checked_out_date: checkout?.checkout_date,
             accountable_person_name: accountablePersonName,
             accountable_person_color: accountablePersonColor
           };
-        }),
-        // Transform parts to stock
-        ...(partsResponse.data || []).map(part => {
-          const parentStructureName = part.parent_structure_id ? parentStructureMap.get(part.parent_structure_id) : null;
-          const accountablePersonName = part.accountable_person_id ? getUserName(part.accountable_person_id) : null;
-          const accountablePersonColor = part.accountable_person_id ? getUserColor(part.accountable_person_id) : null;
-          return {
-            ...part,
-            type: 'stock' as const,
-            parent_structure_name: parentStructureName,
-            area_display: parentStructureName || part.legacy_storage_vicinity,
-            has_issues: false,
-            is_checked_out: false,
-            accountable_person_name: accountablePersonName,
-            accountable_person_color: accountablePersonColor
-          };
-        })
+        })),
+        // Add filtered parts
+        ...transformedParts
       ];
       console.timeEnd('[perf] assets: transform+combine');
       console.time('[perf] assets: set state');

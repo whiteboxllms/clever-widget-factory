@@ -8,6 +8,8 @@ import { useToast } from '@/hooks/use-toast';
 import { ImplementationUpdate } from '@/types/actions';
 import { formatDistanceToNow } from 'date-fns';
 import { Plus, Edit2, Trash2, Check, X } from 'lucide-react';
+import { activatePlannedCheckoutsIfNeeded } from '@/lib/autoToolCheckout';
+import { useOrganizationId } from '@/hooks/useOrganizationId';
 
 interface ActionImplementationUpdatesProps {
   actionId: string;
@@ -17,6 +19,7 @@ interface ActionImplementationUpdatesProps {
 
 export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: ActionImplementationUpdatesProps) {
   const { toast } = useToast();
+  const organizationId = useOrganizationId();
   const [updates, setUpdates] = useState<ImplementationUpdate[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -158,13 +161,26 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
       // Refresh updates to show the new one immediately
       await fetchUpdates();
       
+      // Check if this is the second implementation update (moving from agreement to actual work)
+      // and activate planned checkouts if needed
+      if (updates.length === 1) {
+        try {
+          await activatePlannedCheckoutsIfNeeded(actionId, organizationId);
+        } catch (checkoutError) {
+          console.error('Error activating planned checkouts:', checkoutError);
+          // Don't fail the update if checkout fails - this is a background operation
+        }
+      }
+      
       // Don't call onUpdate for add operations to keep action open
       // onUpdate?.();
 
-      toast({
-        title: "Update added",
-        description: "Implementation update has been saved",
-      });
+      if (updates.length > 0) {
+        toast({
+          title: "Update added",
+          description: "Implementation update has been saved",
+        });
+      }
     } catch (error) {
       console.error('Error adding update:', error);
       toast({

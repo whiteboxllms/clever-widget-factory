@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # Database Restoration and Migration Script
+# Run this after stopping the supabase db.
 # Usage: ./scripts/restore-and-migrate.sh [--prod]
 # --prod flag will run against production database
 
@@ -15,8 +16,8 @@ NC='\033[0m' # No Color
 
 # Default to local
 PROD_MODE=false
-BACKUP_FILE="backups/db_cluster-10-10-2025@17-03-17.backup"
-MIGRATIONS_DIR="supabase/migrations_archive/20251011_migrations"
+BACKUP_FILE="/Users/stefanhamilton/dev/clever-widget-factory/db_cluster-12-10-2025@17-04-52.backup"
+MIGRATIONS_DIR="supabase/migrations_archive/20251013_consolidated"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do

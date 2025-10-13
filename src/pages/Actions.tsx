@@ -16,13 +16,14 @@ import { ScoreButton } from '@/components/ScoreButton';
 import { useActionScores } from '@/hooks/useActionScores';
 import { BaseAction, Profile } from '@/types/actions';
 import { cn, hasActualContent, getActionBorderStyle } from '@/lib/utils';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 // Using unified BaseAction interface from types/actions.ts
 
 export default function Actions() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [actions, setActions] = useState<BaseAction[]>([]);
   const [filteredActions, setFilteredActions] = useState<BaseAction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -249,6 +250,19 @@ export default function Actions() {
     fetchActions();
   }, []);
 
+  // Handle action URL parameter
+  useEffect(() => {
+    const actionId = searchParams.get('action');
+    if (actionId && actions.length > 0) {
+      const action = actions.find(a => a.id === actionId);
+      if (action) {
+        handleEditAction(action);
+        // Clear the URL parameter after opening the action
+        setSearchParams({});
+      }
+    }
+  }, [actions, searchParams, setSearchParams]);
+
   // Reset assignee filter if the selected assignee is not in active profiles
   useEffect(() => {
     if (assigneeFilter !== 'all' && assigneeFilter !== 'me' && assigneeFilter !== 'unassigned') {
@@ -335,20 +349,16 @@ export default function Actions() {
     return 'bg-muted text-muted-foreground';
   };
 
-  // Sort actions: in-progress first, then actions with implementation, then others
+  // Sort actions: in-progress first, then by updated_at (most recent first)
   const sortedFilteredActions = [...filteredActions].sort((a, b) => {
     // First priority: in-progress status
     if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
     if (b.status === 'in_progress' && a.status !== 'in_progress') return 1;
     
-    // Second priority: actions with implementation text (observations field)
-    const aHasImplementation = hasActualContent(a.observations);
-    const bHasImplementation = hasActualContent(b.observations);
-    
-    if (aHasImplementation && !bHasImplementation) return -1;
-    if (bHasImplementation && !aHasImplementation) return 1;
-    
-    return 0;
+    // Within same status group, sort by updated_at (most recent first)
+    const aUpdated = new Date(a.updated_at).getTime();
+    const bUpdated = new Date(b.updated_at).getTime();
+    return bUpdated - aUpdated;
   });
 
   const unresolved = sortedFilteredActions.filter(a => a.status !== 'completed');

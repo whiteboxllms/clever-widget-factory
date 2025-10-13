@@ -105,7 +105,7 @@ export default function EditMission() {
         .from('actions')
         .select('*')
         .eq('mission_id', missionId)
-        .order('created_at', { ascending: true });
+        .order('updated_at', { ascending: false });
 
       if (tasksError) throw tasksError;
 

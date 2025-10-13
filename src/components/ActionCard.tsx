@@ -21,6 +21,7 @@ import { ActionImplementationUpdates } from './ActionImplementationUpdates';
 import TiptapEditor from './TiptapEditor';
 import { hasActualContent, sanitizeRichText, getActionBorderStyle, processStockConsumption } from '@/lib/utils';
 import { BaseAction } from '@/types/actions';
+import { autoCheckinToolsForAction } from '@/lib/autoToolCheckout';
 
 interface Profile {
   id: string;
@@ -481,6 +482,18 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
         .eq('id', action.id);
 
       if (error) throw error;
+
+      // Auto-checkin tools
+      try {
+        await autoCheckinToolsForAction({
+          actionId: action.id,
+          organizationId: organizationId,
+          checkinReason: 'Action completed',
+          notes: 'Auto-checked in when action was completed'
+        });
+      } catch (checkinError) {
+        console.error('Auto-checkin failed:', checkinError);
+      }
 
       // Clear unsaved change flags since we just saved everything
       setHasUnsavedPolicy(false);

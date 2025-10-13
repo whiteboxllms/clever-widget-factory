@@ -80,7 +80,8 @@ export const CombinedAssetsContainer = () => {
     search: searchTerm,
     limit,
     page,
-    searchDescriptions
+    searchDescriptions,
+    showLowStock
   });
 
   useEffect(() => {
@@ -152,6 +153,12 @@ export const CombinedAssetsContainer = () => {
     fetchAssets({ search: searchRef.current, page: 0, limit, append: false });
   }, [showRemovedItems, searchDescriptions]);
 
+  // Refetch when Low Stock filter changes (server-side filtering)
+  useEffect(() => {
+    setPage(0);
+    fetchAssets({ search: searchRef.current, page: 0, limit, append: false, showLowStock });
+  }, [showLowStock]);
+
   // Filter assets based on current filters
   const filteredAssets = useMemo(() => {
     console.time('[perf] container: filter assets');
@@ -178,20 +185,13 @@ export const CombinedAssetsContainer = () => {
       // Issues filter
       if (showWithIssues && !asset.has_issues) return false;
 
-      // Low stock filter
-      if (showLowStock) {
-        if (asset.type !== 'stock') return false;
-        const isLowStock = asset.minimum_quantity !== null && 
-                          asset.minimum_quantity > 0 && 
-                          asset.current_quantity < asset.minimum_quantity;
-        if (!isLowStock) return false;
-      }
+      // Note: Low stock filter is now handled server-side in useCombinedAssets hook
 
       return matchesSearch;
     });
     // eslint-disable-next-line no-unreachable
     // unreachable comment to indicate end timing after return not possible; use finally-like outside
-  }, [assets, searchTerm, showOnlyAssets, showOnlyStock, showMyCheckedOut, showWithIssues, showLowStock, user?.email]);
+  }, [assets, searchTerm, showOnlyAssets, showOnlyStock, showMyCheckedOut, showWithIssues, user?.email]);
 
   // Measure after filtering recalculates by referencing its dependencies
   useEffect(() => {

@@ -5,12 +5,14 @@ import { useToast } from '@/hooks/use-toast';
 export interface CheckoutHistory {
   id: string;
   type?: string;
-  checkout_date: string;
+  checkout_date: string | null;
+  created_at: string;
   expected_return_date?: string;
   user_name: string;
   intended_usage?: string;
   notes?: string;
   is_returned: boolean;
+  action_id?: string | null;
   checkin?: {
     id: string;
     checkin_date: string;
@@ -71,7 +73,7 @@ export const useToolHistory = () => {
           )
         `)
         .eq('tool_id', toolId)
-        .order('checkout_date', { ascending: false });
+        .order('created_at', { ascending: false }); // Order by created_at to show planned checkouts properly
 
       if (checkoutsError) throw checkoutsError;
 
@@ -172,14 +174,15 @@ export const useToolHistory = () => {
           id: checkin.id,
           type: 'checkin',
           checkout_date: checkin.checkin_date,
+          created_at: checkin.checkin_date, // Use checkin_date as created_at for sorting
           user_name: checkin.user_name,
           is_returned: true,
           checkin: checkin
         })),
         ...issueHistoryWithNames
       ].sort((a, b) => {
-        const dateA = new Date('checkout_date' in a ? a.checkout_date : a.changed_at);
-        const dateB = new Date('checkout_date' in b ? b.checkout_date : b.changed_at);
+        const dateA = new Date('checkout_date' in a ? (a.checkout_date || a.created_at) : a.changed_at);
+        const dateB = new Date('checkout_date' in b ? (b.checkout_date || b.created_at) : b.changed_at);
         return dateB.getTime() - dateA.getTime();
       });
       

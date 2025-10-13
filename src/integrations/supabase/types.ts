@@ -107,6 +107,7 @@ export type Database = {
           qa_approved_at: string | null
           required_stock: Json | null
           required_tools: string[] | null
+          required_tool_serial_numbers: string[] | null
           score: number | null
           scoring_data: Json | null
           status: string
@@ -137,6 +138,7 @@ export type Database = {
           qa_approved_at?: string | null
           required_stock?: Json | null
           required_tools?: string[] | null
+          required_tool_serial_numbers?: string[] | null
           score?: number | null
           scoring_data?: Json | null
           status?: string
@@ -167,6 +169,7 @@ export type Database = {
           qa_approved_at?: string | null
           required_stock?: Json | null
           required_tools?: string[] | null
+          required_tool_serial_numbers?: string[] | null
           score?: number | null
           scoring_data?: Json | null
           status?: string
@@ -319,8 +322,9 @@ export type Database = {
       }
       checkouts: {
         Row: {
+          action_id: string | null
           before_image_url: string | null
-          checkout_date: string
+          checkout_date: string | null
           created_at: string
           expected_return_date: string | null
           id: string
@@ -334,6 +338,7 @@ export type Database = {
           user_name: string
         }
         Insert: {
+          action_id?: string | null
           before_image_url?: string | null
           checkout_date?: string
           created_at?: string
@@ -349,6 +354,7 @@ export type Database = {
           user_name: string
         }
         Update: {
+          action_id?: string | null
           before_image_url?: string | null
           checkout_date?: string
           created_at?: string

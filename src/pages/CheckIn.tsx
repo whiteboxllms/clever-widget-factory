@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Package, Calendar, User, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Package, Calendar, User, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -197,6 +197,18 @@ export default function CheckIn() {
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4" />
                         <span>Out for {daysOut} day{daysOut !== 1 ? 's' : ''}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        <span>Since {new Date(checkout.checkout_date).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        }) + ' at ' + new Date(checkout.checkout_date).toLocaleTimeString('en-US', {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true
+                        })}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className={getStatusColor(checkout.tools.status)}>

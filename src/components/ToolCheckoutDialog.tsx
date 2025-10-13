@@ -57,19 +57,25 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
 
-  // Fetch user profile when user changes
+  // Resolve user full name consistently: prefer auth user_metadata.full_name, fallback to RPC, then email
   useEffect(() => {
-    const fetchUserProfile = async () => {
-      if (user) {
-        // Use secure function for user's own display name
-        const displayName = await supabase
-          .rpc('get_user_display_name', { target_user_id: user.id });
-        
-        setUserFullName(displayName.data || user.email || "");
+    const resolveUserName = async () => {
+      if (!user) return;
+      const meta = (user as unknown as { user_metadata?: { full_name?: string } })?.user_metadata;
+      const metaName = meta?.full_name;
+      if (metaName && metaName.trim().length > 0) {
+        setUserFullName(metaName);
+        return;
+      }
+      try {
+        const displayName = await supabase.rpc('get_user_display_name', { target_user_id: user.id });
+        setUserFullName((displayName.data as string) || user.email || "");
+      } catch {
+        setUserFullName(user.email || "");
       }
     };
 
-    fetchUserProfile();
+    resolveUserName();
   }, [user]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -177,13 +183,27 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
         throw new Error('Failed to verify tool status');
       }
 
+      // Check if tool is already checked out and show warning
       if (toolData?.status !== 'available') {
-        toast({
-          title: "Tool Not Available",
-          description: `This tool is currently ${toolData?.status || 'unavailable'}. Please refresh the page to see the current status.`,
-          variant: "destructive"
-        });
-        return;
+        const { data: currentCheckout } = await supabase
+          .from('checkouts')
+          .select('user_name, intended_usage, checkout_date')
+          .eq('tool_id', tool.id)
+          .eq('is_returned', false)
+          .not('checkout_date', 'is', null)
+          .order('checkout_date', { ascending: false })
+          .limit(1)
+          .single();
+
+        const confirmed = window.confirm(
+          `Warning: This tool is currently ${toolData?.status || 'unavailable'}.${
+            currentCheckout ? ` It's checked out to ${currentCheckout.user_name} for "${currentCheckout.intended_usage}".` : ''
+          }\n\nDo you want to proceed with the checkout anyway?`
+        );
+        
+        if (!confirmed) {
+          return;
+        }
       }
       let beforeImageUrl = null;
       if (form.beforeImageFiles.length > 0) {
@@ -201,7 +221,8 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
           intended_usage: form.intendedUsage || null,
           notes: form.notes || null,
           before_image_url: beforeImageUrl,
-          pre_existing_issues: form.preCheckoutIssues || null
+          pre_existing_issues: form.preCheckoutIssues || null,
+          action_id: taskId || null  // taskId is actually action ID in this context
         } as any)
         .select()
         .single();
@@ -216,7 +237,7 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
             mission_id: missionId,
             task_id: taskId || null,
             checkout_id: checkoutData.id
-          } as any);
+          });
 
         if (missionToolError) {
           console.error('Error linking tool to mission:', missionToolError);
@@ -247,7 +268,7 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
             status: 'active',
             related_checkout_id: checkoutData.id,
             report_photo_urls: beforeImageUrl ? [beforeImageUrl] : []
-          } as any);
+          });
 
         if (issueError) {
           console.error('Error creating issue from pre-checkout inspection:', issueError);

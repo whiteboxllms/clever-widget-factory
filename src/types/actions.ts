@@ -21,6 +21,7 @@ export interface BaseAction {
   estimated_duration?: string | null;
   estimated_completion_date?: string | null;
   required_tools?: string[];
+  required_tool_serial_numbers?: string[];
   required_stock?: { part_id: string; quantity: number; part_name: string; }[];
   attachments?: string[];
   issue_reference?: string | null;

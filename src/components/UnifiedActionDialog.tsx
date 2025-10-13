@@ -46,6 +46,7 @@ import { StockSelector } from './StockSelector';
 import { MultiParticipantSelector } from './MultiParticipantSelector';
 import { cn, sanitizeRichText, getActionBorderStyle } from "@/lib/utils";
 import { BaseAction, Profile, ActionCreationContext } from "@/types/actions";
+import { autoCheckinToolsForAction } from '@/lib/autoToolCheckout';
 
 interface UnifiedActionDialogProps {
   open: boolean;
@@ -79,6 +80,7 @@ export function UnifiedActionDialog({
   const [currentActionId, setCurrentActionId] = useState<string | null>(null);
   const [currentContextType, setCurrentContextType] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('');
+  const [isInImplementationMode, setIsInImplementationMode] = useState(false);
   
   // Compute the default tab based on action state
   const getDefaultTab = () => {
@@ -129,6 +131,7 @@ export function UnifiedActionDialog({
           setFormData({
             ...action,
             required_tools: action.required_tools || [],
+            required_tool_serial_numbers: action.required_tool_serial_numbers || [],
             required_stock: action.required_stock || [],
             attachments: action.attachments || []
           });
@@ -140,6 +143,7 @@ export function UnifiedActionDialog({
           setFormData({
             ...context.prefilledData,
             required_tools: context.prefilledData.required_tools || [],
+            required_tool_serial_numbers: context.prefilledData.required_tool_serial_numbers || [],
             required_stock: context.prefilledData.required_stock || [],
             attachments: context.prefilledData.attachments || []
           });
@@ -153,6 +157,7 @@ export function UnifiedActionDialog({
             status: 'not_started',
             plan_commitment: false,
             required_tools: [],
+            required_tool_serial_numbers: [],
             required_stock: [],
             attachments: []
           });
@@ -161,6 +166,13 @@ export function UnifiedActionDialog({
         setIsFormInitialized(true);
         setCurrentActionId(actionId);
         setCurrentContextType(contextType);
+        
+        // Check if action is in implementation mode
+        if (action && !isCreating) {
+          checkImplementationMode(action);
+        } else {
+          setIsInImplementationMode(false);
+        }
       }
     } else {
       // Reset tracking when dialog closes
@@ -237,6 +249,26 @@ export function UnifiedActionDialog({
     }
   };
 
+  const checkImplementationMode = async (action: BaseAction) => {
+    if (!action?.id) {
+      setIsInImplementationMode(false);
+      return;
+    }
+    
+    try {
+      const { data: updates } = await supabase
+        .from('action_implementation_updates')
+        .select('id')
+        .eq('action_id', action.id)
+        .limit(1);
+      
+      setIsInImplementationMode(updates && updates.length > 0);
+    } catch (error) {
+      console.error('Error checking implementation mode:', error);
+      setIsInImplementationMode(false);
+    }
+  };
+
   const handleReadyForReview = async () => {
     if (!action?.id) return;
     
@@ -294,6 +326,18 @@ export function UnifiedActionDialog({
         .eq('id', action.id);
 
       if (completeError) throw completeError;
+
+      // Auto-checkin tools
+      try {
+        await autoCheckinToolsForAction({
+          actionId: action.id,
+          organizationId: organizationId,
+          checkinReason: 'Action completed',
+          notes: 'Auto-checked in when action was completed'
+        });
+      } catch (checkinError) {
+        console.error('Auto-checkin failed:', checkinError);
+      }
 
       toast({
         title: "Success",
@@ -484,7 +528,7 @@ export function UnifiedActionDialog({
       // Normalize rich text content
       const normalizedPolicy = sanitizeRichText(formData.policy);
       
-      let actionStatus = formData.status || 'not_started';
+      const actionStatus = formData.status || 'not_started';
 
       const actionData: any = {
         title: formData.title.trim(),
@@ -494,6 +538,7 @@ export function UnifiedActionDialog({
         participants: formData.participants || [],
         estimated_duration: estimatedDuration,
         required_tools: formData.required_tools || [],
+        required_tool_serial_numbers: formData.required_tool_serial_numbers || [],
         required_stock: formData.required_stock || [],
         attachments: formData.attachments || [],
         mission_id: formData.mission_id || null,
@@ -516,6 +561,47 @@ export function UnifiedActionDialog({
           .single();
 
         if (error) throw error;
+
+        // After insert, create planned checkouts for any buffered tools (serials in formData.required_tool_serial_numbers)
+        try {
+          if ((formData.required_tool_serial_numbers || []).length > 0) {
+            // Resolve serials to tool rows
+            const { data: tools } = await supabase
+              .from('tools')
+              .select('id, serial_number')
+              .in('serial_number', formData.required_tool_serial_numbers || []);
+
+            // Get current user for user fields
+            const { data: { user } } = await supabase.auth.getUser();
+
+            const createdAction: { id: string; title?: string | null } = { id: (data as unknown as { id: string }).id, title: (data as unknown as { title?: string | null }).title };
+
+            for (const serial of (formData.required_tool_serial_numbers || [])) {
+              const tool = tools?.find(t => t.serial_number === serial);
+              if (!tool || !user) continue;
+
+              // Fetch action title for intended usage
+              const actionTitle = createdAction.title || 'Action';
+
+              // Create planned checkout for each buffered serial
+              await supabase
+                .from('checkouts')
+                .insert({
+                  tool_id: tool.id,
+                  user_id: user.id,
+                  user_name: user.user_metadata?.full_name || 'Unknown User',
+                  intended_usage: actionTitle,
+                  notes: `Planned for action: ${actionTitle}`,
+                  checkout_date: null,
+                  is_returned: false,
+                  action_id: createdAction.id,
+                  organization_id: organizationId
+                } as any);
+            }
+          }
+        } catch (planErr) {
+          console.error('Failed to create planned checkouts after action insert:', planErr);
+        }
 
         toast({
           title: "Success",
@@ -776,11 +862,14 @@ export function UnifiedActionDialog({
                 Assets
               </Label>
               <AssetSelector
-                selectedAssets={formData.required_tools || []}
+                selectedAssets={formData.required_tool_serial_numbers || []}
                 onAssetsChange={(assets) => setFormData(prev => ({ 
                   ...prev, 
-                  required_tools: assets 
+                  required_tool_serial_numbers: assets 
                 }))}
+                actionId={action?.id}
+                organizationId={organizationId}
+                isInImplementationMode={isInImplementationMode}
               />
             </div>
 

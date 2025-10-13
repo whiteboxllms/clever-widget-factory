@@ -132,34 +132,88 @@ export const ToolDetails = ({
                       {isCheckoutHistory(record) ? (
                         // Checkout/Check-in History
                         <>
-                          <div className="flex justify-between items-start mb-2">
+                          <div className="mb-2">
                             <div>
                               <p className="font-medium">{record.user_name}</p>
                               <p className="text-sm text-muted-foreground">
                                 {record.type === 'checkin' ? 'Check-in' : 'Checkout'} on{' '}
-                                {new Date(record.checkout_date).toLocaleDateString()}
+                                {(() => {
+                                  const dateToUse = record.type === 'checkin' && record.checkin?.checkin_date 
+                                    ? record.checkin.checkin_date 
+                                    : (record.checkout_date || record.created_at);
+                                  return new Date(dateToUse).toLocaleDateString('en-US', {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric'
+                                  }) + ' at ' + new Date(dateToUse).toLocaleTimeString('en-US', {
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                    hour12: true
+                                  });
+                                })()}
                               </p>
                             </div>
-                            <Badge variant={record.is_returned ? 'default' : 'secondary'}>
-                              {record.is_returned ? 'Returned' : 'Active'}
-                            </Badge>
                           </div>
                           
                           {record.intended_usage && (
                             <p className="text-sm mb-2">
-                              <span className="font-medium">Intended Usage:</span> {record.intended_usage}
+                              <span className="font-medium">Intended Usage:</span>{' '}
+                              {record.action_id ? (
+                                <a 
+                                  href={`/actions?action=${record.action_id}`}
+                                  className="text-blue-600 hover:text-blue-800 underline"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  {record.intended_usage}
+                                </a>
+                              ) : (
+                                record.intended_usage
+                              )}
                             </p>
                           )}
                           
-                          {record.notes && (
-                            <p className="text-sm mb-2">
-                              <span className="font-medium">Notes:</span> {record.notes}
-                            </p>
-                          )}
+                          {/* Notes removed from checkout display per new guidance */}
 
                           {record.checkin && (
                             <div className="mt-3 p-3 bg-muted rounded-md text-sm">
                               <p className="font-medium mb-1">Check-in Details:</p>
+                              {/* Combined: Check-in timestamp and duration */}
+                              {record.checkin.checkin_date && (
+                                <p className="mb-1">
+                                  <span className="font-medium">Check In at:</span>{' '}
+                                  {(() => {
+                                    const end = new Date(record.checkin!.checkin_date);
+                                    const tsStr = end.toLocaleDateString('en-US', {
+                                      year: 'numeric',
+                                      month: 'short',
+                                      day: 'numeric'
+                                    }) + ' at ' + end.toLocaleTimeString('en-US', {
+                                      hour: 'numeric',
+                                      minute: '2-digit',
+                                      hour12: true
+                                    });
+                                    if (!record.checkout_date) return tsStr;
+                                    const start = new Date(record.checkout_date as string);
+                                    const ms = Math.max(0, end.getTime() - start.getTime());
+                                    const minutes = Math.floor(ms / 60000);
+                                    const days = Math.floor(minutes / (60 * 24));
+                                    const hours = Math.floor((minutes % (60 * 24)) / 60);
+                                    const mins = minutes % 60;
+                                    const parts: string[] = [];
+                                    if (days) parts.push(`${days} day${days === 1 ? '' : 's'}`);
+                                    if (hours) parts.push(`${hours} hour${hours === 1 ? '' : 's'}`);
+                                    if (mins) parts.push(`${mins} minute${mins === 1 ? '' : 's'}`);
+                                    const duration = parts.join(', ');
+                                    return duration ? `${tsStr} after ${duration}` : tsStr;
+                                  })()}
+                                </p>
+                              )}
+                              {record.checkin.checkin_reason && (
+                                <p className="mb-1">
+                                  <span className="font-medium">Reason:</span> {record.checkin.checkin_reason}
+                                </p>
+                              )}
                               {record.checkin.problems_reported && (
                                 <p className="mb-1">
                                   <span className="font-medium">Problems:</span> {record.checkin.problems_reported}

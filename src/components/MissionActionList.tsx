@@ -55,7 +55,7 @@ export function MissionActionList({ missionId, profiles, canEdit = false, missio
       .from('actions')
       .select('*')
       .eq('mission_id', missionId)
-      .order('created_at', { ascending: true });
+      .order('updated_at', { ascending: false });
 
     if (error) {
       console.error('Error fetching actions:', error);

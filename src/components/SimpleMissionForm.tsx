@@ -38,6 +38,13 @@ interface Task {
   attachments?: string[];
 }
 
+interface Tool {
+  id: string;
+  name: string;
+  serial_number?: string;
+  status?: string;
+}
+
 interface Profile {
   id: string;
   user_id: string;
@@ -97,11 +104,37 @@ export function SimpleMissionForm({
   onMoveToBacklog,
   canMoveToBacklog = false
 }: SimpleMissionFormProps) {
+  const [tools, setTools] = useState<Tool[]>([]);
   const organizationId = useOrganizationId();
   const { toast } = useToast();
   const { uploadImages, isUploading: isImageUploading } = useImageUpload();
   const enhancedToast = useEnhancedToast();
   const tempPhotoStorage = useTempPhotoStorage();
+
+  useEffect(() => {
+    fetchTools();
+  }, []);
+
+  const fetchTools = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('tools')
+        .select('id, name, serial_number, status')
+        .neq('status', 'removed')
+        .order('name');
+
+      if (error) throw error;
+      setTools(data || []);
+    } catch (error) {
+      console.error('Error fetching tools:', error);
+    }
+  };
+
+  const getToolDetails = (toolNames: string[]) => {
+    return toolNames
+      .map(name => tools.find(tool => tool.name === name))
+      .filter((tool): tool is Tool => tool !== undefined);
+  };
   const [showTasks, setShowTasks] = useState(true);
   const [editingTaskIndex, setEditingTaskIndex] = useState<number | null>(null);
   const [creatingNewTask, setCreatingNewTask] = useState(false);
@@ -130,7 +163,7 @@ export function SimpleMissionForm({
         .from('actions')
         .select('*')
         .eq('mission_id', missionId)
-        .order('created_at', { ascending: true });
+        .order('updated_at', { ascending: false });
 
       if (error) throw error;
 
@@ -402,7 +435,7 @@ export function SimpleMissionForm({
           .from('actions')
           .select('*')
           .eq('mission_id', missionId)
-          .order('created_at', { ascending: true });
+          .order('updated_at', { ascending: false });
 
         if (existingTasks && existingTasks[index]) {
           // Delete from database
@@ -854,6 +887,18 @@ export function SimpleMissionForm({
                     </div>
                     <div>
                       <span className="font-medium">Tools:</span> {task.required_tools?.length || 0} tools
+                      {task.required_tools && task.required_tools.length > 0 && (
+                        <div className="mt-1 space-y-1">
+                          {getToolDetails(task.required_tools).map((tool, toolIndex) => (
+                            <div key={toolIndex} className="text-xs text-muted-foreground">
+                              • {tool.name}
+                              {tool.serial_number && (
+                                <span className="ml-1 font-mono">({tool.serial_number})</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 

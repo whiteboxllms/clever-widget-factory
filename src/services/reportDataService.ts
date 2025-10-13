@@ -1,42 +1,16 @@
 import { supabase } from '@/integrations/supabase/client';
 
-// Full action type with all related data
+// Simplified interfaces for essential fields only
 export interface Action {
   id: string;
   title: string;
   description?: string;
   policy?: string;
   observations?: string;
-  status: string;
-  assigned_to?: string;
-  created_at: string;
-  updated_at: string;
   completed_at?: string;
-  estimated_duration?: string;
-  required_tools?: string[];
-  required_stock?: any; // JSON field from database
-  attachments?: string[];
+  assigned_to?: string;
   participants?: string[];
-  plan_commitment?: boolean;
-  implementation_update_count?: number;
-  
-  // Related objects (populated by joins)
-  assignee?: {
-    user_id: string;
-    full_name: string;
-    role: string;
-  };
-  participants_details?: {
-    user_id: string;
-    full_name: string;
-    role: string;
-  }[];
-  mission?: {
-    id: string;
-    title: string;
-    mission_number: number;
-  };
-  implementation_updates?: ImplementationUpdate[];
+  attachments?: string[];
 }
 
 export interface ImplementationUpdate {
@@ -44,9 +18,6 @@ export interface ImplementationUpdate {
   action_id: string;
   update_text: string;
   created_at: string;
-  created_by?: string;
-  updated_by?: string;
-  attachments?: MissionAttachment[] | null; // May be null if join fails
 }
 
 export interface MissionAttachment {
@@ -67,21 +38,6 @@ export interface Issue {
   status: string;
   reported_at: string;
   reported_by: string;
-  context_type: string;
-  context_id: string;
-  damage_assessment?: string;
-  efficiency_loss_percentage?: number;
-  root_cause?: string;
-  resolution_notes?: string;
-  
-  // Related objects (may be null if join fails)
-  reporter?: {
-    full_name: string;
-  } | null;
-  context?: {
-    name: string;
-    category?: string;
-  } | null;
 }
 
 export interface Tool {
@@ -89,9 +45,6 @@ export interface Tool {
   name: string;
   description?: string;
   category?: string;
-  status: string;
-  serial_number?: string;
-  storage_location?: string;
   created_at: string;
 }
 
@@ -99,9 +52,8 @@ export interface Part {
   id: string;
   name: string;
   description?: string;
-  category?: string;
   current_quantity: number;
-  unit: string;
+  unit?: string;
   created_at: string;
 }
 
@@ -111,31 +63,15 @@ export interface PartsHistory {
   change_type: string;
   old_quantity: number;
   new_quantity: number;
-  quantity_change: number;
-  changed_by: string;
-  change_reason: string;
+  change_reason?: string;
   created_at: string;
-  
-  // Related objects (may be null if join fails)
-  part?: {
-    name: string;
-    unit: string;
-  } | null;
 }
 
 export interface ActionScore {
   id: string;
   action_id: string;
-  score: number;
-  scoring_data: any;
-  scored_at: string;
-  scored_by: string;
-  // Additional fields that exist in the actual table
   ai_response?: any;
-  likely_root_causes?: string[];
-  prompt_id?: string;
   created_at: string;
-  updated_at: string;
 }
 
 export interface ReportContext {
@@ -169,7 +105,8 @@ export interface CachedReportContext {
 
 /**
  * Aggregates all relevant farm activities for a given date range into a structured format
- * that can be transformed into AI prompts. Focuses on implementation updates and completed actions.
+ * that can be transformed into AI prompts. Includes implementation updates created in the date range,
+ * regardless of when the associated action was completed.
  */
 export async function aggregateReportContext(
   dateStart: string,
@@ -205,21 +142,12 @@ async function generateFreshContext(
   const errors: Array<{query: string, error: string}> = [];
   let partialData = false;
   
-  // 1. Completed Actions (with all related data)
+  // 1. Completed Actions (essential fields only)
   let actionsCompleted: Action[] = [];
   try {
     const { data, error } = await supabase
       .from('actions')
-      .select(`
-        *,
-        assignee:assigned_to(user_id, full_name, role),
-        participants_details:participants(user_id, full_name),
-        mission:mission_id(id, title, mission_number),
-        implementation_updates:action_implementation_updates(
-          *,
-          attachments:mission_attachments(*)
-        )
-      `)
+      .select('id, title, description, policy, observations, completed_at, assigned_to, participants, attachments')
       .eq('status', 'completed')
       .gte('completed_at', dateStart)
       .lte('completed_at', dateEnd + 'T23:59:59')
@@ -232,16 +160,12 @@ async function generateFreshContext(
     partialData = true;
   }
   
-  // 2. Issues Created
+  // 2. Issues Created (essential fields only)
   let issuesCreated: Issue[] = [];
   try {
     const { data, error } = await supabase
       .from('issues')
-      .select(`
-        *,
-        reporter:reported_by(full_name),
-        context:context_id(name, category)
-      `)
+      .select('id, description, issue_type, status, reported_at, reported_by')
       .gte('reported_at', dateStart)
       .lte('reported_at', dateEnd + 'T23:59:59')
       .order('reported_at', { ascending: false });
@@ -253,37 +177,30 @@ async function generateFreshContext(
     partialData = true;
   }
   
-  // 3. Issues Resolved (status changed to resolved)
+  // 3. Issues Resolved (essential fields only)
   let issuesResolved: Issue[] = [];
   try {
     const { data, error } = await supabase
-      .from('issue_history')
-      .select(`
-        *,
-        issue:issue_id(
-          *,
-          reporter:reported_by(full_name),
-          context:context_id(name, category)
-        )
-      `)
-      .eq('new_status', 'resolved')
-      .gte('changed_at', dateStart)
-      .lte('changed_at', dateEnd + 'T23:59:59')
-      .order('changed_at', { ascending: false });
+      .from('issues')
+      .select('id, description, issue_type, status, reported_at, reported_by')
+      .eq('status', 'resolved')
+      .gte('updated_at', dateStart)
+      .lte('updated_at', dateEnd + 'T23:59:59')
+      .order('updated_at', { ascending: false });
       
     if (error) throw error;
-    issuesResolved = data?.map(history => history.issue).filter(Boolean) || [];
-  } catch (error) {
+    issuesResolved = data || [];
+  } catch (error: any) {
     errors.push({ query: 'issues_resolved', error: error.message });
     partialData = true;
   }
   
-  // 4. New Tools/Assets Added
+  // 4. New Tools/Assets Added (essential fields only)
   let assetsAdded: Tool[] = [];
   try {
     const { data, error } = await supabase
       .from('tools')
-      .select('*')
+      .select('id, name, description, category, created_at')
       .gte('created_at', dateStart)
       .lte('created_at', dateEnd + 'T23:59:59')
       .order('created_at', { ascending: false });
@@ -295,12 +212,12 @@ async function generateFreshContext(
     partialData = true;
   }
   
-  // 5. New Stock/Parts Added
+  // 5. New Stock/Parts Added (essential fields only)
   let stockAdded: Part[] = [];
   try {
     const { data, error } = await supabase
       .from('parts')
-      .select('*')
+      .select('id, name, description, current_quantity, unit, created_at')
       .gte('created_at', dateStart)
       .lte('created_at', dateEnd + 'T23:59:59')
       .order('created_at', { ascending: false });
@@ -312,15 +229,12 @@ async function generateFreshContext(
     partialData = true;
   }
   
-  // 6. Stock Changes (parts_history)
+  // 6. Stock Changes (essential fields only)
   let stockChanges: PartsHistory[] = [];
   try {
     const { data, error } = await supabase
       .from('parts_history')
-      .select(`
-        *,
-        part:part_id(name, unit)
-      `)
+      .select('id, part_id, change_type, old_quantity, new_quantity, change_reason, created_at')
       .gte('created_at', dateStart)
       .lte('created_at', dateEnd + 'T23:59:59')
       .order('created_at', { ascending: false });
@@ -332,40 +246,33 @@ async function generateFreshContext(
     partialData = true;
   }
   
-  // 7. Implementation Updates (from completed actions)
+  // 7. Implementation Updates (essential fields only)
   let implementationUpdates: ImplementationUpdate[] = [];
   try {
-    const actionIds = actionsCompleted.map(action => action.id);
-    if (actionIds.length > 0) {
-      const { data, error } = await supabase
-        .from('action_implementation_updates')
-        .select(`
-          *,
-          attachments:mission_attachments(*)
-        `)
-        .in('action_id', actionIds)
-        .gte('created_at', dateStart)
-        .lte('created_at', dateEnd + 'T23:59:59')
-        .order('created_at', { ascending: false });
-        
-      if (error) throw error;
-      implementationUpdates = data || [];
-    }
-  } catch (error) {
+    const { data, error } = await supabase
+      .from('action_implementation_updates')
+      .select('id, action_id, update_text, created_at')
+      .gte('created_at', dateStart)
+      .lte('created_at', dateEnd + 'T23:59:59')
+      .order('created_at', { ascending: false });
+      
+    if (error) throw error;
+    implementationUpdates = data || [];
+  } catch (error: any) {
     errors.push({ query: 'implementation_updates', error: error.message });
     partialData = true;
   }
 
-  // 8. Action Scores (for completed actions)
+  // 8. Action Scores (essential fields only)
   let actionScores: ActionScore[] = [];
   try {
     const actionIds = actionsCompleted.map(action => action.id);
     if (actionIds.length > 0) {
       const { data, error } = await supabase
         .from('action_scores')
-        .select('*')
+        .select('id, action_id, ai_response, created_at')
         .in('action_id', actionIds)
-        .order('scored_at', { ascending: false });
+        .order('created_at', { ascending: false });
         
       if (error) throw error;
       actionScores = data || [];

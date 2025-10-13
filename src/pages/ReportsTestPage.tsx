@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,85 +10,126 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon, Copy, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { usePrompts } from '@/hooks/usePrompts';
 import { useSections } from '@/hooks/useSections';
-import { generateFullPrompt } from '@/services/reportContextBuilder';
+import { usePrompts } from '@/hooks/usePrompts';
+import { buildReportContext } from '@/services/reportDataService';
 import { validateReportResponse } from '@/services/responseValidator';
 import { useToast } from '@/hooks/use-toast';
+import { atiFarmJournalPrompt } from '@/prompts/atiFarmJournalPrompt';
 
 export default function ReportsTestPage() {
-  const [dateStart, setDateStart] = useState<Date>();
-  const [dateEnd, setDateEnd] = useState<Date>();
-  const [selectedPromptId, setSelectedPromptId] = useState<string>('');
-  const [generatedPrompt, setGeneratedPrompt] = useState<string>('');
+  const [dateStart, setDateStart] = useState<Date>(() => {
+    const lastWeek = new Date();
+    lastWeek.setDate(lastWeek.getDate() - 7);
+    return lastWeek;
+  });
+  const [dateEnd, setDateEnd] = useState<Date>(() => {
+    const today = new Date();
+    today.setDate(today.getDate() - 1); // Yesterday
+    return today;
+  });
+  const [generatedContext, setGeneratedContext] = useState<string>('');
   const [aiResponse, setAiResponse] = useState<string>('');
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingContext, setIsGeneratingContext] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [sectionTitle, setSectionTitle] = useState('');
   const [sectionFocus, setSectionFocus] = useState('');
+  const [selectedPromptId, setSelectedPromptId] = useState<string>('');
+  const [fullPrompt, setFullPrompt] = useState<string>('');
 
-  const { prompts, getReportGenerationPrompts, isLoading: promptsLoading } = usePrompts();
   const { createSection, isLoading: sectionsLoading } = useSections();
+  const { prompts, isLoading: promptsLoading, getDefaultPrompt } = usePrompts();
   const { toast } = useToast();
 
-  const reportPrompts = getReportGenerationPrompts();
+  // Set default prompt when prompts load
+  useEffect(() => {
+    if (prompts.length > 0 && !selectedPromptId) {
+      const defaultPrompt = getDefaultPrompt('ATI Journal') || getDefaultPrompt();
+      if (defaultPrompt) {
+        setSelectedPromptId(defaultPrompt.id);
+      }
+    }
+  }, [prompts, selectedPromptId, getDefaultPrompt]);
 
-  const handleGeneratePrompt = async () => {
-    if (!dateStart || !dateEnd || !selectedPromptId) {
+  // Update full prompt when context or selected prompt changes
+  useEffect(() => {
+    if (generatedContext && selectedPromptId) {
+      const selectedPrompt = prompts.find(p => p.id === selectedPromptId);
+      if (selectedPrompt) {
+        const fullPromptText = `${selectedPrompt.prompt_text}\n\n## Context Data\n${generatedContext}`;
+        setFullPrompt(fullPromptText);
+      }
+    }
+  }, [generatedContext, selectedPromptId, prompts]);
+
+  const handleGenerateContext = async () => {
+    if (!dateStart || !dateEnd) {
       toast({
         title: "Missing Information",
-        description: "Please select date range and prompt",
+        description: "Please select date range",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      setIsGenerating(true);
+      setIsGeneratingContext(true);
       const startStr = format(dateStart, 'yyyy-MM-dd');
       const endStr = format(dateEnd, 'yyyy-MM-dd');
       
-      const fullPrompt = await generateFullPrompt(
-        prompts.find(p => p.id === selectedPromptId)?.prompt_text || '',
-        startStr,
-        endStr
-      );
+      const context = await buildReportContext(startStr, endStr);
+      setGeneratedContext(JSON.stringify(context, null, 2));
       
-      setGeneratedPrompt(fullPrompt);
       toast({
-        title: "Success",
-        description: "Prompt generated successfully! Copy it to your AI tool.",
+        title: "Context Generated",
+        description: "Report context data ready for AI processing",
       });
     } catch (error) {
-      console.error('Error generating prompt:', error);
+      console.error("Error generating context:", error);
       toast({
         title: "Error",
-        description: "Failed to generate prompt",
+        description: "Failed to generate report context",
         variant: "destructive",
       });
     } finally {
-      setIsGenerating(false);
+      setIsGeneratingContext(false);
     }
   };
 
-  const handleCopyPrompt = async () => {
+  const handleCopyContext = async () => {
     try {
-      await navigator.clipboard.writeText(generatedPrompt);
+      await navigator.clipboard.writeText(generatedContext);
       toast({
         title: "Copied",
-        description: "Prompt copied to clipboard",
+        description: "Context data copied to clipboard",
       });
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to copy prompt",
+        description: "Failed to copy context",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCopyFullPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(fullPrompt);
+      toast({
+        title: "Copied",
+        description: "Full AI prompt copied to clipboard",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to copy full prompt",
         variant: "destructive",
       });
     }
   };
 
   const handleSaveSection = async () => {
-    if (!aiResponse || !sectionTitle || !sectionFocus || !selectedPromptId) {
+    if (!aiResponse || !sectionTitle || !sectionFocus) {
       toast({
         title: "Missing Information",
         description: "Please fill in all fields",
@@ -129,7 +170,7 @@ export default function ReportsTestPage() {
         section_focus: sectionFocus,
         title: sectionTitle,
         report: parsedResponse,
-        prompt_id: selectedPromptId
+        prompt_id: 'default-report-prompt' // TODO: Create a default prompt or make prompt_id optional
       });
 
       toast({
@@ -168,12 +209,29 @@ export default function ReportsTestPage() {
         {/* Left Column - Configuration */}
         <Card>
           <CardHeader>
-            <CardTitle>Generate Report Section</CardTitle>
+            <CardTitle>Generate Prompt</CardTitle>
             <CardDescription>
-              Configure date range and prompt, then generate context for AI
+              Configure date range and generate context for AI
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Prompt Selection */}
+            <div className="space-y-2">
+              <Label>Select Prompt</Label>
+              <Select value={selectedPromptId} onValueChange={setSelectedPromptId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a prompt" />
+                </SelectTrigger>
+                <SelectContent>
+                  {prompts.map((prompt) => (
+                    <SelectItem key={prompt.id} value={prompt.id}>
+                      {prompt.name} ({prompt.intended_usage})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Date Range */}
             <div className="space-y-2">
               <Label>Date Range</Label>
@@ -226,73 +284,88 @@ export default function ReportsTestPage() {
               </div>
             </div>
 
-            {/* Prompt Selection */}
-            <div className="space-y-2">
-              <Label>Report Generation Prompt</Label>
-              <Select value={selectedPromptId} onValueChange={setSelectedPromptId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a prompt" />
-                </SelectTrigger>
-                <SelectContent>
-                  {reportPrompts.map((prompt) => (
-                    <SelectItem key={prompt.id} value={prompt.id}>
-                      {prompt.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* Generate Button */}
             <Button 
-              onClick={handleGeneratePrompt}
-              disabled={isGenerating || promptsLoading}
+              onClick={handleGenerateContext}
+              disabled={isGeneratingContext || promptsLoading}
               className="w-full"
             >
-              {isGenerating ? (
+              {isGeneratingContext ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Generating...
+                  Generating Context...
                 </>
               ) : (
-                'Generate Prompt with Context'
+                'Generate Report Context'
               )}
             </Button>
           </CardContent>
         </Card>
 
-        {/* Right Column - Generated Prompt */}
+        {/* Right Column - Generated Context */}
         <Card>
           <CardHeader>
-            <CardTitle>Generated Prompt</CardTitle>
+            <CardTitle>Report Context</CardTitle>
             <CardDescription>
-              Copy this prompt to your AI tool, then paste the response below
+              Raw report context data (JSON format) - use this with AI tools
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Full Prompt with Context</Label>
+                <Label>Report Context Data</Label>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleCopyPrompt}
-                  disabled={!generatedPrompt}
+                  onClick={handleCopyContext}
+                  disabled={!generatedContext}
                 >
                   <Copy className="mr-2 h-4 w-4" />
                   Copy
                 </Button>
               </div>
               <Textarea
-                value={generatedPrompt}
-                onChange={(e) => setGeneratedPrompt(e.target.value)}
-                placeholder="Generated prompt will appear here..."
+                value={generatedContext}
+                onChange={(e) => setGeneratedContext(e.target.value)}
+                placeholder="Generated context will appear here..."
                 className="min-h-[200px] font-mono text-sm"
               />
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Full AI Prompt Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Full AI Prompt</CardTitle>
+          <CardDescription>
+            Complete prompt with context data ready for AI tools
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Complete Prompt with Context</Label>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCopyFullPrompt}
+                disabled={!fullPrompt}
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Copy Full Prompt
+              </Button>
+            </div>
+            <Textarea
+              value={fullPrompt}
+              onChange={(e) => setFullPrompt(e.target.value)}
+              placeholder="Full prompt with context will appear here..."
+              className="min-h-[200px] font-mono text-sm"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* AI Response Section */}
       <Card>
@@ -370,13 +443,12 @@ export default function ReportsTestPage() {
           <CardTitle>How to Test</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
-          <p>1. <strong>Select Date Range:</strong> Choose the dates you want to generate a report for</p>
-          <p>2. <strong>Select Prompt:</strong> Choose a report generation prompt (you may need to create one first)</p>
-          <p>3. <strong>Generate Prompt:</strong> Click the button to generate the full prompt with context data</p>
-          <p>4. <strong>Copy & Use AI:</strong> Copy the generated prompt and use it with ChatGPT, Claude, or another AI tool</p>
+          <p>1. <strong>Select Prompt:</strong> Choose the prompt template (defaults to ATI Journal)</p>
+          <p>2. <strong>Select Date Range:</strong> Choose the dates you want to generate a report for (defaults to last week)</p>
+          <p>3. <strong>Generate Context:</strong> Click "Generate Report Context" to get raw data</p>
+          <p>4. <strong>Copy Full Prompt:</strong> Copy the complete prompt with context to ChatGPT, Claude, etc.</p>
           <p>5. <strong>Paste Response:</strong> Paste the AI's JSON response back into the textarea</p>
-          <p>6. <strong>Configure Section:</strong> Add a title and select the focus area for the section</p>
-          <p>7. <strong>Save Section:</strong> Click to validate and save the section to the database</p>
+          <p>6. <strong>Save Section:</strong> Configure and save the section to the database</p>
           <p><strong>NEW:</strong> The system now includes <strong>action scoring data</strong> for AI analysis!</p>
         </CardContent>
       </Card>

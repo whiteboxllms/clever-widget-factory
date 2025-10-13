@@ -538,7 +538,6 @@ export function UnifiedActionDialog({
         participants: formData.participants || [],
         estimated_duration: estimatedDuration,
         required_tools: formData.required_tools || [],
-        required_tool_serial_numbers: formData.required_tool_serial_numbers || [],
         required_stock: formData.required_stock || [],
         attachments: formData.attachments || [],
         mission_id: formData.mission_id || null,

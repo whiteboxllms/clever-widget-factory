@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,14 +9,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { useActionProfiles } from '@/hooks/useActionProfiles';
+import { useOrganizationId } from '@/hooks/useOrganizationId';
 import { Bolt, Plus, Filter, Search, CheckCircle, User, AlertTriangle, Wrench, ArrowLeft, Target, X } from 'lucide-react';
 import { UnifiedActionDialog } from '@/components/UnifiedActionDialog';
 import { ActionScoreDialog } from '@/components/ActionScoreDialog';
 import { ScoreButton } from '@/components/ScoreButton';
-import { useActionScores } from '@/hooks/useActionScores';
+import { useActionScores, ActionScore } from '@/hooks/useActionScores';
 import { BaseAction, Profile } from '@/types/actions';
 import { cn, hasActualContent, getActionBorderStyle } from '@/lib/utils';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 // Using unified BaseAction interface from types/actions.ts
 
@@ -24,6 +25,7 @@ export default function Actions() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { actionId } = useParams<{ actionId?: string }>();
   const [actions, setActions] = useState<BaseAction[]>([]);
   const [filteredActions, setFilteredActions] = useState<BaseAction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +39,7 @@ export default function Actions() {
   
   // Use standardized profiles for consistent "Assigned to" dropdown
   const { profiles } = useActionProfiles();
+  const organizationId = useOrganizationId();
   const [scoringAction, setScoringAction] = useState<BaseAction | null>(null);
 
   // Helper function to get user color
@@ -44,9 +47,45 @@ export default function Actions() {
     const profile = profiles.find(p => p.user_id === userId);
     return profile?.favorite_color || '#6B7280'; // Default gray if no color set
   };
-  const [existingScore, setExistingScore] = useState<any>(null);
+  const [existingScore, setExistingScore] = useState<ActionScore | null>(null);
 
   const { getScoreForAction } = useActionScores();
+
+  const fetchSpecificAction = useCallback(async (id: string) => {
+    if (!organizationId) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('actions')
+        .select(`
+          *,
+          assignee:organization_members(id, user_id, full_name, role),
+          mission:missions(id, title, mission_number, status)
+        `)
+        .eq('id', id)
+        .eq('organization_id', organizationId)
+        .single();
+
+      if (error) throw error;
+
+      // Process the action data to match BaseAction interface
+      const processedAction: BaseAction = {
+        ...data,
+        required_stock: Array.isArray(data.required_stock) ? data.required_stock as { part_id: string; quantity: number; part_name: string; }[] : []
+      };
+      setEditingAction(processedAction);
+      setIsEditDialogOpen(true);
+      setIsCreating(false);
+    } catch (error) {
+      console.error('Error fetching specific action:', error);
+      toast({
+        title: "Error",
+        description: "Action not found",
+        variant: "destructive",
+      });
+      navigate('/actions');
+    }
+  }, [organizationId, navigate]);
 
   const fetchActions = async () => {
     try {
@@ -127,14 +166,14 @@ export default function Actions() {
         required_stock: Array.isArray(item.required_stock) ? item.required_stock : [],
         participants_details: item.participants?.map(participantId => 
           participantsData.find(p => p.user_id === participantId)
-        ).filter(Boolean) || [],
+        ).filter((p): p is NonNullable<typeof p> => Boolean(p)) || [],
         asset: toolsData.find(tool => tool.id === item.asset_id) || null,
         assignee: item.assignee && typeof item.assignee === 'object' && !Array.isArray(item.assignee) && !('error' in item.assignee) 
           ? {
-              id: (item.assignee as any)?.id || '',
-              user_id: (item.assignee as any)?.user_id || '',
-              full_name: (item.assignee as any)?.full_name || '',
-              role: (item.assignee as any)?.role || ''
+              id: (item.assignee as { id: string })?.id || '',
+              user_id: (item.assignee as { user_id: string })?.user_id || '',
+              full_name: (item.assignee as { full_name: string })?.full_name || '',
+              role: (item.assignee as { role: string })?.role || ''
             }
           : null,
         mission: item.mission && typeof item.mission === 'object' && !('error' in item.mission) 
@@ -250,18 +289,32 @@ export default function Actions() {
     fetchActions();
   }, []);
 
-  // Handle action URL parameter
+  // Handle URL parameters for direct action links (both search params and path params)
   useEffect(() => {
-    const actionId = searchParams.get('action');
-    if (actionId && actions.length > 0) {
-      const action = actions.find(a => a.id === actionId);
+    const searchActionId = searchParams.get('action');
+    const urlActionId = actionId;
+    
+    if (searchActionId && actions.length > 0) {
+      const action = actions.find(a => a.id === searchActionId);
       if (action) {
         handleEditAction(action);
         // Clear the URL parameter after opening the action
         setSearchParams({});
       }
+    } else if (urlActionId && organizationId) {
+      // Find the action in the current actions list
+      const action = actions.find(a => a.id === urlActionId);
+      if (action) {
+        setEditingAction(action);
+        setIsEditDialogOpen(true);
+        setIsCreating(false);
+      } else if (actions.length > 0) {
+        // If action not found in current list and we have actions loaded, try to fetch it specifically
+        fetchSpecificAction(urlActionId);
+      }
+      // If actions are still loading, wait for them to load first
     }
-  }, [actions, searchParams, setSearchParams]);
+  }, [actions, searchParams, setSearchParams, actionId, organizationId, fetchSpecificAction]);
 
   // Reset assignee filter if the selected assignee is not in active profiles
   useEffect(() => {
@@ -728,6 +781,10 @@ export default function Actions() {
           onOpenChange={(open) => {
             if (!open) {
               handleCancelEdit();
+              // Clear URL parameter when dialog is closed
+              if (actionId) {
+                navigate('/actions');
+              }
             }
           }}
           action={editingAction || undefined}

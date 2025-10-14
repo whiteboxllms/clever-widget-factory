@@ -35,7 +35,8 @@ import {
   Package,
   Trash2,
   CheckCircle,
-  Target
+  Target,
+  Copy
 } from "lucide-react";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useAuth } from "@/hooks/useAuth";
@@ -47,6 +48,7 @@ import { MultiParticipantSelector } from './MultiParticipantSelector';
 import { cn, sanitizeRichText, getActionBorderStyle } from "@/lib/utils";
 import { BaseAction, Profile, ActionCreationContext } from "@/types/actions";
 import { autoCheckinToolsForAction } from '@/lib/autoToolCheckout';
+import { generateActionUrl, copyToClipboard } from "@/lib/urlUtils";
 
 interface UnifiedActionDialogProps {
   open: boolean;
@@ -81,6 +83,7 @@ export function UnifiedActionDialog({
   const [currentContextType, setCurrentContextType] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('');
   const [isInImplementationMode, setIsInImplementationMode] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   
   // Compute the default tab based on action state
   const getDefaultTab = () => {
@@ -212,7 +215,7 @@ export function UnifiedActionDialog({
 
   const getDialogTitle = () => {
     if (!isCreating && action) {
-      return `Edit Action: ${action.title || 'Untitled Action'}`;
+      return action.title || 'Untitled Action';
     }
     
     if (context?.type === 'issue') {
@@ -355,6 +358,35 @@ export function UnifiedActionDialog({
       });
     } finally {
       setIsCompleting(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!action?.id) {
+      toast({
+        title: "Cannot copy link",
+        description: "Please save the action first before copying its link",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const actionUrl = generateActionUrl(action.id);
+    const success = await copyToClipboard(actionUrl);
+    
+    if (success) {
+      setLinkCopied(true);
+      toast({
+        title: "Link copied!",
+        description: "Action link has been copied to your clipboard",
+      });
+      setTimeout(() => setLinkCopied(false), 2000);
+    } else {
+      toast({
+        title: "Failed to copy",
+        description: "Could not copy link to clipboard",
+        variant: "destructive",
+      });
     }
   };
 
@@ -654,7 +686,24 @@ export function UnifiedActionDialog({
         borderStyle.borderColor
       )}>
         <DialogHeader>
-          <DialogTitle>{getDialogTitle()}</DialogTitle>
+          <div className="flex items-center gap-2">
+            <DialogTitle>{getDialogTitle()}</DialogTitle>
+            {!isCreating && action?.id && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCopyLink}
+                className={`h-7 w-7 p-0 ${linkCopied ? 'border-green-500 border-2' : ''}`}
+                title="Copy action link"
+              >
+                {linkCopied ? (
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+            )}
+          </div>
           <DialogDescription>
             {isCreating ? 'Create a new action with details and assignments' : 'Edit action details and assignments'}
           </DialogDescription>
@@ -697,10 +746,10 @@ export function UnifiedActionDialog({
             </div>
           )}
 
-          {/* Action Title */}
+          {/* Title */}
           <div>
             <Label htmlFor="actionTitle" className="text-sm font-medium">
-              Action Title *
+              Title *
             </Label>
             <Input
               id="actionTitle"

@@ -97,7 +97,7 @@ function AppContent() {
           <EditMission />
         </ProtectedRoute>
       } />
-      <Route path="/actions" element={
+      <Route path="/actions/:actionId?" element={
         <ProtectedRoute>
           <Actions />
         </ProtectedRoute>

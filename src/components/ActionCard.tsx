@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Circle, Clock, User, Upload, Image, ChevronDown, ChevronRight, Save, X, Link, Target } from 'lucide-react';
+import { CheckCircle, Circle, Clock, User, Upload, Image, ChevronDown, ChevronRight, Save, X, Link, Target, Copy } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +22,7 @@ import TiptapEditor from './TiptapEditor';
 import { hasActualContent, sanitizeRichText, getActionBorderStyle, processStockConsumption } from '@/lib/utils';
 import { BaseAction } from '@/types/actions';
 import { autoCheckinToolsForAction } from '@/lib/autoToolCheckout';
+import { generateActionUrl, copyToClipboard } from '@/lib/urlUtils';
 
 interface Profile {
   id: string;
@@ -62,6 +63,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
   const [isCompleting, setIsCompleting] = useState(false);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
   const [existingScore, setExistingScore] = useState<any>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   
   // Focus tracking states
   const [isPolicyFocused, setIsPolicyFocused] = useState(false);
@@ -521,6 +523,37 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     setShowScoreDialog(true);
   };
 
+  const handleCopyLink = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!action.id || action.id.startsWith('temp-')) {
+      toast({
+        title: "Cannot copy link",
+        description: "Please save the action first before copying its link",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const actionUrl = generateActionUrl(action.id);
+    const success = await copyToClipboard(actionUrl);
+    
+    if (success) {
+      setLinkCopied(true);
+      toast({
+        title: "Link copied!",
+        description: "Action link has been copied to your clipboard",
+      });
+      setTimeout(() => setLinkCopied(false), 2000);
+    } else {
+      toast({
+        title: "Failed to copy",
+        description: "Could not copy link to clipboard",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getActionTheme = () => {
     return getActionBorderStyle(action);
   };
@@ -739,6 +772,22 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                 {getStatusBadge()}
               </div>
               <div className="flex items-center gap-2">
+                {/* Copy Link button */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleCopyLink}
+                  className={`h-7 px-2 text-xs ${linkCopied ? 'border-green-500 border-2' : ''}`}
+                  title="Copy action link"
+                  disabled={!action.id || action.id.startsWith('temp-')}
+                >
+                  {linkCopied ? (
+                    <CheckCircle className="h-3 w-3 text-green-600" />
+                  ) : (
+                    <Copy className="h-3 w-3" />
+                  )}
+                </Button>
+                
                 {/* Score button */}
                 <Button
                   size="sm"

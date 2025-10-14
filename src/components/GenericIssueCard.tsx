@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { BaseIssue, ContextType, getContextBadgeColor, getContextIcon, getContextLabel, OrderIssue, getOrderIssueTypeLabel } from "@/types/issues";
 import { useGenericIssues } from "@/hooks/useGenericIssues";
+import { useActionProfiles } from "@/hooks/useActionProfiles";
 import { useAssetScores } from "@/hooks/useAssetScores";
 import { useIssueActions } from "@/hooks/useIssueActions";
 import { getIssueTypeIcon, getIssueTypeColor, getContextTypeIcon } from "@/lib/issueTypeUtils";
@@ -42,38 +43,12 @@ export function GenericIssueCard({
   const [showScoreDialog, setShowScoreDialog] = useState(false);
   const [showCreateActionDialog, setShowCreateActionDialog] = useState(false);
   const [showManageActionsDialog, setShowManageActionsDialog] = useState(false);
-  const [profiles, setProfiles] = useState<any[]>([]);
+  const { profiles } = useActionProfiles();
   const { removeIssue, resolveIssue } = useGenericIssues();
   const { getScoreForIssue } = useAssetScores();
   const { getActionsForIssue } = useIssueActions();
 
-  // Fetch profiles data
-  useEffect(() => {
-    const fetchProfiles = async () => {
-      try {
-        // Use secure function instead of direct table access
-        const { data, error } = await supabase
-          .rpc('get_user_display_names');
-        
-        if (error) throw error;
-        
-        // Convert to expected format (adding role as empty since we can't access it)
-        const profilesData = (data || []).map(profile => ({
-          id: profile.user_id,
-          user_id: profile.user_id,
-          full_name: profile.full_name,
-          role: '' // Role info is no longer accessible for security
-        }));
-        
-        setProfiles(profilesData);
-      } catch (error) {
-        console.error('Error fetching profiles:', error);
-        setProfiles([]);
-      }
-    };
-
-    fetchProfiles();
-  }, []);
+  // Profiles now sourced from useActionProfiles (active members in current org)
 
   // Fetch context entity information
   useEffect(() => {

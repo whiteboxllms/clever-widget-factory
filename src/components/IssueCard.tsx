@@ -14,6 +14,7 @@ import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useAssetScores, AssetScore } from "@/hooks/useAssetScores";
 import { useIssueActions } from "@/hooks/useIssueActions";
 import { getIssueTypeIcon, getIssueTypeColor } from "@/lib/issueTypeUtils";
+import { useActionProfiles } from "@/hooks/useActionProfiles";
 
 interface ToolIssue {
   id: string;
@@ -47,7 +48,7 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
   const [tool, setTool] = useState<any>(null);
   const [existingScore, setExistingScore] = useState<AssetScore | null>(null);
   const [existingActions, setExistingActions] = useState<any[]>([]);
-  const [profiles, setProfiles] = useState<any[]>([]);
+  const { profiles } = useActionProfiles();
   const { getScoreForIssue } = useAssetScores();
   const { getActionsForIssue } = useIssueActions();
 
@@ -100,33 +101,7 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
     }
   };
 
-  // Fetch profiles data
-  useEffect(() => {
-    const fetchProfiles = async () => {
-      try {
-        // Use secure function instead of direct table access
-        const { data, error } = await supabase
-          .rpc('get_user_display_names');
-        
-        if (error) throw error;
-        
-        // Convert to expected format (adding role as empty since we can't access it)
-        const profilesData = (data || []).map(profile => ({
-          id: profile.user_id,
-          user_id: profile.user_id,
-          full_name: profile.full_name,
-          role: '' // Role info is no longer accessible for security
-        }));
-        
-        setProfiles(profilesData);
-      } catch (error) {
-        console.error('Error fetching profiles:', error);
-        setProfiles([]);
-      }
-    };
-
-    fetchProfiles();
-  }, []);
+  // Profiles now sourced from useActionProfiles (active members in current org)
 
   // Check for existing score and actions when component mounts
   useEffect(() => {

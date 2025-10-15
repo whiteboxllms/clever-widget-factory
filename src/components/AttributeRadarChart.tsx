@@ -5,6 +5,7 @@ import { Info } from 'lucide-react';
 import { EnhancedAttributeAnalytics } from '@/hooks/useEnhancedStrategicAttributes';
 import { useOrganizationValues } from '@/hooks/useOrganizationValues';
 import { useState, useEffect, useMemo } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Legend } from 'recharts';
 
 // High contrast color palette for white backgrounds
@@ -62,6 +63,45 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
   const [showImpact, setShowImpact] = useState(false);
   const { getOrganizationValues } = useOrganizationValues();
 
+  // Build a deterministic label map from userId -> trimmed display name using org members (with RPC fallback)
+  const [labelMap, setLabelMap] = useState<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    const buildLabels = async () => {
+      const userIds = Array.from(new Set(actionAnalytics.filter(u => selectedUsers.includes(u.userId)).map(u => u.userId)));
+      if (userIds.length === 0) {
+        setLabelMap(new Map());
+        return;
+      }
+      const map = new Map<string, string>();
+      try {
+        const { data: members } = await supabase
+          .from('organization_members')
+          .select('user_id, full_name, is_active')
+          .in('user_id', userIds);
+        (members || []).forEach((m: any) => {
+          if (m?.user_id && m?.full_name) map.set(m.user_id, String(m.full_name).trim());
+        });
+        // Fallback via RPC for any missing
+        const missing = userIds.filter(id => !map.get(id));
+        for (const uid of missing) {
+          try {
+            const { data: displayName } = await supabase.rpc('get_user_display_name', { target_user_id: uid });
+            if (displayName && typeof displayName === 'string') {
+              map.set(uid, displayName.trim());
+            }
+          } catch {
+            // ignore
+          }
+        }
+      } catch {
+        // ignore
+      }
+      setLabelMap(map);
+    };
+    buildLabels();
+  }, [actionAnalytics, selectedUsers]);
+
   // Load organization values
   useEffect(() => {
     const loadOrgValues = async () => {
@@ -85,9 +125,7 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
     }
 
     // Filter analytics for selected users
-    const selectedAnalytics = actionAnalytics.filter(user => 
-      selectedUsers.includes(user.userId)
-    );
+    const selectedAnalytics = actionAnalytics.filter(user => selectedUsers.includes(user.userId));
     
     console.log('Selected analytics:', selectedAnalytics);
 
@@ -97,7 +135,7 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
     }
 
     if (showImpact) {
-      // Impact mode: individual impact score for each user
+      // Avg(Score) × Actions mode: individual aggregate for each user
       const data = orgValues.map(orgValue => {
         const attributeKey = mapOrgValueToAttributeKey(orgValue);
         
@@ -110,21 +148,21 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
           const userScore = user.attributes[attributeKey as keyof typeof user.attributes];
           const score = userScore !== undefined && userScore !== null ? userScore : 2;
           const totalActions = user.totalActions || 0;
-          
-          // Impact = user's score * user's total actions (no arbitrary division)
           const impactValue = score * totalActions;
-          
-          dataPoint[user.userName] = Math.round(impactValue * 100) / 100;
-          console.log(`${user.userName} - ${orgValue} (${attributeKey}): score=${score}, actions=${totalActions}, impact=${impactValue}`);
+          const label = (labelMap.get(user.userId) || 'Unknown User').trim();
+          dataPoint[label] = Math.round(impactValue * 100) / 100;
+          console.log(`${label} - ${orgValue} (${attributeKey}): score=${score}, actions=${totalActions}, impact=${impactValue}`);
         });
 
         return dataPoint;
       });
 
-      // Calculate dynamic fullMark based on maximum impact value
-      const allImpactValues = data.flatMap(point => 
-        selectedAnalytics.map(user => point[user.userName] || 0)
-      );
+      // Calculate dynamic fullMark based on maximum impact value across all user series
+      const allImpactValues = data.flatMap(point => {
+        return Object.entries(point)
+          .filter(([key]) => key !== 'attribute' && key !== 'fullMark')
+          .map(([, value]) => (typeof value === 'number' ? value : 0));
+      });
       const maxImpact = Math.max(...allImpactValues, 1); // Ensure minimum of 1
       const dynamicFullMark = Math.ceil(maxImpact * 1.1); // Add 10% padding
 
@@ -133,7 +171,7 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
         point.fullMark = dynamicFullMark;
       });
       
-      console.log('Impact radar data:', data);
+      console.log('Avg(Score)×Actions radar data:', data);
       console.log('Dynamic fullMark:', dynamicFullMark);
       return data;
     } else {
@@ -150,8 +188,9 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
         selectedAnalytics.forEach(user => {
           const score = user.attributes[attributeKey as keyof typeof user.attributes];
           const userScore = score !== undefined && score !== null ? score : 2; // Default to middle value
-          dataPoint[user.userName] = Math.round(userScore * 100) / 100; // Round to 2 decimal places
-          console.log(`User ${user.userName} - ${attributeKey}: ${userScore}`);
+          const label = (labelMap.get(user.userId) || 'Unknown User').trim();
+          dataPoint[label] = Math.round(userScore * 100) / 100; // Round to 2 decimal places
+          console.log(`User ${label} - ${attributeKey}: ${userScore}`);
         });
 
         return dataPoint;
@@ -160,25 +199,28 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
       console.log('Individual radar data:', data);
       return data;
     }
-  }, [orgValues, actionAnalytics, selectedUsers, showImpact]);
+  }, [orgValues, actionAnalytics, selectedUsers, showImpact, labelMap]);
 
   // Get user data for individual radar lines
   const userData = useMemo(() => {
     return actionAnalytics
       .filter(user => selectedUsers.includes(user.userId))
-      .map((user, index) => ({
-        name: user.userName,
-        color: USER_COLORS[index % USER_COLORS.length],
-        dataKey: user.userName
-      }));
-  }, [actionAnalytics, selectedUsers]);
+      .map((user, index) => {
+        const label = (labelMap.get(user.userId) || 'Unknown User').trim();
+        return {
+          name: label,
+          color: USER_COLORS[index % USER_COLORS.length],
+          dataKey: label
+        };
+      });
+  }, [actionAnalytics, selectedUsers, labelMap]);
 
   // Get user names for legend
   const selectedUserNames = useMemo(() => {
     return actionAnalytics
       .filter(user => selectedUsers.includes(user.userId))
-      .map(user => user.userName);
-  }, [actionAnalytics, selectedUsers]);
+      .map(user => (labelMap.get(user.userId) || 'Unknown User').trim());
+  }, [actionAnalytics, selectedUsers, labelMap]);
 
   if (!orgValues.length) {
     return (
@@ -222,13 +264,13 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
             <CardTitle>Strategic Attributes Radar Chart</CardTitle>
             <div className="text-sm text-muted-foreground">
               {showImpact 
-                ? `Impact analysis (avg score × actions completed) for ${userData.length} user${userData.length !== 1 ? 's' : ''}`
-                : `Individual analysis of ${userData.length} user${userData.length !== 1 ? 's' : ''}: ${userData.map(u => u.name).join(', ')}`
+                ? `Avg(Score) × Actions for ${userData.length} user${userData.length !== 1 ? 's' : ''}`
+                : `Based on scored actions and issues for ${userData.length} user${userData.length !== 1 ? 's' : ''}`
               }
             </div>
           </div>
           <div className="flex items-center space-x-2">
-            <Label htmlFor="impact-mode" className="text-sm">Impact Mode</Label>
+            <Label htmlFor="impact-mode" className="text-sm">Include Counts</Label>
             <Switch
               id="impact-mode"
               checked={showImpact}
@@ -276,7 +318,7 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
           <div className="text-center text-sm text-muted-foreground">
             <p>
               {showImpact 
-                ? 'Scale: Individual Impact Score (Personal Score × Personal Actions)'
+                ? 'Scale: Avg(Score) × Actions (per user)'
                 : 'Scale: 0 (Needs Improvement) - 4 (Excellent)'
               }
             </p>

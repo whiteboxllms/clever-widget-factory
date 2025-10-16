@@ -17,7 +17,7 @@ NC='\033[0m' # No Color
 # Default to local
 PROD_MODE=false
 BACKUP_FILE="/Users/stefanhamilton/dev/clever-widget-factory/db_cluster-12-10-2025@17-04-52.backup"
-MIGRATIONS_DIR="supabase/migrations_archive/20251013_consolidated"
+MIGRATIONS_DIR="supabase/migrations"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do

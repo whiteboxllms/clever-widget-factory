@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { CalendarDays, Users, Filter } from 'lucide-react';
+import { CalendarDays, Users, Filter, ChevronRight } from 'lucide-react';
 import { AttributeAnalytics } from '@/hooks/useStrategicAttributes';
+import { supabase } from '@/integrations/supabase/client';
+import { useOrganizationId } from '@/hooks/useOrganizationId';
 
 interface AttributeFiltersProps {
   userAnalytics: AttributeAnalytics[];
@@ -16,6 +18,8 @@ interface AttributeFiltersProps {
   onStartDateChange: (date: string) => void;
   onEndDateChange: (date: string) => void;
   onApplyFilters: () => void;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }
 
 export function AttributeFilters({
@@ -26,11 +30,56 @@ export function AttributeFilters({
   endDate,
   onStartDateChange,
   onEndDateChange,
-  onApplyFilters
+  onApplyFilters,
+  collapsed = false,
+  onToggleCollapsed
 }: AttributeFiltersProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
-  const filteredUsers = userAnalytics.filter(user =>
+  // Build a name map from organization_members to replace any 'Unknown User' entries
+  const [nameMap, setNameMap] = useState<Record<string, string>>({});
+  const organizationId = useOrganizationId();
+
+  useEffect(() => {
+    const loadNames = async () => {
+      const ids = Array.from(new Set(userAnalytics.map(u => u.userId)));
+      if (ids.length === 0) {
+        setNameMap({});
+        return;
+      }
+      const map: Record<string, string> = {};
+      try {
+        const query = supabase
+          .from('organization_members')
+          .select('user_id, full_name, is_active, organization_id')
+          .in('user_id', ids)
+          .eq('is_active', true);
+
+        // RLS will scope to current organization; no explicit org filter
+        const { data: members } = await query;
+        (members || []).forEach((m: any) => {
+          if (m?.user_id && m?.full_name) map[m.user_id] = String(m.full_name).trim();
+        });
+        // Do not fallback to RPC here; list should only show active org members
+      } catch {
+        // ignore fetch errors; we'll fall back to provided names
+      }
+      setNameMap(map);
+    };
+    loadNames();
+  }, [userAnalytics, organizationId]);
+
+  const usersWithDisplayNames = useMemo(() => {
+    // Only include users that resolved via active org membership
+    return userAnalytics
+      .filter(u => Boolean(nameMap[u.userId]))
+      .map(u => ({
+        ...u,
+        userName: (nameMap[u.userId] || 'Unknown User').trim(),
+      }));
+  }, [userAnalytics, nameMap]);
+
+  const filteredUsers = usersWithDisplayNames.filter(user =>
     user.userName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -43,7 +92,8 @@ export function AttributeFilters({
   };
 
   const selectAllUsers = () => {
-    onSelectedUsersChange(filteredUsers.map(user => user.userId));
+    // Select all available users (not just the filtered subset)
+    onSelectedUsersChange(usersWithDisplayNames.map(user => user.userId));
   };
 
   const clearAllUsers = () => {
@@ -52,12 +102,13 @@ export function AttributeFilters({
 
   return (
     <Card className="w-full">
-      <CardHeader>
+      <CardHeader onClick={onToggleCollapsed} className="cursor-pointer">
         <CardTitle className="flex items-center gap-2">
-          <Filter className="h-5 w-5" />
+          <ChevronRight className={`h-4 w-4 transition-transform ${collapsed ? '' : 'rotate-90'}`} />
           Filters
         </CardTitle>
       </CardHeader>
+      {!collapsed && (
       <CardContent className="space-y-6">
         {/* Date Filters */}
         <div className="space-y-3">
@@ -158,6 +209,7 @@ export function AttributeFilters({
           Apply Filters
         </Button>
       </CardContent>
+      )}
     </Card>
   );
 }

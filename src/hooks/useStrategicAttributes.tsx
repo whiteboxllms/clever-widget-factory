@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useOrganizationValues } from '@/hooks/useOrganizationValues';
+import { useOrganizationId } from '@/hooks/useOrganizationId';
 
 export type StrategicAttributeType = 
   | 'growth_mindset'
@@ -54,8 +55,10 @@ export function useStrategicAttributes() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { getOrganizationValues } = useOrganizationValues();
+  const organizationId = useOrganizationId();
 
   const fetchAttributes = async (userIds?: string[], startDate?: string, endDate?: string) => {
+    if (!organizationId) return;
     try {
       setIsLoading(true);
       
@@ -64,6 +67,10 @@ export function useStrategicAttributes() {
         .from('worker_strategic_attributes')
         .select('*')
         .order('attribute_type');
+
+      if (organizationId) {
+        query = query.eq('organization_id', organizationId);
+      }
 
       if (userIds && userIds.length > 0) {
         query = query.in('user_id', userIds);
@@ -84,10 +91,16 @@ export function useStrategicAttributes() {
       const userIdsFromAttributes = [...new Set(attributesData?.map(attr => attr.user_id) || [])];
       
       // Fetch profiles for these users
-      const { data: profilesData, error: profilesError } = await supabase
+      let profilesQuery = supabase
         .from('organization_members')
         .select('user_id, full_name, role')
         .in('user_id', userIdsFromAttributes);
+
+      if (organizationId) {
+        profilesQuery = profilesQuery.eq('organization_id', organizationId);
+      }
+
+      const { data: profilesData, error: profilesError } = await profilesQuery;
 
       if (profilesError) {
         console.warn('Error fetching profiles, continuing without profile data:', profilesError);
@@ -179,8 +192,10 @@ export function useStrategicAttributes() {
   };
 
   useEffect(() => {
-    fetchAttributes();
-  }, []);
+    if (organizationId) {
+      fetchAttributes();
+    }
+  }, [organizationId]);
 
   return {
     attributes,

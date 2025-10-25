@@ -17,6 +17,7 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 export function useUserNames(userIds: string[] = []) {
   const [userMap, setUserMap] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(false);
+  
   const organizationId = useOrganizationId();
 
   const fetchUserNames = useCallback(async (ids: string[]) => {

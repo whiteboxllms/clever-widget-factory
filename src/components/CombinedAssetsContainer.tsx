@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus, BarChart3 } from "lucide-react";
@@ -84,6 +84,7 @@ export const CombinedAssetsContainer = () => {
     showLowStock
   });
 
+
   useEffect(() => {
     // Mark container mount once; avoid console.time duplicate label warnings on re-render
     performance.mark('container_mount');
@@ -131,38 +132,31 @@ export const CombinedAssetsContainer = () => {
     fetchPendingOrders();
   }, []);
 
-  // Debounce search to reduce server calls
+  // Consolidated effect to handle all filter changes and prevent race conditions
   useEffect(() => {
     if (debounceTimerRef.current) window.clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = window.setTimeout(() => {
       const term = searchTerm.trim();
       if (term !== searchRef.current) {
         searchRef.current = term;
-        setPage(0);
-        fetchAssets({ search: term, page: 0, limit, append: false });
       }
+      setPage(0);
+      fetchAssets({
+        search: searchRef.current,
+        page: 0,
+        limit,
+        append: false,
+        searchDescriptions,
+        showLowStock
+      });
     }, 250);
     return () => {
       if (debounceTimerRef.current) window.clearTimeout(debounceTimerRef.current);
     };
-  }, [searchTerm]);
-
-  // Initial fetch and when showRemovedItems changes
-  useEffect(() => {
-    setPage(0);
-    fetchAssets({ search: searchRef.current, page: 0, limit, append: false });
-  }, [showRemovedItems, searchDescriptions]);
-
-  // Refetch when Low Stock filter changes (server-side filtering)
-  useEffect(() => {
-    setPage(0);
-    fetchAssets({ search: searchRef.current, page: 0, limit, append: false, showLowStock });
-  }, [showLowStock]);
+  }, [searchTerm, showRemovedItems, searchDescriptions, showLowStock]);
 
   // Filter assets based on current filters
   const filteredAssets = useMemo(() => {
-    console.time('[perf] container: filter assets');
-    performance.mark('filter_start');
     const lower = searchTerm.toLowerCase();
     return assets.filter(asset => {
       // If server-side search is active, skip client text search to avoid double filtering
@@ -189,21 +183,7 @@ export const CombinedAssetsContainer = () => {
 
       return matchesSearch;
     });
-    // eslint-disable-next-line no-unreachable
-    // unreachable comment to indicate end timing after return not possible; use finally-like outside
   }, [assets, searchTerm, showOnlyAssets, showOnlyStock, showMyCheckedOut, showWithIssues, user?.email]);
-
-  // Measure after filtering recalculates by referencing its dependencies
-  useEffect(() => {
-    performance.mark('filter_end');
-    performance.measure('filter_total', 'filter_start', 'filter_end');
-    const [measure] = performance.getEntriesByName('filter_total');
-    if (measure) {
-      console.log('[perf] container: filter ms', Math.round(measure.duration), 'assets', assets.length);
-      performance.clearMeasures('filter_total');
-    }
-    console.timeEnd('[perf] container: filter assets');
-  }, [filteredAssets]);
 
   const handleCreateAsset = async (assetData: any, isAsset: boolean) => {
     const result = await createAsset(assetData, isAsset);
@@ -213,7 +193,7 @@ export const CombinedAssetsContainer = () => {
     return result;
   };
 
-  const handleView = (asset: CombinedAsset) => {
+  const handleView = useCallback((asset: CombinedAsset) => {
     setSelectedAsset(asset);
     setShowViewDialog(true);
     // Fetch additional data for view dialog if it's an asset
@@ -221,9 +201,9 @@ export const CombinedAssetsContainer = () => {
       fetchToolHistory(asset.id);
       fetchAssetIssues();
     }
-  };
+  }, [fetchToolHistory, fetchAssetIssues]);
 
-  const handleEdit = (asset: CombinedAsset) => {
+  const handleEdit = useCallback((asset: CombinedAsset) => {
     setSelectedAsset(asset);
     // Initialize attachments with existing image if available
     if (asset.type === 'stock' && asset.image_url) {
@@ -232,27 +212,27 @@ export const CombinedAssetsContainer = () => {
       setStockAttachments([]);
     }
     setShowEditDialog(true);
-  };
+  }, []);
 
-  const handleRemove = (asset: CombinedAsset) => {
+  const handleRemove = useCallback((asset: CombinedAsset) => {
     setSelectedAsset(asset);
     setShowRemovalDialog(true);
-  };
+  }, []);
 
-  const handleCheckout = (asset: CombinedAsset) => {
+  const handleCheckout = useCallback((asset: CombinedAsset) => {
     setSelectedAsset(asset);
     setShowCheckoutDialog(true);
-  };
+  }, []);
 
-  const handleCheckin = (asset: CombinedAsset) => {
+  const handleCheckin = useCallback((asset: CombinedAsset) => {
     setSelectedAsset(asset);
     setShowCheckinDialog(true);
-  };
+  }, []);
 
-  const handleManageIssues = (asset: CombinedAsset) => {
+  const handleManageIssues = useCallback((asset: CombinedAsset) => {
     setSelectedAsset(asset);
     setShowIssueDialog(true);
-  };
+  }, []);
 
   const handleShowAssetDetails = (asset: CombinedAsset) => {
     // This should behave like clicking on the asset card - go to detail view
@@ -270,30 +250,30 @@ export const CombinedAssetsContainer = () => {
   };
 
   // Stock quantity handlers
-  const handleAddQuantity = (asset: CombinedAsset) => {
+  const handleAddQuantity = useCallback((asset: CombinedAsset) => {
     setSelectedAsset(asset);
     setQuantityOperation('add');
     setShowQuantityDialog(true);
-  };
+  }, []);
 
-  const handleUseQuantity = (asset: CombinedAsset) => {
+  const handleUseQuantity = useCallback((asset: CombinedAsset) => {
     setSelectedAsset(asset);
     setQuantityOperation('remove');
     setShowQuantityDialog(true);
-  };
+  }, []);
 
-  const handleOrderStock = (asset: CombinedAsset) => {
+  const handleOrderStock = useCallback((asset: CombinedAsset) => {
     setSelectedAsset(asset);
     setShowOrderDialog(true);
-  };
+  }, []);
 
-  const handleReceiveOrder = (asset: CombinedAsset) => {
+  const handleReceiveOrder = useCallback((asset: CombinedAsset) => {
     const orders = pendingOrders[asset.id];
     if (orders && orders.length > 0) {
       setSelectedAsset(asset);
       setShowReceivingDialog(true);
     }
-  };
+  }, [pendingOrders]);
 
   // Quantity update handler for stock items
   const updateQuantity = async () => {
@@ -593,20 +573,15 @@ export const CombinedAssetsContainer = () => {
             onOrderStock={handleOrderStock}
             onReceiveOrder={handleReceiveOrder}
         pendingOrders={pendingOrders}
+        // Infinite scroll props
+        onLoadMore={() => {
+          const nextPage = page + 1;
+          setPage(nextPage);
+          fetchAssets({ page: nextPage, limit, search: searchRef.current, append: true });
+        }}
+        hasMore={!loading && assets.length > 0}
+        loading={loading}
       />
-
-      <div className="flex justify-center">
-        <Button
-          variant="outline"
-          onClick={() => {
-            const nextPage = page + 1;
-            setPage(nextPage);
-            fetchAssets({ page: nextPage, limit, search: searchRef.current, append: true });
-          }}
-        >
-          Load more
-        </Button>
-      </div>
 
       {/* Add Asset Dialog */}
       <CombinedAssetDialog

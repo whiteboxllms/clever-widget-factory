@@ -298,7 +298,6 @@ export function useEnhancedStrategicAttributes() {
         totalActionCounts.set(userId, (totalActionCounts.get(userId) || 0) + 1);
       });
 
-      console.log('Total action counts:', Object.fromEntries(totalActionCounts));
 
       // Process action scores for attribute scoring
       freshActionScores.forEach(actionScore => {
@@ -522,7 +521,6 @@ export function useEnhancedStrategicAttributes() {
 
   const getProactiveVsReactiveData = async (startDate?: string, endDate?: string) => {
     try {
-      console.log('getProactiveVsReactiveData called with:', { startDate, endDate });
       
       // Get all actions in the date range
       let allActionsQuery = supabase

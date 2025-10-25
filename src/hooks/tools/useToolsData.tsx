@@ -96,12 +96,59 @@ export const useToolsData = (showRemovedItems: boolean = false) => {
 
   const updateTool = async (toolId: string, updates: any) => {
     try {
+      // Fetch current values before updating
+      const { data: currentTool } = await supabase
+        .from('tools')
+        .select('*')
+        .eq('id', toolId)
+        .single();
+      
       const { error } = await supabase
         .from('tools')
         .update(updates)
         .eq('id', toolId);
 
       if (error) throw error;
+
+      // Log history
+      if (currentTool) {
+        try {
+          const currentUser = await supabase.auth.getUser();
+          if (currentUser.data.user) {
+            const historyPromises = [];
+            
+            for (const [field, newValue] of Object.entries(updates)) {
+              const oldValue = currentTool[field];
+              
+              if (oldValue !== newValue) {
+                const changeType = field === 'status' ? 'status_change' : 'updated';
+                
+                historyPromises.push(
+                  supabase
+                    .from('asset_history')
+                    .insert({
+                      asset_id: toolId,
+                      changed_by: currentUser.data.user.id,
+                      changed_at: new Date().toISOString(),
+                      change_type: changeType,
+                      field_changed: field,
+                      old_value: oldValue ? String(oldValue) : null,
+                      new_value: newValue ? String(newValue) : null,
+                      notes: `Field '${field}' updated`,
+                      organization_id: currentTool.organization_id
+                    })
+                );
+              }
+            }
+            
+            if (historyPromises.length > 0) {
+              await Promise.all(historyPromises);
+            }
+          }
+        } catch (historyError) {
+          console.warn('Failed to log asset updates:', historyError);
+        }
+      }
 
       // Update local state
       setTools(prev => prev.map(tool => 

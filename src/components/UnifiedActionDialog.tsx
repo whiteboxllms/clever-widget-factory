@@ -101,13 +101,6 @@ export function UnifiedActionDialog({
       // Yellow border: hasImplementationUpdates && hasPolicy && hasPlanCommitment (implementation in progress)
       const shouldDefaultToImplementation = hasPolicy && hasPlanCommitment;
       
-      console.log('Computing default tab:', {
-        actionPolicy: action.policy,
-        hasPolicy,
-        hasPlanCommitment,
-        shouldDefaultToImplementation,
-        defaultTab: shouldDefaultToImplementation ? 'observations' : 'plan'
-      });
       
       return shouldDefaultToImplementation ? 'observations' : 'plan';
     }
@@ -129,8 +122,6 @@ export function UnifiedActionDialog({
       if (!isSameSession || !isFormInitialized) {
         if (action && !isCreating) {
           // Editing existing action
-          console.log('UnifiedActionDialog: Setting form data for action:', action.id, 'with policy:', action.policy);
-          console.log('UnifiedActionDialog: Full action object:', action);
           setFormData({
             ...action,
             required_tools: action.required_tools || [],

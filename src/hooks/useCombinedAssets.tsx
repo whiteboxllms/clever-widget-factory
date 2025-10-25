@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserNames } from '@/hooks/useUserNames';
@@ -51,27 +51,21 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
   const isFetchingRef = useRef(false);
   const latestRequestIdRef = useRef(0);
   
-  // Get all accountable person IDs from current assets for user name fetching
-  const accountablePersonIds = Array.from(new Set(
-    assets.flatMap(asset => asset.accountable_person_id ? [asset.accountable_person_id] : [])
-  ));
-  
-  // Use shared hook for user names (cached)
-  const { getUserName, getUserColor } = useUserNames(accountablePersonIds);
+  // Use shared hook for user names (cached) - we'll fetch names for all users
+  // This breaks the circular dependency that was causing flickering
+  const { getUserName, getUserColor } = useUserNames([]);
   const currentSearchRef = useRef<string | undefined>(options?.search);
   const currentLimitRef = useRef<number>(options?.limit ?? 50);
   const currentPageRef = useRef<number>(options?.page ?? 0);
 
   const fetchAssets = async (overrides?: AssetsQueryOptions & { append?: boolean }) => {
     if (isFetchingRef.current) {
-      console.warn('[perf] assets: fetch ignored because a request is already in-flight');
+      console.warn('fetch ignored because a request is already in-flight');
       return;
     }
     isFetchingRef.current = true;
     const requestId = ++latestRequestIdRef.current;
     try {
-      console.time('[perf] assets: total fetchAssets');
-      performance.mark('assets_fetch_start');
       setLoading(true);
       // compute effective query params
       const effectiveSearch = overrides?.search ?? currentSearchRef.current;
@@ -84,7 +78,6 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
       if (overrides?.page !== undefined) currentPageRef.current = overrides.page!;
 
       // Fetch tools (assets)
-      console.time('[perf] assets: build toolsQuery');
       let toolsQuery = supabase
         .from('tools')
         .select(`
@@ -102,7 +95,6 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
           created_at,
           updated_at
         `);
-      console.timeEnd('[perf] assets: build toolsQuery');
       
       if (!showRemovedItems) {
         toolsQuery = toolsQuery.neq('status', 'removed');
@@ -125,7 +117,6 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
       toolsQuery = toolsQuery.order('name').range(toolsOffset, toolsRangeEnd);
 
       // Build parts (stock) query
-      console.time('[perf] assets: build partsQuery');
       let partsQuery = supabase
         .from('parts')
         .select(`
@@ -144,7 +135,6 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
           created_at,
           updated_at
         `);
-      console.timeEnd('[perf] assets: build partsQuery');
 
       if (effectiveSearch && effectiveSearch.trim() !== '') {
         const term = `%${effectiveSearch.trim()}%`;
@@ -174,7 +164,6 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
       }
 
       // Kick off all independent requests in parallel
-      console.time('[perf] assets: parallel fetch');
       const toolsPromise = toolsQuery;
       const partsPromise = partsQuery;
       const checkoutsPromise = supabase
@@ -199,7 +188,6 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
         issuesPromise,
         parentsPromise
       ]);
-      console.timeEnd('[perf] assets: parallel fetch');
 
       if (toolsResponse.error) throw toolsResponse.error;
       if (partsResponse.error) throw partsResponse.error;
@@ -208,42 +196,32 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
       if (parentsResp.error) console.error('Error fetching parent structures:', parentsResp.error);
 
       // Build helper maps
-      console.time('[perf] assets: build checkoutMap');
       const checkoutMap = new Map<string, { user_name: string; user_id: string; checkout_date: string }>();
       checkoutsResp.data?.forEach(checkout => {
-        checkoutMap.set(checkout.tool_id, { 
-          user_name: checkout.user_name, 
+        checkoutMap.set(checkout.tool_id, {
+          user_name: checkout.user_name,
           user_id: checkout.user_id,
           checkout_date: checkout.checkout_date
         });
       });
-      console.timeEnd('[perf] assets: build checkoutMap');
 
-      console.time('[perf] assets: build toolsWithIssues');
       const toolsWithIssues = new Set(issuesResp.data?.map(issue => issue.context_id) || []);
-      console.timeEnd('[perf] assets: build toolsWithIssues');
 
       // Create parent structure name map
-      console.time('[perf] assets: build parentStructureMap');
       const parentStructureMap = new Map<string, string>();
       parentsResp.data?.forEach(parent => {
         parentStructureMap.set(parent.id, parent.name);
       });
-      console.timeEnd('[perf] assets: build parentStructureMap');
 
       // Collect all unique accountable person IDs for shared hook
-      console.time('[perf] assets: collect accountablePersonIds');
       const accountablePersonIds = Array.from(new Set([
         ...(toolsResponse.data || []).map(tool => tool.accountable_person_id).filter(Boolean),
         ...(partsResponse.data || []).map(part => part.accountable_person_id).filter(Boolean)
       ]));
-      console.timeEnd('[perf] assets: collect accountablePersonIds');
 
       // Note: User names will be fetched separately using useUserNames hook
 
       // Transform and combine data
-      console.time('[perf] assets: transform+combine');
-      
       // Transform parts to stock first
       let transformedParts = (partsResponse.data || []).map(part => {
         const parentStructureName = part.parent_structure_id ? parentStructureMap.get(part.parent_structure_id) : null;
@@ -295,24 +273,43 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
         // Add filtered parts
         ...transformedParts
       ];
-      console.timeEnd('[perf] assets: transform+combine');
-      console.time('[perf] assets: set state');
+      
       if (latestRequestIdRef.current === requestId) {
         if (overrides?.append) {
           setAssets(prev => [...prev, ...transformedAssets]);
         } else {
-          setAssets(transformedAssets);
+          // Only update if the assets have actually changed
+          setAssets(prev => {
+            if (prev.length !== transformedAssets.length) {
+              return transformedAssets;
+            }
+            
+            // Check if any asset has changed by comparing IDs and key properties
+            const hasChanges = prev.some((prevAsset, index) => {
+              const nextAsset = transformedAssets[index];
+              if (!nextAsset || prevAsset.id !== nextAsset.id) return true;
+              
+              // Check key properties that affect rendering
+              return prevAsset.name !== nextAsset.name ||
+                     prevAsset.type !== nextAsset.type ||
+                     prevAsset.status !== nextAsset.status ||
+                     prevAsset.current_quantity !== nextAsset.current_quantity ||
+                     prevAsset.has_issues !== nextAsset.has_issues ||
+                     prevAsset.is_checked_out !== nextAsset.is_checked_out ||
+                     prevAsset.accountable_person_name !== nextAsset.accountable_person_name ||
+                     prevAsset.accountable_person_color !== nextAsset.accountable_person_color ||
+                     prevAsset.updated_at !== nextAsset.updated_at;
+            });
+            
+            if (hasChanges) {
+              return transformedAssets;
+            } else {
+              return prev;
+            }
+          });
         }
       } else {
-        console.warn('[perf] assets: stale response discarded');
-      }
-      console.timeEnd('[perf] assets: set state');
-      performance.mark('assets_fetch_end');
-      performance.measure('assets_fetch_total', 'assets_fetch_start', 'assets_fetch_end');
-      const [measure] = performance.getEntriesByName('assets_fetch_total');
-      if (measure) {
-        console.log('[perf] assets: total fetchAssets ms', Math.round(measure.duration));
-        performance.clearMeasures('assets_fetch_total');
+        console.warn('assets: stale response discarded');
       }
     } catch (error) {
       console.error('Error fetching combined assets:', error);
@@ -322,7 +319,6 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
         variant: "destructive"
       });
     } finally {
-      console.timeEnd('[perf] assets: total fetchAssets');
       if (latestRequestIdRef.current === requestId) {
         setLoading(false);
       }
@@ -421,8 +417,14 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showRemovedItems]);
 
+  // Memoize the assets array to prevent unnecessary re-renders
+  // Create stable references for each asset to prevent object recreation
+  const memoizedAssets = useMemo(() => {
+    return assets.map(asset => ({ ...asset })); // Create new object references only when content changes
+  }, [assets]);
+
   return {
-    assets,
+    assets: memoizedAssets,
     loading,
     fetchAssets,
     createAsset,

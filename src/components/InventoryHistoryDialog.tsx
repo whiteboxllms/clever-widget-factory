@@ -59,19 +59,25 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
         if (entry.changed_by) userIds.add(entry.changed_by);
       });
 
-      // Fetch user names using the database function
+      // Fetch user names from organization_members (same approach as other components)
       const userMap: Record<string, string> = {};
       if (userIds.size > 0) {
-        for (const userId of userIds) {
-          try {
-            const { data: userName } = await supabase.rpc('get_user_display_name', { 
-              target_user_id: userId 
+        try {
+          const { data: members, error: membersError } = await supabase
+            .from('organization_members')
+            .select('user_id, full_name')
+            .in('user_id', Array.from(userIds))
+            .eq('is_active', true);
+          
+          if (membersError) {
+            console.error('Error fetching organization members:', membersError);
+          } else {
+            (members || []).forEach(member => {
+              userMap[member.user_id] = member.full_name || 'Unknown User';
             });
-            userMap[userId] = userName || 'Unknown User';
-          } catch (error) {
-            console.error('Error fetching user name:', error);
-            userMap[userId] = 'Unknown User';
           }
+        } catch (error) {
+          console.error('Error fetching user names:', error);
         }
       }
 

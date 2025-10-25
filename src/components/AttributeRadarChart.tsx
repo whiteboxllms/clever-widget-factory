@@ -51,8 +51,6 @@ const mapOrgValueToAttributeKey = (orgValue: string): string => {
     'Growth Mindset': 'growth_mindset'
   };
   
-  // Debug logging
-  console.log('Mapping organization value:', orgValue, 'to attribute key:', mapping[orgValue]);
   
   return mapping[orgValue] || convertToAttributeKey(orgValue);
 };
@@ -73,14 +71,7 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
 
   // Process data for radar chart - create individual data for each user or impact data
   const radarData = useMemo(() => {
-    console.log('=== Radar Chart Debug ===');
-    console.log('Organization values:', orgValues);
-    console.log('Action analytics:', actionAnalytics);
-    console.log('Selected users:', selectedUsers);
-    console.log('Show impact:', showImpact);
-    
     if (!orgValues.length || !actionAnalytics.length) {
-      console.log('Missing org values or action analytics');
       return [];
     }
 
@@ -89,10 +80,7 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
       selectedUsers.includes(user.userId)
     );
     
-    console.log('Selected analytics:', selectedAnalytics);
-
     if (!selectedAnalytics.length) {
-      console.log('No selected analytics found');
       return [];
     }
 
@@ -115,7 +103,6 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
           const impactValue = score * totalActions;
           
           dataPoint[user.userName] = Math.round(impactValue * 100) / 100;
-          console.log(`${user.userName} - ${orgValue} (${attributeKey}): score=${score}, actions=${totalActions}, impact=${impactValue}`);
         });
 
         return dataPoint;
@@ -133,8 +120,6 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
         point.fullMark = dynamicFullMark;
       });
       
-      console.log('Impact radar data:', data);
-      console.log('Dynamic fullMark:', dynamicFullMark);
       return data;
     } else {
       // Individual mode: separate data for each user
@@ -151,13 +136,11 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
           const score = user.attributes[attributeKey as keyof typeof user.attributes];
           const userScore = score !== undefined && score !== null ? score : 2; // Default to middle value
           dataPoint[user.userName] = Math.round(userScore * 100) / 100; // Round to 2 decimal places
-          console.log(`User ${user.userName} - ${attributeKey}: ${userScore}`);
         });
 
         return dataPoint;
       });
       
-      console.log('Individual radar data:', data);
       return data;
     }
   }, [orgValues, actionAnalytics, selectedUsers, showImpact]);

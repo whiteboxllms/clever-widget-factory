@@ -29,7 +29,6 @@ export default function AnalyticsDashboard() {
     const todayString = today.toISOString().split('T')[0];
     const twoWeeksAgoString = twoWeeksAgo.toISOString().split('T')[0];
     
-    console.log('Setting default dates:', { start: twoWeeksAgoString, end: todayString, todayDate: today });
     
     setEndDate(todayString);
     setStartDate(twoWeeksAgoString);
@@ -40,10 +39,6 @@ export default function AnalyticsDashboard() {
   const [selectedActionAnalytics, setSelectedActionAnalytics] = useState<any[]>([]);
   const [selectedIssueAnalytics, setSelectedIssueAnalytics] = useState<any[]>([]);
 
-  // Debug logging to see what's happening with the data
-  console.log('All user analytics:', allUserAnalytics);
-  console.log('Selected action analytics:', selectedActionAnalytics);
-  console.log('Selected users:', selectedUsers);
 
   // Load initial analytics data
   useEffect(() => {

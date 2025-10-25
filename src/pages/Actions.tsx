@@ -216,7 +216,6 @@ export default function Actions() {
   // Profiles are now handled by useActionProfiles hook for consistency
 
   const handleEditAction = async (action: BaseAction) => {
-    console.log('Actions page: Clicking action with ID:', action.id, 'and policy:', action.policy);
     
     // Fetch the latest action data to ensure we have the most up-to-date attachments
     try {
@@ -789,10 +788,7 @@ export default function Actions() {
           }}
           action={editingAction || undefined}
           onActionSaved={handleSaveAction}
-          profiles={(() => {
-            console.log('Actions: Passing profiles to dialog:', profiles);
-            return profiles;
-          })()}
+          profiles={profiles}
        />
 
        {/* Score Dialog */}

@@ -436,7 +436,7 @@ export default function Actions() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="container mx-auto p-2 sm:p-4 md:p-6">
         <div className="flex items-center justify-center h-64">
           <div className="text-lg">Loading actions...</div>
         </div>
@@ -445,23 +445,23 @@ export default function Actions() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-2 sm:p-4 md:p-6 space-y-6 min-w-0">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={() => navigate('/')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full min-w-0">
+          <Button variant="outline" onClick={() => navigate('/')} className="!whitespace-normal text-left min-w-0">
+            <ArrowLeft className="h-4 w-4 mr-2 flex-shrink-0" />
+            <span className="break-words">Back to Dashboard</span>
           </Button>
           <Bolt className="h-8 w-8 text-primary" />
           <div>
-            <h1 className="text-3xl font-bold">Actions</h1>
+            <h1 className="text-xl sm:text-3xl font-bold">Actions</h1>
             <p className="text-muted-foreground">Track and manage actions</p>
           </div>
         </div>
-        <Button onClick={handleCreateAction} className="w-full sm:w-auto">
-          <Plus className="h-4 w-4 mr-2" />
-          New Action
+        <Button onClick={handleCreateAction} className="w-full sm:w-auto !whitespace-normal min-w-0">
+          <Plus className="h-4 w-4 mr-2 flex-shrink-0" />
+          <span className="break-words">New Action</span>
         </Button>
       </div>
 
@@ -577,11 +577,11 @@ export default function Actions() {
                      )}
                      onClick={() => handleEditAction(action)}
                    >
-                     <CardContent className="p-6">
+                     <CardContent className="p-3 sm:p-4 md:p-6">
                       <div className="space-y-3">
-                        <div className="flex items-start gap-3">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-lg font-semibold break-words leading-tight">{action.title}</h3>
+                        <div className="flex flex-col xs:flex-row items-start gap-3">
+                          <div className="flex-1 min-w-0 w-full">
+                            <h3 className="text-lg font-semibold break-words leading-tight break-all">{action.title}</h3>
                             <div className="text-xs text-muted-foreground mt-1">
                               <div className="flex flex-col sm:flex-row sm:flex-wrap gap-x-4 gap-y-1">
                                 <span>Updated: {new Date(action.updated_at).toLocaleDateString('en-US', { 
@@ -607,44 +607,44 @@ export default function Actions() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex-shrink-0">
+                          <div className="flex-shrink-0 self-end xs:self-start">
                             <ScoreButton action={action} onScoreAction={handleScoreAction} />
                           </div>
                         </div>
                            
                            {action.description && (
-                             <p className="text-muted-foreground break-words">{action.description}</p>
+                             <p className="text-muted-foreground break-words break-all">{action.description}</p>
                            )}
                            
-                           <div className="flex flex-wrap gap-2">
+                           <div className="flex flex-wrap gap-2 overflow-hidden">
                              {/* Action Type Indicator */}
                               {action.asset ? (
-                                <Badge variant="outline" className="bg-blue-100 text-blue-600 border-blue-300 max-w-full">
-                                  <span className="truncate">Asset: {action.asset.name.length > 20 ? `${action.asset.name.substring(0, 20)}...` : action.asset.name}</span>
+                                <Badge variant="outline" className="bg-blue-100 text-blue-600 border-blue-300 max-w-full overflow-hidden">
+                                  <span className="truncate">Asset: {action.asset.name.length > 10 ? `${action.asset.name.substring(0, 10)}...` : action.asset.name}</span>
                                 </Badge>
                              ) : action.issue_tool ? (
-                               <Badge variant="outline" className="bg-orange-100 text-orange-800 max-w-full">
-                                 <span className="truncate">Issue Tool: {action.issue_tool.name.length > 15 ? `${action.issue_tool.name.substring(0, 15)}...` : action.issue_tool.name}</span>
+                               <Badge variant="outline" className="bg-orange-100 text-orange-800 max-w-full overflow-hidden">
+                                 <span className="truncate">Issue Tool: {action.issue_tool.name.length > 10 ? `${action.issue_tool.name.substring(0, 10)}...` : action.issue_tool.name}</span>
                                </Badge>
                              ) : null}
                              
                              {action.mission && (
-                               <Badge variant="outline" className="bg-indigo-100 text-indigo-800 max-w-full">
-                                 <span className="truncate">Mission #{action.mission.mission_number}: {action.mission.title.length > 25 ? `${action.mission.title.substring(0, 25)}...` : action.mission.title}</span>
+                               <Badge variant="outline" className="bg-indigo-100 text-indigo-800 max-w-full overflow-hidden">
+                                 <span className="truncate">Mission #{action.mission.mission_number}: {action.mission.title.length > 15 ? `${action.mission.title.substring(0, 15)}...` : action.mission.title}</span>
                                </Badge>
                              )}
                              
                              {action.assignee ? (
                                <Badge 
                                  variant="outline" 
-                                 className="flex items-center gap-1 max-w-full"
+                                 className="flex items-center gap-1 max-w-full overflow-hidden"
                                  style={{ 
                                    borderColor: getUserColor(action.assignee.user_id),
                                    color: getUserColor(action.assignee.user_id)
                                  }}
                                >
                                  <User className="h-3 w-3 flex-shrink-0" />
-                                 <span className="truncate">{action.assignee.full_name}</span>
+                                 <span className="truncate max-w-[80px]">{action.assignee.full_name}</span>
                                </Badge>
                              ) : (
                                <Badge variant="outline" className="text-orange-600">
@@ -657,14 +657,14 @@ export default function Actions() {
                                  <Badge 
                                    key={participant.user_id} 
                                    variant="secondary" 
-                                   className="flex items-center gap-1 max-w-full"
+                                   className="flex items-center gap-1 max-w-full overflow-hidden"
                                    style={{ 
                                      borderColor: getUserColor(participant.user_id),
                                      color: getUserColor(participant.user_id)
                                    }}
                                  >
                                    <User className="h-3 w-3 flex-shrink-0" />
-                                   <span className="truncate">{participant.full_name}</span>
+                                   <span className="truncate max-w-[80px]">{participant.full_name}</span>
                                  </Badge>
                                ))
                              )}
@@ -695,11 +695,11 @@ export default function Actions() {
                    className="hover:shadow-md transition-shadow cursor-pointer border-2 border-[hsl(var(--action-done-border))] overflow-hidden"
                    onClick={() => handleEditAction(action)}
                  >
-                   <CardContent className="p-6">
+                   <CardContent className="p-3 sm:p-4 md:p-6">
                       <div className="space-y-3">
-                        <div className="flex items-start gap-3">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-lg font-semibold break-words leading-tight">{action.title}</h3>
+                        <div className="flex flex-col xs:flex-row items-start gap-3">
+                          <div className="flex-1 min-w-0 w-full">
+                            <h3 className="text-lg font-semibold break-words leading-tight break-all">{action.title}</h3>
                             <div className="text-xs text-muted-foreground mt-1">
                                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-x-4 gap-y-1">
                                  <span>Updated: {new Date(action.updated_at).toLocaleDateString('en-US', { 
@@ -714,41 +714,41 @@ export default function Actions() {
                                </div>
                             </div>
                           </div>
-                          <div className="flex-shrink-0">
+                          <div className="flex-shrink-0 self-end xs:self-start">
                             <ScoreButton action={action} onScoreAction={handleScoreAction} />
                           </div>
                         </div>
                          
                          {action.description && (
-                           <p className="text-muted-foreground break-words">{action.description}</p>
+                           <p className="text-muted-foreground break-words break-all">{action.description}</p>
                          )}
                          
-                         <div className="flex flex-wrap gap-2">
+                         <div className="flex flex-wrap gap-2 overflow-hidden">
                            <Badge variant="outline" className={getStatusColor(action.status, action)}>
                              Done
                            </Badge>
                            
                            {/* Action Type Indicator */}
                            {action.asset ? (
-                             <Badge variant="outline" className="bg-blue-100 text-blue-800 max-w-full">
-                               <span className="truncate">Asset: {action.asset.name.length > 20 ? `${action.asset.name.substring(0, 20)}...` : action.asset.name}</span>
-                             </Badge>
+                           <Badge variant="outline" className="bg-blue-100 text-blue-800 max-w-full overflow-hidden">
+                             <span className="truncate">Asset: {action.asset.name.length > 10 ? `${action.asset.name.substring(0, 10)}...` : action.asset.name}</span>
+                           </Badge>
                            ) : action.issue_tool ? (
-                             <Badge variant="outline" className="bg-orange-100 text-orange-800 max-w-full">
-                               <span className="truncate">Issue Tool: {action.issue_tool.name.length > 15 ? `${action.issue_tool.name.substring(0, 15)}...` : action.issue_tool.name}</span>
+                             <Badge variant="outline" className="bg-orange-100 text-orange-800 max-w-full overflow-hidden">
+                               <span className="truncate">Issue Tool: {action.issue_tool.name.length > 10 ? `${action.issue_tool.name.substring(0, 10)}...` : action.issue_tool.name}</span>
                              </Badge>
                            ) : null}
                            
                            {action.mission && (
-                             <Badge variant="outline" className="bg-indigo-100 text-indigo-800 max-w-full">
-                               <span className="truncate">Mission #{action.mission.mission_number}: {action.mission.title.length > 25 ? `${action.mission.title.substring(0, 25)}...` : action.mission.title}</span>
-                             </Badge>
+                           <Badge variant="outline" className="bg-indigo-100 text-indigo-800 max-w-full overflow-hidden">
+                             <span className="truncate">Mission #{action.mission.mission_number}: {action.mission.title.length > 15 ? `${action.mission.title.substring(0, 15)}...` : action.mission.title}</span>
+                           </Badge>
                            )}
                            
                             {action.assignee ? (
-                              <Badge variant="outline" className="flex items-center gap-1 max-w-full">
+                              <Badge variant="outline" className="flex items-center gap-1 max-w-full overflow-hidden">
                                 <User className="h-3 w-3 flex-shrink-0" />
-                                <span className="truncate">{action.assignee.full_name}</span>
+                                <span className="truncate max-w-[80px]">{action.assignee.full_name}</span>
                               </Badge>
                             ) : (
                               <Badge variant="outline" className="text-orange-600">
@@ -758,9 +758,9 @@ export default function Actions() {
                             
                             {action.participants_details && action.participants_details.length > 0 && (
                               action.participants_details.map(participant => (
-                                <Badge key={participant.user_id} variant="secondary" className="flex items-center gap-1 max-w-full">
+                                <Badge key={participant.user_id} variant="secondary" className="flex items-center gap-1 max-w-full overflow-hidden">
                                   <User className="h-3 w-3 flex-shrink-0" />
-                                  <span className="truncate">{participant.full_name}</span>
+                                  <span className="truncate max-w-[80px]">{participant.full_name}</span>
                                 </Badge>
                               ))
                             )}

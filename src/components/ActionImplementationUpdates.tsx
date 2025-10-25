@@ -89,20 +89,21 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
 
       if (missingUserIds.length > 0) {
         try {
-          const { data: missingProfiles, error: missingError } = await supabase
-            .from('profiles')
-            .select('user_id, full_name, favorite_color')
-            .in('user_id', missingUserIds);
+          const { data: missingMembers, error: missingError } = await supabase
+            .from('organization_members')
+            .select('user_id, full_name')
+            .in('user_id', missingUserIds)
+            .eq('is_active', true);
 
           if (missingError) {
-            console.error('Error fetching missing profiles:', missingError);
-          } else if (missingProfiles) {
-            // Update the profile map with missing profiles
-            missingProfiles.forEach(profile => {
-              profileMap.set(profile.user_id, {
-                full_name: profile.full_name,
-                user_id: profile.user_id,
-                favorite_color: profile.favorite_color
+            console.error('Error fetching missing members:', missingError);
+          } else if (missingMembers) {
+            // Update the profile map with missing members
+            missingMembers.forEach(member => {
+              profileMap.set(member.user_id, {
+                full_name: member.full_name || 'Unknown User',
+                user_id: member.user_id,
+                favorite_color: null
               });
             });
 

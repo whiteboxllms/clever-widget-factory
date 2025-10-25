@@ -133,7 +133,9 @@ export function MissionTaskList({ missionId, profiles, canEdit = false, missionN
             observations: '',
             assigned_to: null,
             status: 'not_started',
-            mission_id: missionId
+            mission_id: missionId,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
           }}
           profiles={profiles}
           onUpdate={fetchActions}

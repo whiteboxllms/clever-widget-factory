@@ -229,20 +229,8 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
 
       if (error) throw error;
 
-      // If this checkout is for a mission, create mission tool usage record
-      if (missionId && checkoutData) {
-        const { error: missionToolError } = await supabase
-          .from('mission_tool_usage')
-          .insert({
-            checkout_id: checkoutData.id,
-            organization_id: organizationId
-          });
-
-        if (missionToolError) {
-          console.error('Error linking tool to mission:', missionToolError);
-          // Don't fail the entire checkout if mission linking fails
-        }
-      }
+      // Note: mission_tool_usage table no longer exists
+      // Tools are now linked via action_id in checkouts table
 
       // Update tool status to checked out
       const { error: toolError } = await supabase

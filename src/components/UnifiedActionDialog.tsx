@@ -673,7 +673,7 @@ export function UnifiedActionDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn(
-        "max-w-4xl max-h-[90vh] overflow-y-auto",
+        "max-w-lg sm:max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-y-auto p-3 sm:p-6",
         borderStyle.borderColor
       )}>
         <DialogHeader>
@@ -739,7 +739,7 @@ export function UnifiedActionDialog({
 
           {/* Title */}
           <div>
-            <Label htmlFor="actionTitle" className="text-sm font-medium">
+            <Label htmlFor="actionTitle" className="text-sm font-medium break-words">
               Title *
             </Label>
             <Input
@@ -766,9 +766,10 @@ export function UnifiedActionDialog({
 
 
           {/* Assigned To, Participants, and Estimated Completion Date */}
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="assignedTo" className="text-sm font-medium">
+          {/* Assigned To and Participants Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="assignedTo" className="text-sm font-medium break-words">
                 Assigned To
               </Label>
               <Select 
@@ -792,8 +793,8 @@ export function UnifiedActionDialog({
               </Select>
             </div>
 
-            <div>
-              <Label htmlFor="participants" className="text-sm font-medium">
+            <div className="space-y-2">
+              <Label htmlFor="participants" className="text-sm font-medium break-words">
                 Participants
               </Label>
               <div className="mt-1">
@@ -805,27 +806,31 @@ export function UnifiedActionDialog({
                 />
               </div>
             </div>
+          </div>
 
-            <div>
-              <Label htmlFor="estimated_completion_date">
-                <Clock className="w-4 h-4 inline mr-1" />
-                Estimated Completion Date
-              </Label>
+          {/* Estimated Completion Date - Full Width Row */}
+          <div className="space-y-2">
+            <Label htmlFor="estimated_completion_date" className="flex items-start gap-1 break-words">
+              <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>Estimated Completion Date</span>
+            </Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     className={cn(
-                      "w-full justify-start text-left font-normal mt-1",
+                      "w-full justify-start text-left font-normal mt-1 !whitespace-normal min-w-0",
                       !estimatedDate && "text-muted-foreground"
                     )}
                   >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {estimatedDate ? (
-                      format(estimatedDate, "PPP")
-                    ) : (
-                      <span>Pick a completion date</span>
-                    )}
+                    <CalendarIcon className="mr-2 h-4 w-4 flex-shrink-0" />
+                    <span className="break-words">
+                      {estimatedDate ? (
+                        format(estimatedDate, "PPP")
+                      ) : (
+                        "Pick a completion date"
+                      )}
+                    </span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -838,11 +843,11 @@ export function UnifiedActionDialog({
                   />
                 </PopoverContent>
               </Popover>
-            </div>
+          </div>
 
-            {/* Plan Commitment Toggle - Only show when assigned and user is leadership */}
-            {formData.assigned_to && formData.assigned_to !== 'unassigned' && isLeadership && (
-              <div className="col-span-3 pt-2 border-t border-border">
+          {/* Plan Commitment Toggle - Only show when assigned and user is leadership */}
+          {formData.assigned_to && formData.assigned_to !== 'unassigned' && isLeadership && (
+            <div className="pt-2 border-t border-border">
                 <div className="flex items-start space-x-3">
                   <Switch
                     id="plan-commitment"
@@ -890,14 +895,13 @@ export function UnifiedActionDialog({
                 </div>
               </div>
             )}
-          </div>
 
           {/* Assets and Stock Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-4">
             {/* Assets */}
-            <div>
-              <Label className="flex items-center gap-1 mb-2">
-                <Wrench className="w-4 h-4" />
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1 break-words">
+                <Wrench className="w-4 h-4 flex-shrink-0" />
                 Assets
               </Label>
               <AssetSelector
@@ -913,9 +917,9 @@ export function UnifiedActionDialog({
             </div>
 
             {/* Stock */}
-            <div>
-              <Label className="flex items-center gap-1 mb-2">
-                <Package className="w-4 h-4" />
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1 break-words">
+                <Package className="w-4 h-4 flex-shrink-0" />
                 Stock
               </Label>
               <StockSelector
@@ -969,7 +973,7 @@ export function UnifiedActionDialog({
 
           {/* Attachments */}
           <div>
-            <Label className="text-sm font-medium">Attachments (Images & PDFs)</Label>
+            <Label className="text-sm font-medium break-words">Attachments (Images & PDFs)</Label>
             <div className="mt-1">
               <input
                 type="file"
@@ -1061,7 +1065,7 @@ export function UnifiedActionDialog({
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 <CheckCircle className="h-4 w-4 mr-2" />
-                {isCompleting ? 'Marking Complete...' : 'Ready for Review'}
+                {isCompleting ? 'Marking Complete...' : 'Done'}
               </Button>
             )}
             <Button

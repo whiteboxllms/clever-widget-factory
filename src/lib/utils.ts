@@ -63,18 +63,6 @@ export function getActionBorderStyle(action: {
   const isAssigned = Boolean(action.assigned_to);
   const hasPlanCommitment = action.plan_commitment === true;
 
-  // Debug logging for "Setup corporate bank account" action
-  if (action.title && action.title.includes('Setup corporate bank account')) {
-    console.log('Border debug for Setup corporate bank account:', {
-      title: action.title,
-      hasPolicy,
-      hasImplementationUpdates,
-      implementation_update_count: action.implementation_update_count,
-      hasPlanCommitment,
-      plan_commitment: action.plan_commitment,
-      assigned_to: action.assigned_to
-    });
-  }
 
   
   // Green border for completed actions

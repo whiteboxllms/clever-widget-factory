@@ -45,7 +45,21 @@ export interface IssueHistoryEntry {
   notes?: string;
 }
 
-export type HistoryEntry = CheckoutHistory | IssueHistoryEntry;
+export interface AssetHistoryEntry {
+  id: string;
+  type: 'asset_change';
+  asset_id: string;
+  change_type: 'created' | 'updated' | 'removed' | 'status_change';
+  changed_at: string;
+  changed_by: string;
+  user_name?: string;
+  field_changed?: string;
+  old_value?: string;
+  new_value?: string;
+  notes?: string;
+}
+
+export type HistoryEntry = CheckoutHistory | IssueHistoryEntry | AssetHistoryEntry;
 
 export const useToolHistory = () => {
   const [toolHistory, setToolHistory] = useState<HistoryEntry[]>([]);
@@ -86,6 +100,15 @@ export const useToolHistory = () => {
         .order('checkin_date', { ascending: false });
 
       if (checkinsError) throw checkinsError;
+
+      // Fetch asset history
+      const { data: assetHistoryData, error: assetHistoryError } = await supabase
+        .from('asset_history')
+        .select('*')
+        .eq('asset_id', toolId)
+        .order('changed_at', { ascending: false });
+
+      if (assetHistoryError) throw assetHistoryError;
 
       // Fetch issue history with issue details
       const { data: issueHistoryData, error: issueHistoryError } = await supabase
@@ -157,6 +180,36 @@ export const useToolHistory = () => {
           });
         }
       }
+
+      // Process asset history
+      let assetHistoryWithNames: AssetHistoryEntry[] = [];
+      if (assetHistoryData && assetHistoryData.length > 0) {
+        // Get user names for asset history
+        const assetUserIds = new Set(assetHistoryData.map(entry => entry.changed_by));
+        const { data: assetUserDisplayNames } = await supabase
+          .from('organization_members')
+          .select('user_id, full_name')
+          .in('user_id', Array.from(assetUserIds))
+          .eq('is_active', true);
+        
+        const assetUserNameMap = new Map(
+          assetUserDisplayNames?.map(user => [user.user_id, user.full_name]) || []
+        );
+
+        assetHistoryWithNames = assetHistoryData.map(entry => ({
+          id: entry.id,
+          type: 'asset_change' as const,
+          asset_id: entry.asset_id,
+          change_type: entry.change_type as 'created' | 'updated' | 'removed' | 'status_change',
+          changed_at: entry.changed_at,
+          changed_by: entry.changed_by,
+          user_name: assetUserNameMap.get(entry.changed_by) || 'Unknown User',
+          field_changed: entry.field_changed,
+          old_value: entry.old_value,
+          new_value: entry.new_value,
+          notes: entry.notes
+        }));
+      }
       
       // Find current checkout (not returned)
       const activeCheckout = checkoutsData?.find(checkout => !checkout.is_returned);
@@ -179,7 +232,8 @@ export const useToolHistory = () => {
           is_returned: true,
           checkin: checkin
         })),
-        ...issueHistoryWithNames
+        ...issueHistoryWithNames,
+        ...assetHistoryWithNames
       ].sort((a, b) => {
         const dateA = new Date('checkout_date' in a ? (a.checkout_date || a.created_at) : a.changed_at);
         const dateB = new Date('checkout_date' in b ? (b.checkout_date || b.created_at) : b.changed_at);

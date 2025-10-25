@@ -71,8 +71,28 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
 
   // Process data for radar chart - create individual data for each user or impact data
   const radarData = useMemo(() => {
+    console.log('Radar chart data processing:', {
+      orgValuesLength: orgValues.length,
+      actionAnalyticsLength: actionAnalytics.length,
+      selectedUsersLength: selectedUsers.length,
+      orgValues,
+      actionAnalytics: actionAnalytics.slice(0, 2), // Log first 2 for debugging
+      selectedUsers
+    });
+    
     if (!orgValues.length || !actionAnalytics.length) {
+      console.log('Early return: missing orgValues or actionAnalytics');
       return [];
+    }
+
+    // Create a simple test data structure to verify radar chart works
+    if (orgValues.length === 0) {
+      console.log('No org values, creating test data');
+      return [
+        { attribute: 'Test 1', 'User 1': 2, 'User 2': 3, fullMark: 4 },
+        { attribute: 'Test 2', 'User 1': 3, 'User 2': 2, fullMark: 4 },
+        { attribute: 'Test 3', 'User 1': 1, 'User 2': 4, fullMark: 4 }
+      ];
     }
 
     // Filter analytics for selected users
@@ -88,6 +108,7 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
       // Impact mode: individual impact score for each user
       const data = orgValues.map(orgValue => {
         const attributeKey = mapOrgValueToAttributeKey(orgValue);
+        console.log(`Processing orgValue: ${orgValue}, mapped to attributeKey: ${attributeKey}`);
         
         const dataPoint: any = {
           attribute: orgValue
@@ -98,6 +119,8 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
           const userScore = user.attributes[attributeKey as keyof typeof user.attributes];
           const score = userScore !== undefined && userScore !== null ? userScore : 2;
           const totalActions = user.totalActions || 0;
+          
+          console.log(`User ${user.userName}: attributeKey=${attributeKey}, userScore=${userScore}, totalActions=${totalActions}`);
           
           // Impact = user's score * user's total actions (no arbitrary division)
           const impactValue = score * totalActions;
@@ -125,6 +148,7 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
       // Individual mode: separate data for each user
       const data = orgValues.map(orgValue => {
         const attributeKey = mapOrgValueToAttributeKey(orgValue);
+        console.log(`Individual mode - Processing orgValue: ${orgValue}, mapped to attributeKey: ${attributeKey}`);
         
         const dataPoint: any = {
           attribute: orgValue,
@@ -135,25 +159,42 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
         selectedAnalytics.forEach(user => {
           const score = user.attributes[attributeKey as keyof typeof user.attributes];
           const userScore = score !== undefined && score !== null ? score : 2; // Default to middle value
+          console.log(`Individual mode - User ${user.userName}: attributeKey=${attributeKey}, score=${score}, userScore=${userScore}`);
           dataPoint[user.userName] = Math.round(userScore * 100) / 100; // Round to 2 decimal places
         });
 
         return dataPoint;
       });
       
+      console.log('Individual mode - Final data structure:', data);
       return data;
     }
   }, [orgValues, actionAnalytics, selectedUsers, showImpact]);
 
   // Get user data for individual radar lines
   const userData = useMemo(() => {
-    return actionAnalytics
-      .filter(user => selectedUsers.includes(user.userId))
-      .map((user, index) => ({
-        name: user.userName,
-        color: USER_COLORS[index % USER_COLORS.length],
-        dataKey: user.userName
-      }));
+    const filteredUsers = actionAnalytics.filter(user => selectedUsers.includes(user.userId));
+    console.log('userData calculation:', {
+      actionAnalyticsLength: actionAnalytics.length,
+      selectedUsers,
+      filteredUsersLength: filteredUsers.length,
+      filteredUsers: filteredUsers.map(u => ({ userId: u.userId, userName: u.userName }))
+    });
+    
+    // If no users found, create test user data
+    if (filteredUsers.length === 0) {
+      console.log('No users found, creating test user data');
+      return [
+        { name: 'User 1', color: USER_COLORS[0], dataKey: 'User 1' },
+        { name: 'User 2', color: USER_COLORS[1], dataKey: 'User 2' }
+      ];
+    }
+    
+    return filteredUsers.map((user, index) => ({
+      name: user.userName,
+      color: USER_COLORS[index % USER_COLORS.length],
+      dataKey: user.userName
+    }));
   }, [actionAnalytics, selectedUsers]);
 
   // Get user names for legend
@@ -224,35 +265,46 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
         <div className="space-y-6">
           {/* Radar Chart */}
           <div className="h-96">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={radarData} margin={{ top: 20, right: 30, bottom: 20, left: 30 }}>
-                <PolarGrid />
-                <PolarAngleAxis 
-                  dataKey="attribute" 
-                  tick={{ fontSize: 12 }}
-                  className="text-sm"
-                />
-                <PolarRadiusAxis 
-                  angle={90} 
-                  domain={[0, 'dataMax']} 
-                  tick={{ fontSize: 10 }}
-                  tickCount={5}
-                />
-                 {/* Render radar based on mode */}
-                {userData.map((user, index) => (
-                  <Radar
-                    key={user.name}
-                    name={user.name}
-                    dataKey={user.dataKey}
-                    stroke={user.color}
-                    fill={user.color}
-                    fillOpacity={0.1}
-                    strokeWidth={2}
+            {console.log('Rendering radar chart with data:', radarData)}
+            {console.log('User data for radar lines:', userData)}
+            {radarData.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                <div className="text-center">
+                  <p className="text-lg font-medium mb-2">No Data Available</p>
+                  <p>Unable to generate radar chart data</p>
+                </div>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart data={radarData} margin={{ top: 20, right: 30, bottom: 20, left: 30 }}>
+                  <PolarGrid />
+                  <PolarAngleAxis 
+                    dataKey="attribute" 
+                    tick={{ fontSize: 12 }}
+                    className="text-sm"
                   />
-                ))}
-                <Legend />
-              </RadarChart>
-            </ResponsiveContainer>
+                  <PolarRadiusAxis 
+                    angle={90} 
+                    domain={[0, 'dataMax']} 
+                    tick={{ fontSize: 10 }}
+                    tickCount={5}
+                  />
+                   {/* Render radar based on mode */}
+                  {userData.map((user, index) => (
+                    <Radar
+                      key={user.name}
+                      name={user.name}
+                      dataKey={user.dataKey}
+                      stroke={user.color}
+                      fill={user.color}
+                      fillOpacity={0.1}
+                      strokeWidth={2}
+                    />
+                  ))}
+                  <Legend />
+                </RadarChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
           {/* Scale Legend */}

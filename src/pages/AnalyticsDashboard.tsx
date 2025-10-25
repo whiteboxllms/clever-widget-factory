@@ -43,7 +43,9 @@ export default function AnalyticsDashboard() {
   // Load initial analytics data
   useEffect(() => {
     const loadInitialData = async () => {
+      console.log('AnalyticsDashboard - Loading initial data...');
       const allAnalytics = await getActionAnalytics(); // Get all users for selection
+      console.log('AnalyticsDashboard - Loaded all analytics:', allAnalytics.slice(0, 2));
       setAllUserAnalytics(allAnalytics);
 
       // Auto-select specific users on initial load: Stefan, Mae, Lester and malone
@@ -52,6 +54,7 @@ export default function AnalyticsDashboard() {
         const selectedUserIds = allAnalytics
           .filter(user => targetUsers.some(target => user.userName.includes(target.trim())))
           .map(user => user.userId);
+        console.log('AnalyticsDashboard - Auto-selecting users:', selectedUserIds);
         setSelectedUsers(selectedUserIds);
       }
 
@@ -66,7 +69,9 @@ export default function AnalyticsDashboard() {
   useEffect(() => {
     const updateSelectedAnalytics = async () => {
       if (selectedUsers.length > 0) {
+        console.log('AnalyticsDashboard - Fetching action analytics for users:', selectedUsers);
         const actionAnalytics = await getActionAnalytics(selectedUsers); // Filter by org values for display
+        console.log('AnalyticsDashboard - Received action analytics:', actionAnalytics.slice(0, 2));
         setSelectedActionAnalytics(actionAnalytics);
       }
     };
@@ -206,11 +211,18 @@ export default function AnalyticsDashboard() {
           <div className="lg:col-span-3 space-y-6">
             {/* Radar Chart */}
             {selectedUsers.length > 0 ? (
-              <AttributeRadarChart
-                actionAnalytics={selectedActionAnalytics}
-                issueAnalytics={selectedIssueAnalytics}
-                selectedUsers={selectedUsers}
-              />
+              <>
+                {console.log('AnalyticsDashboard - Passing to radar chart:', {
+                  selectedActionAnalytics: selectedActionAnalytics.slice(0, 2),
+                  selectedIssueAnalytics: selectedIssueAnalytics.slice(0, 2),
+                  selectedUsers
+                })}
+                <AttributeRadarChart
+                  actionAnalytics={selectedActionAnalytics}
+                  issueAnalytics={selectedIssueAnalytics}
+                  selectedUsers={selectedUsers}
+                />
+              </>
             ) : (
               <Card>
                 <CardContent className="p-8 text-center">

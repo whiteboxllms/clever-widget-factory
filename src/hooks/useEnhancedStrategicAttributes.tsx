@@ -42,7 +42,7 @@ export function useEnhancedStrategicAttributes() {
             id,
             assigned_to,
             title,
-            profiles!assigned_to(
+            organization_members!fk_actions_assigned_to_organization_members(
               full_name
             )
           )
@@ -63,7 +63,7 @@ export function useEnhancedStrategicAttributes() {
         id: item.id,
         action_id: item.action_id,
         assigned_to: item.actions.assigned_to,
-        full_name: item.actions.profiles?.full_name || 'Unknown User',
+        full_name: item.actions.organization_members?.full_name || 'Unknown User',
         scores: item.scores,
         created_at: item.created_at
       })).filter(score => {
@@ -98,7 +98,7 @@ export function useEnhancedStrategicAttributes() {
             id,
             assigned_to,
             title,
-            profiles!assigned_to(
+            organization_members!fk_actions_assigned_to_organization_members(
               full_name
             )
           )
@@ -119,7 +119,7 @@ export function useEnhancedStrategicAttributes() {
         id: item.id,
         action_id: item.action_id,
         assigned_to: item.actions.assigned_to,
-        full_name: item.actions.profiles?.full_name || 'Unknown User',
+        full_name: item.actions.organization_members?.full_name || 'Unknown User',
         scores: item.scores,
         created_at: item.created_at
       })).filter(score => {
@@ -248,7 +248,7 @@ export function useEnhancedStrategicAttributes() {
             id,
             assigned_to,
             title,
-            profiles!assigned_to(
+            organization_members!fk_actions_assigned_to_organization_members(
               full_name
             )
           )
@@ -264,7 +264,7 @@ export function useEnhancedStrategicAttributes() {
         id: item.id,
         action_id: item.action_id,
         assigned_to: item.actions.assigned_to,
-        full_name: item.actions.profiles?.full_name || 'Unknown User',
+        full_name: item.actions.organization_members?.full_name || 'Unknown User',
         scores: item.scores,
         created_at: item.created_at
       })).filter(score => {
@@ -631,7 +631,7 @@ export function useEnhancedStrategicAttributes() {
         title: action.title,
         status: action.status,
         linked_issue_id: action.linked_issue_id,
-        assignee: action.profiles
+         assignee: action.organization_members
       }));
     } catch (error) {
       console.error('Error fetching day actions:', error);

@@ -288,87 +288,93 @@ export function GenericIssueCard({
               )}
             </div>
             
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-1 sm:flex-shrink-0">
-              {enableScorecard && issue.context_type === 'tool' && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleAssignScore}
-                  className={`min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs ${existingScore ? 'border-green-500 text-green-600' : ''}`}
-                  title={existingScore ? 'View Score' : 'Assign Score'}
-                >
-                  <Target className="h-4 w-4 sm:h-3 sm:w-3 mr-2 sm:mr-0" />
-                  <span className="sm:hidden">Score</span>
-                </Button>
-              )}
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-1 sm:flex-shrink-0">
+                {enableScorecard && issue.context_type === 'tool' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleAssignScore}
+                    className={`min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs ${existingScore ? 'border-green-500 text-green-600' : ''}`}
+                    title={existingScore ? 'View Score' : 'Assign Score'}
+                  >
+                    <Target className="h-4 w-4 sm:h-3 sm:w-3 mr-2 sm:mr-0" />
+                    <span className="sm:hidden">Score</span>
+                  </Button>
+                )}
 
-              {enableActions && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleManageActions}
-                  className={`min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs ${
-                    existingActions.length > 0 
-                      ? existingActions.some(action => action.status === 'completed')
-                        ? 'border-green-500 text-green-600'
-                        : 'border-blue-500 text-blue-600'
-                      : ''
-                  }`}
-                  title={existingActions.length > 0 ? `Manage Actions (${existingActions.length})` : 'Create Action'}
-                >
-                  <Swords className="h-4 w-4 sm:h-3 sm:w-3 mr-2 sm:mr-0" />
-                  <span className="sm:hidden">
-                    {existingActions.length > 0 ? `Actions (${existingActions.length})` : 'Actions'}
-                  </span>
-                </Button>
-              )}
+                {enableActions && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleManageActions}
+                    className={`min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs ${
+                      existingActions.length > 0 
+                        ? existingActions.some(action => action.status === 'completed')
+                          ? 'border-green-500 text-green-600'
+                          : 'border-blue-500 text-blue-600'
+                        : ''
+                    }`}
+                    title={existingActions.length > 0 ? `Manage Actions (${existingActions.length})` : 'Create Action'}
+                  >
+                    <Swords className="h-4 w-4 sm:h-3 sm:w-3 mr-2 sm:mr-0" />
+                    <span className="sm:hidden">
+                      {existingActions.length > 0 ? `Actions (${existingActions.length})` : 'Actions'}
+                    </span>
+                  </Button>
+                )}
 
-              {onEdit && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onEdit(issue)}
-                  className="min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs"
-                >
-                  <Edit className="h-4 w-4 sm:h-3 sm:w-3 mr-2 sm:mr-0" />
-                  <span className="sm:hidden">Edit</span>
-                </Button>
-              )}
+                {onEdit && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onEdit(issue)}
+                    className="min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs"
+                  >
+                    <Edit className="h-4 w-4 sm:h-3 sm:w-3 mr-2 sm:mr-0" />
+                    <span className="sm:hidden">Edit</span>
+                  </Button>
+                )}
+                
+                {!isResolved && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        await resolveIssue(issue.id);
+                        onRefresh();
+                      } catch (error) {
+                        console.error('Error resolving issue:', error);
+                      }
+                    }}
+                    className="min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs"
+                    title="Resolve Issue"
+                  >
+                    <CheckCircle className="h-4 w-4 sm:h-3 sm:w-3 mr-2 sm:mr-1" />
+                    <span className="hidden sm:inline">Resolve</span>
+                    <span className="sm:hidden">Resolve</span>
+                  </Button>
+                )}
+                
+                {!isResolved && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleRemove}
+                    disabled={isRemoving}
+                    className="min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs text-destructive hover:text-destructive"
+                    title="Remove issue"
+                  >
+                    <X className="h-4 w-4 sm:h-3 sm:w-3 mr-2 sm:mr-0" />
+                    <span className="sm:hidden">Remove</span>
+                  </Button>
+                )}
+              </div>
               
-              {!isResolved && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={async () => {
-                    try {
-                      await resolveIssue(issue.id);
-                      onRefresh();
-                    } catch (error) {
-                      console.error('Error resolving issue:', error);
-                    }
-                  }}
-                  className="min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs"
-                  title="Resolve Issue"
-                >
-                  <CheckCircle className="h-4 w-4 sm:h-3 sm:w-3 mr-2 sm:mr-1" />
-                  <span className="hidden sm:inline">Resolve</span>
-                  <span className="sm:hidden">Resolve</span>
-                </Button>
-              )}
-              
-              {!isResolved && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleRemove}
-                  disabled={isRemoving}
-                  className="min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs text-destructive hover:text-destructive"
-                  title="Remove issue"
-                >
-                  <X className="h-4 w-4 sm:h-3 sm:w-3 mr-2 sm:mr-0" />
-                  <span className="sm:hidden">Remove</span>
-                </Button>
-              )}
+              <div className="text-xs text-muted-foreground text-right">
+                Created: {new Date(issue.reported_at).toLocaleDateString()} {new Date(issue.reported_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </div>
             </div>
           </div>
         </CardContent>

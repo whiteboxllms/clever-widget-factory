@@ -5,21 +5,35 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, TrendingUp, Users, BarChart3 } from 'lucide-react';
 import { AttributeRadarChart } from '@/components/AttributeRadarChart';
 import { AttributeFilters } from '@/components/AttributeFilters';
+import { supabase } from '@/integrations/supabase/client';
 import { ScoredActionsList } from '@/components/ScoredActionsList';
 import { ProactiveVsReactiveChart } from '@/components/ProactiveVsReactiveChart';
+import InventoryTrackingChart from '@/components/InventoryTrackingChart';
+import InventoryUsageHeatmap from '@/components/InventoryUsageHeatmap';
+import ActionUpdatesChart from '@/components/ActionUpdatesChart';
+// Removed IssuesCreatedChart
 import { useEnhancedStrategicAttributes } from '@/hooks/useEnhancedStrategicAttributes';
 import { useScoredActions } from '@/hooks/useScoredActions';
+import { useInventoryTracking } from '@/hooks/useInventoryTracking';
 
 export default function AnalyticsDashboard() {
   const navigate = useNavigate();
   const { getEnhancedAttributeAnalytics, getActionAnalytics, getIssueAnalytics, getProactiveVsReactiveData, getDayActions, fetchAllData, isLoading: attributesLoading } = useEnhancedStrategicAttributes();
   const { scoredActions, isLoading: isLoadingScoredActions, fetchScoredActions } = useScoredActions();
+  const { getInventoryTrackingData, getInventoryUsageHeatmapData } = useInventoryTracking();
   
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [filtersCollapsed, setFiltersCollapsed] = useState<boolean>(true);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [proactiveVsReactiveData, setProactiveVsReactiveData] = useState<any[]>([]);
   const [isLoadingProactiveData, setIsLoadingProactiveData] = useState(false);
+  const [inventoryTrackingData, setInventoryTrackingData] = useState<any[]>([]);
+  const [isLoadingInventoryTracking, setIsLoadingInventoryTracking] = useState(false);
+  const [heatmapData, setHeatmapData] = useState<any[]>([]);
+  const [isLoadingHeatmap, setIsLoadingHeatmap] = useState(false);
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [didAutoApply, setDidAutoApply] = useState(false);
 
   // Set default dates (last 2 weeks)
   useEffect(() => {
@@ -29,6 +43,7 @@ export default function AnalyticsDashboard() {
     const todayString = today.toISOString().split('T')[0];
     const twoWeeksAgoString = twoWeeksAgo.toISOString().split('T')[0];
     
+    console.log('Setting default dates:', { start: twoWeeksAgoString, end: todayString, todayDate: today });
     
     setEndDate(todayString);
     setStartDate(twoWeeksAgoString);
@@ -39,27 +54,54 @@ export default function AnalyticsDashboard() {
   const [selectedActionAnalytics, setSelectedActionAnalytics] = useState<any[]>([]);
   const [selectedIssueAnalytics, setSelectedIssueAnalytics] = useState<any[]>([]);
 
+  // Debug logging to see what's happening with the data
+  console.log('All user analytics:', allUserAnalytics);
+  console.log('Selected action analytics:', selectedActionAnalytics);
+  console.log('Selected users:', selectedUsers);
+  console.log('Selected users count:', selectedUsers.length);
+  console.log('All user analytics count:', allUserAnalytics.length);
+  
+  // Debug specific user details
+  if (allUserAnalytics.length > 0) {
+    console.log('User details:');
+    allUserAnalytics.forEach((user, index) => {
+      console.log(`${index + 1}. ${user.userName} (${user.userId}) - Role: ${user.userRole}`);
+    });
+  }
 
-  // Load initial analytics data
+  // Load initial analytics data and auto-select only active members
   useEffect(() => {
     const loadInitialData = async () => {
-      console.log('AnalyticsDashboard - Loading initial data...');
+      console.log('Starting to load analytics data...');
       const allAnalytics = await getActionAnalytics(); // Get all users for selection
-      console.log('AnalyticsDashboard - Loaded all analytics:', allAnalytics.slice(0, 2));
+      console.log('getActionAnalytics returned:', allAnalytics);
       setAllUserAnalytics(allAnalytics);
 
-      // Auto-select specific users on initial load: Stefan, Mae, Lester and malone
-      if (allAnalytics.length > 0 && selectedUsers.length === 0) {
-        const targetUsers = ['Stefan Hamilton', 'Mae Dela Torre', 'Lester  paniel', 'malone'];
-        const selectedUserIds = allAnalytics
-          .filter(user => targetUsers.some(target => user.userName.includes(target.trim())))
-          .map(user => user.userId);
-        console.log('AnalyticsDashboard - Auto-selecting users:', selectedUserIds);
-        setSelectedUsers(selectedUserIds);
+      // Auto-select only active org members so the radar chart shows immediately
+      if (allAnalytics.length > 0) {
+        const allIds = allAnalytics.map(u => u.userId);
+        // Resolve which of these are active members
+        const { data: members } = await supabase
+          .from('organization_members')
+          .select('user_id, is_active')
+          .in('user_id', allIds);
+        const activeIds = (members || [])
+          .filter((m: any) => m?.is_active)
+          .map((m: any) => m.user_id);
+        console.log('Auto-selecting ACTIVE user IDs:', activeIds);
+        setSelectedUsers(activeIds);
+        // Precompute selected action analytics immediately for first render
+        const initialSelected = await getActionAnalytics(activeIds);
+        console.log('Selected analytics:', initialSelected);
+        setSelectedActionAnalytics(initialSelected);
+      } else {
+        console.log('No analytics data returned, checking if we need to fetch action scores...');
       }
 
       // Fetch initial scored actions for all users (no filter)
+      console.log('Fetching scored actions...');
       await fetchScoredActions();
+      console.log('Finished loading initial data');
     };
     
     loadInitialData();
@@ -69,9 +111,7 @@ export default function AnalyticsDashboard() {
   useEffect(() => {
     const updateSelectedAnalytics = async () => {
       if (selectedUsers.length > 0) {
-        console.log('AnalyticsDashboard - Fetching action analytics for users:', selectedUsers);
         const actionAnalytics = await getActionAnalytics(selectedUsers); // Filter by org values for display
-        console.log('AnalyticsDashboard - Received action analytics:', actionAnalytics.slice(0, 2));
         setSelectedActionAnalytics(actionAnalytics);
       }
     };
@@ -79,8 +119,20 @@ export default function AnalyticsDashboard() {
     updateSelectedAnalytics();
   }, [selectedUsers]);
 
+  // Auto-apply filters once when we have dates and an initial active selection
+  useEffect(() => {
+    const maybeAutoApply = async () => {
+      if (!didAutoApply && startDate && endDate && selectedUsers.length > 0) {
+        await handleApplyFilters();
+        setDidAutoApply(true);
+      }
+    };
+    maybeAutoApply();
+  }, [startDate, endDate, selectedUsers, didAutoApply]);
+
   const handleApplyFilters = async () => {
     setIsLoadingProactiveData(true);
+    setIsLoadingInventoryTracking(true);
     
     // Always fetch ALL data, not filtered by selectedUsers - we want all users available for selection
     await fetchAllData(undefined, startDate, endDate);
@@ -93,7 +145,17 @@ export default function AnalyticsDashboard() {
     // Fetch proactive vs reactive data
     const proactiveData = await getProactiveVsReactiveData(startDate, endDate);
     setProactiveVsReactiveData(proactiveData);
+    // Fetch inventory tracking (distinct per item per day) filtered by selected users
+    const [inventoryData, heatmap] = await Promise.all([
+      getInventoryTrackingData(selectedUsers, startDate, endDate),
+      getInventoryUsageHeatmapData(selectedUsers, startDate, endDate)
+    ]);
+    setInventoryTrackingData(inventoryData);
+    setHeatmapData(heatmap);
+
     setIsLoadingProactiveData(false);
+    setIsLoadingInventoryTracking(false);
+    setIsLoadingHeatmap(false);
   };
 
   // Fetch issue analytics and proactive data when dates change
@@ -106,9 +168,18 @@ export default function AnalyticsDashboard() {
       
       if (startDate && endDate) {
         setIsLoadingProactiveData(true);
-        const proactiveData = await getProactiveVsReactiveData(startDate, endDate);
+        setIsLoadingInventoryTracking(true);
+        const [proactiveData, inventoryData, heatmap] = await Promise.all([
+          getProactiveVsReactiveData(startDate, endDate),
+          getInventoryTrackingData(selectedUsers, startDate, endDate),
+          getInventoryUsageHeatmapData(selectedUsers, startDate, endDate)
+        ]);
         setProactiveVsReactiveData(proactiveData);
+        setInventoryTrackingData(inventoryData);
+        setHeatmapData(heatmap);
         setIsLoadingProactiveData(false);
+        setIsLoadingInventoryTracking(false);
+        setIsLoadingHeatmap(false);
       }
     };
     
@@ -204,6 +275,8 @@ export default function AnalyticsDashboard() {
               onStartDateChange={setStartDate}
               onEndDateChange={setEndDate}
               onApplyFilters={handleApplyFilters}
+              collapsed={filtersCollapsed}
+              onToggleCollapsed={() => setFiltersCollapsed(!filtersCollapsed)}
             />
           </div>
 
@@ -211,18 +284,11 @@ export default function AnalyticsDashboard() {
           <div className="lg:col-span-3 space-y-6">
             {/* Radar Chart */}
             {selectedUsers.length > 0 ? (
-              <>
-                {console.log('AnalyticsDashboard - Passing to radar chart:', {
-                  selectedActionAnalytics: selectedActionAnalytics.slice(0, 2),
-                  selectedIssueAnalytics: selectedIssueAnalytics.slice(0, 2),
-                  selectedUsers
-                })}
-                <AttributeRadarChart
-                  actionAnalytics={selectedActionAnalytics}
-                  issueAnalytics={selectedIssueAnalytics}
-                  selectedUsers={selectedUsers}
-                />
-              </>
+              <AttributeRadarChart
+                actionAnalytics={selectedActionAnalytics}
+                issueAnalytics={selectedIssueAnalytics}
+                selectedUsers={selectedUsers}
+              />
             ) : (
               <Card>
                 <CardContent className="p-8 text-center">
@@ -235,6 +301,12 @@ export default function AnalyticsDashboard() {
               </Card>
             )}
 
+            {/* Scored Actions List (moved below radar chart) */}
+            <ScoredActionsList 
+              scoredActions={scoredActions}
+              isLoading={isLoadingScoredActions}
+            />
+
             {/* Proactive vs Reactive Chart */}
             <ProactiveVsReactiveChart 
               data={proactiveVsReactiveData}
@@ -242,11 +314,50 @@ export default function AnalyticsDashboard() {
               onDayClick={getDayActions}
             />
 
-            {/* Scored Actions List */}
-            <ScoredActionsList 
-              scoredActions={scoredActions}
-              isLoading={isLoadingScoredActions}
+          {/* Inventory Tracking: toggle between stacked chart and heatmap */}
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">Inventory Tracking View</div>
+            <div className="flex items-center gap-2">
+              <Button variant={showHeatmap ? 'outline' : 'default'} size="sm" onClick={() => setShowHeatmap(false)}>Chart</Button>
+              <Button variant={showHeatmap ? 'default' : 'outline'} size="sm" onClick={() => setShowHeatmap(true)}>Heatmap</Button>
+            </div>
+          </div>
+          {showHeatmap ? (
+            <InventoryUsageHeatmap
+              data={heatmapData}
+              isLoading={isLoadingHeatmap}
+              days={(function() {
+                const days: string[] = [];
+                if (startDate && endDate) {
+                  const start = new Date(`${startDate}T00:00:00.000Z`);
+                  const end = new Date(`${endDate}T00:00:00.000Z`);
+                  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                    days.push(d.toISOString().slice(0,10));
+                  }
+                }
+                return days;
+              })()}
+              onCellClick={(cell) => {
+                // Future: open details panel. For now, navigate to Inventory with filters via URL.
+                const params = new URLSearchParams({ date: cell.dayKey, users: cell.personId });
+                navigate(`/inventory?${params.toString()}`);
+              }}
             />
+          ) : (
+            <InventoryTrackingChart
+              data={inventoryTrackingData}
+              isLoading={isLoadingInventoryTracking}
+            />
+          )}
+
+          {/* Action Updates (stacked bar) */}
+          <ActionUpdatesChart
+            startDate={startDate}
+            endDate={endDate}
+            selectedUsers={selectedUsers}
+          />
+
+          {/* Issues Created (stacked bar) - removed */}
           </div>
         </div>
       </div>

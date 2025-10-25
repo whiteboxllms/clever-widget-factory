@@ -1,10 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Wrench, Package, Eye, Edit, Trash2, LogOut, LogIn, AlertTriangle, AlertCircle, Plus, Minus, ShoppingCart, History } from "lucide-react";
+import { Wrench, Package, Edit, Trash2, LogOut, LogIn, AlertTriangle, AlertCircle, Plus, Minus, ShoppingCart, History } from "lucide-react";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { InventoryHistoryDialog } from "./InventoryHistoryDialog";
+import { AssetHistoryDialog } from "./AssetHistoryDialog";
 import { useVisibleImage } from "@/hooks/useVisibleImage";
+import { useMemo, memo, useRef } from "react";
 
 interface CombinedAsset {
   id: string;
@@ -52,7 +54,77 @@ interface CombinedAssetCardProps {
   onShowHistory?: (asset: CombinedAsset) => void;
 }
 
-export const CombinedAssetCard = ({
+// Custom comparison function for memo to prevent unnecessary re-renders
+const arePropsEqual = (prevProps: CombinedAssetCardProps, nextProps: CombinedAssetCardProps) => {
+  // Compare primitive props
+  if (prevProps.canEdit !== nextProps.canEdit ||
+      prevProps.isAdmin !== nextProps.isAdmin ||
+      prevProps.currentUserId !== nextProps.currentUserId ||
+      prevProps.currentUserEmail !== nextProps.currentUserEmail ||
+      prevProps.hasPendingOrders !== nextProps.hasPendingOrders) {
+    return false;
+  }
+
+  // Deep compare the asset object
+  const prevAsset = prevProps.asset;
+  const nextAsset = nextProps.asset;
+  
+  // Check if asset reference is the same (fast path)
+  if (prevAsset === nextAsset) {
+    return true;
+  }
+  
+  // Check if asset ID is different (different asset)
+  if (prevAsset.id !== nextAsset.id) {
+    return false;
+  }
+  
+  // Check key properties that are most likely to change
+  const keyChanges = {
+    name: prevAsset.name !== nextAsset.name,
+    type: prevAsset.type !== nextAsset.type,
+    status: prevAsset.status !== nextAsset.status,
+    current_quantity: prevAsset.current_quantity !== nextAsset.current_quantity,
+    has_issues: prevAsset.has_issues !== nextAsset.has_issues,
+    is_checked_out: prevAsset.is_checked_out !== nextAsset.is_checked_out,
+    accountable_person_name: prevAsset.accountable_person_name !== nextAsset.accountable_person_name,
+    accountable_person_color: prevAsset.accountable_person_color !== nextAsset.accountable_person_color,
+    updated_at: prevAsset.updated_at !== nextAsset.updated_at
+  };
+  
+  const hasKeyChanges = Object.values(keyChanges).some(Boolean);
+  if (hasKeyChanges) {
+    return false;
+  }
+  
+  // Check all other properties
+  if (prevAsset.description !== nextAsset.description ||
+      prevAsset.category !== nextAsset.category ||
+      prevAsset.serial_number !== nextAsset.serial_number ||
+      prevAsset.minimum_quantity !== nextAsset.minimum_quantity ||
+      prevAsset.unit !== nextAsset.unit ||
+      prevAsset.cost_per_unit !== nextAsset.cost_per_unit ||
+      prevAsset.cost_evidence_url !== nextAsset.cost_evidence_url ||
+      prevAsset.supplier !== nextAsset.supplier ||
+      prevAsset.image_url !== nextAsset.image_url ||
+      prevAsset.storage_location !== nextAsset.storage_location ||
+      prevAsset.storage_vicinity !== nextAsset.storage_vicinity ||
+      prevAsset.parent_structure_id !== nextAsset.parent_structure_id ||
+      prevAsset.parent_structure_name !== nextAsset.parent_structure_name ||
+      prevAsset.legacy_storage_vicinity !== nextAsset.legacy_storage_vicinity ||
+      prevAsset.area_display !== nextAsset.area_display ||
+      prevAsset.checked_out_to !== nextAsset.checked_out_to ||
+      prevAsset.checked_out_user_id !== nextAsset.checked_out_user_id ||
+      prevAsset.checked_out_date !== nextAsset.checked_out_date ||
+      prevAsset.accountable_person_id !== nextAsset.accountable_person_id ||
+      prevAsset.created_at !== nextAsset.created_at) {
+    return false;
+  }
+
+  return true;
+};
+
+export const CombinedAssetCard = memo(({
   asset,
   canEdit,
   isAdmin,
@@ -72,8 +144,11 @@ export const CombinedAssetCard = ({
   hasPendingOrders,
   onShowHistory
 }: CombinedAssetCardProps) => {
+  
+  
   const { containerRef, imageUrl } = useVisibleImage(asset.id, asset.type, asset.image_url);
-  const getStatusBadge = () => {
+  
+  function getStatusBadge() {
     if (asset.type === 'asset') {
       if (asset.is_checked_out) {
         return <Badge variant="outline" className="text-orange-600 border-orange-600">Checked Out</Badge>;
@@ -105,9 +180,17 @@ export const CombinedAssetCard = ({
     return "text-green-600";
   };
 
+  const statusBadge = useMemo(() => {
+    return getStatusBadge();
+  }, [asset.type, asset.is_checked_out, asset.status, asset.minimum_quantity, asset.current_quantity]);
+  
+  const iconColor = useMemo(() => {
+    return getIconColor();
+  }, [asset.type, asset.has_issues]);
+
   return (
-    <Card className="relative hover:shadow-md transition-shadow cursor-pointer" onClick={() => onView(asset)}>
-      <CardHeader className="pb-3 pt-3">
+    <Card className="relative hover:shadow-md transition-shadow cursor-pointer h-full flex flex-col" onClick={() => onView(asset)}>
+      <CardHeader className="pb-3 pt-3 flex-shrink-0">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
           </div>
@@ -124,7 +207,7 @@ export const CombinedAssetCard = ({
         
         {(asset.type === 'asset' || asset.category) && (
           <div className="flex flex-wrap gap-1 -mt-1">
-            {asset.type === 'asset' && getStatusBadge()}
+            {asset.type === 'asset' && statusBadge}
             {asset.category && (
               <Badge variant="outline" className="text-xs">{asset.category}</Badge>
             )}
@@ -132,7 +215,7 @@ export const CombinedAssetCard = ({
         )}
       </CardHeader>
 
-      <CardContent className="pt-0">
+      <CardContent className="pt-0 flex-1 flex flex-col">
         <div ref={containerRef} className="mb-3">
           {imageUrl ? (
             <img
@@ -141,7 +224,6 @@ export const CombinedAssetCard = ({
               className="w-full h-32 object-cover rounded-md border"
               loading="lazy"
               decoding="async"
-                fetchPriority="low"
             />
           ) : (
             <div className="w-full h-32 rounded-md border bg-muted animate-pulse" />
@@ -208,34 +290,80 @@ export const CombinedAssetCard = ({
           )}
         </div>
 
-        <div className="flex gap-2 mt-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex gap-2 mt-4 mt-auto pt-4" onClick={(e) => e.stopPropagation()}>
           {/* Asset-specific buttons */}
           {asset.type === 'asset' && asset.status === 'available' && !asset.is_checked_out && onCheckout && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={(e) => {
-                e.stopPropagation();
-                onCheckout(asset);
-              }}
-            >
-              <LogOut className="h-4 w-4 mr-1" />
-              Checkout
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-12 px-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCheckout(asset);
+                    }}
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Checkout</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
 
           {asset.type === 'asset' && asset.is_checked_out && asset.checked_out_user_id === currentUserId && onCheckin && (
-            <Button
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                onCheckin(asset);
-              }}
-            >
-              <LogIn className="h-4 w-4 mr-1" />
-              Check In
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-12 px-2 text-orange-600 border-orange-600 hover:bg-orange-50 hover:border-orange-700"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCheckin(asset);
+                    }}
+                  >
+                    <LogIn className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Check In</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
+
+          {/* Asset History Button - Always show for assets */}
+          {asset.type === 'asset' && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <AssetHistoryDialog assetId={asset.id} assetName={asset.name}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-12 px-2"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                    >
+                      <History className="h-4 w-4" />
+                    </Button>
+                  </AssetHistoryDialog>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>View History</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+
 
           {/* Stock-specific buttons */}
           {asset.type === 'stock' && canEdit && (
@@ -335,48 +463,75 @@ export const CombinedAssetCard = ({
           {/* Common edit/admin buttons */}
           {canEdit && (
             <>
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-12 px-2"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit(asset);
-                }}
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-12 px-2"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(asset);
+                      }}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Edit</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               
               {(asset.type === 'asset' || asset.type === 'stock') && onManageIssues && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className={`w-12 px-2 ${
-                    asset.has_issues 
-                      ? "text-orange-600 hover:text-orange-700 border-orange-200 hover:border-orange-300" 
-                      : ""
-                  }`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onManageIssues(asset);
-                  }}
-                >
-                  <AlertTriangle className="h-4 w-4" />
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className={`w-12 px-2 ${
+                          asset.has_issues 
+                            ? "text-orange-600 hover:text-orange-700 border-orange-200 hover:border-orange-300" 
+                            : ""
+                        }`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onManageIssues(asset);
+                        }}
+                      >
+                        <AlertTriangle className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Manage Issues</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
               
               {isAdmin && (
-                <Button
-                  size="icon"
-                  variant="outline"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRemove(asset);
-                  }}
-                  className="text-muted-foreground hover:text-destructive h-9 w-9"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRemove(asset);
+                        }}
+                        className="text-muted-foreground hover:text-destructive h-9 w-9"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Delete</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
             </>
           )}
@@ -384,4 +539,6 @@ export const CombinedAssetCard = ({
       </CardContent>
     </Card>
   );
-};
+});
+
+CombinedAssetCard.displayName = 'CombinedAssetCard';

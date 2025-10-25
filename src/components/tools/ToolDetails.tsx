@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tool } from "@/hooks/tools/useToolsData";
-import { CheckoutHistory, HistoryEntry, IssueHistoryEntry } from "@/hooks/tools/useToolHistory";
+import { CheckoutHistory, HistoryEntry, IssueHistoryEntry, AssetHistoryEntry } from "@/hooks/tools/useToolHistory";
 import { ToolStatusBadge } from "./ToolStatusBadge";
 
 
@@ -24,12 +24,22 @@ export const ToolDetails = ({
   currentCheckout,
   onBack
 }: ToolDetailsProps) => {
-  const isCheckoutHistory = (record: HistoryEntry): record is CheckoutHistory => {
-    return record.type !== 'issue_change';
+  const isAssetHistory = (record: HistoryEntry): record is AssetHistoryEntry => {
+    return (record as AssetHistoryEntry).type === 'asset_change';
   };
 
   const isIssueHistory = (record: HistoryEntry): record is IssueHistoryEntry => {
     return record.type === 'issue_change';
+  };
+
+  const isCreationHistory = (record: HistoryEntry): record is CheckoutHistory => {
+    return record.type !== 'issue_change' && (record as CheckoutHistory).checkin_reason === 'asset_created';
+  };
+
+  const isCheckoutHistory = (record: HistoryEntry): record is CheckoutHistory => {
+    return record.type !== 'issue_change' && 
+           (record as AssetHistoryEntry).type !== 'asset_change' && 
+           (record as CheckoutHistory).checkin_reason !== 'asset_created';
   };
 
   // Issue type utilities imported from centralized location
@@ -129,7 +139,86 @@ export const ToolDetails = ({
                 {toolHistory.map((record) => (
                   <Card key={record.id}>
                     <CardContent className="p-4">
-                      {isCheckoutHistory(record) ? (
+                      {isAssetHistory(record) ? (
+                        // Asset History
+                        <>
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex items-start gap-2">
+                              <div className="h-4 w-4 mt-0.5 rounded-full bg-blue-100 flex items-center justify-center">
+                                <div className="h-2 w-2 rounded-full bg-blue-600"></div>
+                              </div>
+                              <div>
+                                <p className="font-medium">{record.user_name}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {new Date(record.changed_at).toLocaleDateString()} {new Date(record.changed_at).toLocaleTimeString()}
+                                </p>
+                              </div>
+                            </div>
+                            <Badge variant="outline" className="capitalize">
+                              {record.change_type === 'created' ? 'Created' :
+                               record.change_type === 'status_change' ? 'Status Changed' :
+                               record.change_type === 'updated' ? 'Updated' : record.change_type}
+                            </Badge>
+                          </div>
+                          
+                          {record.change_type === 'created' && record.notes && (
+                            <p className="text-sm mb-2">
+                              <span className="font-medium">Details:</span> {record.notes}
+                            </p>
+                          )}
+                          
+                          {record.field_changed && (
+                            <p className="text-sm mb-2">
+                              <span className="font-medium">Field Changed:</span> {record.field_changed}
+                              {record.old_value && record.new_value && (
+                                <span className="text-muted-foreground">
+                                  {' '}({record.old_value} → {record.new_value})
+                                </span>
+                              )}
+                            </p>
+                          )}
+                          
+                          {record.notes && record.change_type !== 'created' && (
+                            <p className="text-sm text-muted-foreground">
+                              {record.notes}
+                            </p>
+                          )}
+                        </>
+                      ) : isCreationHistory(record) ? (
+                        // Asset Creation Event
+                        <>
+                          <div className="mb-2">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+                                Asset Created
+                              </Badge>
+                            </div>
+                            <p className="font-medium mt-2">{record.user_name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              Created on{' '}
+                              {(() => {
+                                const dateToUse = record.checkin_date || record.created_at;
+                                return new Date(dateToUse).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric'
+                                }) + ' at ' + new Date(dateToUse).toLocaleTimeString('en-US', {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                  hour12: true
+                                });
+                              })()}
+                            </p>
+                          </div>
+                          
+                          {record.notes && (
+                            <div className="mt-3 p-3 bg-green-50 rounded-md text-sm">
+                              <p className="font-medium mb-1 text-green-800">Creation Details:</p>
+                              <p className="text-green-700">{record.notes}</p>
+                            </div>
+                          )}
+                        </>
+                      ) : isCheckoutHistory(record) ? (
                         // Checkout/Check-in History
                         <>
                           <div className="mb-2">

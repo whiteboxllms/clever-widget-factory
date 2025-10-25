@@ -7,10 +7,30 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "12.2.3 (519615d)"
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -236,6 +256,63 @@ export type Database = {
             columns: ["mission_id"]
             isOneToOne: false
             referencedRelation: "missions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asset_history: {
+        Row: {
+          asset_id: string
+          change_type: string
+          changed_at: string
+          changed_by: string
+          created_at: string
+          field_changed: string | null
+          id: string
+          new_value: string | null
+          notes: string | null
+          old_value: string | null
+          organization_id: string
+        }
+        Insert: {
+          asset_id: string
+          change_type: string
+          changed_at?: string
+          changed_by: string
+          created_at?: string
+          field_changed?: string | null
+          id?: string
+          new_value?: string | null
+          notes?: string | null
+          old_value?: string | null
+          organization_id: string
+        }
+        Update: {
+          asset_id?: string
+          change_type?: string
+          changed_at?: string
+          changed_by?: string
+          created_at?: string
+          field_changed?: string | null
+          id?: string
+          new_value?: string | null
+          notes?: string | null
+          old_value?: string | null
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_history_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "tools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -1543,16 +1620,28 @@ export type Database = {
         Returns: string
       }
       get_user_display_names: {
-        Args: never
+        Args: Record<PropertyKey, never>
         Returns: {
           full_name: string
           user_id: string
         }[]
       }
-      get_user_organization_id: { Args: never; Returns: string }
-      is_organization_admin: { Args: never; Returns: boolean }
-      is_super_admin: { Args: never; Returns: boolean }
-      user_in_org: { Args: { target_org_id: string }; Returns: boolean }
+      get_user_organization_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      is_organization_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      is_super_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      user_in_org: {
+        Args: { target_org_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       action_required_type: "repair" | "replace_part" | "not_fixable" | "remove"
@@ -1718,6 +1807,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       action_required_type: ["repair", "replace_part", "not_fixable", "remove"],
@@ -1765,3 +1857,4 @@ export const Constants = {
     },
   },
 } as const
+

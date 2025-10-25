@@ -94,23 +94,23 @@ export async function createPlannedCheckoutsForAction(options: AutoCheckoutOptio
       throw new Error('User must be authenticated to create planned checkouts');
     }
 
-    // Get the action and its required tool serial numbers
+    // Get the action and its required tools
     const { data: action, error: actionError } = await supabase
       .from('actions')
-      .select('id, title, required_tool_serial_numbers, assigned_to')
+      .select('id, title, required_tools, assigned_to')
       .eq('id', actionId)
       .single();
 
     if (actionError) throw actionError;
-    if (!action?.required_tool_serial_numbers || action.required_tool_serial_numbers.length === 0) {
+    if (!action?.required_tools || action.required_tools.length === 0) {
       return; // No tools required
     }
 
-    // Get tools by serial numbers
+    // Get tools by IDs (required_tools contains tool UUIDs)
     const { data: tools, error: toolsError } = await supabase
       .from('tools')
       .select('id, name, serial_number, status')
-      .in('serial_number', action.required_tool_serial_numbers)
+      .in('id', action.required_tools)
       .eq('status', 'available');
 
     if (toolsError) throw toolsError;
@@ -123,15 +123,15 @@ export async function createPlannedCheckoutsForAction(options: AutoCheckoutOptio
       await createPlannedCheckout({
         toolId: tool.id,
         toolName: tool.name,
-        toolSerialNumber: tool.serial_number!,
+        toolSerialNumber: tool.serial_number || tool.id,
         userId: user.id,
         userName: user.user_metadata?.full_name || 'Unknown User',
         actionId,
         organizationId,
         missionId,
         taskId,
-        intendedUsage: intendedUsage || `For action: ${action.title}`,
-        notes: notes || `Planned for action: ${action.title}`
+        intendedUsage: intendedUsage || `For action: ${action?.title || 'Unknown'}`,
+        notes: notes || `Planned for action: ${action?.title || 'Unknown'}`
       });
     }
 

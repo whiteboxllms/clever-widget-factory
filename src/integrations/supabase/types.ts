@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      action_implementation_updates: {
+        Row: {
+          action_id: string
+          created_at: string | null
+          id: string
+          update_text: string
+          update_type: string
+          updated_by: string
+        }
+        Insert: {
+          action_id: string
+          created_at?: string | null
+          id?: string
+          update_text: string
+          update_type?: string
+          updated_by: string
+        }
+        Update: {
+          action_id?: string
+          created_at?: string | null
+          id?: string
+          update_text?: string
+          update_type?: string
+          updated_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "action_implementation_updates_action_id_fkey"
+            columns: ["action_id"]
+            isOneToOne: false
+            referencedRelation: "actions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       action_scores: {
         Row: {
           action_id: string
@@ -107,7 +142,6 @@ export type Database = {
           qa_approved_at: string | null
           required_stock: Json | null
           required_tools: string[] | null
-          required_tool_serial_numbers: string[] | null
           score: number | null
           scoring_data: Json | null
           status: string
@@ -138,7 +172,6 @@ export type Database = {
           qa_approved_at?: string | null
           required_stock?: Json | null
           required_tools?: string[] | null
-          required_tool_serial_numbers?: string[] | null
           score?: number | null
           scoring_data?: Json | null
           status?: string
@@ -169,7 +202,6 @@ export type Database = {
           qa_approved_at?: string | null
           required_stock?: Json | null
           required_tools?: string[] | null
-          required_tool_serial_numbers?: string[] | null
           score?: number | null
           scoring_data?: Json | null
           status?: string
@@ -205,45 +237,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "missions"
             referencedColumns: ["id"]
-          },
-        ]
-      }
-      action_implementation_updates: {
-        Row: {
-          action_id: string
-          created_at: string
-          id: string
-          update_text: string
-          updated_by: string
-        }
-        Insert: {
-          action_id: string
-          created_at?: string
-          id?: string
-          update_text: string
-          updated_by: string
-        }
-        Update: {
-          action_id?: string
-          created_at?: string
-          id?: string
-          update_text?: string
-          updated_by?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "action_implementation_updates_action_id_fkey"
-            columns: ["action_id"]
-            isOneToOne: false
-            referencedRelation: "actions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "action_implementation_updates_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -324,7 +317,7 @@ export type Database = {
         Row: {
           action_id: string | null
           before_image_url: string | null
-          checkout_date: string | null
+          checkout_date: string
           created_at: string
           expected_return_date: string | null
           id: string
@@ -371,6 +364,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "checkouts_action_id_fkey"
+            columns: ["action_id"]
+            isOneToOne: false
+            referencedRelation: "actions"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "checkouts_organization_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -383,78 +383,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "tools"
             referencedColumns: ["id"]
-          },
-        ]
-      }
-      inventory_usage: {
-        Row: {
-          created_at: string
-          id: string
-          mission_id: string
-          organization_id: string
-          part_id: string
-          quantity_used: number
-          task_id: string | null
-          usage_description: string | null
-          used_by: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          mission_id: string
-          organization_id: string
-          part_id: string
-          quantity_used: number
-          task_id?: string | null
-          usage_description?: string | null
-          used_by: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          mission_id?: string
-          organization_id?: string
-          part_id?: string
-          quantity_used?: number
-          task_id?: string | null
-          usage_description?: string | null
-          used_by?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "inventory_usage_mission_id_fkey"
-            columns: ["mission_id"]
-            isOneToOne: false
-            referencedRelation: "missions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "inventory_usage_organization_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "inventory_usage_part_id_fkey"
-            columns: ["part_id"]
-            isOneToOne: false
-            referencedRelation: "parts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "inventory_usage_task_id_fkey"
-            columns: ["task_id"]
-            isOneToOne: false
-            referencedRelation: "actions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "inventory_usage_used_by_fkey"
-            columns: ["used_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -745,65 +673,8 @@ export type Database = {
           },
         ]
       }
-      mission_tool_usage: {
-        Row: {
-          checkout_id: string
-          created_at: string
-          id: string
-          mission_id: string
-          organization_id: string
-          task_id: string | null
-        }
-        Insert: {
-          checkout_id: string
-          created_at?: string
-          id?: string
-          mission_id: string
-          organization_id: string
-          task_id?: string | null
-        }
-        Update: {
-          checkout_id?: string
-          created_at?: string
-          id?: string
-          mission_id?: string
-          organization_id?: string
-          task_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "mission_tool_usage_checkout_id_fkey"
-            columns: ["checkout_id"]
-            isOneToOne: false
-            referencedRelation: "checkouts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "mission_tool_usage_mission_id_fkey"
-            columns: ["mission_id"]
-            isOneToOne: false
-            referencedRelation: "missions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "mission_tool_usage_organization_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "mission_tool_usage_task_id_fkey"
-            columns: ["task_id"]
-            isOneToOne: false
-            referencedRelation: "actions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       missions: {
         Row: {
-          all_materials_available: boolean
           completed_at: string | null
           created_at: string
           created_by: string
@@ -813,7 +684,6 @@ export type Database = {
           problem_statement: string
           qa_assigned_to: string | null
           qa_feedback: string | null
-          resources_required: string | null
           status: string
           template_color: string | null
           template_icon: string | null
@@ -823,7 +693,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          all_materials_available?: boolean
           completed_at?: string | null
           created_at?: string
           created_by: string
@@ -833,7 +702,6 @@ export type Database = {
           problem_statement: string
           qa_assigned_to?: string | null
           qa_feedback?: string | null
-          resources_required?: string | null
           status?: string
           template_color?: string | null
           template_icon?: string | null
@@ -843,7 +711,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          all_materials_available?: boolean
           completed_at?: string | null
           created_at?: string
           created_by?: string
@@ -853,7 +720,6 @@ export type Database = {
           problem_statement?: string
           qa_assigned_to?: string | null
           qa_feedback?: string | null
-          resources_required?: string | null
           status?: string
           template_color?: string | null
           template_icon?: string | null
@@ -1677,24 +1543,16 @@ export type Database = {
         Returns: string
       }
       get_user_display_names: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           full_name: string
           user_id: string
         }[]
       }
-      get_user_organization_id: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      is_organization_admin: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
-      is_super_admin: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
+      get_user_organization_id: { Args: never; Returns: string }
+      is_organization_admin: { Args: never; Returns: boolean }
+      is_super_admin: { Args: never; Returns: boolean }
+      user_in_org: { Args: { target_org_id: string }; Returns: boolean }
     }
     Enums: {
       action_required_type: "repair" | "replace_part" | "not_fixable" | "remove"

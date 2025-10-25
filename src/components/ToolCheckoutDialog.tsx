@@ -234,9 +234,8 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
         const { error: missionToolError } = await supabase
           .from('mission_tool_usage')
           .insert({
-            mission_id: missionId,
-            task_id: taskId || null,
-            checkout_id: checkoutData.id
+            checkout_id: checkoutData.id,
+            organization_id: organizationId
           });
 
         if (missionToolError) {
@@ -264,10 +263,12 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
             context_id: tool.id,
             reported_by: user?.id,
             description: form.preCheckoutIssues.trim(),
-            issue_type: 'general',
+            issue_type: 'efficiency',
             status: 'active',
+            workflow_status: 'reported',
             related_checkout_id: checkoutData.id,
-            report_photo_urls: beforeImageUrl ? [beforeImageUrl] : []
+            report_photo_urls: beforeImageUrl ? [beforeImageUrl] : [],
+            organization_id: organizationId
           });
 
         if (issueError) {

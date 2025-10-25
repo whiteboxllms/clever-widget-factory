@@ -130,36 +130,38 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
   const fetchTeamTools = async () => {
     if (!missionId) return;
 
-    // Only fetch tools that are explicitly linked to this mission
+    // Fetch tools checked out by team members (assigned users)
+    if (assignedUsers.length === 0) return;
+
+    const userIds = assignedUsers.map(u => u.user_id);
+
     const { data, error } = await supabase
-      .from('mission_tool_usage')
+      .from('checkouts')
       .select(`
-        *,
-        checkouts!inner (
+        id,
+        user_name,
+        checkout_date,
+        is_returned,
+        tool_id,
+        tools!inner (
           id,
-          user_name,
-          checkout_date,
-          is_returned,
-          tools!inner (
-            id,
-            name,
-            status
-          )
+          name,
+          status
         )
       `)
-      .eq('mission_id', missionId)
-      .eq('checkouts.is_returned', false);
+      .in('user_id', userIds)
+      .eq('is_returned', false);
 
     if (error) {
-      console.error('Error fetching mission tools:', error);
+      console.error('Error fetching team tools:', error);
       return;
     }
 
-    const toolsWithUsers = data?.map(missionTool => ({
-      ...(missionTool.checkouts?.tools || {}),
-      checkout_id: missionTool.checkout_id,
-      checked_out_to: missionTool.checkouts?.user_name,
-      checkout_date: missionTool.checkouts?.checkout_date,
+    const toolsWithUsers = data?.map(checkout => ({
+      ...(checkout.tools || {}),
+      checkout_id: checkout.id,
+      checked_out_to: checkout.user_name,
+      checkout_date: checkout.checkout_date,
       mission_linked: true
     })) || [];
 

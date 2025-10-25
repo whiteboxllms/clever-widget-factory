@@ -229,21 +229,8 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
 
       if (error) throw error;
 
-      // If this checkout is for a mission, create mission tool usage record
-      if (missionId && checkoutData) {
-        const { error: missionToolError } = await supabase
-          .from('mission_tool_usage')
-          .insert({
-            mission_id: missionId,
-            task_id: taskId || null,
-            checkout_id: checkoutData.id
-          });
-
-        if (missionToolError) {
-          console.error('Error linking tool to mission:', missionToolError);
-          // Don't fail the entire checkout if mission linking fails
-        }
-      }
+      // Note: mission_tool_usage table no longer exists
+      // Tools are now linked via action_id in checkouts table
 
       // Update tool status to checked out
       const { error: toolError } = await supabase
@@ -264,10 +251,12 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
             context_id: tool.id,
             reported_by: user?.id,
             description: form.preCheckoutIssues.trim(),
-            issue_type: 'general',
+            issue_type: 'efficiency',
             status: 'active',
+            workflow_status: 'reported',
             related_checkout_id: checkoutData.id,
-            report_photo_urls: beforeImageUrl ? [beforeImageUrl] : []
+            report_photo_urls: beforeImageUrl ? [beforeImageUrl] : [],
+            organization_id: organizationId
           });
 
         if (issueError) {

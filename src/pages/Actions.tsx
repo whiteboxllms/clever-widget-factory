@@ -145,19 +145,30 @@ export default function Actions() {
         const uniqueParticipantIds = [...new Set(allParticipantIds)];
         
         if (uniqueParticipantIds.length > 0) {
-          // Use secure function instead of direct table access
-          const { data: participants } = await supabase
-            .rpc('get_user_display_names');
-          
-          // Filter to only requested participants and add required fields
-          participantsData = (participants || [])
-            .filter(p => uniqueParticipantIds.includes(p.user_id))
-            .map(p => ({
-              id: p.user_id,
-              user_id: p.user_id,
-              full_name: p.full_name,
-              role: '' // Role info is no longer accessible for security
-            }));
+          try {
+            // Use direct table access to organization_members instead of broken RPC
+            const { data: participants, error: participantsError } = await supabase
+              .from('organization_members')
+              .select('user_id, full_name, role')
+              .in('user_id', uniqueParticipantIds)
+              .eq('is_active', true);
+            
+            if (participantsError) {
+              console.error('Error fetching participants:', participantsError);
+              // Continue without participant data rather than failing the entire request
+            } else {
+              // Map the data to the expected format
+              participantsData = (participants || []).map(p => ({
+                id: p.user_id,
+                user_id: p.user_id,
+                full_name: p.full_name || 'Unknown',
+                role: p.role || ''
+              }));
+            }
+          } catch (error) {
+            console.error('Error in participant fetching:', error);
+            // Continue without participant data
+          }
         }
       }
 
@@ -579,96 +590,100 @@ export default function Actions() {
                    >
                      <CardContent className="p-3 sm:p-4 md:p-6">
                       <div className="space-y-3">
-                        <div className="flex flex-col xs:flex-row items-start gap-3">
-                          <div className="flex-1 min-w-0 w-full">
-                            <h3 className="text-lg font-semibold break-words leading-tight break-all">{action.title}</h3>
-                            <div className="text-xs text-muted-foreground mt-1">
-                              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-x-4 gap-y-1">
-                                <span>Updated: {new Date(action.updated_at).toLocaleDateString('en-US', { 
-                                  year: '2-digit', 
-                                  month: 'numeric', 
-                                  day: 'numeric' 
-                                }) + ' ' + new Date(action.updated_at).toLocaleTimeString('en-US', {
-                                  hour: 'numeric',
-                                  minute: '2-digit',
-                                  hour12: true
-                                })}</span>
-                                {action.estimated_completion_date && (
-                                  <span>Expected: {new Date(action.estimated_completion_date).toLocaleDateString('en-US', { 
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-lg font-semibold break-words leading-tight break-all">{action.title}</h3>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-x-4 gap-y-1">
+                                  <span>Updated: {new Date(action.updated_at).toLocaleDateString('en-US', { 
                                     year: '2-digit', 
                                     month: 'numeric', 
                                     day: 'numeric' 
-                                  }) + ' ' + new Date(action.estimated_completion_date).toLocaleTimeString('en-US', {
+                                  }) + ' ' + new Date(action.updated_at).toLocaleTimeString('en-US', {
                                     hour: 'numeric',
                                     minute: '2-digit',
                                     hour12: true
                                   })}</span>
-                                )}
+                                  {action.estimated_completion_date && (
+                                    <span>Expected: {new Date(action.estimated_completion_date).toLocaleDateString('en-US', { 
+                                      year: '2-digit', 
+                                      month: 'numeric', 
+                                      day: 'numeric' 
+                                    }) + ' ' + new Date(action.estimated_completion_date).toLocaleTimeString('en-US', {
+                                      hour: 'numeric',
+                                      minute: '2-digit',
+                                      hour12: true
+                                    })}</span>
+                                  )}
+                                </div>
                               </div>
                             </div>
+                            <div className="flex-shrink-0">
+                              <ScoreButton action={action} onScoreAction={handleScoreAction} />
+                            </div>
                           </div>
-                          <div className="flex-shrink-0 self-end xs:self-start">
-                            <ScoreButton action={action} onScoreAction={handleScoreAction} />
+                          
+                          {action.description && (
+                            <p className="text-muted-foreground break-words break-all">{action.description}</p>
+                          )}
+                          
+                          <div className="flex flex-wrap gap-2 overflow-hidden">
+                            {/* Action Type Indicator */}
+                             {action.asset ? (
+                               <Badge variant="outline" className="bg-blue-100 text-blue-600 border-blue-300 max-w-full overflow-hidden">
+                                 <span className="truncate">Asset: {action.asset.name.length > 10 ? `${action.asset.name.substring(0, 10)}...` : action.asset.name}</span>
+                               </Badge>
+                            ) : action.issue_tool ? (
+                              <Badge variant="outline" className="bg-orange-100 text-orange-800 max-w-full overflow-hidden">
+                                <span className="truncate">Issue Tool: {action.issue_tool.name.length > 10 ? `${action.issue_tool.name.substring(0, 10)}...` : action.issue_tool.name}</span>
+                              </Badge>
+                            ) : null}
+                          </div>
+                          
+                          <div className="flex flex-wrap gap-2 overflow-hidden">
+                            {action.mission && (
+                              <Badge variant="outline" className="bg-indigo-100 text-indigo-800 max-w-full overflow-hidden">
+                                <span className="truncate">Mission #{action.mission.mission_number}: {action.mission.title.length > 15 ? `${action.mission.title.substring(0, 15)}...` : action.mission.title}</span>
+                              </Badge>
+                            )}
+                            
+                            {action.assignee ? (
+                              <Badge 
+                                variant="outline" 
+                                className="flex items-center gap-1 max-w-full overflow-hidden"
+                                style={{ 
+                                  borderColor: getUserColor(action.assignee.user_id),
+                                  color: getUserColor(action.assignee.user_id)
+                                }}
+                              >
+                                <User className="h-3 w-3 flex-shrink-0" />
+                                <span className="truncate max-w-[80px]">{action.assignee.full_name}</span>
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-orange-600">
+                                Unassigned
+                              </Badge>
+                            )}
+                            
+                            {action.participants_details && action.participants_details.length > 0 && (
+                              action.participants_details.map(participant => (
+                                <Badge 
+                                  key={participant.user_id} 
+                                  variant="secondary" 
+                                  className="flex items-center gap-1 max-w-full overflow-hidden"
+                                  style={{ 
+                                    borderColor: getUserColor(participant.user_id),
+                                    color: getUserColor(participant.user_id)
+                                  }}
+                                >
+                                  <User className="h-3 w-3 flex-shrink-0" />
+                                  <span className="truncate max-w-[80px]">{participant.full_name}</span>
+                                </Badge>
+                              ))
+                            )}
                           </div>
                         </div>
-                           
-                           {action.description && (
-                             <p className="text-muted-foreground break-words break-all">{action.description}</p>
-                           )}
-                           
-                           <div className="flex flex-wrap gap-2 overflow-hidden">
-                             {/* Action Type Indicator */}
-                              {action.asset ? (
-                                <Badge variant="outline" className="bg-blue-100 text-blue-600 border-blue-300 max-w-full overflow-hidden">
-                                  <span className="truncate">Asset: {action.asset.name.length > 10 ? `${action.asset.name.substring(0, 10)}...` : action.asset.name}</span>
-                                </Badge>
-                             ) : action.issue_tool ? (
-                               <Badge variant="outline" className="bg-orange-100 text-orange-800 max-w-full overflow-hidden">
-                                 <span className="truncate">Issue Tool: {action.issue_tool.name.length > 10 ? `${action.issue_tool.name.substring(0, 10)}...` : action.issue_tool.name}</span>
-                               </Badge>
-                             ) : null}
-                             
-                             {action.mission && (
-                               <Badge variant="outline" className="bg-indigo-100 text-indigo-800 max-w-full overflow-hidden">
-                                 <span className="truncate">Mission #{action.mission.mission_number}: {action.mission.title.length > 15 ? `${action.mission.title.substring(0, 15)}...` : action.mission.title}</span>
-                               </Badge>
-                             )}
-                             
-                             {action.assignee ? (
-                               <Badge 
-                                 variant="outline" 
-                                 className="flex items-center gap-1 max-w-full overflow-hidden"
-                                 style={{ 
-                                   borderColor: getUserColor(action.assignee.user_id),
-                                   color: getUserColor(action.assignee.user_id)
-                                 }}
-                               >
-                                 <User className="h-3 w-3 flex-shrink-0" />
-                                 <span className="truncate max-w-[80px]">{action.assignee.full_name}</span>
-                               </Badge>
-                             ) : (
-                               <Badge variant="outline" className="text-orange-600">
-                                 Unassigned
-                               </Badge>
-                             )}
-                             
-                             {action.participants_details && action.participants_details.length > 0 && (
-                               action.participants_details.map(participant => (
-                                 <Badge 
-                                   key={participant.user_id} 
-                                   variant="secondary" 
-                                   className="flex items-center gap-1 max-w-full overflow-hidden"
-                                   style={{ 
-                                     borderColor: getUserColor(participant.user_id),
-                                     color: getUserColor(participant.user_id)
-                                   }}
-                                 >
-                                   <User className="h-3 w-3 flex-shrink-0" />
-                                   <span className="truncate max-w-[80px]">{participant.full_name}</span>
-                                 </Badge>
-                               ))
-                             )}
-                            </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -697,74 +712,78 @@ export default function Actions() {
                  >
                    <CardContent className="p-3 sm:p-4 md:p-6">
                       <div className="space-y-3">
-                        <div className="flex flex-col xs:flex-row items-start gap-3">
-                          <div className="flex-1 min-w-0 w-full">
-                            <h3 className="text-lg font-semibold break-words leading-tight break-all">{action.title}</h3>
-                            <div className="text-xs text-muted-foreground mt-1">
-                               <div className="flex flex-col sm:flex-row sm:flex-wrap gap-x-4 gap-y-1">
-                                 <span>Updated: {new Date(action.updated_at).toLocaleDateString('en-US', { 
-                                   year: '2-digit', 
-                                   month: 'numeric', 
-                                   day: 'numeric' 
-                                 }) + ' ' + new Date(action.updated_at).toLocaleTimeString('en-US', {
-                                   hour: 'numeric',
-                                   minute: '2-digit',
-                                   hour12: true
-                                 })}</span>
-                               </div>
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-lg font-semibold break-words leading-tight break-all">{action.title}</h3>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                 <div className="flex flex-col sm:flex-row sm:flex-wrap gap-x-4 gap-y-1">
+                                   <span>Updated: {new Date(action.updated_at).toLocaleDateString('en-US', { 
+                                     year: '2-digit', 
+                                     month: 'numeric', 
+                                     day: 'numeric' 
+                                   }) + ' ' + new Date(action.updated_at).toLocaleTimeString('en-US', {
+                                     hour: 'numeric',
+                                     minute: '2-digit',
+                                     hour12: true
+                                   })}</span>
+                                 </div>
+                              </div>
+                            </div>
+                            <div className="flex-shrink-0">
+                              <ScoreButton action={action} onScoreAction={handleScoreAction} />
                             </div>
                           </div>
-                          <div className="flex-shrink-0 self-end xs:self-start">
-                            <ScoreButton action={action} onScoreAction={handleScoreAction} />
+                          
+                          {action.description && (
+                            <p className="text-muted-foreground break-words break-all">{action.description}</p>
+                          )}
+                          
+                          <div className="flex flex-wrap gap-2 overflow-hidden">
+                            <Badge variant="outline" className={getStatusColor(action.status, action)}>
+                              Done
+                            </Badge>
+                            
+                            {/* Action Type Indicator */}
+                            {action.asset ? (
+                            <Badge variant="outline" className="bg-blue-100 text-blue-800 max-w-full overflow-hidden">
+                              <span className="truncate">Asset: {action.asset.name.length > 10 ? `${action.asset.name.substring(0, 10)}...` : action.asset.name}</span>
+                            </Badge>
+                            ) : action.issue_tool ? (
+                              <Badge variant="outline" className="bg-orange-100 text-orange-800 max-w-full overflow-hidden">
+                                <span className="truncate">Issue Tool: {action.issue_tool.name.length > 10 ? `${action.issue_tool.name.substring(0, 10)}...` : action.issue_tool.name}</span>
+                              </Badge>
+                            ) : null}
                           </div>
-                        </div>
-                         
-                         {action.description && (
-                           <p className="text-muted-foreground break-words break-all">{action.description}</p>
-                         )}
-                         
-                         <div className="flex flex-wrap gap-2 overflow-hidden">
-                           <Badge variant="outline" className={getStatusColor(action.status, action)}>
-                             Done
-                           </Badge>
-                           
-                           {/* Action Type Indicator */}
-                           {action.asset ? (
-                           <Badge variant="outline" className="bg-blue-100 text-blue-800 max-w-full overflow-hidden">
-                             <span className="truncate">Asset: {action.asset.name.length > 10 ? `${action.asset.name.substring(0, 10)}...` : action.asset.name}</span>
-                           </Badge>
-                           ) : action.issue_tool ? (
-                             <Badge variant="outline" className="bg-orange-100 text-orange-800 max-w-full overflow-hidden">
-                               <span className="truncate">Issue Tool: {action.issue_tool.name.length > 10 ? `${action.issue_tool.name.substring(0, 10)}...` : action.issue_tool.name}</span>
-                             </Badge>
-                           ) : null}
-                           
-                           {action.mission && (
-                           <Badge variant="outline" className="bg-indigo-100 text-indigo-800 max-w-full overflow-hidden">
-                             <span className="truncate">Mission #{action.mission.mission_number}: {action.mission.title.length > 15 ? `${action.mission.title.substring(0, 15)}...` : action.mission.title}</span>
-                           </Badge>
-                           )}
-                           
-                            {action.assignee ? (
-                              <Badge variant="outline" className="flex items-center gap-1 max-w-full overflow-hidden">
-                                <User className="h-3 w-3 flex-shrink-0" />
-                                <span className="truncate max-w-[80px]">{action.assignee.full_name}</span>
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-orange-600">
-                                Unassigned
-                              </Badge>
+                          
+                          <div className="flex flex-wrap gap-2 overflow-hidden">
+                            {action.mission && (
+                            <Badge variant="outline" className="bg-indigo-100 text-indigo-800 max-w-full overflow-hidden">
+                              <span className="truncate">Mission #{action.mission.mission_number}: {action.mission.title.length > 15 ? `${action.mission.title.substring(0, 15)}...` : action.mission.title}</span>
+                            </Badge>
                             )}
                             
-                            {action.participants_details && action.participants_details.length > 0 && (
-                              action.participants_details.map(participant => (
-                                <Badge key={participant.user_id} variant="secondary" className="flex items-center gap-1 max-w-full overflow-hidden">
-                                  <User className="h-3 w-3 flex-shrink-0" />
-                                  <span className="truncate max-w-[80px]">{participant.full_name}</span>
-                                </Badge>
-                              ))
-                            )}
+                             {action.assignee ? (
+                               <Badge variant="outline" className="flex items-center gap-1 max-w-full overflow-hidden">
+                                 <User className="h-3 w-3 flex-shrink-0" />
+                                 <span className="truncate max-w-[80px]">{action.assignee.full_name}</span>
+                               </Badge>
+                             ) : (
+                               <Badge variant="outline" className="text-orange-600">
+                                 Unassigned
+                               </Badge>
+                             )}
+                             
+                             {action.participants_details && action.participants_details.length > 0 && (
+                               action.participants_details.map(participant => (
+                                 <Badge key={participant.user_id} variant="secondary" className="flex items-center gap-1 max-w-full overflow-hidden">
+                                   <User className="h-3 w-3 flex-shrink-0" />
+                                   <span className="truncate max-w-[80px]">{participant.full_name}</span>
+                                 </Badge>
+                               ))
+                             )}
                           </div>
+                        </div>
                         </div>
                       </CardContent>
                     </Card>

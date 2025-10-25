@@ -341,7 +341,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
         throw error;
       }
 
-      // Log creation event for stock items only (parts_history)
+      // Log creation event for stock items (parts_history)
       if (!isAsset) {
         try {
           const partData = data as Partial<CombinedAsset>;
@@ -359,6 +359,28 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
             });
         } catch (historyError) {
           console.warn('Failed to log creation to parts_history:', historyError);
+        }
+      } else {
+        // Log creation event for tools/assets (asset_history table)
+        try {
+          const currentUser = await supabase.auth.getUser();
+          if (currentUser.data.user) {
+            await supabase
+              .from('asset_history')
+              .insert({
+                asset_id: data.id,
+                changed_by: currentUser.data.user.id,
+                changed_at: new Date().toISOString(),
+                change_type: 'created',
+                field_changed: null,
+                old_value: null,
+                new_value: null,
+                notes: `Asset created: ${data.name}`,
+                organization_id: data.organization_id
+              });
+          }
+        } catch (historyError) {
+          console.warn('Failed to log creation to asset_history:', historyError);
         }
       }
 
@@ -386,12 +408,66 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
   const updateAsset = async (assetId: string, updates: Partial<CombinedAsset>, isAsset: boolean) => {
     try {
       const table = isAsset ? 'tools' : 'parts';
+      
+      // For assets, fetch current values before updating
+      let currentAsset = null;
+      if (isAsset) {
+        const { data } = await supabase
+          .from('tools')
+          .select('*')
+          .eq('id', assetId)
+          .single();
+        currentAsset = data;
+      }
+      
       const { error } = await supabase
         .from(table)
         .update(updates)
         .eq('id', assetId);
 
       if (error) throw error;
+
+      // Log history for assets
+      if (isAsset && currentAsset) {
+        try {
+          const currentUser = await supabase.auth.getUser();
+          if (currentUser.data.user) {
+            const historyPromises = [];
+            
+            // Track each changed field
+            for (const [field, newValue] of Object.entries(updates)) {
+              const oldValue = currentAsset[field];
+              
+              // Only log if value actually changed
+              if (oldValue !== newValue) {
+                const changeType = field === 'status' ? 'status_change' : 'updated';
+                
+                historyPromises.push(
+                  supabase
+                    .from('asset_history')
+                    .insert({
+                      asset_id: assetId,
+                      changed_by: currentUser.data.user.id,
+                      changed_at: new Date().toISOString(),
+                      change_type: changeType,
+                      field_changed: field,
+                      old_value: oldValue ? String(oldValue) : null,
+                      new_value: newValue ? String(newValue) : null,
+                      notes: `Field '${field}' updated`,
+                      organization_id: currentAsset.organization_id
+                    })
+                );
+              }
+            }
+            
+            if (historyPromises.length > 0) {
+              await Promise.all(historyPromises);
+            }
+          }
+        } catch (historyError) {
+          console.warn('Failed to log asset updates to history:', historyError);
+        }
+      }
 
       // Update local state
       setAssets(prev => prev.map(asset => 

@@ -57,7 +57,7 @@ export const CombinedAssetGrid = ({
       return <div className="h-40 rounded-md border animate-pulse" style={{ height: '300px' }} />;
     }
     return (
-      <div style={{ height: '300px' }}>
+      <div style={{ minHeight: '300px', height: 'auto' }}>
         <CombinedAssetCard
           key={asset.id}
           asset={asset}

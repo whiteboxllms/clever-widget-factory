@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle, X, Clock, Edit, Plus, Target, Swords, Package, Wrench, Home, FileText } from "lucide-react";
+import { AlertTriangle, CheckCircle, X, Clock, Edit, Plus, Target, Swords, Package, Wrench, Home, FileText, Brain } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { BaseIssue, ContextType, getContextBadgeColor, getContextIcon, getContextLabel, OrderIssue, getOrderIssueTypeLabel } from "@/types/issues";
@@ -15,6 +15,7 @@ import { IssueScoreDialog } from "@/components/IssueScoreDialog";
 import { UnifiedActionDialog } from "@/components/UnifiedActionDialog";
 import { createIssueAction } from "@/types/actions";
 import { ManageIssueActionsDialog } from "@/components/ManageIssueActionsDialog";
+import { FiveWhysDialog } from "@/components/FiveWhysDialog";
 
 interface GenericIssueCardProps {
   issue: BaseIssue;
@@ -43,6 +44,7 @@ export function GenericIssueCard({
   const [showScoreDialog, setShowScoreDialog] = useState(false);
   const [showCreateActionDialog, setShowCreateActionDialog] = useState(false);
   const [showManageActionsDialog, setShowManageActionsDialog] = useState(false);
+  const [showFiveWhysDialog, setShowFiveWhysDialog] = useState(false);
   const { profiles } = useActionProfiles();
   const { removeIssue, resolveIssue } = useGenericIssues();
   const { getScoreForIssue } = useAssetScores();
@@ -290,6 +292,17 @@ export function GenericIssueCard({
             
             <div className="flex flex-col gap-2">
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-1 sm:flex-shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowFiveWhysDialog(true)}
+                  className="min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs border-purple-500 text-purple-600 hover:bg-purple-50"
+                  title="Start 5 Whys Analysis"
+                >
+                  <Brain className="h-4 w-4 sm:h-3 sm:w-3 mr-2 sm:mr-0" />
+                  <span className="sm:hidden">5 Whys</span>
+                </Button>
+
                 {enableScorecard && issue.context_type === 'tool' && (
                   <Button
                     size="sm"
@@ -424,6 +437,13 @@ export function GenericIssueCard({
           onRefresh={onRefresh}
         />
       )}
+
+      {/* 5 Whys Dialog */}
+      <FiveWhysDialog
+        open={showFiveWhysDialog}
+        onOpenChange={setShowFiveWhysDialog}
+        issue={issue}
+      />
     </>
   );
 }

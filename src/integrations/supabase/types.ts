@@ -1598,6 +1598,57 @@ export type Database = {
           },
         ]
       }
+      five_whys_sessions: {
+        Row: {
+          id: string
+          issue_id: string
+          organization_id: string
+          conversation_history: Json | null
+          root_cause_analysis: string | null
+          status: string
+          created_at: string | null
+          updated_at: string | null
+          created_by: string | null
+        }
+        Insert: {
+          id?: string
+          issue_id: string
+          organization_id: string
+          conversation_history?: Json | null
+          root_cause_analysis?: string | null
+          status?: string
+          created_at?: string | null
+          updated_at?: string | null
+          created_by?: string | null
+        }
+        Update: {
+          id?: string
+          issue_id?: string
+          organization_id?: string
+          conversation_history?: Json | null
+          root_cause_analysis?: string | null
+          status?: string
+          created_at?: string | null
+          updated_at?: string | null
+          created_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "five_whys_sessions_issue_id_fkey"
+            columns: ["issue_id"]
+            isOneToOne: false
+            referencedRelation: "issues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "five_whys_sessions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

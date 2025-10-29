@@ -37,10 +37,11 @@ export const getStatusColor = (status: string) => {
   switch (status) {
     case 'available': return 'bg-green-100 text-green-800';
     case 'checked_out': return 'bg-yellow-100 text-yellow-800';
+    case 'in_use': return 'bg-blue-100 text-blue-800';
     case 'unavailable': return 'bg-red-100 text-red-800';
     case 'removed': return 'bg-gray-100 text-gray-800';
     case 'needs_attention': return 'bg-orange-100 text-orange-800';
-    case 'under_repair': return 'bg-blue-100 text-blue-800';
+    case 'under_repair': return 'bg-purple-100 text-purple-800';
     default: return 'bg-gray-100 text-gray-800';
   }
 };
@@ -49,6 +50,7 @@ export const getStatusLabel = (status: string) => {
   switch (status) {
     case 'available': return 'Available';
     case 'checked_out': return 'Checked Out';
+    case 'in_use': return 'In Use';
     case 'unavailable': return 'Unavailable';
     case 'removed': return 'Removed';
     case 'needs_attention': return 'Needs Attention';

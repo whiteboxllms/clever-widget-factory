@@ -185,8 +185,8 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="available">Available</SelectItem>
+                <SelectItem value="in_use">In Use</SelectItem>
                 <SelectItem value="unavailable">Unavailable</SelectItem>
-                <SelectItem value="unable_to_find">Unable to Find</SelectItem>
               </SelectContent>
             </Select>
           </div>

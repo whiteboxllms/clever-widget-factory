@@ -157,10 +157,10 @@ export const CombinedAssetCard = memo(({
       switch (asset.status) {
         case 'available':
           return <Badge variant="outline" className="text-green-600 border-green-600">Available</Badge>;
+        case 'in_use':
+          return <Badge variant="outline" className="text-blue-600 border-blue-600">In Use</Badge>;
         case 'unavailable':
           return <Badge variant="outline" className="text-red-600 border-red-600">Unavailable</Badge>;
-        case 'unable_to_find':
-          return <Badge variant="outline" className="text-yellow-600 border-yellow-600">Missing</Badge>;
         default:
           return <Badge variant="outline">Unknown</Badge>;
       }

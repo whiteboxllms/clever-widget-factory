@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { saveSession as saveSessionService, completeSession as completeSessionService, getSession } from '@/services/fiveWhysService';
+import { useAuth } from '@/hooks/useAuth';
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -147,7 +148,8 @@ export function parseWhyQuestion(content: string): ParsedWhyQuestion | null {
   return null;
 }
 
-export function useFiveWhysAgent(issue: { id: string; description: string }, organizationId: string) {
+export function useFiveWhysAgent(issue: { id: string; description: string }, organizationId: string, existingSessionId?: string) {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -160,82 +162,69 @@ export function useFiveWhysAgent(issue: { id: string; description: string }, org
 
   // Define loadExistingSession FIRST before initializeSession references it
   const loadExistingSession = useCallback(async () => {
-    // Check if there's an in_progress session for this issue
-    const { data, error } = await supabase
-      .from('five_whys_sessions')
-      .select('*')
-      .eq('issue_id', issue.id)
-      .eq('status', 'in_progress')
-      .eq('organization_id', organizationId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // No session found - this is okay
-        return null;
-      }
-      console.error('Error loading session:', error);
-      return null;
-    }
-
-    if (!data) return null;
-
-    // Restore session state from conversation history
-    interface ConversationHistoryItem {
-      role: string;
-      content: string;
-      timestamp?: string;
-    }
-    
-    const restoredMessages: ChatMessage[] = ((data.conversation_history as unknown) as ConversationHistoryItem[]).map((msg) => ({
-      role: msg.role as 'user' | 'assistant' | 'system',
-      content: msg.content,
-      timestamp: msg.timestamp ? new Date(msg.timestamp) : undefined,
-    }));
-
-    // Restore stage and counts by analyzing messages
-    let restoredStage: WorkflowStage = 'collecting_facts';
-    let factCount = 0;
-    let whyCount = 0;
-
-    for (let i = 0; i < restoredMessages.length; i++) {
-      const msg = restoredMessages[i];
-      if (msg.role === 'user' && i > 0) {
-        factCount++;
-      }
-      
-      // Detect stage from AI responses
-      if (msg.role === 'assistant') {
-        if (msg.content.toLowerCase().includes('plausible causes') || msg.content.match(/^\d+\./)) {
-          restoredStage = 'proposing_causes';
-        } else if (msg.content.match(/Why #\d+:/)) {
-          restoredStage = 'five_whys';
-          const matches = restoredMessages.filter(m => m.role === 'assistant' && m.content.match(/Why #\d+:/));
-          whyCount = matches.length;
-        } else if (msg.content.toLowerCase().includes('root cause')) {
-          restoredStage = 'root_cause_identified';
+    if (existingSessionId) {
+      // Load specific session by ID
+      const result = await getSession(existingSessionId, organizationId);
+      if (result.success && result.data) {
+        const data = result.data;
+        
+        // Restore session state from conversation history
+        interface ConversationHistoryItem {
+          role: string;
+          content: string;
+          timestamp?: string;
         }
+        
+        const restoredMessages: ChatMessage[] = (data.conversation_history || []).map((msg: ConversationHistoryItem) => ({
+          role: msg.role as 'user' | 'assistant' | 'system',
+          content: msg.content,
+          timestamp: msg.timestamp ? new Date(msg.timestamp) : undefined,
+        }));
+
+        // Restore stage and counts by analyzing messages
+        let restoredStage: WorkflowStage = 'collecting_facts';
+        let factCount = 0;
+        let whyCount = 0;
+
+        for (let i = 0; i < restoredMessages.length; i++) {
+          const msg = restoredMessages[i];
+          if (msg.role === 'user' && i > 0) {
+            factCount++;
+          }
+          
+          // Detect stage from AI responses
+          if (msg.role === 'assistant') {
+            if (msg.content.toLowerCase().includes('plausible causes') || msg.content.match(/^\d+\./)) {
+              restoredStage = 'proposing_causes';
+            } else if (msg.content.match(/Why #\d+:/)) {
+              restoredStage = 'five_whys';
+              const matches = restoredMessages.filter(m => m.role === 'assistant' && m.content.match(/Why #\d+:/));
+              whyCount = matches.length;
+            } else if (msg.content.toLowerCase().includes('root cause')) {
+              restoredStage = 'root_cause_identified';
+            }
+          }
+        }
+
+        setMessages(restoredMessages);
+        setCurrentStage(restoredStage);
+        setFactExchangeCount(factCount);
+        setWhyCount(whyCount);
+        
+        setSession({
+          id: data.id,
+          issue_id: data.issue_id,
+          organization_id: data.organization_id,
+          conversation_history: data.conversation_history,
+          root_cause_analysis: data.root_cause_analysis,
+          status: data.status,
+        });
+
+        return data;
       }
     }
-
-    setMessages(restoredMessages);
-    setCurrentStage(restoredStage);
-    setFactExchangeCount(factCount);
-    setWhyCount(whyCount);
-    
-    setSession({
-      id: data.id,
-      issue_id: data.issue_id,
-      organization_id: data.organization_id,
-      conversation_history: (data.conversation_history as unknown) as ConversationHistoryItem[],
-      root_cause_analysis: data.root_cause_analysis as string | undefined,
-      status: data.status as 'in_progress' | 'completed' | 'abandoned',
-    });
-
-    return data;
-  }, [issue.id, organizationId]);
+    return null;
+  }, [existingSessionId, organizationId]);
 
   const initializeSession = useCallback(async () => {
     // Try to load existing session first
@@ -438,64 +427,46 @@ What did you observe when you noticed this issue?`;
     }
   }, [messages, isLoading, currentStage, factExchangeCount, whyCount]);
 
-  const saveSession = useCallback(async () => {
+  const saveSessionCallback = useCallback(async () => {
+    if (!user) throw new Error('User not authenticated');
+
     const conversationHistory = messages.map(msg => ({
       role: msg.role,
       content: msg.content,
       timestamp: msg.timestamp?.toISOString(),
     }));
 
-    const sessionData = {
+    const result = await saveSessionService({
+      session_id: session?.id,
       issue_id: issue.id,
       organization_id: organizationId,
       conversation_history: conversationHistory,
-      status: 'in_progress' as const,
-    };
+      status: 'in_progress',
+      created_by: user.id
+    });
 
-    // Check if there's an existing session
-    const { data: existing } = await supabase
-      .from('five_whys_sessions')
-      .select('id')
-      .eq('issue_id', issue.id)
-      .eq('status', 'in_progress')
-      .eq('organization_id', organizationId)
-      .single();
-
-    let sessionId;
-
-    if (existing?.id) {
-      // Update existing session
-      const { data, error } = await supabase
-        .from('five_whys_sessions')
-        .update(sessionData)
-        .eq('id', existing.id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      sessionId = data.id;
-    } else {
-      // Insert new session
-      const { data, error } = await supabase
-        .from('five_whys_sessions')
-        .insert(sessionData)
-        .select()
-        .single();
-
-      if (error) throw error;
-      sessionId = data.id;
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to save session');
     }
 
-    setSession({
-      id: sessionId,
-      ...sessionData,
-      status: 'in_progress',
-    } as FiveWhysSession);
+    const sessionData = result.data?.session;
+    if (sessionData) {
+      setSession({
+        id: sessionData.id,
+        issue_id: sessionData.issue_id,
+        organization_id: sessionData.organization_id,
+        conversation_history: sessionData.conversation_history,
+        root_cause_analysis: sessionData.root_cause_analysis,
+        status: sessionData.status,
+      } as FiveWhysSession);
+    }
 
     return sessionData;
-  }, [messages, issue.id, organizationId]);
+  }, [messages, issue.id, organizationId, session?.id, user]);
 
-  const completeSession = useCallback(async () => {
+  const completeSessionCallback = useCallback(async () => {
+    if (!user) throw new Error('User not authenticated');
+
     const conversationHistory = messages.map(msg => ({
       role: msg.role,
       content: msg.content,
@@ -511,52 +482,51 @@ What did you observe when you noticed this issue?`;
       }
     }
 
-    const sessionData = {
-      issue_id: issue.id,
+    // If no session exists yet, create it first
+    let sessionId = session?.id;
+    if (!sessionId) {
+      // Create the session first
+      const saveResult = await saveSessionService({
+        issue_id: issue.id,
+        organization_id: organizationId,
+        conversation_history: conversationHistory,
+        status: 'in_progress',
+        created_by: user.id
+      });
+
+      if (!saveResult.success || !saveResult.data?.session?.id) {
+        throw new Error(saveResult.error || 'Failed to create session');
+      }
+
+      sessionId = saveResult.data.session.id;
+    }
+
+    const result = await completeSessionService({
+      session_id: sessionId,
       organization_id: organizationId,
       conversation_history: conversationHistory,
       root_cause_analysis: rootCauseAnalysis,
-      status: 'completed' as const,
-    };
+      created_by: user.id
+    });
 
-    // Upsert session
-    const { data: existing } = await supabase
-      .from('five_whys_sessions')
-      .select('id')
-      .eq('issue_id', issue.id)
-      .eq('organization_id', organizationId)
-      .single();
-
-    let sessionId;
-
-    if (existing?.id) {
-      const { data, error } = await supabase
-        .from('five_whys_sessions')
-        .update(sessionData)
-        .eq('id', existing.id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      sessionId = data.id;
-    } else {
-      const { data, error } = await supabase
-        .from('five_whys_sessions')
-        .insert(sessionData)
-        .select()
-        .single();
-
-      if (error) throw error;
-      sessionId = data.id;
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to complete session');
     }
 
-    setSession({
-      id: sessionId,
-      ...sessionData,
-    } as FiveWhysSession);
+    const sessionData = result.data?.session;
+    if (sessionData) {
+      setSession({
+        id: sessionData.id,
+        issue_id: sessionData.issue_id,
+        organization_id: sessionData.organization_id,
+        conversation_history: sessionData.conversation_history,
+        root_cause_analysis: sessionData.root_cause_analysis,
+        status: sessionData.status,
+      } as FiveWhysSession);
+    }
 
     return sessionData;
-  }, [messages, issue.id, organizationId, currentStage]);
+  }, [messages, issue.id, organizationId, currentStage, session?.id, user, saveSessionService]);
 
   const resetSession = useCallback(() => {
     setMessages([]);
@@ -575,8 +545,8 @@ What did you observe when you noticed this issue?`;
     whyAnswers,
     initializeSession,
     sendMessage,
-    saveSession,
-    completeSession,
+    saveSession: saveSessionCallback,
+    completeSession: completeSessionCallback,
     resetSession,
   };
 }

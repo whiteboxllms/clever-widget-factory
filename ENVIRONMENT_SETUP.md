@@ -14,6 +14,9 @@ This project now supports both local and production Supabase configurations thro
    # Local Supabase Configuration
    VITE_SUPABASE_URL=http://127.0.0.1:54321
    VITE_SUPABASE_PUBLISHABLE_KEY=your_local_anon_key_here
+
+   # AI Features (5 Whys Coach)
+   VITE_OPENROUTER_API_KEY=your_openrouter_api_key_here
    ```
 
 3. **Get your local Supabase anon key**:
@@ -36,6 +39,7 @@ The `src/integrations/supabase/client.ts` file now:
 |----------|-------------|-------------|------------------|
 | `VITE_SUPABASE_URL` | Supabase API URL | `http://127.0.0.1:54321` | `https://oskwnlhuuxjfuwnjuavn.supabase.co` |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase anon key | Your local key | Production key |
+| `VITE_OPENROUTER_API_KEY` | OpenRouter API key for AI features | Your OpenRouter key | Production key |
 
 ## Switching Environments
 

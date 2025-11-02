@@ -32,6 +32,7 @@ export function FiveWhysSessionSelector({
   const [sessions, setSessions] = useState<FiveWhysSession[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedRootCause, setExpandedRootCause] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -143,35 +144,45 @@ export function FiveWhysSessionSelector({
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm text-muted-foreground">
-                        <div>Created: {format(new Date(session.created_at), 'MMM d, yyyy HH:mm')}</div>
-                        {session.message_count !== undefined && (
-                          <div>{session.message_count} messages</div>
-                        )}
-                        {session.root_cause_analysis && (
-                          <div className="mt-1 text-xs text-green-600">Root cause identified</div>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => onViewSession(session.id)}
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          View
-                        </Button>
-                        {canContinue && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">
+                          <div>Created: {format(new Date(session.created_at), 'MMM d, yyyy HH:mm')}</div>
+                          {session.message_count !== undefined && (
+                            <div>{session.message_count} messages</div>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
                           <Button
-                            variant="default"
+                            variant="outline"
                             size="sm"
-                            onClick={() => onContinueSession(session.id)}
+                            onClick={() => onViewSession(session.id)}
                           >
-                            Continue
+                            <Eye className="h-4 w-4 mr-1" />
+                            View
                           </Button>
-                        )}
+                          {canContinue && (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => onContinueSession(session.id)}
+                            >
+                              Continue
+                            </Button>
+                          )}
+                        </div>
                       </div>
+                      {session.root_cause_analysis && (
+                        <div className="border-t pt-3">
+                          <div className="text-xs font-semibold text-green-700 mb-1">Root Cause:</div>
+                          <button
+                            onClick={() => setExpandedRootCause(session.root_cause_analysis || null)}
+                            className="text-sm text-left text-foreground hover:text-primary cursor-pointer w-full"
+                          >
+                            <div className="line-clamp-2">{session.root_cause_analysis}</div>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -180,6 +191,18 @@ export function FiveWhysSessionSelector({
           </div>
         )}
       </DialogContent>
+
+      {/* Root Cause Expansion Dialog */}
+      <Dialog open={expandedRootCause !== null} onOpenChange={(open) => !open && setExpandedRootCause(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Root Cause Analysis</DialogTitle>
+          </DialogHeader>
+          <div className="whitespace-pre-wrap text-sm leading-relaxed break-words pt-2">
+            {expandedRootCause}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

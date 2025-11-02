@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle, X, Clock, Edit, Plus, Target, Swords, Package, Wrench, Home, FileText, Brain } from "lucide-react";
+import { AlertTriangle, CheckCircle, X, Clock, Edit, Plus, Target, Swords, Package, Wrench, Home, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { BaseIssue, ContextType, getContextBadgeColor, getContextIcon, getContextLabel, OrderIssue, getOrderIssueTypeLabel } from "@/types/issues";
@@ -20,6 +20,7 @@ import { FiveWhysSessionSelector } from "@/components/FiveWhysSessionSelector";
 import { FiveWhysSessionViewer } from "@/components/FiveWhysSessionViewer";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
+import { listSessions } from '@/services/fiveWhysService';
 
 interface GenericIssueCardProps {
   issue: BaseIssue;
@@ -52,6 +53,7 @@ export function GenericIssueCard({
   const [showFiveWhysDialog, setShowFiveWhysDialog] = useState(false);
   const [showFiveWhysViewer, setShowFiveWhysViewer] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [hasFiveWhysSession, setHasFiveWhysSession] = useState(false);
   const { user } = useAuth();
   const organizationId = useOrganizationId();
   const { profiles } = useActionProfiles();
@@ -130,6 +132,40 @@ export function GenericIssueCard({
 
     fetchScoreAndActions();
   }, [issue.id, enableScorecard, enableActions]); // Removed function dependencies that cause infinite loop
+
+  // Check if 5 Whys session exists for this issue
+  const checkFiveWhysSession = useCallback(async () => {
+    if (!organizationId || !issue.id) return;
+    
+    try {
+      const result = await listSessions(issue.id, organizationId);
+      if (result.success && result.data?.sessions) {
+        // Check if any session has conversation history or root cause analysis
+        const hasData = result.data.sessions.some(session => 
+          (Array.isArray(session.conversation_history) && session.conversation_history.length > 0) ||
+          (session.root_cause_analysis && session.root_cause_analysis.trim().length > 0)
+        );
+        setHasFiveWhysSession(hasData);
+      } else {
+        setHasFiveWhysSession(false);
+      }
+    } catch (error) {
+      console.error('Error checking 5 Whys sessions:', error);
+      setHasFiveWhysSession(false);
+    }
+  }, [issue.id, organizationId]);
+
+  useEffect(() => {
+    checkFiveWhysSession();
+  }, [checkFiveWhysSession]);
+
+  // Refresh session check when dialog closes (user may have completed a session)
+  useEffect(() => {
+    if (!showFiveWhysDialog && !showFiveWhysSelector && !showFiveWhysViewer) {
+      // All dialogs are closed, refresh the session check
+      checkFiveWhysSession();
+    }
+  }, [showFiveWhysDialog, showFiveWhysSelector, showFiveWhysViewer, checkFiveWhysSession]);
 
   const handleRemove = async () => {
     setIsRemoving(true);
@@ -305,11 +341,14 @@ export function GenericIssueCard({
                   size="sm"
                   variant="outline"
                   onClick={() => setShowFiveWhysSelector(true)}
-                  className="min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs border-purple-500 text-purple-600 hover:bg-purple-50"
+                  className={`min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs ${
+                    hasFiveWhysSession
+                      ? 'border-green-500 text-green-600 hover:bg-green-50'
+                      : 'border-gray-900 text-gray-900 hover:bg-gray-50'
+                  }`}
                   title="5 Whys Analysis"
                 >
-                  <Brain className="h-4 w-4 sm:h-3 sm:w-3 mr-2 sm:mr-0" />
-                  <span className="sm:hidden">5 Whys</span>
+                  <span>5Ys</span>
                 </Button>
 
                 {enableScorecard && issue.context_type === 'tool' && (

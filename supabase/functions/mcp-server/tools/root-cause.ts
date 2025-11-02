@@ -1,6 +1,5 @@
 import { createSupabaseClient, validateOrganizationAccess } from '../lib/supabase.ts';
 import { 
-  LogFiveWhysStepSchema, 
   GetRelatedIssuesSchema, 
   SuggestResponsiblePartySchema,
   ListFiveWhysSessionsSchema,
@@ -10,85 +9,8 @@ import {
 } from '../lib/schemas.ts';
 import { logToolInvocation, createSuccessResponse, createErrorResponse, formatError } from '../lib/utils.ts';
 
-export async function logFiveWhysStep(params: any) {
-  const validatedParams = LogFiveWhysStepSchema.parse(params);
-  const supabase = createSupabaseClient();
-  
-  try {
-    // Validate organization access
-    const hasAccess = await validateOrganizationAccess(supabase, validatedParams.organization_id);
-    if (!hasAccess) {
-      return createErrorResponse('Organization not found or inactive');
-    }
-
-    logToolInvocation('log_five_whys_step', validatedParams.organization_id, validatedParams.logged_by, validatedParams);
-
-    // Get current issue to update the ai_analysis field
-    const { data: issue, error: issueError } = await supabase
-      .from('issues')
-      .select('id, ai_analysis')
-      .eq('id', validatedParams.issue_id)
-      .eq('organization_id', validatedParams.organization_id)
-      .single();
-
-    if (issueError || !issue) {
-      return createErrorResponse('Issue not found', 'NOT_FOUND');
-    }
-
-    // Parse existing ai_analysis or create new structure
-    let analysisData: any = {};
-    try {
-      analysisData = issue.ai_analysis ? JSON.parse(issue.ai_analysis) : {};
-    } catch (e) {
-      analysisData = {};
-    }
-
-    // Ensure five_whys structure exists
-    if (!analysisData.five_whys) {
-      analysisData.five_whys = {};
-    }
-
-    // Add the new step
-    analysisData.five_whys[`step_${validatedParams.step_number}`] = {
-      question: validatedParams.question,
-      answer: validatedParams.answer,
-      logged_at: new Date().toISOString(),
-      logged_by: validatedParams.logged_by
-    };
-
-    // Update the issue with the new analysis data
-    const { data: updatedIssue, error: updateError } = await supabase
-      .from('issues')
-      .update({
-        ai_analysis: JSON.stringify(analysisData),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', validatedParams.issue_id)
-      .eq('organization_id', validatedParams.organization_id)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error('Error updating issue with five whys step:', updateError);
-      return createErrorResponse('Failed to log five whys step', 'DATABASE_ERROR');
-    }
-
-    return createSuccessResponse({
-      step_logged: {
-        step_number: validatedParams.step_number,
-        question: validatedParams.question,
-        answer: validatedParams.answer,
-        logged_at: analysisData.five_whys[`step_${validatedParams.step_number}`].logged_at
-      },
-      current_analysis: analysisData,
-      message: `Five Whys step ${validatedParams.step_number} logged successfully`
-    });
-
-  } catch (error) {
-    console.error('Error in logFiveWhysStep:', error);
-    return createErrorResponse(formatError(error), 'VALIDATION_ERROR');
-  }
-}
+// logFiveWhysStep function removed - using five_whys_sessions table instead
+// All 5 Whys data is now stored in five_whys_sessions table via saveFiveWhysSession and completeFiveWhysSession
 
 export async function getRelatedIssues(params: any) {
   const validatedParams = GetRelatedIssuesSchema.parse(params);
@@ -524,12 +446,17 @@ export async function saveFiveWhysSession(params: any) {
 
     if (validatedParams.session_id) {
       // Update existing session - don't update created_by
-      const sessionData = {
+      const sessionData: any = {
         issue_id: validatedParams.issue_id,
         organization_id: validatedParams.organization_id,
         conversation_history: validatedParams.conversation_history,
         status: validatedParams.status
       };
+      
+      // Include root_cause_analysis if provided
+      if (validatedParams.root_cause_analysis !== undefined) {
+        sessionData.root_cause_analysis = validatedParams.root_cause_analysis;
+      }
 
       const { data, error } = await supabase
         .from('five_whys_sessions')
@@ -548,13 +475,18 @@ export async function saveFiveWhysSession(params: any) {
       sessionId = data.id;
     } else {
       // Create new session - include created_by
-      const sessionData = {
+      const sessionData: any = {
         issue_id: validatedParams.issue_id,
         organization_id: validatedParams.organization_id,
         conversation_history: validatedParams.conversation_history,
         status: validatedParams.status,
         created_by: validatedParams.created_by
       };
+      
+      // Include root_cause_analysis if provided
+      if (validatedParams.root_cause_analysis !== undefined) {
+        sessionData.root_cause_analysis = validatedParams.root_cause_analysis;
+      }
 
       const { data, error } = await supabase
         .from('five_whys_sessions')

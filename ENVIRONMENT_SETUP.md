@@ -20,6 +20,9 @@ This project uses a hybrid environment variable approach for maximum flexibility
    ```env
    VITE_SUPABASE_URL=http://127.0.0.1:54321
    VITE_SUPABASE_PUBLISHABLE_KEY=your_local_anon_key_here
+
+   # Note: OpenRouter API key is now stored securely in Supabase Edge Functions
+   # See: supabase secrets set OPENROUTER_API_KEY=your_key
    ```
 
    To get your local Supabase anon key:
@@ -46,7 +49,7 @@ The `src/integrations/supabase/client.ts` file:
 |----------|-------------|-------------|------------------|
 | `VITE_SUPABASE_URL` | Supabase API URL | `http://127.0.0.1:54321` | `https://oskwnlhuuxjfuwnjuavn.supabase.co` |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase anon key | Your local key | Production key |
-| `VITE_OPENROUTER_API_KEY` | OpenRouter API key for AI features | Your OpenRouter key | Production key |
+| `OPENROUTER_API_KEY` | OpenRouter API key for AI features (Edge Function secret) | Set via `supabase secrets set` | Production key stored in Supabase |
 
 ## Switching Environments
 
@@ -68,46 +71,54 @@ The `.env.local` file is gitignored, so your local configuration won't be commit
 
 ## Production Deployment
 
-### Frontend Deployment (Vite)
+### OpenRouter API Key (Secured Server-Side)
 
-The `VITE_OPENROUTER_API_KEY` must be set as an environment variable in your deployment platform **at build time**. Vite embeds these variables into the client bundle during build.
+The OpenRouter API key is now stored securely in Supabase Edge Functions secrets and is never exposed to the client.
 
-#### Vercel
+#### Setting the Secret
 
-1. Go to your project settings in Vercel
-2. Navigate to **Settings > Environment Variables**
-3. Add the following variable:
-   - **Key:** `VITE_OPENROUTER_API_KEY`
-   - **Value:** Your OpenRouter API key
-   - **Environment:** Production (and Preview/Development if needed)
-4. Redeploy your application
+Use the Supabase CLI to set the secret:
 
-#### Netlify
+```bash
+supabase secrets set OPENROUTER_API_KEY=sk-or-v1-your-key-here --project-ref your-project-ref
+```
 
-1. Go to your site settings in Netlify
-2. Navigate to **Site configuration > Environment variables**
-3. Add the following variable:
-   - **Key:** `VITE_OPENROUTER_API_KEY`
-   - **Value:** Your OpenRouter API key
-   - **Scopes:** Production (and Deploy previews if needed)
-4. Trigger a new deploy
+Find your project ref in your Supabase dashboard URL: `https://app.supabase.com/project/<project-ref>`
 
-#### Other Platforms (AWS, Cloudflare Pages, etc.)
+#### Local Development
 
-Set `VITE_OPENROUTER_API_KEY` as an environment variable in your build/deployment configuration before running `npm run build`.
+For local development, create `supabase/.env.local`:
 
-**Important Security Notes:**
-- ⚠️ **`VITE_` prefixed variables are exposed to client-side code** - they will be visible in the browser bundle
-- ✅ This is acceptable for OpenRouter API keys as they should be rate-limited and have usage controls
-- ✅ Consider using domain/IP restrictions on your OpenRouter account for additional security
-- ❌ Never use `VITE_` prefix for server-side secrets (use Edge Functions secrets instead)
+```
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
+```
+
+Then serve the function with:
+```bash
+supabase functions serve mcp-server --env-file ./supabase/.env.local
+```
+
+#### Frontend Deployment
+
+No frontend environment variables are needed. The API key is accessed server-side only through the MCP server Edge Function.
 
 ### Backend Deployment (Supabase Edge Functions)
 
-For Supabase Edge Functions, environment variables are managed differently:
-1. Go to your Supabase Dashboard
-2. Navigate to **Edge Functions > Settings**
-3. Add secrets using: `supabase secrets set OPENROUTER_API_KEY=your_key_here`
-4. Access in function code: `Deno.env.get('OPENROUTER_API_KEY')`
+For Supabase Edge Functions, secrets are managed via CLI:
 
-**Note:** The 5 Whys feature currently runs in the frontend, so only frontend deployment variables are needed.
+1. **Set the secret:**
+   ```bash
+   supabase secrets set OPENROUTER_API_KEY=sk-or-v1-your-key-here --project-ref your-project-ref
+   ```
+
+2. **Verify it's set:**
+   ```bash
+   supabase secrets list --project-ref your-project-ref
+   ```
+
+3. **Access in function code:**
+   ```typescript
+   const apiKey = Deno.env.get('OPENROUTER_API_KEY');
+   ```
+
+**Note:** The 5 Whys feature now uses the MCP server for all AI chat, so the API key is stored securely server-side.

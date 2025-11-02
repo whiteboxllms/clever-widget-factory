@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { saveSession as saveSessionService, completeSession as completeSessionService, getSession } from '@/services/fiveWhysService';
+import { saveSession as saveSessionService, completeSession as completeSessionService, getSession, chatFiveWhys } from '@/services/fiveWhysService';
 import { useAuth } from '@/hooks/useAuth';
 
 interface ChatMessage {
@@ -116,8 +116,7 @@ CRITICAL:
   }
 };
 
-const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const MODEL = 'anthropic/claude-3-haiku:beta';
+// OpenRouter API calls now handled by MCP server - see chatFiveWhys in fiveWhysService
 
 export interface ParsedWhyQuestion {
   question: string;
@@ -341,60 +340,22 @@ Beyond the reported issue, is there anything else you want to include as backgro
     }
 
     try {
-      const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
-
-      if (!apiKey) {
-        throw new Error('OpenRouter API key not configured');
-      }
-
-      // Get stage-specific system prompt
-      let stagePrompt = getStagePrompt(newStage);
-      
-      // Add context for five_whys stage
-      if (newStage === 'five_whys') {
-        const nextWhyNumber = whyCount + 1;
-        const remaining = 5 - whyCount;
-        stagePrompt = `${stagePrompt}\n\n**CONTEXT:** You are now asking Why #${nextWhyNumber} of 5. You have ${remaining} more questions to ask. Start your response with "**Why #${nextWhyNumber}:**" then ask ONLY the next why question with 3 options, then STOP.\n\n**REMEMBER:** For the user's last answer: (1) identify what BEST PRACTICE would have been, (2) ask why actual practice differed from best practice. Provide 3 simple options from the user's perspective.`;
-      }
-
-      // Debug logging
-      if (import.meta.env.DEV) {
-        console.log('Stage:', newStage);
-        console.log('System Prompt:', stagePrompt.substring(0, 200));
-      }
-
-      // Prepare messages for API
-      const apiMessages = [
-        { role: 'system', content: stagePrompt },
-        ...updatedMessages.map(msg => ({
+      // Call MCP server chat endpoint (OpenRouter API key is stored securely server-side)
+      const result = await chatFiveWhys({
+        messages: updatedMessages.map(msg => ({
           role: msg.role,
           content: msg.content,
         })),
-      ];
-
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-          'HTTP-Referer': window.location.origin,
-          'X-Title': 'Clever Widget Factory',
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          messages: apiMessages,
-          temperature: 0.7,
-          max_tokens: 300,
-        }),
+        stage: newStage,
+        why_count: whyCount,
+        issue_description: issue.description,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || `API request failed: ${response.statusText}`);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to get AI response');
       }
 
-      const data = await response.json();
-      const assistantMessage = data.choices[0]?.message?.content || 'No response from AI';
+      const assistantMessage = result.data?.message || 'No response from AI';
 
       const assistantMsg: ChatMessage = {
         role: 'assistant',
@@ -403,7 +364,11 @@ Beyond the reported issue, is there anything else you want to include as backgro
       };
 
       // Check if AI is transitioning to root_cause_identified stage
-      if (currentStage === 'five_whys' && !assistantMessage.match(/Why #\d+:/)) {
+      // Use the flag from the server response or detect from message pattern
+      const isRootCauseSummary = result.data?.is_root_cause_summary || 
+                                  (currentStage === 'five_whys' && !assistantMessage.match(/Why #\d+:/));
+      
+      if (isRootCauseSummary) {
         // AI provided a summary instead of another why question
         newStage = 'root_cause_identified';
         setCurrentStage(newStage);

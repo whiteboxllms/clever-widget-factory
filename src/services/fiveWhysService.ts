@@ -59,6 +59,27 @@ export interface CompleteSessionParams {
   created_by: string;
 }
 
+export interface ChatFiveWhysParams {
+  messages: Array<{
+    role: string;
+    content: string;
+  }>;
+  stage: string;
+  why_count?: number;
+  issue_description?: string;
+}
+
+export interface ChatFiveWhysResponse {
+  success: boolean;
+  data?: {
+    message: string;
+    stage: string;
+    why_count: number;
+    is_root_cause_summary?: boolean;
+  };
+  error?: string;
+}
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://oskwnlhuuxjfuwnjuavn.supabase.co";
 
 export async function listSessions(issueId: string, organizationId: string): Promise<ListSessionsResponse> {
@@ -179,6 +200,35 @@ export async function completeSession(params: CompleteSessionParams): Promise<{ 
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to complete session'
+    };
+  }
+}
+
+export async function chatFiveWhys(params: ChatFiveWhysParams): Promise<ChatFiveWhysResponse> {
+  try {
+    const url = `${SUPABASE_URL}/functions/v1/mcp-server/five-whys/chat`;
+
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9za3dubGh1dXhqZnV3bmp1YXZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI2MjMzNTgsImV4cCI6MjA2ODE5OTM1OH0.nWbYYTMu7BOQt8pSRVGBr8Iy3nvLfe40H1W_qpiVXAQ";
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token || anonKey}`,
+        'apikey': anonKey
+      },
+      body: JSON.stringify(params)
+    });
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error in chatFiveWhys:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get AI response'
     };
   }
 }

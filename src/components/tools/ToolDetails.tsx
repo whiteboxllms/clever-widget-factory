@@ -33,13 +33,13 @@ export const ToolDetails = ({
   };
 
   const isCreationHistory = (record: HistoryEntry): record is CheckoutHistory => {
-    return record.type !== 'issue_change' && (record as CheckoutHistory).checkin_reason === 'asset_created';
+    return record.type !== 'issue_change' && (record as CheckoutHistory).checkin?.checkin_reason === 'asset_created';
   };
 
   const isCheckoutHistory = (record: HistoryEntry): record is CheckoutHistory => {
     return record.type !== 'issue_change' && 
            (record as AssetHistoryEntry).type !== 'asset_change' && 
-           (record as CheckoutHistory).checkin_reason !== 'asset_created';
+           (record as CheckoutHistory).checkin?.checkin_reason !== 'asset_created';
   };
 
   // Issue type utilities imported from centralized location
@@ -197,7 +197,7 @@ export const ToolDetails = ({
                             <p className="text-sm text-muted-foreground">
                               Created on{' '}
                               {(() => {
-                                const dateToUse = record.checkin_date || record.created_at;
+                                const dateToUse = record.checkin?.checkin_date || record.created_at;
                                 return new Date(dateToUse).toLocaleDateString('en-US', {
                                   year: 'numeric',
                                   month: 'short',

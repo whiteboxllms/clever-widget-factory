@@ -5,6 +5,7 @@ import {
   saveFiveWhysSession,
   completeFiveWhysSession
 } from './tools/root-cause.ts';
+import { handleFiveWhysChat } from './tools/five-whys-chat.ts';
 
 // Create Supabase client with service role for MCP server
 function createSupabaseClient() {
@@ -130,6 +131,15 @@ Deno.serve(async (req) => {
       if (pathname === '/five-whys/session' || pathname.endsWith('/five-whys/session')) {
         // POST /five-whys/session
         const result = await saveFiveWhysSession(body);
+        return new Response(JSON.stringify(result), {
+          status: result.success ? 200 : 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (pathname === '/five-whys/chat' || pathname.endsWith('/five-whys/chat')) {
+        // POST /five-whys/chat - AI chat endpoint
+        const result = await handleFiveWhysChat(body);
         return new Response(JSON.stringify(result), {
           status: result.success ? 200 : 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }

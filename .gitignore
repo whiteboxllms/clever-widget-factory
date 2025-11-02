@@ -31,3 +31,8 @@ dist-ssr
 supabase/.temp/
 supabase/.branches/
 supabase/config.toml
+
+# Environment files (contain sensitive keys)
+.env
+.env.local
+.env.*.local

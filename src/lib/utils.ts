@@ -6,6 +6,28 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * Determines if a hex color is light or dark for text contrast
+ * Returns true if the color is light (use dark text), false if dark (use light text)
+ */
+export function isLightColor(hex: string): boolean {
+  if (!hex || hex === '#6B7280') return false; // Default gray is dark
+  
+  // Remove # if present
+  const color = hex.replace('#', '');
+  
+  // Convert to RGB
+  const r = parseInt(color.substring(0, 2), 16);
+  const g = parseInt(color.substring(2, 4), 16);
+  const b = parseInt(color.substring(4, 6), 16);
+  
+  // Calculate relative luminance using WCAG formula
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  
+  // Return true if light (luminance > 0.5), false if dark
+  return luminance > 0.5;
+}
+
 export function sanitizeRichText(text?: string | null): string | null {
   if (!text) return null;
   

@@ -45,10 +45,12 @@ const getStagePrompt = (stage: WorkflowStage): string => {
     case 'collecting_facts':
       return `${BASE_PROMPT}
 
-**YOUR TASK (Stage 1 - Collecting Facts):** Collect observable facts about what happened.
-- Ask ONE brief question about what was observed (what, when, where, who)
+**YOUR TASK (Stage 1 - Collecting Facts):** Collect additional observable facts beyond what's already in the issue description.
+- The issue description already contains the basic context - DO NOT ask for information that's already provided
+- Ask ONE brief question about additional observations or facts (what was observed, when, where, who, context)
 - Accept all factual statements from the user
-- After 2-3 exchanges, automatically present 3 plausible causes`;
+- Continue collecting until the user explicitly indicates they have nothing else to add (e.g., "that's all", "nothing else", "ready to proceed", "no more facts")
+- ONLY after the user indicates they're done, automatically present 3 plausible causes`;
     
     case 'proposing_causes':
       return `${BASE_PROMPT}
@@ -241,9 +243,7 @@ export function useFiveWhysAgent(issue: { id: string; description: string }, org
 
 **Issue:** ${issue.description}
 
-First, I need to understand exactly what happened. Please describe what you observed. Focus on FACTS only - what you saw, heard, or measured. We'll discuss causes and solutions after we have all the facts.
-
-What did you observe when you noticed this issue?`;
+Beyond the reported issue, is there anything else you want to include as background before we get into the analysis. This should be observations and facts.`;
 
     const initialMessage: ChatMessage = {
       role: 'assistant',
@@ -282,8 +282,21 @@ What did you observe when you noticed this issue?`;
     if (currentStage === 'collecting_facts') {
       const newCount = factExchangeCount + 1;
       setFactExchangeCount(newCount);
-      // After 2 exchanges (user answered twice), transition to proposing_causes
-      if (newCount >= 2) {
+      
+      // Check if user indicated they're done providing facts
+      const lowerMessage = userMessage.toLowerCase().trim();
+      const completionSignals = [
+        "that's all", "that is all", "thats all",
+        "nothing else", "nothing more", "no more",
+        "ready to proceed", "ready", "proceed",
+        "no more facts", "no additional facts", "that's everything",
+        "that is everything", "all done", "done", "finished",
+        "that's it", "that is it", "nothing further"
+      ];
+      
+      const isDone = completionSignals.some(signal => lowerMessage === signal || lowerMessage.includes(signal));
+      
+      if (isDone) {
         newStage = 'proposing_causes';
         setCurrentStage(newStage);
       }
@@ -436,12 +449,37 @@ What did you observe when you noticed this issue?`;
       timestamp: msg.timestamp?.toISOString(),
     }));
 
+    // Generate root cause analysis from conversation if we have enough data
+    let rootCauseAnalysis: string | undefined;
+    
+    // Check if we're in root_cause_identified stage or if we have enough why answers
+    if (currentStage === 'root_cause_identified') {
+      // Extract the root cause summary from the last AI message
+      const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
+      if (lastAssistantMessage && lastAssistantMessage.content.length > 50) {
+        rootCauseAnalysis = lastAssistantMessage.content;
+      }
+    } else if (whyCount >= 2 && whyAnswers.length >= 2) {
+      // Generate a summary from the why chain if we have at least 2 whys
+      const whyChain = whyAnswers.map((answer, index) => `Why ${index + 1}: ${answer}`).join('\n');
+      rootCauseAnalysis = `Root cause analysis (${whyCount} whys completed):\n\n${whyChain}\n\n[Analysis in progress - continue conversation to complete]`;
+    } else if (messages.length >= 4 && currentStage !== 'collecting_facts') {
+      // If we have substantial conversation, create a basic summary
+      const userMessages = messages.filter(m => m.role === 'user');
+      const assistantMessages = messages.filter(m => m.role === 'assistant');
+      
+      if (userMessages.length >= 2 && assistantMessages.length >= 2) {
+        rootCauseAnalysis = `Analysis in progress for: ${issue.description}\n\nKey points from conversation:\n- ${userMessages.slice(-2).map(m => m.content.substring(0, 100)).join('\n- ')}`;
+      }
+    }
+
     const result = await saveSessionService({
       session_id: session?.id,
       issue_id: issue.id,
       organization_id: organizationId,
       conversation_history: conversationHistory,
       status: 'in_progress',
+      root_cause_analysis: rootCauseAnalysis,
       created_by: user.id
     });
 
@@ -462,7 +500,7 @@ What did you observe when you noticed this issue?`;
     }
 
     return sessionData;
-  }, [messages, issue.id, organizationId, session?.id, user]);
+  }, [messages, issue.id, issue.description, organizationId, session?.id, user, currentStage, whyCount, whyAnswers]);
 
   const completeSessionCallback = useCallback(async () => {
     if (!user) throw new Error('User not authenticated');
@@ -526,7 +564,7 @@ What did you observe when you noticed this issue?`;
     }
 
     return sessionData;
-  }, [messages, issue.id, organizationId, currentStage, session?.id, user, saveSessionService]);
+  }, [messages, issue.id, organizationId, currentStage, session?.id, user]);
 
   const resetSession = useCallback(() => {
     setMessages([]);

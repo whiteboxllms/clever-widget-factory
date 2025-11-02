@@ -43,6 +43,7 @@ export interface SaveSessionParams {
     timestamp?: string;
   }>;
   status?: 'in_progress' | 'completed' | 'abandoned';
+  root_cause_analysis?: string;
   created_by: string;
 }
 

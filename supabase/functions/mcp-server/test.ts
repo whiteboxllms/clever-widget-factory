@@ -103,7 +103,7 @@ async function testListTools() {
         "query_parts_inventory", "get_part_details", "check_parts_availability",
         "query_tools_assets", "get_sop_for_asset",
         "list_organization_members", "get_member_attributes",
-        "log_five_whys_step", "get_related_issues", "suggest_responsible_party"
+        "get_related_issues", "suggest_responsible_party"
       ];
       
       const missingTools = expectedTools.filter(name => !toolNames.includes(name));

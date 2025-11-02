@@ -149,15 +149,7 @@ export const GetMemberAttributesSchema = z.object({
   organization_id: OrganizationIdSchema
 });
 
-// Root cause analysis schemas
-export const LogFiveWhysStepSchema = z.object({
-  issue_id: IssueIdSchema,
-  organization_id: OrganizationIdSchema,
-  step_number: z.number().min(1).max(5),
-  question: z.string().min(1),
-  answer: z.string().min(1),
-  logged_by: UserIdSchema
-});
+// Root cause analysis schemas (LogFiveWhysStepSchema removed - using five_whys_sessions table instead)
 
 export const GetRelatedIssuesSchema = z.object({
   issue_id: IssueIdSchema,
@@ -194,6 +186,7 @@ export const SaveFiveWhysSessionSchema = z.object({
     timestamp: z.string().optional()
   })),
   status: z.enum(['in_progress', 'completed', 'abandoned']).default('in_progress'),
+  root_cause_analysis: z.string().optional(),
   created_by: UserIdSchema
 });
 

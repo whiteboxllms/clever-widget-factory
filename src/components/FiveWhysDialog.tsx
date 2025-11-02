@@ -13,23 +13,61 @@ import {
 import { useFiveWhysAgent, parseWhyQuestion } from '@/hooks/useFiveWhysAgent';
 import { toast } from '@/hooks/use-toast';
 import { BaseIssue } from '@/types/issues';
+import { useOrganizationId } from '@/hooks/useOrganizationId';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { isLightColor } from '@/lib/utils';
 
 interface FiveWhysDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   issue: BaseIssue;
+  sessionId?: string;
 }
 
-export function FiveWhysDialog({ open, onOpenChange, issue }: FiveWhysDialogProps) {
+export function FiveWhysDialog({ open, onOpenChange, issue, sessionId }: FiveWhysDialogProps) {
   const [userInput, setUserInput] = useState('');
   const [sessionSaved, setSessionSaved] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showCustomInput, setShowCustomInput] = useState(false);
+  const [userProfileColor, setUserProfileColor] = useState<string | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Get organization ID from the issue or use the current user's organization
-  const organizationId = '00000000-0000-0000-0000-000000000001'; // TODO: Get from context
+  // Get organization ID from the hook
+  const organizationId = useOrganizationId();
+  const { user } = useAuth();
+
+  // Fetch current user's profile color
+  useEffect(() => {
+    const fetchUserColor = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('favorite_color')
+          .eq('user_id', user.id)
+          .single();
+        
+        const color = data?.favorite_color;
+        // Ensure color has # prefix if it exists
+        if (color && !color.startsWith('#')) {
+          console.warn('Profile color missing # prefix, adding it:', color);
+          setUserProfileColor(`#${color}`);
+        } else {
+          setUserProfileColor(color || null);
+        }
+      } catch (error) {
+        console.warn('Error fetching user profile color:', error);
+        setUserProfileColor(null);
+      }
+    };
+
+    if (open) {
+      fetchUserColor();
+    }
+  }, [user?.id, open]);
 
   const {
     messages,
@@ -42,7 +80,7 @@ export function FiveWhysDialog({ open, onOpenChange, issue }: FiveWhysDialogProp
     saveSession,
     completeSession,
     resetSession,
-  } = useFiveWhysAgent(issue, organizationId);
+  } = useFiveWhysAgent(issue, organizationId, sessionId);
   
   // Get last AI message and parse it if it's a why question
   const lastMessage = messages[messages.length - 1];
@@ -237,25 +275,43 @@ export function FiveWhysDialog({ open, onOpenChange, issue }: FiveWhysDialogProp
                 )}
               </div>
             </div>
-            {messages.map((message, index) => (
-              <div
-                key={index}
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
+            {messages.map((message, index) => {
+              const isUser = message.role === 'user';
+              // Use profile color if available, otherwise fall back to undefined
+              const bgColor = isUser && userProfileColor ? userProfileColor : undefined;
+              const hasProfileColor = !!bgColor;
+              
+              // Build complete style object with background and text color
+              const completeStyle = hasProfileColor && bgColor && bgColor.startsWith('#')
+                ? {
+                    backgroundColor: bgColor,
+                    color: isLightColor(bgColor) ? '#111827' : '#ffffff'
+                  }
+                : undefined;
+              
+              return (
                 <div
-                  className={`max-w-[80%] rounded-lg p-4 ${
-                    message.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted'
-                  }`}
+                  key={index}
+                  className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div className="flex items-start gap-2">
-                    {message.role === 'assistant' && <Brain className="h-4 w-4 mt-1 flex-shrink-0" />}
-                    <div className="flex-1 whitespace-pre-wrap text-sm">{message.content}</div>
+                  <div
+                    className={`max-w-[80%] rounded-lg p-4 ${
+                      isUser
+                        ? hasProfileColor
+                          ? '' // No classes when using profile color - all styling via inline style
+                          : 'bg-primary text-primary-foreground'
+                        : 'bg-muted'
+                    }`}
+                    style={completeStyle}
+                  >
+                    <div className="flex items-start gap-2">
+                      {message.role === 'assistant' && <Brain className="h-4 w-4 mt-1 flex-shrink-0" />}
+                      <div className="flex-1 whitespace-pre-wrap text-sm">{message.content}</div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {isLoading && (
               <div className="flex justify-start">
                 <div className="bg-muted rounded-lg p-3">

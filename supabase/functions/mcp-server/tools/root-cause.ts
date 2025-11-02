@@ -2,7 +2,11 @@ import { createSupabaseClient, validateOrganizationAccess } from '../lib/supabas
 import { 
   LogFiveWhysStepSchema, 
   GetRelatedIssuesSchema, 
-  SuggestResponsiblePartySchema 
+  SuggestResponsiblePartySchema,
+  ListFiveWhysSessionsSchema,
+  GetFiveWhysSessionSchema,
+  SaveFiveWhysSessionSchema,
+  CompleteFiveWhysSessionSchema
 } from '../lib/schemas.ts';
 import { logToolInvocation, createSuccessResponse, createErrorResponse, formatError } from '../lib/utils.ts';
 
@@ -363,6 +367,300 @@ export async function suggestResponsibleParty(params: any) {
 
   } catch (error) {
     console.error('Error in suggestResponsibleParty:', error);
+    return createErrorResponse(formatError(error), 'VALIDATION_ERROR');
+  }
+}
+
+export async function listFiveWhysSessions(params: any) {
+  const validatedParams = ListFiveWhysSessionsSchema.parse(params);
+  const supabase = createSupabaseClient();
+  
+  try {
+    // Validate organization access
+    const hasAccess = await validateOrganizationAccess(supabase, validatedParams.organization_id);
+    if (!hasAccess) {
+      return createErrorResponse('Organization not found or inactive');
+    }
+
+    logToolInvocation('list_five_whys_sessions', validatedParams.organization_id, undefined, validatedParams);
+
+    // Get all sessions for this issue
+    const { data: sessions, error: sessionsError } = await supabase
+      .from('five_whys_sessions')
+      .select('id, issue_id, organization_id, conversation_history, root_cause_analysis, status, created_at, updated_at, created_by')
+      .eq('issue_id', validatedParams.issue_id)
+      .eq('organization_id', validatedParams.organization_id)
+      .order('updated_at', { ascending: false });
+
+    if (sessionsError) {
+      console.error('Error fetching sessions:', sessionsError);
+      return createErrorResponse('Failed to fetch sessions', 'DATABASE_ERROR');
+    }
+
+    // Get creator information for each session
+    const sessionIds = (sessions || []).map(s => s.created_by).filter(Boolean);
+    const uniqueCreatorIds = [...new Set(sessionIds)];
+
+    // Fetch creator names from organization_members
+    const creatorsMap = new Map<string, string>();
+    if (uniqueCreatorIds.length > 0) {
+      const { data: members, error: membersError } = await supabase
+        .from('organization_members')
+        .select('user_id, full_name')
+        .eq('organization_id', validatedParams.organization_id)
+        .in('user_id', uniqueCreatorIds);
+
+      if (!membersError && members) {
+        members.forEach(member => {
+          creatorsMap.set(member.user_id, member.full_name || 'Unknown');
+        });
+      }
+    }
+
+    // Enrich sessions with creator info
+    const enrichedSessions = (sessions || []).map(session => {
+      let creatorName = 'Unknown';
+      if (session.created_by) {
+        creatorName = creatorsMap.get(session.created_by) || 'Unknown';
+        // If still unknown, the user might not be in organization_members or query failed
+        if (creatorName === 'Unknown' && uniqueCreatorIds.includes(session.created_by)) {
+          // User ID was in the list but name wasn't found - likely missing from org members
+          creatorName = 'User Not Found';
+        }
+      }
+      return {
+        ...session,
+        creator_name: creatorName,
+        message_count: Array.isArray(session.conversation_history) ? session.conversation_history.length : 0
+      };
+    });
+
+    return createSuccessResponse({
+      sessions: enrichedSessions,
+      count: enrichedSessions.length
+    });
+
+  } catch (error) {
+    console.error('Error in listFiveWhysSessions:', error);
+    return createErrorResponse(formatError(error), 'VALIDATION_ERROR');
+  }
+}
+
+export async function getFiveWhysSession(params: any) {
+  const validatedParams = GetFiveWhysSessionSchema.parse(params);
+  const supabase = createSupabaseClient();
+  
+  try {
+    // Validate organization access
+    const hasAccess = await validateOrganizationAccess(supabase, validatedParams.organization_id);
+    if (!hasAccess) {
+      return createErrorResponse('Organization not found or inactive');
+    }
+
+    logToolInvocation('get_five_whys_session', validatedParams.organization_id, undefined, validatedParams);
+
+    // Get the session
+    const { data: session, error: sessionError } = await supabase
+      .from('five_whys_sessions')
+      .select('id, issue_id, organization_id, conversation_history, root_cause_analysis, status, created_at, updated_at, created_by')
+      .eq('id', validatedParams.session_id)
+      .eq('organization_id', validatedParams.organization_id)
+      .single();
+
+    if (sessionError || !session) {
+      return createErrorResponse('Session not found', 'NOT_FOUND');
+    }
+
+    // Get creator name
+    let creatorName = 'Unknown';
+    if (session.created_by) {
+      const { data: member, error: memberError } = await supabase
+        .from('organization_members')
+        .select('full_name, user_id')
+        .eq('organization_id', validatedParams.organization_id)
+        .eq('user_id', session.created_by)
+        .single();
+      
+      if (memberError) {
+        console.warn(`Could not find creator ${session.created_by} in organization_members:`, memberError);
+      }
+      
+      if (member) {
+        creatorName = member.full_name || 'Unknown';
+      } else {
+        creatorName = 'User Not Found';
+      }
+    } else {
+      creatorName = 'Unknown';
+    }
+
+    return createSuccessResponse({
+      ...session,
+      creator_name: creatorName,
+      message_count: Array.isArray(session.conversation_history) ? session.conversation_history.length : 0
+    });
+
+  } catch (error) {
+    console.error('Error in getFiveWhysSession:', error);
+    return createErrorResponse(formatError(error), 'VALIDATION_ERROR');
+  }
+}
+
+export async function saveFiveWhysSession(params: any) {
+  const validatedParams = SaveFiveWhysSessionSchema.parse(params);
+  const supabase = createSupabaseClient();
+  
+  try {
+    // Validate organization access
+    const hasAccess = await validateOrganizationAccess(supabase, validatedParams.organization_id);
+    if (!hasAccess) {
+      return createErrorResponse('Organization not found or inactive');
+    }
+
+    logToolInvocation('save_five_whys_session', validatedParams.organization_id, validatedParams.created_by, validatedParams);
+
+    let sessionId: string;
+    let session;
+
+    if (validatedParams.session_id) {
+      // Update existing session - don't update created_by
+      const sessionData = {
+        issue_id: validatedParams.issue_id,
+        organization_id: validatedParams.organization_id,
+        conversation_history: validatedParams.conversation_history,
+        status: validatedParams.status
+      };
+
+      const { data, error } = await supabase
+        .from('five_whys_sessions')
+        .update(sessionData)
+        .eq('id', validatedParams.session_id)
+        .eq('organization_id', validatedParams.organization_id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating session:', error);
+        return createErrorResponse('Failed to update session', 'DATABASE_ERROR');
+      }
+
+      session = data;
+      sessionId = data.id;
+    } else {
+      // Create new session - include created_by
+      const sessionData = {
+        issue_id: validatedParams.issue_id,
+        organization_id: validatedParams.organization_id,
+        conversation_history: validatedParams.conversation_history,
+        status: validatedParams.status,
+        created_by: validatedParams.created_by
+      };
+
+      const { data, error } = await supabase
+        .from('five_whys_sessions')
+        .insert(sessionData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating session:', error);
+        return createErrorResponse('Failed to create session', 'DATABASE_ERROR');
+      }
+
+      session = data;
+      sessionId = data.id;
+    }
+
+    return createSuccessResponse({
+      session: {
+        ...session,
+        id: sessionId
+      },
+      message: validatedParams.session_id ? 'Session updated successfully' : 'Session created successfully'
+    });
+
+  } catch (error) {
+    console.error('Error in saveFiveWhysSession:', error);
+    return createErrorResponse(formatError(error), 'VALIDATION_ERROR');
+  }
+}
+
+export async function completeFiveWhysSession(params: any) {
+  const validatedParams = CompleteFiveWhysSessionSchema.parse(params);
+  const supabase = createSupabaseClient();
+  
+  try {
+    // Validate organization access
+    const hasAccess = await validateOrganizationAccess(supabase, validatedParams.organization_id);
+    if (!hasAccess) {
+      return createErrorResponse('Organization not found or inactive');
+    }
+
+    logToolInvocation('complete_five_whys_session', validatedParams.organization_id, validatedParams.created_by, validatedParams);
+
+    // First check if session exists
+    const { data: existingSession, error: checkError } = await supabase
+      .from('five_whys_sessions')
+      .select('id, created_by')
+      .eq('id', validatedParams.session_id)
+      .eq('organization_id', validatedParams.organization_id)
+      .single();
+
+    if (checkError || !existingSession) {
+      // Session doesn't exist, create it
+      const newSessionData = {
+        id: validatedParams.session_id,
+        issue_id: '', // Will be set from issue context if needed
+        organization_id: validatedParams.organization_id,
+        conversation_history: validatedParams.conversation_history,
+        root_cause_analysis: validatedParams.root_cause_analysis,
+        status: 'completed' as const,
+        created_by: validatedParams.created_by
+      };
+
+      // We need issue_id - this shouldn't happen, but let's handle it
+      return createErrorResponse('Session not found - cannot complete non-existent session', 'NOT_FOUND');
+    }
+
+    // Update existing session - ensure created_by is set if it wasn't before
+    const sessionData: any = {
+      conversation_history: validatedParams.conversation_history,
+      root_cause_analysis: validatedParams.root_cause_analysis,
+      status: 'completed' as const
+    };
+
+    // If created_by is missing, set it now
+    if (!existingSession.created_by) {
+      sessionData.created_by = validatedParams.created_by;
+    }
+
+    const { data: session, error: sessionError } = await supabase
+      .from('five_whys_sessions')
+      .update(sessionData)
+      .eq('id', validatedParams.session_id)
+      .eq('organization_id', validatedParams.organization_id)
+      .select()
+      .single();
+
+    if (sessionError) {
+      console.error('Error completing session:', sessionError);
+      return createErrorResponse('Failed to complete session', 'DATABASE_ERROR');
+    }
+
+    if (!session) {
+      return createErrorResponse('Session not found', 'NOT_FOUND');
+    }
+
+    return createSuccessResponse({
+      session: {
+        ...session,
+        id: validatedParams.session_id
+      },
+      message: 'Session completed successfully'
+    });
+
+  } catch (error) {
+    console.error('Error in completeFiveWhysSession:', error);
     return createErrorResponse(formatError(error), 'VALIDATION_ERROR');
   }
 }

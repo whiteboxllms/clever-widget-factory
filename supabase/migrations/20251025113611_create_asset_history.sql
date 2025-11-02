@@ -37,3 +37,4 @@ CREATE POLICY "Users can insert asset history in their organization"
       WHERE user_id = auth.uid() AND is_active = true
     )
   );
+

@@ -172,3 +172,39 @@ export const SuggestResponsiblePartySchema = z.object({
   context_type: z.enum(['tool', 'order', 'inventory', 'facility']),
   required_skills: z.array(z.string()).optional()
 });
+
+// Five Whys Session schemas
+export const ListFiveWhysSessionsSchema = z.object({
+  issue_id: IssueIdSchema,
+  organization_id: OrganizationIdSchema
+});
+
+export const GetFiveWhysSessionSchema = z.object({
+  session_id: z.string().uuid(),
+  organization_id: OrganizationIdSchema
+});
+
+export const SaveFiveWhysSessionSchema = z.object({
+  session_id: z.string().uuid().optional(),
+  issue_id: IssueIdSchema,
+  organization_id: OrganizationIdSchema,
+  conversation_history: z.array(z.object({
+    role: z.string(),
+    content: z.string(),
+    timestamp: z.string().optional()
+  })),
+  status: z.enum(['in_progress', 'completed', 'abandoned']).default('in_progress'),
+  created_by: UserIdSchema
+});
+
+export const CompleteFiveWhysSessionSchema = z.object({
+  session_id: z.string().uuid(),
+  organization_id: OrganizationIdSchema,
+  conversation_history: z.array(z.object({
+    role: z.string(),
+    content: z.string(),
+    timestamp: z.string().optional()
+  })),
+  root_cause_analysis: z.string().optional(),
+  created_by: UserIdSchema
+});

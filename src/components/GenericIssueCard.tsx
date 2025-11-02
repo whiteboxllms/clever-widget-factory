@@ -16,6 +16,10 @@ import { UnifiedActionDialog } from "@/components/UnifiedActionDialog";
 import { createIssueAction } from "@/types/actions";
 import { ManageIssueActionsDialog } from "@/components/ManageIssueActionsDialog";
 import { FiveWhysDialog } from "@/components/FiveWhysDialog";
+import { FiveWhysSessionSelector } from "@/components/FiveWhysSessionSelector";
+import { FiveWhysSessionViewer } from "@/components/FiveWhysSessionViewer";
+import { useAuth } from "@/hooks/useAuth";
+import { useOrganizationId } from "@/hooks/useOrganizationId";
 
 interface GenericIssueCardProps {
   issue: BaseIssue;
@@ -44,7 +48,12 @@ export function GenericIssueCard({
   const [showScoreDialog, setShowScoreDialog] = useState(false);
   const [showCreateActionDialog, setShowCreateActionDialog] = useState(false);
   const [showManageActionsDialog, setShowManageActionsDialog] = useState(false);
+  const [showFiveWhysSelector, setShowFiveWhysSelector] = useState(false);
   const [showFiveWhysDialog, setShowFiveWhysDialog] = useState(false);
+  const [showFiveWhysViewer, setShowFiveWhysViewer] = useState(false);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const { user } = useAuth();
+  const organizationId = useOrganizationId();
   const { profiles } = useActionProfiles();
   const { removeIssue, resolveIssue } = useGenericIssues();
   const { getScoreForIssue } = useAssetScores();
@@ -295,9 +304,9 @@ export function GenericIssueCard({
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setShowFiveWhysDialog(true)}
+                  onClick={() => setShowFiveWhysSelector(true)}
                   className="min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs border-purple-500 text-purple-600 hover:bg-purple-50"
-                  title="Start 5 Whys Analysis"
+                  title="5 Whys Analysis"
                 >
                   <Brain className="h-4 w-4 sm:h-3 sm:w-3 mr-2 sm:mr-0" />
                   <span className="sm:hidden">5 Whys</span>
@@ -438,12 +447,50 @@ export function GenericIssueCard({
         />
       )}
 
+      {/* 5 Whys Session Selector */}
+      {user && organizationId && (
+        <FiveWhysSessionSelector
+          open={showFiveWhysSelector}
+          onOpenChange={setShowFiveWhysSelector}
+          issue={issue}
+          organizationId={organizationId}
+          currentUserId={user.id}
+          onViewSession={(sessionId) => {
+            setSelectedSessionId(sessionId);
+            setShowFiveWhysSelector(false);
+            setShowFiveWhysViewer(true);
+          }}
+          onCreateNew={() => {
+            setSelectedSessionId(null);
+            setShowFiveWhysSelector(false);
+            setShowFiveWhysDialog(true);
+          }}
+          onContinueSession={(sessionId) => {
+            setSelectedSessionId(sessionId);
+            setShowFiveWhysSelector(false);
+            setShowFiveWhysDialog(true);
+          }}
+        />
+      )}
+
       {/* 5 Whys Dialog */}
       <FiveWhysDialog
         open={showFiveWhysDialog}
         onOpenChange={setShowFiveWhysDialog}
         issue={issue}
+        sessionId={selectedSessionId || undefined}
       />
+
+      {/* 5 Whys Session Viewer */}
+      {selectedSessionId && organizationId && (
+        <FiveWhysSessionViewer
+          open={showFiveWhysViewer}
+          onOpenChange={setShowFiveWhysViewer}
+          sessionId={selectedSessionId}
+          organizationId={organizationId}
+          issueDescription={issue.description}
+        />
+      )}
     </>
   );
 }

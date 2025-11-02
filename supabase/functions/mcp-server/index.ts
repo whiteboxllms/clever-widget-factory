@@ -1,4 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
+import {
+  listFiveWhysSessions,
+  getFiveWhysSession,
+  saveFiveWhysSession,
+  completeFiveWhysSession
+} from './tools/root-cause.ts';
 
 // Create Supabase client with service role for MCP server
 function createSupabaseClient() {
@@ -32,8 +38,151 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Handle GET requests (health check)
-  if (req.method === 'GET') {
+  // Handle HTTP API routes for 5 Whys (non-MCP protocol)
+  const url = new URL(req.url);
+  const pathname = url.pathname;
+
+  // Check if this is an HTTP API request (not MCP JSON-RPC)
+  const isHttpApiRequest = pathname.includes('/five-whys/');
+
+  if (isHttpApiRequest && req.method === 'GET') {
+    try {
+      if (pathname.includes('/five-whys/sessions')) {
+        // GET /five-whys/sessions?issue_id=...&organization_id=...
+        const issueId = url.searchParams.get('issue_id');
+        const organizationId = url.searchParams.get('organization_id');
+
+        if (!issueId || !organizationId) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Missing required parameters: issue_id and organization_id'
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        const result = await listFiveWhysSessions({
+          issue_id: issueId,
+          organization_id: organizationId
+        });
+
+        return new Response(JSON.stringify(result), {
+          status: result.success ? 200 : 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (pathname.includes('/five-whys/session/')) {
+        // GET /five-whys/session/:session_id?organization_id=...
+        const sessionIdMatch = pathname.match(/\/five-whys\/session\/([^/]+)/);
+        const sessionId = sessionIdMatch ? sessionIdMatch[1] : null;
+        const organizationId = url.searchParams.get('organization_id');
+
+        if (!sessionId || !organizationId) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Missing required parameters: session_id and organization_id'
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        const result = await getFiveWhysSession({
+          session_id: sessionId,
+          organization_id: organizationId
+        });
+
+        return new Response(JSON.stringify(result), {
+          status: result.success ? 200 : 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Default health check for GET requests
+      return new Response(JSON.stringify({
+        name: 'clever-widget-factory-mcp',
+        version: '1.0.0',
+        status: 'running',
+        message: 'MCP Server connected to real database!'
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      console.error('Error in HTTP GET handler:', error);
+      return new Response(JSON.stringify({
+        success: false,
+        error: error.message || 'Internal server error'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+  // Handle HTTP API POST requests
+  if (isHttpApiRequest && req.method === 'POST') {
+    try {
+      const body = await req.json();
+
+      if (pathname === '/five-whys/session' || pathname.endsWith('/five-whys/session')) {
+        // POST /five-whys/session
+        const result = await saveFiveWhysSession(body);
+        return new Response(JSON.stringify(result), {
+          status: result.success ? 200 : 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (pathname.includes('/five-whys/session/') && pathname.endsWith('/complete')) {
+        // POST /five-whys/session/:session_id/complete
+        const sessionIdMatch = pathname.match(/\/five-whys\/session\/([^/]+)\/complete/);
+        const sessionId = sessionIdMatch ? sessionIdMatch[1] : null;
+
+        if (!sessionId) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Missing session_id in URL'
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        const result = await completeFiveWhysSession({
+          ...body,
+          session_id: sessionId
+        });
+
+        return new Response(JSON.stringify(result), {
+          status: result.success ? 200 : 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Unknown endpoint'
+      }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      console.error('Error in HTTP POST handler:', error);
+      return new Response(JSON.stringify({
+        success: false,
+        error: error.message || 'Internal server error'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+  // Handle GET requests (health check) - non-5-whys routes
+  if (req.method === 'GET' && !isHttpApiRequest) {
     return new Response(JSON.stringify({
       name: 'clever-widget-factory-mcp',
       version: '1.0.0',
@@ -45,8 +194,8 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Handle POST requests (MCP protocol)
-  if (req.method === 'POST') {
+  // Handle POST requests (MCP protocol - not HTTP API routes)
+  if (req.method === 'POST' && !isHttpApiRequest) {
     try {
       const body = await req.json();
       console.log('🔧 MCP Request:', JSON.stringify(body, null, 2));

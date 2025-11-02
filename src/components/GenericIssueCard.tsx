@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,12 @@ import { IssueScoreDialog } from "@/components/IssueScoreDialog";
 import { UnifiedActionDialog } from "@/components/UnifiedActionDialog";
 import { createIssueAction } from "@/types/actions";
 import { ManageIssueActionsDialog } from "@/components/ManageIssueActionsDialog";
+import { FiveWhysDialog } from "@/components/FiveWhysDialog";
+import { FiveWhysSessionSelector } from "@/components/FiveWhysSessionSelector";
+import { FiveWhysSessionViewer } from "@/components/FiveWhysSessionViewer";
+import { useAuth } from "@/hooks/useAuth";
+import { useOrganizationId } from "@/hooks/useOrganizationId";
+import { listSessions } from '@/services/fiveWhysService';
 
 interface GenericIssueCardProps {
   issue: BaseIssue;
@@ -43,6 +49,13 @@ export function GenericIssueCard({
   const [showScoreDialog, setShowScoreDialog] = useState(false);
   const [showCreateActionDialog, setShowCreateActionDialog] = useState(false);
   const [showManageActionsDialog, setShowManageActionsDialog] = useState(false);
+  const [showFiveWhysSelector, setShowFiveWhysSelector] = useState(false);
+  const [showFiveWhysDialog, setShowFiveWhysDialog] = useState(false);
+  const [showFiveWhysViewer, setShowFiveWhysViewer] = useState(false);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [hasFiveWhysSession, setHasFiveWhysSession] = useState(false);
+  const { user } = useAuth();
+  const organizationId = useOrganizationId();
   const { profiles } = useActionProfiles();
   const { removeIssue, resolveIssue } = useGenericIssues();
   const { getScoreForIssue } = useAssetScores();
@@ -119,6 +132,40 @@ export function GenericIssueCard({
 
     fetchScoreAndActions();
   }, [issue.id, enableScorecard, enableActions]); // Removed function dependencies that cause infinite loop
+
+  // Check if 5 Whys session exists for this issue
+  const checkFiveWhysSession = useCallback(async () => {
+    if (!organizationId || !issue.id) return;
+    
+    try {
+      const result = await listSessions(issue.id, organizationId);
+      if (result.success && result.data?.sessions) {
+        // Check if any session has conversation history or root cause analysis
+        const hasData = result.data.sessions.some(session => 
+          (Array.isArray(session.conversation_history) && session.conversation_history.length > 0) ||
+          (session.root_cause_analysis && session.root_cause_analysis.trim().length > 0)
+        );
+        setHasFiveWhysSession(hasData);
+      } else {
+        setHasFiveWhysSession(false);
+      }
+    } catch (error) {
+      console.error('Error checking 5 Whys sessions:', error);
+      setHasFiveWhysSession(false);
+    }
+  }, [issue.id, organizationId]);
+
+  useEffect(() => {
+    checkFiveWhysSession();
+  }, [checkFiveWhysSession]);
+
+  // Refresh session check when dialog closes (user may have completed a session)
+  useEffect(() => {
+    if (!showFiveWhysDialog && !showFiveWhysSelector && !showFiveWhysViewer) {
+      // All dialogs are closed, refresh the session check
+      checkFiveWhysSession();
+    }
+  }, [showFiveWhysDialog, showFiveWhysSelector, showFiveWhysViewer, checkFiveWhysSession]);
 
   const handleRemove = async () => {
     setIsRemoving(true);
@@ -290,6 +337,20 @@ export function GenericIssueCard({
             
             <div className="flex flex-col gap-2">
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-1 sm:flex-shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowFiveWhysSelector(true)}
+                  className={`min-h-[44px] sm:min-h-0 h-10 sm:h-7 px-3 sm:px-2 py-2 sm:py-1 text-sm sm:text-xs ${
+                    hasFiveWhysSession
+                      ? 'border-green-500 text-green-600 hover:bg-green-50'
+                      : 'border-gray-900 text-gray-900 hover:bg-gray-50'
+                  }`}
+                  title="5 Whys Analysis"
+                >
+                  <span>5Ys</span>
+                </Button>
+
                 {enableScorecard && issue.context_type === 'tool' && (
                   <Button
                     size="sm"
@@ -422,6 +483,51 @@ export function GenericIssueCard({
           onOpenChange={setShowManageActionsDialog}
           issue={issue as any}
           onRefresh={onRefresh}
+        />
+      )}
+
+      {/* 5 Whys Session Selector */}
+      {user && organizationId && (
+        <FiveWhysSessionSelector
+          open={showFiveWhysSelector}
+          onOpenChange={setShowFiveWhysSelector}
+          issue={issue}
+          organizationId={organizationId}
+          currentUserId={user.id}
+          onViewSession={(sessionId) => {
+            setSelectedSessionId(sessionId);
+            setShowFiveWhysSelector(false);
+            setShowFiveWhysViewer(true);
+          }}
+          onCreateNew={() => {
+            setSelectedSessionId(null);
+            setShowFiveWhysSelector(false);
+            setShowFiveWhysDialog(true);
+          }}
+          onContinueSession={(sessionId) => {
+            setSelectedSessionId(sessionId);
+            setShowFiveWhysSelector(false);
+            setShowFiveWhysDialog(true);
+          }}
+        />
+      )}
+
+      {/* 5 Whys Dialog */}
+      <FiveWhysDialog
+        open={showFiveWhysDialog}
+        onOpenChange={setShowFiveWhysDialog}
+        issue={issue}
+        sessionId={selectedSessionId || undefined}
+      />
+
+      {/* 5 Whys Session Viewer */}
+      {selectedSessionId && organizationId && (
+        <FiveWhysSessionViewer
+          open={showFiveWhysViewer}
+          onOpenChange={setShowFiveWhysViewer}
+          sessionId={selectedSessionId}
+          organizationId={organizationId}
+          issueDescription={issue.description}
         />
       )}
     </>

@@ -21,6 +21,9 @@ interface CombinedAsset {
   unit?: string;
   image_url?: string;
   storage_location?: string;
+  storage_vicinity?: string;
+  parent_structure_id?: string;
+  parent_structure_name?: string; // Resolved name from parent_structure_id
   area_display?: string; // Computed field: parent_structure_name || legacy_storage_vicinity
   legacy_storage_vicinity?: string;
   has_issues?: boolean;
@@ -31,6 +34,8 @@ interface CombinedAsset {
   accountable_person_id?: string;
   accountable_person_name?: string; // Will be populated from user lookup
   accountable_person_color?: string; // Favorite color of accountable person
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface CombinedAssetCardProps {

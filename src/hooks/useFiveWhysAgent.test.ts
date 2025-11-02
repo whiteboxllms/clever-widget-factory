@@ -16,12 +16,9 @@ const API_TIMEOUT = 30000; // 30 seconds
 
 describe('5 Whys Agent', () => {
   beforeAll(() => {
-    // Check if API key is configured
-    if (!import.meta.env.VITE_OPENROUTER_API_KEY) {
-      throw new Error(
-        'VITE_OPENROUTER_API_KEY not configured. Add it to .env.test file.'
-      );
-    }
+    // Note: OpenRouter API key is now stored server-side in Supabase Edge Functions
+    // Tests should mock the chatFiveWhys service call or use a test MCP server
+    // For now, tests should be updated to mock the service layer
   });
 
   testScenarios.forEach((scenario) => {

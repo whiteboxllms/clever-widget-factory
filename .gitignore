@@ -32,7 +32,6 @@ supabase/.temp/
 supabase/.branches/
 supabase/config.toml
 
-# Environment files (contain sensitive keys)
-.env
+# Environment files (keep .env in version control for public defaults, ignore local overrides)
 .env.local
 .env.*.local

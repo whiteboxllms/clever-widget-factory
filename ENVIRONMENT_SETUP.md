@@ -1,17 +1,23 @@
-# Environment Setup for Supabase
+# Environment Setup
 
-This project now supports both local and production Supabase configurations through environment variables.
+This project uses a hybrid environment variable approach for maximum flexibility and security.
 
 ## Quick Setup
 
-1. **Create a `.env.local` file** in the project root:
+1. **Copy the example file**:
    ```bash
-   touch .env.local
+   cp .env.example .env.local
    ```
 
-2. **Add your local Supabase configuration** to `.env.local`:
+2. **Add your OpenRouter API key** to `.env.local`:
    ```env
-   # Local Supabase Configuration
+   VITE_OPENROUTER_API_KEY="your_openrouter_api_key_here"
+   ```
+
+3. **Optional: Local Supabase Development**
+   
+   If you want to use a local Supabase instance, add to `.env.local`:
+   ```env
    VITE_SUPABASE_URL=http://127.0.0.1:54321
    VITE_SUPABASE_PUBLISHABLE_KEY=your_local_anon_key_here
 
@@ -19,18 +25,22 @@ This project now supports both local and production Supabase configurations thro
    # See: supabase secrets set OPENROUTER_API_KEY=your_key
    ```
 
-3. **Get your local Supabase anon key**:
+   To get your local Supabase anon key:
    - Start your local Supabase: `supabase start`
    - Go to http://localhost:54323 (Supabase Studio)
    - Navigate to Settings > API
    - Copy the "anon public" key
-   - Replace `your_local_anon_key_here` with the actual key
 
 ## How It Works
 
-The `src/integrations/supabase/client.ts` file now:
-- ✅ Loads configuration from environment variables first
-- ✅ Falls back to production values if no env vars are set
+The project uses two environment files:
+
+- **`.env`** (committed to git) - Contains public Supabase credentials
+- **`.env.local`** (gitignored) - Contains private API keys and optional local overrides
+
+The `src/integrations/supabase/client.ts` file:
+- ✅ Loads from `.env.local` first (if it exists)
+- ✅ Falls back to `.env` for Supabase credentials
 - ✅ Supports both local and production environments
 
 ## Environment Variables

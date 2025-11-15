@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/client';
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, ArrowLeft } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { useToolsData } from "@/hooks/tools/useToolsData";
 import { useToolFilters } from "@/hooks/tools/useToolFilters";
 import { useToolHistory, HistoryEntry } from "@/hooks/tools/useToolHistory";

@@ -4,12 +4,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppVersion } from "@/components/AppVersion";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/hooks/useAuth";
+import { AuthProvider } from "@/hooks/useCognitoAuth";
 import { OrganizationProvider } from "@/hooks/useOrganization";
 import { AppSettingsProvider } from "@/hooks/useAppSettings";
 import { useSessionMonitor } from "@/hooks/useSessionMonitor";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminRoute from "@/components/AdminRoute";
+import LeadershipRoute from "@/components/LeadershipRoute";
 import SuperAdminRoute from "@/components/SuperAdminRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -123,9 +124,9 @@ function AppContent() {
         </ProtectedRoute>
       } />
       <Route path="/dashboard/analytics" element={
-        <AdminRoute>
+        <LeadershipRoute>
           <AnalyticsDashboard />
-        </AdminRoute>
+        </LeadershipRoute>
       } />
       <Route path="/settings" element={
         <ProtectedRoute>
@@ -133,14 +134,14 @@ function AppContent() {
         </ProtectedRoute>
       } />
       <Route path="/organization" element={
-        <ProtectedRoute>
+        <LeadershipRoute>
           <Organization />
-        </ProtectedRoute>
+        </LeadershipRoute>
       } />
       <Route path="/organization/:organizationId" element={
-        <ProtectedRoute>
+        <LeadershipRoute>
           <Organization />
-        </ProtectedRoute>
+        </LeadershipRoute>
       } />
       <Route path="/admin/organizations" element={
         <SuperAdminRoute>

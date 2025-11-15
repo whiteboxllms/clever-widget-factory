@@ -107,11 +107,14 @@ export const useFileUpload = () => {
         enhancedToast.showUploadStart(fileName, compressedSize);
       }
 
+      // Convert File to ArrayBuffer for AWS SDK compatibility
+      const fileBuffer = await finalFile.arrayBuffer();
+      
       // Upload to S3
       const command = new PutObjectCommand({
         Bucket: S3_BUCKET,
         Key: key,
-        Body: finalFile,
+        Body: fileBuffer,
         ContentType: finalFile.type,
       });
 

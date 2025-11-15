@@ -8,7 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, Circle, Clock, User, Upload, Image, ChevronDown, ChevronRight, Save, X, Link, Target, Copy } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { supabase } from "@/integrations/supabase/client";
+import { uploadToS3, getS3Url } from '@/lib/s3Service';
+import { db } from '@/lib/dbService';
+import { supabase } from '@/lib/client';
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
@@ -308,37 +310,26 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
           enhancedToast.showCompressionComplete(compressionResult);
           enhancedToast.dismiss(compressionToast.id);
 
-          // Upload to Supabase
+          // Upload to S3
           const uploadToast = enhancedToast.showUploadStart(file.name, compressionResult.compressedSize);
           
           const fileName = `${Date.now()}-${file.name}`;
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('mission-evidence')
-            .upload(fileName, compressionResult.file);
+          const uploadResult = await uploadToS3('mission-evidence', fileName, compressionResult.file);
 
-          if (uploadError) throw uploadError;
+          if (!uploadResult.success) throw new Error(uploadResult.error);
 
-          // Get the full URL for the uploaded file
-          const { data: { publicUrl } } = supabase.storage
-            .from('mission-evidence')
-            .getPublicUrl(uploadData.path);
+          // Get the relative path for database storage
+          const relativePath = `mission-evidence/${fileName}`;
 
           // Add to action's attachments array
-          const { data: currentAction, error: fetchError } = await supabase
-            .from('actions')
-            .select('attachments')
-            .eq('id', action.id)
-            .single();
+          const { data: currentAction, error: fetchError } = await db.actions.selectById(action.id, 'attachments');
 
           if (fetchError) throw fetchError;
 
           const currentAttachments = currentAction?.attachments || [];
-          const updatedAttachments = [...currentAttachments, publicUrl];
+          const updatedAttachments = [...currentAttachments, relativePath];
 
-          const { error: updateError } = await supabase
-            .from('actions')
-            .update({ attachments: updatedAttachments })
-            .eq('id', action.id);
+          const { error: updateError } = await db.actions.update(action.id, { attachments: updatedAttachments });
 
           if (updateError) throw updateError;
 
@@ -348,7 +339,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
           // Add to photos list
           setPhotos(prev => [...prev, {
             id: `attachment-${Date.now()}`,
-            file_url: publicUrl,
+            file_url: relativePath,
             file_name: file.name
           }]);
 
@@ -902,7 +893,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                   {photos.map((photo) => {
                     const photoUrl = photo.file_url.startsWith('http') 
                       ? photo.file_url 
-                      : supabase.storage.from('mission-evidence').getPublicUrl(photo.file_url).data.publicUrl;
+                      : getS3Url(photo.file_url);
                     
                     return (
                       <div key={photo.id} className="relative group">
@@ -913,7 +904,8 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                           onClick={() => window.open(photoUrl, '_blank')}
                           onError={(e) => {
                             if (!photo.file_url.startsWith('http')) {
-                              const fallbackUrl = supabase.storage.from('mission-attachments').getPublicUrl(photo.file_url).data.publicUrl;
+                              // Try mission-attachments path as fallback
+                              const fallbackUrl = getS3Url(`mission-attachments/${photo.file_url.split('/').pop()}`);
                               (e.currentTarget as HTMLImageElement).src = fallbackUrl;
                             }
                           }}

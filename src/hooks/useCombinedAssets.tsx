@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserNames } from '@/hooks/useUserNames';
 
@@ -47,6 +47,7 @@ type AssetsQueryOptions = {
 export const useCombinedAssets = (showRemovedItems: boolean = false, options?: AssetsQueryOptions) => {
   const [assets, setAssets] = useState<CombinedAsset[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const { toast } = useToast();
   const isFetchingRef = useRef(false);
   const latestRequestIdRef = useRef(0);
@@ -66,7 +67,10 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
     isFetchingRef.current = true;
     const requestId = ++latestRequestIdRef.current;
     try {
-      setLoading(true);
+      // Only set loading for initial requests, not for append (infinite scroll)
+      if (!overrides?.append) {
+        setLoading(true);
+      }
       // compute effective query params
       const effectiveSearch = overrides?.search ?? currentSearchRef.current;
       const effectiveLimit = overrides?.limit ?? currentLimitRef.current;
@@ -77,6 +81,13 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
       if (overrides?.limit !== undefined) currentLimitRef.current = overrides.limit!;
       if (overrides?.page !== undefined) currentPageRef.current = overrides.page!;
 
+      console.log('Starting fetchAssets...', { 
+        append: overrides?.append, 
+        page: effectivePage, 
+        limit: effectiveLimit,
+        requestId 
+      });
+      
       // Fetch tools (assets)
       let toolsQuery = supabase
         .from('tools')
@@ -102,14 +113,8 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
 
       if (effectiveSearch && effectiveSearch.trim() !== '') {
         const term = `%${effectiveSearch.trim()}%`;
-        const fields = [
-          `name.ilike.${term}`,
-          `serial_number.ilike.${term}`,
-          `category.ilike.${term}`,
-          `storage_location.ilike.${term}`
-        ];
-        if (includeDescriptions) fields.push(`description.ilike.${term}`);
-        toolsQuery = toolsQuery.or(fields.join(','));
+        // Use individual or conditions instead of the complex or() method
+        toolsQuery = toolsQuery.or(`name.ilike.${term},serial_number.ilike.${term},category.ilike.${term},storage_location.ilike.${term}${includeDescriptions ? `,description.ilike.${term}` : ''}`);
       }
 
       const toolsOffset = effectivePage * effectiveLimit;
@@ -138,29 +143,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
 
       if (effectiveSearch && effectiveSearch.trim() !== '') {
         const term = `%${effectiveSearch.trim()}%`;
-        const fields = [
-          `name.ilike.${term}`,
-          `category.ilike.${term}`,
-          `storage_location.ilike.${term}`
-        ];
-        if (includeDescriptions) fields.push(`description.ilike.${term}`);
-        partsQuery = partsQuery.or(fields.join(','));
-      }
-
-      // When showing low stock, we need to fetch ALL parts to find all low stock items
-      // instead of just the paginated subset
-      if (effectiveShowLowStock) {
-        // Don't apply pagination when filtering for low stock - we need all parts
-        // Filter for parts that have minimum_quantity set and are greater than 0
-        partsQuery = partsQuery
-          .not('minimum_quantity', 'is', null)
-          .gt('minimum_quantity', 0)
-          .order('name');
-      } else {
-        // Normal pagination for other cases
-        const partsOffset = toolsOffset; // keep same paging window size for both
-        const partsRangeEnd = partsOffset + effectiveLimit - 1;
-        partsQuery = partsQuery.order('name').range(partsOffset, partsRangeEnd);
+        partsQuery = partsQuery.or(`name.ilike.${term},category.ilike.${term},storage_location.ilike.${term}${includeDescriptions ? `,description.ilike.${term}` : ''}`);
       }
 
       // Kick off all independent requests in parallel
@@ -188,6 +171,12 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
         issuesPromise,
         parentsPromise
       ]);
+
+      console.log('API responses:', {
+        tools: toolsResponse?.data?.length,
+        parts: partsResponse?.data?.length,
+        checkouts: checkoutsResp?.data?.length
+      });
 
       if (toolsResponse.error) throw toolsResponse.error;
       if (partsResponse.error) throw partsResponse.error;
@@ -235,7 +224,9 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
           has_issues: false,
           is_checked_out: false,
           accountable_person_name: accountablePersonName,
-          accountable_person_color: accountablePersonColor
+          accountable_person_color: accountablePersonColor,
+          // Replace Supabase image URLs with placeholder to prevent loading issues
+          image_url: part.image_url?.includes('supabase.co') ? null : part.image_url
         };
       });
 
@@ -267,7 +258,9 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
             checked_out_user_id: checkout?.user_id,
             checked_out_date: checkout?.checkout_date,
             accountable_person_name: accountablePersonName,
-            accountable_person_color: accountablePersonColor
+            accountable_person_color: accountablePersonColor,
+            // Replace Supabase image URLs with placeholder to prevent loading issues
+            image_url: tool.image_url?.includes('supabase.co') ? null : tool.image_url
           };
         })),
         // Add filtered parts
@@ -275,6 +268,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
       ];
       
       if (latestRequestIdRef.current === requestId) {
+        console.log('Setting assets, count:', transformedAssets.length);
         if (overrides?.append) {
           setAssets(prev => [...prev, ...transformedAssets]);
         } else {

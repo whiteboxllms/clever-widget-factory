@@ -4,10 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Search, Plus, X, Wrench } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/client';
 import { useToast } from "@/hooks/use-toast";
 // Planned checkout logic removed in favor of immediate checkout upon selection
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useCognitoAuth";
 
 interface Asset {
   id: string;

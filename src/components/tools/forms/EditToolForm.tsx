@@ -11,7 +11,7 @@ import { TOOL_CATEGORY_OPTIONS } from "@/lib/constants";
 import { LocationFieldsGroup } from "@/components/shared/LocationFieldsGroup";
 import { FileAttachmentManager } from "@/components/shared/FileAttachmentManager";
 import { useParentStructures } from "@/hooks/tools/useParentStructures";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { useActionProfiles } from "@/hooks/useActionProfiles";
 
 interface EditToolFormProps {

@@ -7,10 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { useToast } from '@/hooks/use-toast';
 import { useProfile } from '@/hooks/useProfile';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/client';
 
 export default function SettingsPage() {
   const { user, updatePassword, resetPassword } = useAuth();

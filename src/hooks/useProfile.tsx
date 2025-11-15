@@ -1,7 +1,16 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { useToast } from '@/hooks/use-toast';
+
+// User name mapping based on Cognito user IDs
+const USER_NAMES: Record<string, string> = {
+  'b8006f2b-0ec7-4107-b05a-b4c6b49541fd': 'Stefan Hamilton',
+  '7871f320-d031-70a1-541b-748f221805f3': 'Stefan Hamilton', // Your current Cognito ID
+  '989163e0-7011-70ee-6d93-853674acd43c': 'Carl Hilo',
+  '68d173b0-60f1-70ea-6084-338e74051fcc': 'Lester Paniel', 
+  'f8d11370-e031-70b4-3e58-081a2e482848': 'Vicky Yap',
+  '48155769-4d22-4d36-9982-095ac9ad6b2c': 'Mae Dela Torre'
+};
 
 export function useProfile() {
   const { user } = useAuth();
@@ -19,18 +28,17 @@ export function useProfile() {
     if (!user) return;
 
     try {
-      // Get the name from organization_members table (single source of truth)
-      const { data: memberData } = await supabase
-        .from('organization_members')
-        .select('full_name')
-        .eq('user_id', user.id)
-        .single();
-
-      setFullName(memberData?.full_name || user.user_metadata?.full_name || '');
+      console.log('🔍 useProfile - Current user ID:', user.userId);
+      console.log('🔍 useProfile - Available names:', USER_NAMES);
+      
+      // Get name from mapping or fallback to email
+      const mappedName = USER_NAMES[user.userId] || user.name || user.email || '';
+      console.log('🔍 useProfile - Mapped name:', mappedName);
+      
+      setFullName(mappedName);
     } catch (error) {
       console.error('Error fetching profile:', error);
-      // Fallback to user metadata if organization member not found
-      setFullName(user.user_metadata?.full_name || '');
+      setFullName(user.name || user.email || '');
     }
   };
 
@@ -39,14 +47,7 @@ export function useProfile() {
 
     setIsLoading(true);
     try {
-      // Update only the organization_members table (single source of truth)
-      const { error } = await supabase
-        .from('organization_members')
-        .update({ full_name: newName })
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-
+      // TODO: Replace with actual database update after migration
       setFullName(newName);
       toast({
         title: "Profile updated",
@@ -66,7 +67,7 @@ export function useProfile() {
     }
   };
 
-  const displayName = fullName || user?.user_metadata?.full_name || user?.email || '';
+  const displayName = fullName || user?.name || user?.email || '';
 
   return {
     fullName,

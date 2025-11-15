@@ -22,14 +22,14 @@ import { StockDetails } from "./StockDetails";
 import { OrderDialog } from "./OrderDialog";
 import { ReceivingDialog } from "./ReceivingDialog";
 import { useCombinedAssets, CombinedAsset } from "@/hooks/useCombinedAssets";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useToolHistory } from "@/hooks/tools/useToolHistory";
 import { useToolIssues } from "@/hooks/useGenericIssues";
 import { useInventoryIssues } from "@/hooks/useGenericIssues";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useImageUpload } from "@/hooks/useImageUpload";
-import { supabase } from "@/integrations/supabase/client";
+import { database as supabase } from "@/lib/database";
 
 export const CombinedAssetsContainer = () => {
   const navigate = useNavigate();
@@ -157,6 +157,9 @@ export const CombinedAssetsContainer = () => {
 
   // Filter assets based on current filters
   const filteredAssets = useMemo(() => {
+    // Skip filtering during loading to prevent flicker
+    if (loading && assets.length === 0) return [];
+    
     const lower = searchTerm.toLowerCase();
     return assets.filter(asset => {
       // If server-side search is active, skip client text search to avoid double filtering
@@ -183,7 +186,7 @@ export const CombinedAssetsContainer = () => {
 
       return matchesSearch;
     });
-  }, [assets, searchTerm, showOnlyAssets, showOnlyStock, showMyCheckedOut, showWithIssues, user?.email]);
+  }, [assets.length, searchTerm, showOnlyAssets, showOnlyStock, showMyCheckedOut, showWithIssues, user?.id, loading]);
 
   const handleCreateAsset = async (assetData: any, isAsset: boolean) => {
     const result = await createAsset(assetData, isAsset);
@@ -575,9 +578,13 @@ export const CombinedAssetsContainer = () => {
         pendingOrders={pendingOrders}
         // Infinite scroll props
         onLoadMore={() => {
+          console.log('onLoadMore triggered, current page:', page);
           const nextPage = page + 1;
-          setPage(nextPage);
-          fetchAssets({ page: nextPage, limit, search: searchRef.current, append: true });
+          // Prevent rapid successive calls
+          setTimeout(() => {
+            setPage(nextPage);
+            fetchAssets({ page: nextPage, limit, search: searchRef.current, append: true });
+          }, 100);
         }}
         hasMore={!loading && assets.length > 0}
         loading={loading}

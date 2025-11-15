@@ -19,7 +19,7 @@ import { IssueQuickResolveDialog } from "./IssueQuickResolveDialog";
 import { CreateIssueDialog } from "./CreateIssueDialog";
 
 
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/client';
 import { toast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 

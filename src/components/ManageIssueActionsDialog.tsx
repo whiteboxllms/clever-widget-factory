@@ -13,7 +13,7 @@ import { BaseAction, createIssueAction } from "@/types/actions";
 import { ActionCard } from "./ActionCard";
 import { useActionProfiles } from "@/hooks/useActionProfiles";
 
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/client';
 import { toast } from "@/hooks/use-toast";
 
 interface ToolIssue {

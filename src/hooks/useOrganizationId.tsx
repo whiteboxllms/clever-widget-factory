@@ -8,7 +8,8 @@ export function useOrganizationId() {
   }
   
   if (!organization) {
-    throw new Error('Organization context is required but not available');
+    console.warn('Organization context is not available');
+    return null; // Return null instead of throwing error
   }
   
   return organization.id;

@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle, X, Clock, Edit, Plus, Target, Swords, Package, Wrench, Home, FileText } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/client';
 import { toast } from "@/hooks/use-toast";
 import { BaseIssue, ContextType, getContextBadgeColor, getContextIcon, getContextLabel, OrderIssue, getOrderIssueTypeLabel } from "@/types/issues";
 import { useGenericIssues } from "@/hooks/useGenericIssues";
@@ -18,7 +18,7 @@ import { ManageIssueActionsDialog } from "@/components/ManageIssueActionsDialog"
 import { FiveWhysDialog } from "@/components/FiveWhysDialog";
 import { FiveWhysSessionSelector } from "@/components/FiveWhysSessionSelector";
 import { FiveWhysSessionViewer } from "@/components/FiveWhysSessionViewer";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { listSessions } from '@/services/fiveWhysService';
 

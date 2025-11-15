@@ -24,7 +24,7 @@ import { AlertTriangle, Upload, X, ImagePlus } from "lucide-react";
 import { useGenericIssues } from "@/hooks/useGenericIssues";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { ContextType, getOrderIssueTypeLabel } from "@/types/issues";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/client';
 
 interface CreateIssueDialogProps {
   open: boolean;

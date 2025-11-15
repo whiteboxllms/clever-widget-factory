@@ -12,7 +12,7 @@ import { useAssetScores, AssetScore } from '@/hooks/useAssetScores';
 import { useToast } from '@/hooks/use-toast';
 import { ScoreEntryForm } from './ScoreEntryForm';
 import { ScoreDisplayCard } from './ScoreDisplayCard';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/client';
 
 interface ToolIssue {
   id: string;

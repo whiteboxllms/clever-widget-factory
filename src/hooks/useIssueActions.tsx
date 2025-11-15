@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/client';
 import { toast } from '@/hooks/use-toast';
 import { BaseAction } from '@/types/actions';
 import { processStockConsumption } from '@/lib/utils';

@@ -6,19 +6,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { useInvitations } from '@/hooks/useInvitations';
 import { useToast } from '@/hooks/use-toast';
 
 const Auth = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, signIn, signUp, signInWithGoogle, resetPassword, updatePassword } = useAuth();
+  const { user, signIn, signUp, confirmSignIn, resetPassword, updatePassword } = useAuth();
   const { sendInvitation } = useInvitations();
   const { toast } = useToast();
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [needsPasswordChange, setNeedsPasswordChange] = useState(false);
   
   // Helper function to detect recovery parameters from both query and hash
   const getRecoveryFlagFromUrl = () => {
@@ -70,12 +71,40 @@ const Auth = () => {
     const { error } = await signIn(email, password);
     
     if (error) {
-      setError(error.message);
+      if (error.code === 'NEW_PASSWORD_REQUIRED') {
+        setNeedsPasswordChange(true);
+      } else {
+        setError(error.message);
+      }
     } else {
       toast({
         title: "Welcome back!",
         description: "You have successfully signed in.",
       });
+    }
+    
+    setLoading(false);
+  };
+
+  const handleConfirmSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    
+    const newPassword = formData.get('newPassword') as string;
+    
+    setLoading(true);
+    setError('');
+    
+    const { error } = await confirmSignIn(newPassword);
+    
+    if (error) {
+      setError(error.message);
+    } else {
+      toast({
+        title: "Password updated successfully",
+        description: "You have successfully signed in.",
+      });
+      setNeedsPasswordChange(false);
     }
     
     setLoading(false);
@@ -159,7 +188,36 @@ const Auth = () => {
           <p className="text-muted-foreground">Manage your assets and stock efficiently</p>
         </CardHeader>
         <CardContent className="space-y-4">
-          {isPasswordReset ? (
+          {needsPasswordChange ? (
+            <div className="space-y-4">
+              <div className="text-center">
+                <h3 className="text-lg font-semibold">Set New Password</h3>
+                <p className="text-sm text-muted-foreground">You must set a new password to continue</p>
+              </div>
+              
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              <form onSubmit={handleConfirmSignIn} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword">New Password</Label>
+                  <Input
+                    id="newPassword"
+                    name="newPassword"
+                    type="password"
+                    required
+                    disabled={loading}
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? 'Setting Password...' : 'Set Password'}
+                </Button>
+              </form>
+            </div>
+          ) : isPasswordReset ? (
             <div className="space-y-4">
               <div className="text-center">
                 <h3 className="text-lg font-semibold">Set New Password</h3>

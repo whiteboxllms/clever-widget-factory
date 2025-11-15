@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Search, Plus, X, Package } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/client';
 import { useToast } from "@/hooks/use-toast";
 
 interface StockItem {

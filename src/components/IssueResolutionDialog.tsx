@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useImageUpload } from "@/hooks/useImageUpload";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/client';
 import { toast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { Loader2, X } from "lucide-react";

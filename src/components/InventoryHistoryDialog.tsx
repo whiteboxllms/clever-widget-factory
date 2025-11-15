@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { History, TrendingUp, TrendingDown, Edit, Plus, ExternalLink } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 

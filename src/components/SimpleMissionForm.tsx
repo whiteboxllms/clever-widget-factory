@@ -10,7 +10,7 @@ import { ChevronDown, ChevronRight, Plus, Upload, Image, X, Trash2, Archive, Inf
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/client';
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useImageUpload } from "@/hooks/useImageUpload";

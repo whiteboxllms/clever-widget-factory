@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, forwardRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -27,7 +27,8 @@ interface AssetHistoryDialogProps {
   children: React.ReactNode;
 }
 
-export function AssetHistoryDialog({ assetId, assetName, children }: AssetHistoryDialogProps) {
+export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogProps>(
+  ({ assetId, assetName, children }, ref) => {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
   const { toolHistory, fetchToolHistory } = useToolHistory();
@@ -181,4 +182,6 @@ export function AssetHistoryDialog({ assetId, assetName, children }: AssetHistor
       </DialogContent>
     </Dialog>
   );
-}
+});
+
+AssetHistoryDialog.displayName = "AssetHistoryDialog";

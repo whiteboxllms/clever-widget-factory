@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/client';
 import { Tool } from '@/hooks/tools/useToolsData';
 
 export const toolsService = {

@@ -1,6 +1,6 @@
 
 import { useState, useCallback } from 'react';
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/client';
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useOrganizationId } from "@/hooks/useOrganizationId";

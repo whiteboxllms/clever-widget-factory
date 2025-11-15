@@ -8,9 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, Camera, AlertTriangle, Edit, Flag } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/client';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { useImageUpload } from '@/hooks/useImageUpload';
 import { showErrorToast } from '@/components/ErrorToast';
 import { useOrganizationId } from '@/hooks/useOrganizationId';

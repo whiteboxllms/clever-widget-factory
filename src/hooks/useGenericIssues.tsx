@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { database as supabase } from "@/lib/database";
 import { toast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { BaseIssue, ContextType, ToolIssue, OrderIssue } from "@/types/issues";

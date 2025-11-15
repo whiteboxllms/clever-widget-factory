@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator, BreadcrumbPage } from "@/components/ui/breadcrumb";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SimpleMissionForm } from '@/components/SimpleMissionForm';
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { supabase } from '@/lib/client';
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useActionProfiles } from "@/hooks/useActionProfiles";
 

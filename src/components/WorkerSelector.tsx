@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { CheckCircle, XCircle, Clock } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/client';
 import { useWorkerAttributes, AttributeType, IssueRequirement } from '@/hooks/useWorkerAttributes';
 
 interface WorkerProfile {

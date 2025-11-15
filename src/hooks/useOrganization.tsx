@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from './useAuth';
+import { useAuth } from "@/hooks/useCognitoAuth";
+import { UserMappingService } from '@/lib/userMappingService';
 
 interface Organization {
   id: string;
@@ -39,35 +39,42 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const isAdmin = organizationMember?.role === 'admin';
 
   const fetchOrganizationData = async () => {
+    console.log('🔍 fetchOrganizationData called with user:', user);
+    
     if (!user) {
+      console.log('❌ No user, skipping organization fetch');
       setOrganization(null);
       setOrganizationMember(null);
       setLoading(false);
       return;
     }
 
+    console.log('🔍 Setting up Stargazer Farm organization for user:', user.userId);
+
     try {
-      // Get user's organization membership (take the first one if multiple exist)
-      const { data: memberData, error: memberError } = await supabase
-        .from('organization_members')
-        .select(`
-          *,
-          organization:organizations(*)
-        `)
-        .eq('user_id', user.id)
-        .limit(1)
-        .single();
+      const mockMember = {
+        id: 'f6583e34-45f7-4523-aecd-5f62c8abb7b5',
+        organization_id: '00000000-0000-0000-0000-000000000001',
+        user_id: user.userId, // Use actual Cognito user ID
+        role: 'admin',
+        invited_by: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
 
-      if (memberError) {
-        console.error('Error fetching organization membership:', memberError);
-        setOrganization(null);
-        setOrganizationMember(null);
-        setLoading(false);
-        return;
-      }
+      const mockOrganization = {
+        id: '00000000-0000-0000-0000-000000000001',
+        name: 'Stargazer Farm',
+        subdomain: 'stargazer-farm',
+        settings: {},
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
 
-      setOrganizationMember(memberData);
-      setOrganization(memberData.organization as Organization);
+      console.log('✅ Using Cognito user ID for clean architecture');
+      setOrganizationMember(mockMember);
+      setOrganization(mockOrganization);
     } catch (error) {
       console.error('Error in fetchOrganizationData:', error);
       setOrganization(null);

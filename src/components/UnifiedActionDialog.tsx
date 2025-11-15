@@ -21,7 +21,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/client';
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { 
@@ -39,7 +39,7 @@ import {
   Copy
 } from "lucide-react";
 import { useFileUpload } from "@/hooks/useFileUpload";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useCognitoAuth";
 import TiptapEditor from './TiptapEditor';
 import { ActionImplementationUpdates } from './ActionImplementationUpdates';
 import { AssetSelector } from './AssetSelector';

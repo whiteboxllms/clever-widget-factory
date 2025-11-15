@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { database as supabase } from '@/lib/database';
 import { useToast } from '@/hooks/use-toast';
 import { Tool } from './useToolsData';
 

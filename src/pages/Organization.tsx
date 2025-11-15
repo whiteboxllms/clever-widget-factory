@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +18,7 @@ import { useInvitations } from '@/hooks/useInvitations';
 import { useToast } from '@/hooks/use-toast';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { OrganizationValuesSection } from '@/components/OrganizationValuesSection';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/client';
 
 
 interface OrganizationMember {

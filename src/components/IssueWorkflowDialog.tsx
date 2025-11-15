@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { BaseIssue } from "@/types/issues";
 import { ACTION_REQUIRED_OPTIONS } from "@/lib/constants";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { AttributeSelector } from "@/components/AttributeSelector";
 import { WorkerSelector } from "@/components/WorkerSelector";
 import { useIssueRequirements } from "@/hooks/useWorkerAttributes";

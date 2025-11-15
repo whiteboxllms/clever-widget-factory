@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { ActionCard } from '@/components/ActionCard';
 import { Button } from "@/components/ui/button";
 import { Plus } from 'lucide-react';
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/client';
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 

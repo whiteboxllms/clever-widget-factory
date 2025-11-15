@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { s3Client, S3_BUCKET, BUCKET_PREFIXES, BucketPrefix } from '@/lib/s3Client';
-import { compressImageDetailed } from '@/lib/enhancedImageUtils';
+import { compressImageSimple } from '@/lib/simpleImageCompression';
 import { useEnhancedToast } from './useEnhancedToast';
 
 export interface ImageUploadOptions {
@@ -56,15 +56,22 @@ export const useImageUpload = () => {
       // Show compression start toast
       const compressionToast = enhancedToast.showCompressionStart(file.name, file.size);
 
-      // Compress the image with detailed progress
-      const compressionResult = await compressImageDetailed(
+      // Compress the image with simple compression
+      const compressionResult = await compressImageSimple(
         file,
-        { maxSizeMB, maxWidthOrHeight },
-        onProgress || enhancedToast.showCompressionProgress
+        { maxSizeMB, maxWidthOrHeight }
       );
 
       // Show compression complete toast
-      enhancedToast.showCompressionComplete(compressionResult);
+      enhancedToast.showCompressionComplete({
+        ...compressionResult,
+        compressionRatio: compressionResult.compressionRatio,
+        timings: { total: 0 },
+        stages: [],
+        originalFormat: file.type.split('/')[1] || 'unknown',
+        finalFormat: 'jpeg',
+        algorithm: 'Canvas compression'
+      });
 
       const compressedFile = compressionResult.file;
 
@@ -78,15 +85,18 @@ export const useImageUpload = () => {
       // Show upload start toast
       const uploadToast = enhancedToast.showUploadStart(fileName, compressionResult.compressedSize);
 
+      // Convert File to ArrayBuffer for AWS SDK compatibility
+      const fileBuffer = await compressedFile.arrayBuffer();
+      
       // Upload to S3
       const command = new PutObjectCommand({
         Bucket: S3_BUCKET,
         Key: key,
-        Body: compressedFile,
+        Body: fileBuffer,
         ContentType: compressedFile.type,
       });
 
-      await s3Client.send(command);
+      const result = await s3Client.send(command);
 
       // Generate public URL
       const publicUrl = `https://${S3_BUCKET}.s3.us-west-2.amazonaws.com/${key}`;

@@ -13,7 +13,7 @@ import { useScoringPrompts } from "@/hooks/useScoringPrompts";
 import { useActionScores, ActionScore } from "@/hooks/useActionScores";
 import { ScoreEntryForm } from "./ScoreEntryForm";
 import { ScoreDisplayCard } from "./ScoreDisplayCard";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/client';
 import { BaseAction } from "@/types/actions";
 
 // Utility function to strip HTML tags and decode entities

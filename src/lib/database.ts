@@ -1,5 +1,5 @@
-// Clean database client that mimics Supabase API
-import { apiService } from './apiService';
+// Offline-first database client
+import { offlineClient } from './offlineClient';
 
 interface QueryBuilder {
   select(columns?: string): QueryBuilder;
@@ -8,11 +8,13 @@ interface QueryBuilder {
   delete(): Promise<{ data: any; error: any }>;
   eq(column: string, value: any): QueryBuilder;
   neq(column: string, value: any): QueryBuilder;
+  not(column: string, operator: string, value: any): QueryBuilder;
   in(column: string, values: any[]): QueryBuilder;
   or(conditions: string): QueryBuilder;
   order(column: string, options?: { ascending?: boolean }): QueryBuilder;
   range(start: number, end: number): QueryBuilder;
   single(): Promise<{ data: any; error: any }>;
+  maybeSingle(): Promise<{ data: any; error: any }>;
 }
 
 class DatabaseQueryBuilder implements QueryBuilder {
@@ -23,8 +25,6 @@ class DatabaseQueryBuilder implements QueryBuilder {
   private orderBy: string = '';
   private limitValue?: number;
   private offsetValue?: number;
-  private rangeStart?: number;
-  private rangeEnd?: number;
 
   constructor(table: string) {
     this.table = table;
@@ -45,6 +45,11 @@ class DatabaseQueryBuilder implements QueryBuilder {
     return this;
   }
 
+  not(column: string, operator: string, value: any): QueryBuilder {
+    this.whereConditions[column] = { op: 'not', operator, value };
+    return this;
+  }
+
   in(column: string, values: any[]): QueryBuilder {
     this.whereConditions[column] = { op: 'in', value: values };
     return this;
@@ -62,8 +67,6 @@ class DatabaseQueryBuilder implements QueryBuilder {
   }
 
   range(start: number, end: number): QueryBuilder {
-    this.rangeStart = start;
-    this.rangeEnd = end;
     this.limitValue = end - start + 1;
     this.offsetValue = start;
     return this;
@@ -81,102 +84,48 @@ class DatabaseQueryBuilder implements QueryBuilder {
     }
   }
 
-  async insert(data: any): Promise<{ data: any; error: any }> {
+  async maybeSingle(): Promise<{ data: any; error: any }> {
     try {
-      const result = await apiService.insert(this.table, data);
-      return { data: result.data, error: null };
+      // Set limit to 1 for single record query
+      this.limitValue = 1;
+      const result = await this.execute();
+      return { 
+        data: result.data?.[0] || null, 
+        error: null  // maybeSingle never returns error for no results
+      };
     } catch (error) {
       return { data: null, error };
     }
+  }
+
+  async insert(data: any): Promise<{ data: any; error: any }> {
+    return offlineClient.create(this.table, data);
   }
 
   async update(data: any): Promise<{ data: any; error: any }> {
-    try {
-      // For updates, we need to handle the where conditions
-      const result = await apiService.update(this.table, 'bulk', { 
-        data, 
-        where: this.whereConditions 
-      });
-      return { data: result.data, error: null };
-    } catch (error) {
-      return { data: null, error };
+    // For updates, we need the ID from where conditions
+    const id = this.whereConditions.id?.value;
+    if (!id) {
+      return { data: null, error: new Error('Update requires ID') };
     }
+    return offlineClient.update(this.table, id, data);
   }
 
   async delete(): Promise<{ data: any; error: any }> {
-    try {
-      const result = await apiService.delete(this.table, 'bulk');
-      return { data: result.data, error: null };
-    } catch (error) {
-      return { data: null, error };
-    }
+    // Implementation for delete operations
+    return { data: null, error: new Error('Delete not implemented yet') };
   }
 
   private async execute(): Promise<{ data: any; error: any }> {
-    try {
-      let result;
-      
-      if (this.orConditions) {
-        // Handle search with OR conditions - fallback to client-side search
-        const searchTerm = this.extractSearchTerm(this.orConditions);
-        try {
-          result = await apiService.search(this.table, searchTerm, {
-            select: this.selectColumns,
-            limit: this.limitValue,
-            offset: this.offsetValue,
-            order: this.orderBy
-          });
-        } catch (error) {
-          if (error.message.includes('Cannot GET')) {
-            // Fallback: get all data and filter client-side
-            const allData = await apiService.select(this.table, {
-              select: this.selectColumns,
-              order: this.orderBy
-            });
-            
-            const filtered = this.clientSideSearch(allData.data || [], searchTerm);
-            const start = this.offsetValue || 0;
-            const end = start + (this.limitValue || filtered.length);
-            
-            result = { data: filtered.slice(start, end) };
-          } else {
-            throw error;
-          }
-        }
-      } else {
-        result = await apiService.select(this.table, {
-          select: this.selectColumns,
-          where: this.whereConditions,
-          order: this.orderBy,
-          limit: this.limitValue,
-          offset: this.offsetValue
-        });
-      }
-      
-      return { data: result.data, error: null };
-    } catch (error) {
-      // Return empty data for missing endpoints instead of throwing
-      if (error.message.includes('Cannot GET')) {
-        console.warn(`Endpoint not found for table: ${this.table}, returning empty data`);
-        return { data: [], error: null };
-      }
-      return { data: null, error };
-    }
-  }
+    const options = {
+      select: this.selectColumns,
+      where: this.whereConditions,
+      order: this.orderBy,
+      limit: this.limitValue,
+      offset: this.offsetValue
+    };
 
-  private clientSideSearch(data: any[], searchTerm: string): any[] {
-    const term = searchTerm.toLowerCase();
-    return data.filter(item => 
-      Object.values(item).some(value => 
-        value && String(value).toLowerCase().includes(term)
-      )
-    );
-  }
-
-  private extractSearchTerm(orConditions: string): string {
-    // Extract search term from OR conditions like "name.ilike.%term%"
-    const match = orConditions.match(/\.ilike\.%(.+?)%/);
-    return match ? match[1] : '';
+    return offlineClient.get(this.table, options);
   }
 
   // Make the query builder thenable for backward compatibility

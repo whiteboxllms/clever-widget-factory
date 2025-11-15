@@ -1,23 +1,21 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/client';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
 import { useToast } from '@/hooks/use-toast';
 
-export interface ActionProfile {
+export interface OrganizationMember {
   id: string;
   user_id: string;
   full_name: string;
   role: string;
-  favorite_color?: string | null;
 }
 
-export function useActionProfiles() {
-  const [profiles, setProfiles] = useState<ActionProfile[]>([]);
+export function useOrganizationMembers() {
+  const [members, setMembers] = useState<OrganizationMember[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const organizationId = useOrganizationId();
 
-  const fetchProfiles = async () => {
+  const fetchMembers = async () => {
     try {
       setLoading(true);
       
@@ -31,8 +29,8 @@ export function useActionProfiles() {
       const result = await response.json();
       const data = result.data || [];
 
-      // Transform to match ActionProfile interface
-      const actionProfiles: ActionProfile[] = data.map((member: any) => ({
+      // Transform to match OrganizationMember interface
+      const organizationMembers: OrganizationMember[] = data.map((member: any) => ({
         id: member.user_id,
         user_id: member.user_id,
         full_name: member.full_name,
@@ -40,9 +38,9 @@ export function useActionProfiles() {
         favorite_color: member.favorite_color
       }));
 
-      setProfiles(actionProfiles);
+      setMembers(organizationMembers);
     } catch (error) {
-      console.error('Error in fetchProfiles:', error);
+      console.error('Error in fetchMembers:', error);
       toast({
         title: "Error",
         description: "Failed to load organization members",
@@ -55,13 +53,13 @@ export function useActionProfiles() {
 
   useEffect(() => {
     if (organizationId) {
-      fetchProfiles();
+      fetchMembers();
     }
   }, [organizationId]);
 
   return {
-    profiles,
+    members,
     loading,
-    refetch: fetchProfiles
+    refetch: fetchMembers
   };
 }

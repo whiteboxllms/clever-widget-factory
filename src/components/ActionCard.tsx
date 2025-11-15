@@ -806,12 +806,25 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
               </div>
             </CardTitle>
             <div className="space-y-1">
-              {action.assigned_to && (
+              {action.assigned_to ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <User className="w-3 h-3" />
                   <span>
-                    {profiles.find(p => p.user_id === action.assigned_to)?.full_name || 'Unknown User'}
+                    {(() => {
+                      const assignedProfile = profiles.find(p => p.user_id === action.assigned_to);
+                      console.log('Action assigned_to:', action.assigned_to, 'Found profile:', assignedProfile);
+                      if (assignedProfile) {
+                        return assignedProfile.full_name;
+                      }
+                      // Fallback: show "Assigned" if we have an assigned_to but no profile match
+                      return 'Assigned (Loading...)';
+                    })()}
                   </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <User className="w-3 h-3" />
+                  <span>Unassigned</span>
                 </div>
               )}
               {action.participants_details && action.participants_details.length > 0 && (

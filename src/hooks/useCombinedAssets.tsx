@@ -146,6 +146,12 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
         partsQuery = partsQuery.or(`name.ilike.${term},category.ilike.${term},storage_location.ilike.${term}${includeDescriptions ? `,description.ilike.${term}` : ''}`);
       }
 
+      // If showing low stock, get more data to filter properly
+      const partsLimit = effectiveShowLowStock ? 1000 : effectiveLimit;
+      const partsOffset = effectiveShowLowStock ? 0 : (effectivePage * effectiveLimit);
+      const partsRangeEnd = partsOffset + partsLimit - 1;
+      partsQuery = partsQuery.order('name').range(partsOffset, partsRangeEnd);
+
       // Kick off all independent requests in parallel
       const toolsPromise = toolsQuery;
       const partsPromise = partsQuery;
@@ -237,6 +243,12 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
           part.minimum_quantity > 0 && 
           part.current_quantity < part.minimum_quantity
         );
+        console.log('Low stock filter applied, found:', transformedParts.length, 'items');
+        
+        // Apply pagination to filtered results
+        const start = effectivePage * effectiveLimit;
+        const end = start + effectiveLimit;
+        transformedParts = transformedParts.slice(start, end);
       }
 
       const transformedAssets: CombinedAsset[] = [

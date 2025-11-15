@@ -1,5 +1,5 @@
 // Complete API service to replace Supabase client
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 interface QueryOptions {
   select?: string;

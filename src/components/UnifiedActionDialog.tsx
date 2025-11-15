@@ -437,7 +437,7 @@ export function UnifiedActionDialog({
     try {
       const fileArray = Array.from(files);
       const uploadResults = await uploadFiles(fileArray, {
-        bucket: 'mission-attachments'
+        bucket: 'mission-attachments' as const
       });
       
       const resultsArray = Array.isArray(uploadResults) ? uploadResults : [uploadResults];

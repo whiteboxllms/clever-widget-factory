@@ -77,7 +77,7 @@ export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: Issu
       if (selectedImages.length > 0) {
         try {
           const uploadResults = await uploadImages(selectedImages, {
-            bucket: 'tool-resolution-photos',
+            bucket: 'tool-resolution-photos' as const,
             generateFileName: (file, index) => `issue-report-${asset.id}-${Date.now()}-${index || 1}-${file.name}`
           });
           

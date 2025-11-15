@@ -96,7 +96,7 @@ export function OrderIssueReportDialog({
       // Upload images if any
       let photoUrls: string[] = [];
       if (selectedImages.length > 0) {
-        const uploadResults = await uploadImages(selectedImages, { bucket: 'checkin-photos' });
+        const uploadResults = await uploadImages(selectedImages, { bucket: 'checkin-photos' as const });
         photoUrls = Array.isArray(uploadResults) 
           ? uploadResults.map(result => result.url)
           : [uploadResults.url];

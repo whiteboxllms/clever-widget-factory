@@ -41,7 +41,7 @@ export function IssueQuickResolveDialog({
     try {
       const fileArray = Array.from(files);
       const uploadResults = await uploadImages(fileArray, {
-        bucket: 'tool-issue-photos'
+        bucket: 'tool-issue-photos' as const
       });
       
       const resultsArray = Array.isArray(uploadResults) ? uploadResults : [uploadResults];

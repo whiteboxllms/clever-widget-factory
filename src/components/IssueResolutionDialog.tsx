@@ -110,7 +110,7 @@ export function IssueResolutionDialog({
       let photoUrls: string[] = [];
       if (form.resolution_photos.length > 0) {
         const uploadResults = await uploadImages(form.resolution_photos, {
-          bucket: 'tool-resolution-photos',
+          bucket: 'tool-resolution-photos' as const,
           generateFileName: (file) => `resolution-${issue.id}-${Date.now()}-${file.name}`,
           maxSizeMB: 2,
           maxWidthOrHeight: 1920

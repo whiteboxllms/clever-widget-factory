@@ -108,7 +108,7 @@ const AuditTool = () => {
       let uploadedUrls: string[] = [];
       if (selectedFiles.length > 0) {
         try {
-          const results = await uploadImages(selectedFiles, { bucket: 'audit-photos' });
+          const results = await uploadImages(selectedFiles, { bucket: 'audit-photos' as const });
           uploadedUrls = Array.isArray(results) ? results.map(r => r.url) : [results.url];
         } catch (uploadError) {
           console.error('Error uploading photos:', uploadError);

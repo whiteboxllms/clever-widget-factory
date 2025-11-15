@@ -126,7 +126,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
     
     try {
       const uploadResults = await uploadImages(files, {
-        bucket: 'checkin-photos',
+        bucket: 'checkin-photos' as const,
         maxSizeMB: 0.8,
         maxWidthOrHeight: 1920,
         generateFileName: (file, index) => {

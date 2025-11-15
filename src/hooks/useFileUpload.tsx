@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { s3Client, S3_BUCKET, BUCKET_PREFIXES, BucketPrefix } from '@/lib/s3Client';
 import { compressImageDetailed } from '@/lib/enhancedImageUtils';
 import { useEnhancedToast } from './useEnhancedToast';
 
 export interface FileUploadOptions {
-  bucket: string;
+  bucket: BucketPrefix;
   maxSizeMB?: number;
   maxWidthOrHeight?: number;
   generateFileName?: (file: File, index?: number) => string;
@@ -94,30 +95,30 @@ export const useFileUpload = () => {
         enhancedToast.showUploadStart(file.name, file.size);
       }
 
-      // Generate filename
+      // Generate filename with prefix
       const fileName = generateFileName 
         ? generateFileName(finalFile)
         : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${finalFile.name}`;
+      
+      const key = `${BUCKET_PREFIXES[bucket]}${fileName}`;
 
       // Show upload start toast for images (already shown for PDFs above)
       if (fileType === 'image') {
         enhancedToast.showUploadStart(fileName, compressedSize);
       }
 
-      // Upload to storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(fileName, finalFile);
+      // Upload to S3
+      const command = new PutObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: key,
+        Body: finalFile,
+        ContentType: finalFile.type,
+      });
 
-      if (uploadError) {
-        enhancedToast.showUploadError(uploadError.message, fileName);
-        throw uploadError;
-      }
+      await s3Client.send(command);
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(fileName);
+      // Generate public URL
+      const publicUrl = `https://${S3_BUCKET}.s3.us-west-2.amazonaws.com/${key}`;
 
       // Show upload success
       enhancedToast.showUploadSuccess(fileName, publicUrl);

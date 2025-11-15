@@ -476,7 +476,7 @@ export function SimpleMissionForm({
     try {
       // Use the standard image upload pattern
       const result = await uploadImages(file, {
-        bucket: 'mission-evidence',
+        bucket: 'mission-evidence' as const,
         generateFileName: (file) => `problem-${Date.now()}-${file.name}`,
         maxSizeMB: 0.5,
         maxWidthOrHeight: 1920

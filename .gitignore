@@ -23,15 +23,20 @@ dist-ssr
 *.sln
 *.sw?
 
-# Database backups (use Git LFS for versioned backups)
-*.backup
-!backups/*.backup
-
-# Supabase temporary files
-supabase/.temp/
-supabase/.branches/
-supabase/config.toml
-
-# Environment files (keep .env in version control for public defaults, ignore local overrides)
+# Environment files with secrets
 .env.local
-.env.*.local
+.env.production.local
+.env.development.local
+
+# AWS credentials
+aws-credentials.json
+*.pem
+*.key
+
+# Database backups
+*.backup
+*.sql
+
+# Lambda deployment packages
+*.zip
+lambda/**/*.zip

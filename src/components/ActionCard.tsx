@@ -9,8 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle, Circle, Clock, User, Upload, Image, ChevronDown, ChevronRight, Save, X, Link, Target, Copy } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { uploadToS3, getS3Url } from '@/lib/s3Service';
-import { db } from '@/lib/dbService';
-import { supabase } from '@/lib/client';
+
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
@@ -25,6 +24,8 @@ import { hasActualContent, sanitizeRichText, getActionBorderStyle, processStockC
 import { BaseAction } from '@/types/actions';
 import { autoCheckinToolsForAction } from '@/lib/autoToolCheckout';
 import { generateActionUrl, copyToClipboard } from '@/lib/urlUtils';
+import { useProfile } from '@/hooks/useProfile';
+import { useAuth } from '@/hooks/useCognitoAuth';
 
 interface Profile {
   id: string;
@@ -57,6 +58,8 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
   const organizationId = useOrganizationId();
   const enhancedToast = useEnhancedToast();
   const { getScoreForAction } = useAssetScores();
+  const { favoriteColor } = useProfile();
+  const { user } = useAuth();
   const planTextareaRef = useRef<HTMLTextAreaElement>(null);
   const implementationTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [isExpanded, setIsExpanded] = useState(true);
@@ -148,23 +151,21 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     
     // Only load real photos for saved actions
     if (!action.id.startsWith('temp-')) {
-      // Get action with attachments field
-      const { data, error } = await supabase
-        .from('actions')
-        .select('attachments')
-        .eq('id', action.id)
-        .single();
-
-      if (error) {
+      try {
+        const response = await fetch(`/api/actions/${action.id}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+          // Convert attachment URLs to photo format
+          const attachmentPhotos = (data?.attachments || []).map((url: string, index: number) => ({
+            id: `attachment-${index}`,
+            file_url: url,
+            file_name: `Attachment ${index + 1}`
+          }));
+          setPhotos(attachmentPhotos);
+        }
+      } catch (error) {
         console.error('Error loading action attachments:', error);
-      } else {
-        // Convert attachment URLs to photo format
-        const attachmentPhotos = (data?.attachments || []).map((url: string, index: number) => ({
-          id: `attachment-${index}`,
-          file_url: url,
-          file_name: `Attachment ${index + 1}`
-        }));
-        setPhotos(attachmentPhotos);
       }
     }
   };
@@ -191,20 +192,13 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
       const normalizedPolicy = sanitizeRichText(editData.policy);
       const updateData: { policy: string | null; assigned_to?: string } = { policy: normalizedPolicy };
       
-      // If action is unassigned, assign it to the current user
-      if (!action.assigned_to) {
-        const { data: user } = await supabase.auth.getUser();
-        if (user.user) {
-          updateData.assigned_to = user.user.id;
-        }
-      }
+      const response = await fetch(`/api/actions/${action.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData)
+      });
 
-      const { error } = await supabase
-        .from('actions')
-        .update(updateData)
-        .eq('id', action.id);
-
-      if (error) throw error;
+      if (!response.ok) throw new Error('Failed to update action');
       
       setHasUnsavedPolicy(false);
       // Don't call onUpdate() here to prevent disruptive refreshes
@@ -322,16 +316,21 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
           const relativePath = `mission-evidence/${fileName}`;
 
           // Add to action's attachments array
-          const { data: currentAction, error: fetchError } = await db.actions.selectById(action.id, 'attachments');
-
-          if (fetchError) throw fetchError;
+          const response = await fetch(`/api/actions/${action.id}`);
+          const currentAction = await response.json();
+          
+          if (!response.ok) throw new Error('Failed to fetch action');
 
           const currentAttachments = currentAction?.attachments || [];
           const updatedAttachments = [...currentAttachments, relativePath];
 
-          const { error: updateError } = await db.actions.update(action.id, { attachments: updatedAttachments });
+          const updateResponse = await fetch(`/api/actions/${action.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ attachments: updatedAttachments })
+          });
 
-          if (updateError) throw updateError;
+          if (!updateResponse.ok) throw new Error('Failed to update attachments');
 
           enhancedToast.showUploadSuccess(file.name);
           enhancedToast.dismiss(uploadToast.id);
@@ -409,33 +408,26 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     }
 
     // Check if there are any implementation updates
-    const { data: updates, error: updatesError } = await supabase
-      .from('action_implementation_updates')
-      .select('id')
-      .eq('action_id', action.id)
-      .limit(1);
-
-    if (updatesError) {
-      console.error('Error checking updates:', updatesError);
-    }
-
-    if (!updates || updates.length === 0) {
-      toast({
-        title: "Implementation Required",
-        description: "Please add at least one implementation update before completing",
-        variant: "destructive",
-      });
-      return;
+    try {
+      const response = await fetch(`/api/action_implementation_updates?action_id=${action.id}&limit=1`);
+      const updates = await response.json();
+      
+      if (!response.ok || !updates || updates.length === 0) {
+        toast({
+          title: "Implementation Required",
+          description: "Please add at least one implementation update before completing",
+          variant: "destructive",
+        });
+        return;
+      }
+    } catch (error) {
+      console.error('Error checking updates:', error);
     }
 
     setIsCompleting(true);
     
     try {
-      // Get the current user for inventory logging
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (!currentUser?.id) {
-        throw new Error('User must be authenticated to complete actions');
-      }
+      // Note: User authentication would be handled by the API
 
       // Process required stock consumption if any
       const requiredStock = action.required_stock || [];
@@ -464,17 +456,13 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
         completed_at: new Date().toISOString()
       };
       
-      // If action is unassigned, assign it to the current user
-      if (!action.assigned_to) {
-        updateData.assigned_to = currentUser.id;
-      }
+      const response = await fetch(`/api/actions/${action.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData)
+      });
 
-      const { error } = await supabase
-        .from('actions')
-        .update(updateData)
-        .eq('id', action.id);
-
-      if (error) throw error;
+      if (!response.ok) throw new Error('Failed to complete action');
 
       // Auto-checkin tools
       try {
@@ -814,7 +802,14 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                       const assignedProfile = profiles.find(p => p.user_id === action.assigned_to);
                       console.log('Action assigned_to:', action.assigned_to, 'Found profile:', assignedProfile);
                       if (assignedProfile) {
-                        return assignedProfile.full_name;
+                        const isCurrentUser = user?.userId === action.assigned_to;
+                        const nameColor = isCurrentUser ? favoriteColor : '#6B7280';
+                        
+                        return (
+                          <span style={{ color: nameColor }}>
+                            {assignedProfile.full_name}
+                          </span>
+                        );
                       }
                       // Fallback: show "Assigned" if we have an assigned_to but no profile match
                       return 'Assigned (Loading...)';

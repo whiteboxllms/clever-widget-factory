@@ -44,18 +44,15 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
   const fetchUpdates = async () => {
     try {
       console.log('Fetching updates for action:', actionId);
-      const { data, error } = await supabase
-        .from('action_implementation_updates')
-        .select('*')
-        .eq('action_id', actionId)
-        .order('created_at', { ascending: false });
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/action_implementation_updates?action_id=${actionId}`);
+      const result = await response.json();
 
-      if (error) {
-        console.error('Error fetching updates:', error);
-        throw error;
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to fetch updates');
       }
 
-      console.log('Fetched updates from server:', data?.length || 0, 'updates');
+      const data = result.data || [];
+      console.log('Fetched updates from server:', data.length, 'updates');
 
       // Use the profiles prop that should include favorite_color
       // Create a map of user_id to profile data from the passed profiles

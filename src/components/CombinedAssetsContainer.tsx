@@ -29,7 +29,7 @@ import { useToolIssues } from "@/hooks/useGenericIssues";
 import { useInventoryIssues } from "@/hooks/useGenericIssues";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useImageUpload } from "@/hooks/useImageUpload";
-import { database as supabase } from "@/lib/database";
+
 
 export const CombinedAssetsContainer = () => {
   const navigate = useNavigate();
@@ -106,17 +106,17 @@ export const CombinedAssetsContainer = () => {
   useEffect(() => {
     const fetchPendingOrders = async () => {
       try {
-        const { data: orders, error } = await supabase
-          .from('parts_orders')
-          .select('*')
-          .in('status', ['pending', 'partially_received'])
-          .order('ordered_at', { ascending: false });
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/parts_orders`);
+        const result = await response.json();
 
-        if (error) throw error;
+        if (!response.ok) throw new Error('Failed to fetch orders');
+
+        // Ensure orders is an array
+        const orders = Array.isArray(result) ? result : (result?.data || []);
 
         // Group orders by part_id
         const ordersByPart: Record<string, any[]> = {};
-        (orders || []).forEach(order => {
+        orders.forEach(order => {
           if (!ordersByPart[order.part_id]) {
             ordersByPart[order.part_id] = [];
           }
@@ -140,7 +140,10 @@ export const CombinedAssetsContainer = () => {
       if (term !== searchRef.current) {
         searchRef.current = term;
       }
-      setPage(0);
+      // Reset to page 0 when filters change
+      if (page !== 0) {
+        setPage(0);
+      }
       fetchAssets({
         search: searchRef.current,
         page: 0,
@@ -160,33 +163,25 @@ export const CombinedAssetsContainer = () => {
     // Skip filtering during loading to prevent flicker
     if (loading && assets.length === 0) return [];
     
-    const lower = searchTerm.toLowerCase();
     return assets.filter(asset => {
-      // If server-side search is active, skip client text search to avoid double filtering
-      const matchesSearch = lower
-        ? true
-        : (
-          asset.name.toLowerCase().includes(lower) ||
-          (asset.serial_number && asset.serial_number.toLowerCase().includes(lower)) ||
-          (asset.description && asset.description.toLowerCase().includes(lower)) ||
-          (asset.storage_location && asset.storage_location.toLowerCase().includes(lower))
-        );
-
       // Type filters
       if (showOnlyAssets && asset.type !== 'asset') return false;
       if (showOnlyStock && asset.type !== 'stock') return false;
 
-      // My checked out filter
-      if (showMyCheckedOut && (!asset.is_checked_out || asset.checked_out_user_id !== user?.id)) return false;
+      // My checked out filter - only applies to assets
+      if (showMyCheckedOut) {
+        if (asset.type !== 'asset') return false;
+        if (!asset.is_checked_out || asset.checked_out_user_id !== user?.id) return false;
+      }
 
       // Issues filter
       if (showWithIssues && !asset.has_issues) return false;
 
-      // Note: Low stock filter is now handled server-side in useCombinedAssets hook
+      // Note: Search and low stock filters are handled in useCombinedAssets hook
 
-      return matchesSearch;
+      return true;
     });
-  }, [assets.length, searchTerm, showOnlyAssets, showOnlyStock, showMyCheckedOut, showWithIssues, user?.id, loading]);
+  }, [assets, showOnlyAssets, showOnlyStock, showMyCheckedOut, showWithIssues, user?.id, loading]);
 
   const handleCreateAsset = async (assetData: any, isAsset: boolean) => {
     const result = await createAsset(assetData, isAsset);
@@ -297,42 +292,34 @@ export const CombinedAssetsContainer = () => {
       }
 
       // Update the parts table
-      const { error } = await supabase
-        .from('parts')
-        .update({ current_quantity: newQuantity })
-        .eq('id', selectedAsset.id);
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/parts/${selectedAsset.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_quantity: newQuantity })
+      });
 
-      if (error) throw error;
+      if (!response.ok) throw new Error('Failed to update quantity');
 
       // Log the change to history
       try {
-        // Get the current authenticated user ID from the session
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        
-        if (!currentUser?.id) {
-          console.error('No authenticated user found for history logging');
-          throw new Error('User must be authenticated to modify stock quantities');
-        }
-        
-        console.log('Creating history entry with user ID:', currentUser.id);
-        
-        const { error: historyError } = await supabase
-          .from('parts_history')
-          .insert([{
+        // Log the change to history via API
+        const historyResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/parts_history`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             part_id: selectedAsset.id,
             change_type: quantityOperation === 'add' ? 'quantity_add' : 'quantity_remove',
             old_quantity: currentQty,
             new_quantity: newQuantity,
             quantity_change: quantityOperation === 'add' ? change : -change,
-            changed_by: currentUser.id,
             change_reason: quantityChange.reason || `Quantity ${quantityOperation}ed`,
             supplier_name: quantityChange.supplierName || null,
-            supplier_url: quantityChange.supplierUrl || null,
-            organization_id: organizationId
-          }]);
+            supplier_url: quantityChange.supplierUrl || null
+          })
+        });
 
-        if (historyError) {
-          console.error('Error logging history:', historyError);
+        if (!historyResponse.ok) {
+          console.error('Error logging history');
         } else {
           console.log('History entry created successfully');
         }
@@ -367,20 +354,20 @@ export const CombinedAssetsContainer = () => {
     try {
       if (selectedAsset.type === 'asset') {
         // For assets, set status to 'removed'
-        const { error } = await supabase
-          .from('tools')
-          .update({ status: 'removed' })
-          .eq('id', selectedAsset.id);
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/tools/${selectedAsset.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'removed' })
+        });
 
-        if (error) throw error;
+        if (!response.ok) throw new Error('Failed to remove asset');
       } else {
         // For stock items, delete the record like the inventory page
-        const { error } = await supabase
-          .from('parts')
-          .delete()
-          .eq('id', selectedAsset.id);
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/parts/${selectedAsset.id}`, {
+          method: 'DELETE'
+        });
 
-        if (error) throw error;
+        if (!response.ok) throw new Error('Failed to remove stock item');
       }
 
       await refetch();
@@ -578,15 +565,13 @@ export const CombinedAssetsContainer = () => {
         pendingOrders={pendingOrders}
         // Infinite scroll props
         onLoadMore={() => {
-          console.log('onLoadMore triggered, current page:', page);
-          const nextPage = page + 1;
-          // Prevent rapid successive calls
-          setTimeout(() => {
+          if (!loading) {
+            const nextPage = page + 1;
             setPage(nextPage);
-            fetchAssets({ page: nextPage, limit, search: searchRef.current, append: true });
-          }, 100);
+            fetchAssets({ page: nextPage, limit, search: searchRef.current, append: true, searchDescriptions, showLowStock });
+          }
         }}
-        hasMore={!loading && assets.length > 0}
+        hasMore={!loading && assets.length >= (page + 1) * limit}
         loading={loading}
       />
 

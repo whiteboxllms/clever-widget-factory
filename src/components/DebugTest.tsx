@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/dbService';
+import { supabase } from '@/lib/client';
 
 export function DebugTest() {
   const [data, setData] = useState<any>(null);

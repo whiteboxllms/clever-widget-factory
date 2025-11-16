@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,9 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
-import { supabase } from '@/lib/client';
 import { useToast } from "@/hooks/use-toast";
 import { useActionProfiles } from "@/hooks/useActionProfiles";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { offlineQueryConfig } from '@/lib/queryConfig';
 import { ArrowLeft, Rocket, Flag, Calendar, User, CheckCircle, Clock, AlertCircle, Wrench, Microscope, GraduationCap, Hammer, Lightbulb, ChevronDown, ChevronUp, Filter, Settings } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { MissionTemplates } from '@/components/MissionTemplates';
@@ -66,15 +67,42 @@ const Missions = () => {
   const {
     toast
   } = useToast();
-  const [missions, setMissions] = useState<Mission[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+
+  const fetchMissions = async () => {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/missions`);
+    const result = await response.json();
+    return Array.isArray(result) ? result : (result?.data || []);
+  };
+
+  const { data: missions = [], isLoading: loading } = useQuery({
+    queryKey: ['missions'],
+    queryFn: fetchMissions,
+    ...offlineQueryConfig,
+  });
   
   // Use standardized profiles for consistent "Assigned to" dropdown
   const { profiles } = useActionProfiles();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showTemplates, setShowTemplates] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isContributorOrAdmin, setIsContributorOrAdmin] = useState(false);
+  const { data: organizationMembers = [] } = useQuery({
+    queryKey: ['organization_members'],
+    queryFn: async () => {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/organization_members`);
+      const result = await response.json();
+      return Array.isArray(result) ? result : (result?.data || []);
+    },
+    ...offlineQueryConfig,
+  });
+
+  const userRole = useMemo(() => {
+    if (!user) return null;
+    const member = organizationMembers.find(m => m.user_id === user.id);
+    return member?.role || null;
+  }, [user, organizationMembers]);
+
+  const isAdmin = userRole === 'admin';
+  const isContributorOrAdmin = userRole === 'admin' || userRole === 'contributor';
   const [selectedTemplate, setSelectedTemplate] = useState<{
     id: string;
     name: string;
@@ -95,8 +123,31 @@ const Missions = () => {
   const [showBackloggedMissions, setShowBackloggedMissions] = useState(false);
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
 
-  // Debouncing for real-time updates
-  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const createMissionMutation = useMutation({
+    mutationFn: async (missionData: any) => {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/missions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(missionData)
+      });
+      if (!response.ok) throw new Error('Failed to create mission');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['missions'] });
+      toast({
+        title: "Success",
+        description: "Mission created successfully!"
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to create mission",
+        variant: "destructive"
+      });
+    }
+  });
 
   // Icon mapping function
   const getIconComponent = (iconName: string) => {
@@ -144,98 +195,7 @@ const Missions = () => {
     }] as Task[]
   });
 
-  const checkUserRole = useCallback(async () => {
-    if (!user) return;
-    const {
-      data: member
-    } = await supabase.from('organization_members').select('role').eq('user_id', user.id).single();
-    setIsAdmin(member?.role === 'admin');
-    setIsContributorOrAdmin(member?.role === 'admin' || member?.role === 'contributor');
-  }, [user]);
 
-  // Use standardized profile hook instead of manual fetching
-  // This ensures consistent "Assigned to" dropdown across all action contexts
-  const fetchMissions = useCallback(async () => {
-    setLoading(true);
-    const {
-      data,
-      error
-    } = await supabase.from('missions').select(`
-        *,
-        actions(
-          id,
-          status, 
-          policy,
-          observations,
-          linked_issue_id,
-          issue_reference
-        )
-      `).eq('organization_id', organizationId).order('created_at', {
-      ascending: false
-    });
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load missions",
-        variant: "destructive"
-      });
-    } else {
-      // Get all unique user IDs for name lookup
-      const userIds = [...new Set([
-        ...data?.map(m => m.created_by).filter(Boolean) || [],
-        ...data?.map(m => m.qa_assigned_to).filter(Boolean) || []
-      ])];
-      
-      // Fetch names from organization_members table
-      const { data: memberData } = await supabase
-        .from('organization_members')
-        .select('user_id, full_name')
-        .eq('organization_id', organizationId)
-        .in('user_id', userIds);
-      
-      // Create a lookup map
-      const nameMap = new Map();
-      memberData?.forEach(member => {
-        nameMap.set(member.user_id, member.full_name);
-      });
-      
-      const missionsWithNames = data?.map(mission => {
-        const tasks = mission.actions || [];
-        const completedTasks = tasks.filter((task) => task.status === 'completed');
-        const tasksWithPolicies = tasks.filter((task) => hasActualContent(task.policy));
-        const tasksWithImplementation = tasks.filter((task) => hasActualContent(task.observations));
-        return {
-          ...mission,
-          creator_name: nameMap.get(mission.created_by) || 'Unknown',
-          qa_name: mission.qa_assigned_to ? (nameMap.get(mission.qa_assigned_to) || 'Unassigned') : 'Unassigned',
-          task_count: tasks.length,
-          completed_task_count: completedTasks.length,
-          tasks_with_policies_count: tasksWithPolicies.length,
-          tasks_with_implementation_count: tasksWithImplementation.length
-        };
-      }) || [];
-      setMissions(missionsWithNames);
-
-      // Update mission status based on task progress
-      for (const mission of missionsWithNames) {
-        if (mission.tasks_with_implementation_count > 0 && mission.status === 'planning') {
-          // Auto-update mission to in_progress if any task has implementation
-          await supabase.from('missions').update({
-            status: 'in_progress'
-          }).eq('id', mission.id);
-        }
-
-        // Auto-update mission to completed if all tasks are completed
-        if (mission.task_count > 0 && mission.completed_task_count === mission.task_count && mission.status !== 'completed') {
-          await supabase.from('missions').update({
-            status: 'completed',
-            completed_at: new Date().toISOString()
-          }).eq('id', mission.id);
-        }
-      }
-    }
-    setLoading(false);
-  }, [organizationId, toast]);
 
   // Updated function to determine mission color based on task content analysis and QA feedback
   const getMissionTheme = (mission: Mission) => {
@@ -318,79 +278,7 @@ const Missions = () => {
     };
   };
 
-  // Targeted state update function for real-time changes
-  const updateMissionTaskCounts = useCallback((missionId: string, tasks: Array<{
-    id: string;
-    status: string;
-    policy?: string;
-    observations?: string;
-  }>) => {
-    setMissions(prevMissions => {
-      return prevMissions.map(mission => {
-        if (mission.id !== missionId) return mission;
-        const completedTasks = tasks.filter((task) => task.status === 'completed');
-        const tasksWithPolicies = tasks.filter((task) => task.policy && task.policy.trim());
-        const tasksWithImplementation = tasks.filter((task) => task.observations && task.observations.trim());
-        return {
-          ...mission,
-          task_count: tasks.length,
-          completed_task_count: completedTasks.length,
-          tasks_with_policies_count: tasksWithPolicies.length,
-          tasks_with_implementation_count: tasksWithImplementation.length
-        };
-      });
-    });
-  }, []);
 
-  // Debounced mission refresh for structural changes
-  const debouncedMissionRefresh = useCallback((delay: number = 500) => {
-    if (updateTimeoutRef.current) {
-      clearTimeout(updateTimeoutRef.current);
-    }
-    updateTimeoutRef.current = setTimeout(() => {
-      fetchMissions();
-    }, delay);
-  }, [fetchMissions]);
-  useEffect(() => {
-    fetchMissions();
-    checkUserRole();
-
-    // Subscribe to real-time changes in mission_tasks table with targeted updates
-    const channel = supabase.channel('mission-tasks-changes').on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'actions'
-    }, async payload => {
-      console.log('Task update received:', payload);
-
-      // For INSERT and DELETE events, we need to refresh to get accurate counts
-      if (payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
-        debouncedMissionRefresh();
-        return;
-      }
-
-      // For UPDATE events, we can do targeted updates to prevent focus loss
-      if (payload.eventType === 'UPDATE' && payload.new) {
-        const taskData = payload.new;
-        const missionId = taskData.mission_id;
-        if (missionId) {
-          // Fetch updated tasks for just this mission
-          const {
-            data: updatedTasks
-          } = await supabase.from('actions').select('id, status, policy, observations').eq('mission_id', missionId);
-          if (updatedTasks) {
-            updateMissionTaskCounts(missionId, updatedTasks);
-          }
-        }
-      }
-    }).subscribe();
-    return () => {
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-      }
-      supabase.removeChannel(channel);
-    };
-  }, [fetchMissions, checkUserRole, debouncedMissionRefresh, updateMissionTaskCounts]);
   const handleTemplateSelect = (template: {
     id: string;
     name: string;
@@ -458,22 +346,25 @@ const Missions = () => {
       // Use withAuth wrapper for the mission creation
       const result = await withAuth(async session => {
         // Create the mission
-        const {
-          data: missionData,
-          error: missionError
-        } = await supabase.from('missions').insert({
-          title: formData.title,
-          problem_statement: formData.problem_statement,
-          created_by: session.user.id,
-          qa_assigned_to: formData.qa_assigned_to || null,
-          template_id: selectedTemplate?.id || null,
-          template_name: selectedTemplate?.name || null,
-          template_color: selectedTemplate?.color || null,
-          template_icon: selectedTemplate?.icon ? getIconName(selectedTemplate.icon) : null,
-          organization_id: organizationId
-          // mission_number will be auto-generated by the trigger
-        }).select().single();
-        if (missionError) throw missionError;
+        const missionResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/missions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: formData.title,
+            problem_statement: formData.problem_statement,
+            created_by: session.user.id,
+            qa_assigned_to: formData.qa_assigned_to || null,
+            template_id: selectedTemplate?.id || null,
+            template_name: selectedTemplate?.name || null,
+            template_color: selectedTemplate?.color || null,
+            template_icon: selectedTemplate?.icon ? getIconName(selectedTemplate.icon) : null,
+            organization_id: organizationId
+          })
+        });
+        
+        if (!missionResponse.ok) throw new Error('Failed to create mission');
+        const missionResult = await missionResponse.json();
+        const missionData = missionResult.data || missionResult;
 
         // Handle both new tasks from form and existing orphaned tasks
         const tasksToCreate = formData.actions.filter(task => task.title.trim() && !task.id);
@@ -483,9 +374,10 @@ const Missions = () => {
         
         // Create new tasks
         if (tasksToCreate.length > 0) {
-          const { data: tasksData, error: tasksError } = await supabase
-            .from('actions')
-            .insert(tasksToCreate.map(task => ({
+          const tasksResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/actions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(tasksToCreate.map(task => ({
               mission_id: missionData.id,
               title: task.title,
               description: task.description || null,
@@ -495,9 +387,11 @@ const Missions = () => {
               plan_commitment: task.plan_commitment || false,
               organization_id: organizationId
             })))
-            .select();
+          });
           
-          if (tasksError) throw tasksError;
+          if (!tasksResponse.ok) throw new Error('Failed to create tasks');
+          const tasksResult = await tasksResponse.json();
+          const tasksData = Array.isArray(tasksResult) ? tasksResult : (tasksResult?.data || []);
           
           // Create task ID mapping from temp IDs to real IDs
           tasksToCreate.forEach((task, index) => {
@@ -512,15 +406,17 @@ const Missions = () => {
 
         // Update existing orphaned tasks with the mission ID
         if (existingTasksToUpdate.length > 0) {
-          const { data: updatedTasks, error: updateError } = await supabase
-            .from('actions')
-            .update({ mission_id: missionData.id })
-            .in('id', existingTasksToUpdate.map(task => task.id))
-            .select();
-          
-          if (updateError) throw updateError;
-          
-          createdTasks.push(...(updatedTasks || []));
+          for (const task of existingTasksToUpdate) {
+            const updateResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/actions/${task.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ mission_id: missionData.id })
+            });
+            
+            if (!updateResponse.ok) throw new Error('Failed to update task');
+            const updatedTask = await updateResponse.json();
+            createdTasks.push(updatedTask.data || updatedTask);
+          }
         }
 
         return { 
@@ -655,8 +551,31 @@ const Missions = () => {
     return "Create New Mission";
   };
 
+  const processedMissions = useMemo(() => {
+    const nameMap = new Map();
+    organizationMembers.forEach(member => {
+      nameMap.set(member.user_id, member.full_name);
+    });
+    
+    return missions.map(mission => {
+      const tasks = mission.actions || [];
+      const completedTasks = tasks.filter((task) => task.status === 'completed');
+      const tasksWithPolicies = tasks.filter((task) => hasActualContent(task.policy));
+      const tasksWithImplementation = tasks.filter((task) => hasActualContent(task.observations));
+      return {
+        ...mission,
+        creator_name: nameMap.get(mission.created_by) || 'Unknown',
+        qa_name: mission.qa_assigned_to ? (nameMap.get(mission.qa_assigned_to) || 'Unassigned') : 'Unassigned',
+        task_count: tasks.length,
+        completed_task_count: completedTasks.length,
+        tasks_with_policies_count: tasksWithPolicies.length,
+        tasks_with_implementation_count: tasksWithImplementation.length
+      };
+    });
+  }, [missions, organizationMembers]);
+
   // Filter missions based on status and user preferences
-  const filteredMissions = missions.filter(mission => {
+  const filteredMissions = processedMissions.filter(mission => {
     // Always show active missions (planning, in_progress, qa_review)
     if (['planning', 'in_progress', 'qa_review'].includes(mission.status)) {
       return true;

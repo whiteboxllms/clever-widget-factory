@@ -41,14 +41,16 @@ export function StockSelector({ selectedStock, onStockChange }: StockSelectorPro
   const fetchStockItems = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('parts')
-        .select('id, name, category, unit, current_quantity')
-        .gt('current_quantity', 0)
-        .order('name');
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/parts`);
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to fetch parts');
+      }
 
-      if (error) throw error;
-      setStockItems(data || []);
+      // Filter parts with current_quantity > 0
+      const stockItems = (result.data || []).filter((part: any) => part.current_quantity > 0);
+      setStockItems(stockItems);
     } catch (error) {
       console.error('Error fetching stock items:', error);
       toast({

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { database as supabase } from "@/lib/database";
+
 import { toast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { BaseIssue, ContextType, ToolIssue, OrderIssue } from "@/types/issues";
@@ -18,33 +18,26 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
   const fetchIssues = async () => {
     setIsLoading(true);
     try {
-      let query = supabase
-        .from('issues')
-        .select('*')
-        .order('reported_at', { ascending: false });
-
-      // Apply filters
-      if (filters.contextType) {
-        query = query.eq('context_type', filters.contextType);
-      }
-      if (filters.contextId) {
-        query = query.eq('context_id', filters.contextId);
-      }
+      // Build query parameters
+      const params = new URLSearchParams();
+      if (filters.contextType) params.append('context_type', filters.contextType);
+      if (filters.contextId) params.append('context_id', filters.contextId);
       if (filters.status) {
-        query = query.eq('status', filters.status);
+        params.append('status', filters.status);
       } else {
         // For tool issues, include both active and resolved for management view
         if (filters.contextType === 'tool') {
-          query = query.in('status', ['active', 'resolved']);
+          params.append('status', 'active,resolved');
         } else {
           // Default to active issues only for other contexts
-          query = query.eq('status', 'active');
+          params.append('status', 'active');
         }
       }
 
-      const { data, error } = await query;
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/issues?${params}`);
+      const data = await response.json();
 
-      if (error) throw error;
+      if (!response.ok) throw new Error('Failed to fetch issues');
 
       setIssues((data || []) as BaseIssue[]);
     } catch (error) {
@@ -61,9 +54,6 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
 
   const createIssue = async (issueData: Partial<BaseIssue>) => {
     try {
-      const user = await supabase.auth.getUser();
-      if (!user.data.user) throw new Error('Not authenticated');
-
       const insertData = {
         context_type: issueData.context_type!,
         context_id: issueData.context_id!,
@@ -73,30 +63,17 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
         workflow_status: issueData.workflow_status || 'reported',
         issue_metadata: issueData.issue_metadata || {},
         report_photo_urls: issueData.report_photo_urls || [],
-        damage_assessment: issueData.damage_assessment,
-        reported_by: user.data.user.id
+        damage_assessment: issueData.damage_assessment
       };
 
-      const { data, error } = await supabase
-        .from('issues')
-        .insert({
-          ...insertData
-        } as any)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Create history record
-      await supabase
-        .from('issue_history')
-        .insert({
-          issue_id: data.id,
-          old_status: null,
-          new_status: 'active',
-          changed_by: user.data.user.id,
-          notes: `Issue reported: "${issueData.description?.substring(0, 50)}${issueData.description && issueData.description.length > 50 ? '...' : ''}"`
-        } as any);
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/issues`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(insertData)
+      });
+      
+      const data = await response.json();
+      if (!response.ok) throw new Error('Failed to create issue');
 
       toast({
         title: "Issue reported",
@@ -119,54 +96,30 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
 
   const updateIssue = async (issueId: string, updates: Partial<BaseIssue>) => {
     try {
-      const user = await supabase.auth.getUser();
-      if (!user.data.user) throw new Error('Not authenticated');
-
       // Get current issue data to track changes
-      const { data: currentIssue, error: fetchError } = await supabase
-        .from('issues')
-        .select('*')
-        .eq('id', issueId)
-        .single();
-
-      if (fetchError) throw fetchError;
+      const currentResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/issues/${issueId}`);
+      const currentIssue = await currentResponse.json();
+      if (!currentResponse.ok) throw new Error('Failed to fetch current issue');
 
       // Update the issue
-      const { error: updateError } = await supabase
-        .from('issues')
-        .update(updates)
-        .eq('id', issueId);
+      const updateResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/issues/${issueId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      if (!updateResponse.ok) throw new Error('Failed to update issue');
 
-      if (updateError) throw updateError;
-
-      // Create detailed history entries for each changed field
-      const historyPromises = [];
-      
-      for (const [field, newValue] of Object.entries(updates)) {
-        const oldValue = currentIssue[field];
-        
-        // Only create history if value actually changed
-        if (oldValue !== newValue) {
-          historyPromises.push(
-            supabase
-              .from('issue_history')
-              .insert({
-                issue_id: issueId,
-                old_status: currentIssue.status,
-                new_status: updates.status || currentIssue.status,
-                changed_by: user.data.user.id,
-                field_changed: field,
-                old_value: oldValue ? String(oldValue) : null,
-                new_value: newValue ? String(newValue) : null,
-                notes: `Field '${field}' updated during issue edit`
-              } as any)
-          );
-        }
-      }
-
-      if (historyPromises.length > 0) {
-        await Promise.all(historyPromises);
-      }
+      // Create history entry for the update
+      await fetch(`${import.meta.env.VITE_API_BASE_URL}/issue_history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          issue_id: issueId,
+          old_status: currentIssue.status,
+          new_status: updates.status || currentIssue.status,
+          notes: 'Issue updated'
+        })
+      });
 
       toast({
         title: "Issue updated",

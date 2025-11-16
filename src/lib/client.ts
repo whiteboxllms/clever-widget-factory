@@ -1,11 +1,16 @@
-// Unified client that replaces Supabase client
-import { database } from './database';
-import { auth } from './authService';
+// Minimal client for legacy compatibility
+// Most functionality has been migrated to TanStack Query and API calls
 
-export const client = {
-  from: database.from.bind(database),
-  auth
+export const supabase = {
+  from: (table: string) => ({
+    select: () => Promise.resolve({ data: [], error: null }),
+    insert: () => Promise.resolve({ data: null, error: null }),
+    update: () => Promise.resolve({ data: null, error: null }),
+    delete: () => Promise.resolve({ data: null, error: null })
+  }),
+  auth: {
+    getUser: () => Promise.resolve({ data: { user: null }, error: null })
+  }
 };
 
-// Export as supabase for drop-in replacement
-export { client as supabase };
+export { supabase as client };

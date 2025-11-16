@@ -1,0 +1,9 @@
+{
+  "name": "cwf-actions-lambda",
+  "version": "1.0.0",
+  "description": "Actions Lambda function for action management endpoints",
+  "main": "index.js",
+  "dependencies": {
+    "pg": "^8.11.3"
+  }
+}

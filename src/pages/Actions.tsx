@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { apiService } from '@/lib/apiService';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { toast } from '@/hooks/use-toast';
 import { useOrganizationMembers } from '@/hooks/useOrganizationMembers';
@@ -26,9 +26,7 @@ export default function Actions() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { actionId } = useParams<{ actionId?: string }>();
-  const [actions, setActions] = useState<BaseAction[]>([]);
-  const [filteredActions, setFilteredActions] = useState<BaseAction[]>([]);
-  const [loading, setLoading] = useState(true);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('me');
@@ -48,15 +46,27 @@ export default function Actions() {
     return profile?.favorite_color || '#6B7280'; // Default gray if no color set
   };
   const [existingScore, setExistingScore] = useState<ActionScore | null>(null);
+  const processedUrlRef = useRef<string | null>(null);
 
   const { getScoreForAction } = useActionScores();
+
+  const fetchActions = async () => {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/actions`);
+    const result = await response.json();
+    return result.data || [];
+  };
+
+  const { data: actions = [], isLoading: loading } = useQuery({
+    queryKey: ['actions'],
+    queryFn: fetchActions,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
 
   const fetchSpecificAction = useCallback(async (id: string) => {
     if (!organizationId) return;
     
     try {
-      const actionsData = await apiService.getActions();
-      const action = actionsData.find((a: any) => a.id === id);
+      const action = actions.find((a: any) => a.id === id);
       
       if (!action) {
         throw new Error('Action not found');
@@ -76,63 +86,15 @@ export default function Actions() {
     }
   }, [organizationId, navigate]);
 
-  const fetchActions = async () => {
-    if (!user?.userId) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      // Fetch all actions, not just current user's actions
-      const response = await fetch(`http://localhost:3001/api/actions`);
-      const data = await response.json();
-      setActions(data.data || []);
-    } catch (error) {
-      console.error('Error fetching actions:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch actions',
-        variant: 'destructive'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Profiles are now handled by useActionProfiles hook for consistency
 
   const handleEditAction = async (action: BaseAction) => {
-    
-    // Fetch the latest action data to ensure we have the most up-to-date attachments
-    try {
-      const { data: latestAction, error } = await supabase
-        .from('actions')
-        .select('*')
-        .eq('id', action.id)
-        .single();
-      
-      if (error) throw error;
-      
-      // Calculate implementation_update_count like in fetchActions
-      const { count } = await supabase
-        .from('action_implementation_updates')
-        .select('*', { count: 'exact', head: true })
-        .eq('action_id', action.id);
-      
-      const actionWithCount = { ...latestAction, implementation_update_count: count || 0 };
-      setEditingAction(actionWithCount as unknown as BaseAction);
-    } catch (error) {
-      console.error('Error fetching latest action data:', error);
-      // Fallback to the action data we have
-      setEditingAction(action);
-    }
-    
+    setEditingAction(action);
     setIsCreating(false);
     setIsEditDialogOpen(true);
   };
 
   const handleSaveAction = async () => {
-    await fetchActions();
     setIsEditDialogOpen(false);
     setEditingAction(null);
     setIsCreating(false);
@@ -152,11 +114,13 @@ export default function Actions() {
 
   const handleScoreAction = async (action: BaseAction, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card click
+    console.log('Setting scoring action:', action.id, action.title); // Debug log
     setScoringAction(action);
     
     // Load existing score if any
     if (action.id) {
       const score = await getScoreForAction(action.id);
+      console.log('Existing score for action:', score); // Debug log
       setExistingScore(score);
     }
     
@@ -167,39 +131,57 @@ export default function Actions() {
     setShowScoreDialog(false);
     setScoringAction(null);
     setExistingScore(null);
-    fetchActions(); // Refresh to show updated scores
   };
 
-  useEffect(() => {
-    fetchActions();
-  }, [user]);
+  const handleScoreDialogClose = (open: boolean) => {
+    if (!open) {
+      setScoringAction(null);
+      setExistingScore(null);
+    }
+    setShowScoreDialog(open);
+  };
+
+
 
   // Handle URL parameters for direct action links (both search params and path params)
   useEffect(() => {
     const searchActionId = searchParams.get('action');
     const urlActionId = actionId;
+    const currentId = searchActionId || urlActionId;
+    
+    // Skip if we've already processed this ID or no actions loaded yet
+    if (!currentId || processedUrlRef.current === currentId || actions.length === 0) {
+      return;
+    }
     
     if (searchActionId && actions.length > 0) {
       const action = actions.find(a => a.id === searchActionId);
       if (action) {
         handleEditAction(action);
+        processedUrlRef.current = searchActionId;
         // Clear the URL parameter after opening the action
         setSearchParams({});
       }
-    } else if (urlActionId && organizationId) {
+    } else if (urlActionId && organizationId && actions.length > 0) {
       // Find the action in the current actions list
       const action = actions.find(a => a.id === urlActionId);
       if (action) {
         setEditingAction(action);
         setIsEditDialogOpen(true);
         setIsCreating(false);
-      } else if (actions.length > 0) {
-        // If action not found in current list and we have actions loaded, try to fetch it specifically
-        fetchSpecificAction(urlActionId);
+        processedUrlRef.current = urlActionId;
+      } else {
+        // If action not found in current list, show error
+        toast({
+          title: "Error",
+          description: "Action not found",
+          variant: "destructive",
+        });
+        navigate('/actions');
+        processedUrlRef.current = urlActionId;
       }
-      // If actions are still loading, wait for them to load first
     }
-  }, [actions, searchParams, setSearchParams, actionId, organizationId, fetchSpecificAction]);
+  }, [actions.length, actionId, organizationId, searchParams]);
 
   // Reset assignee filter if the selected assignee is not in active profiles
   useEffect(() => {
@@ -216,7 +198,7 @@ export default function Actions() {
     }
   }, [profiles, assigneeFilter]);
 
-  useEffect(() => {
+  const filteredActions = useMemo(() => {
     let filtered = actions;
 
     // Search filter
@@ -265,8 +247,8 @@ export default function Actions() {
       }
     }
 
-    setFilteredActions(filtered);
-  }, [actions, searchTerm, statusFilter, assigneeFilter, user]);
+    return filtered;
+  }, [actions, searchTerm, statusFilter, assigneeFilter, user?.userId, profiles.length]);
 
 
   const getStatusColor = (status: string, action?: BaseAction) => {
@@ -530,13 +512,18 @@ export default function Actions() {
                               </Badge>
                             )}
                             
-                            {action.assigned_to_name ? (
+                            {action.assigned_to ? (
                               <Badge 
                                 variant="outline" 
                                 className="flex items-center gap-1 max-w-full overflow-hidden"
                               >
                                 <User className="h-3 w-3 flex-shrink-0" />
-                                <span className="truncate max-w-[80px]">{action.assigned_to_name}</span>
+                                <span 
+                                  className="truncate max-w-[80px]"
+                                  style={{ color: getUserColor(action.assigned_to) }}
+                                >
+                                  {profiles.find(p => p.user_id === action.assigned_to)?.full_name || 'Loading...'}
+                                </span>
                               </Badge>
                             ) : (
                               <Badge variant="outline" className="text-orange-600">
@@ -641,10 +628,15 @@ export default function Actions() {
                             </Badge>
                             )}
                             
-                             {action.assigned_to_name ? (
+                             {action.assigned_to ? (
                                <Badge variant="outline" className="flex items-center gap-1 max-w-full overflow-hidden">
                                  <User className="h-3 w-3 flex-shrink-0" />
-                                 <span className="truncate max-w-[80px]">{action.assigned_to_name}</span>
+                                 <span 
+                                   className="truncate max-w-[80px]"
+                                   style={{ color: getUserColor(action.assigned_to) }}
+                                 >
+                                   {profiles.find(p => p.user_id === action.assigned_to)?.full_name || 'Loading...'}
+                                 </span>
                                </Badge>
                              ) : (
                                <Badge variant="outline" className="text-orange-600">
@@ -692,7 +684,7 @@ export default function Actions() {
        {scoringAction && (
          <ActionScoreDialog
            open={showScoreDialog}
-           onOpenChange={setShowScoreDialog}
+           onOpenChange={handleScoreDialogClose}
            action={scoringAction}
            existingScore={existingScore}
            onScoreUpdated={handleScoreUpdated}

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator, BreadcrumbPage } from "@/components/ui/breadcrumb";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SimpleMissionForm } from '@/components/SimpleMissionForm';
-import { supabase } from '@/lib/client';
+
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useActionProfiles } from "@/hooks/useActionProfiles";
@@ -80,13 +80,11 @@ export default function EditMission() {
 
   const fetchMissionData = async () => {
     try {
-      const { data: missionData, error: missionError } = await supabase
-        .from('missions')
-        .select('*')
-        .eq('id', missionId)
-        .single();
-
-      if (missionError) throw missionError;
+      // Fetch mission data
+      const missionResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/missions`);
+      const missionResult = await missionResponse.json();
+      const missions = Array.isArray(missionResult) ? missionResult : (missionResult?.data || []);
+      const missionData = missions.find(m => m.id === missionId);
       
       if (!missionData) {
         toast({
@@ -101,13 +99,10 @@ export default function EditMission() {
       setMission(missionData);
 
       // Fetch mission tasks
-      const { data: tasksData, error: tasksError } = await supabase
-        .from('actions')
-        .select('*')
-        .eq('mission_id', missionId)
-        .order('updated_at', { ascending: false });
-
-      if (tasksError) throw tasksError;
+      const tasksResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/actions`);
+      const tasksResult = await tasksResponse.json();
+      const allTasks = Array.isArray(tasksResult) ? tasksResult : (tasksResult?.data || []);
+      const tasksData = allTasks.filter(task => task.mission_id === missionId);
 
       // Create template object from stored mission data
       let missionTemplate = null;
@@ -158,11 +153,10 @@ export default function EditMission() {
   const checkUserPermissions = async () => {
     if (!user) return;
     
-    const { data: userMember } = await supabase
-      .from('organization_members')
-      .select('role')
-      .eq('user_id', user.id)
-      .single();
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/organization_members`);
+    const result = await response.json();
+    const members = Array.isArray(result) ? result : (result?.data || []);
+    const userMember = members.find(m => m.user_id === user.id);
 
     const contributorOrAdmin = userMember?.role === 'contributor' || userMember?.role === 'admin';
     setIsContributorOrAdmin(contributorOrAdmin);
@@ -182,17 +176,18 @@ export default function EditMission() {
     
     try {
       console.log('Saving mission data:', data);
-      const { error } = await supabase
-        .from('missions')
-        .update({
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/missions/${mission.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           title: data.title,
           problem_statement: data.problem_statement,
           qa_assigned_to: data.qa_assigned_to || null,
           updated_at: new Date().toISOString()
         })
-        .eq('id', mission.id);
+      });
 
-      if (error) throw error;
+      if (!response.ok) throw new Error('Failed to update mission');
       console.log('Mission save successful');
       
       toast({
@@ -232,17 +227,17 @@ export default function EditMission() {
     });
     
     try {
-      const { error } = await supabase
-        .from('missions')
-        .update({
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/missions/${mission.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           status: 'cancelled',
           updated_at: new Date().toISOString()
         })
-        .eq('id', mission.id);
+      });
 
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
+      if (!response.ok) {
+        throw new Error('Failed to remove mission');
       }
 
       console.log('Mission successfully removed');
@@ -278,17 +273,17 @@ export default function EditMission() {
     });
     
     try {
-      const { error } = await supabase
-        .from('missions')
-        .update({
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/missions/${mission.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           status: 'cancelled',
           updated_at: new Date().toISOString()
         })
-        .eq('id', mission.id);
+      });
 
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
+      if (!response.ok) {
+        throw new Error('Failed to move mission to backlog');
       }
 
       console.log('Mission successfully moved to backlog');

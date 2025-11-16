@@ -250,11 +250,9 @@ export function UnifiedActionDialog({
     }
     
     try {
-      const { data: updates } = await supabase
-        .from('action_implementation_updates')
-        .select('id')
-        .eq('action_id', action.id)
-        .limit(1);
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/action_implementation_updates?action_id=${action.id}&limit=1`);
+      const result = await response.json();
+      const updates = result.data || [];
       
       setIsInImplementationMode(updates && updates.length > 0);
     } catch (error) {

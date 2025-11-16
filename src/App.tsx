@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppVersion } from "@/components/AppVersion";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { offlineQueryConfig, offlineMutationConfig } from "@/lib/queryConfig";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useCognitoAuth";
 import { OrganizationProvider } from "@/hooks/useOrganization";
@@ -34,7 +35,30 @@ import AnalyticsDashboard from "./pages/AnalyticsDashboard";
 import AcceptInvite from "./pages/AcceptInvite";
 import SettingsPage from "./pages/Settings";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      ...offlineQueryConfig,
+      retry: (failureCount, error) => {
+        // Don't retry on 4xx errors, but retry on network errors
+        if (error instanceof Error && error.message.includes('fetch')) {
+          return failureCount < 3;
+        }
+        return false;
+      },
+    },
+    mutations: {
+      ...offlineMutationConfig,
+      retry: (failureCount, error) => {
+        // Retry mutations on network errors only
+        if (error instanceof Error && error.message.includes('fetch')) {
+          return failureCount < 3;
+        }
+        return false;
+      },
+    },
+  },
+});
 
 function AppContent() {
   useSessionMonitor(); // Add session monitoring

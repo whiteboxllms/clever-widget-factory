@@ -5,10 +5,8 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  const branchName = process.env.GITHUB_REF_NAME || 'main';
-  const basePath = mode === 'production' 
-    ? (branchName === 'main' ? '/clever-widget-factory/' : `/clever-widget-factory/${branchName}/`)
-    : '/';
+  // For GitHub Pages, always use the repository base path
+  const basePath = mode === 'production' ? '/clever-widget-factory/' : '/';
   
   return {
     base: basePath,

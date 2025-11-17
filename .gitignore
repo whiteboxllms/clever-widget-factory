@@ -36,6 +36,8 @@ aws-credentials.json
 # Database backups
 *.backup
 *.sql
+backups/
+latest_backup.sql
 
 # Lambda deployment packages
 *.zip

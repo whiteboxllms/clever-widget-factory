@@ -6,29 +6,22 @@
 
 ### Technology Stack
 - **Frontend**: React + TypeScript + Vite (runs on port 8080)
-- **Backend API**: Express.js server (runs on port 3001)
-- **Database**: PostgreSQL (local development instance on port 54322)
+- **Backend API**: AWS API Gateway + Lambda
+- **Database**: AWS RDS PostgreSQL
 - **Authentication**: AWS Cognito
 - **File Storage**: AWS S3
-- **Infrastructure**: AWS (RDS for production database)
+- **Infrastructure**: Fully AWS-based
 
 ### Development Setup
 
-1. **Start the API server**:
-   ```bash
-   cd api
-   npm start
-   ```
-   This starts the Express server on http://localhost:3001
-
-2. **Start the frontend**:
+1. **Start the frontend**:
    ```bash
    npm run dev
    ```
    This starts the Vite dev server on http://localhost:8080
 
 ### API Endpoints
-The API server provides these endpoints:
+The AWS API Gateway provides these endpoints:
 - `GET /health` - Health check
 - `GET /api/actions` - Get all actions
 - `GET /api/organization_members` - Get organization members
@@ -37,8 +30,7 @@ The API server provides these endpoints:
 - `POST /api/query` - Execute custom SQL queries
 
 ### Database Connection
-- **Development**: Local PostgreSQL instance (port 54322)
-- **Production**: AWS RDS PostgreSQL instance
+- **All environments**: AWS RDS PostgreSQL instance
 
 ### Migration Status
 ✅ **COMPLETED**: Migrated from Supabase to AWS infrastructure

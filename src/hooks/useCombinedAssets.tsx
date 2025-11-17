@@ -52,9 +52,23 @@ const fetchTools = async () => {
 };
 
 const fetchParts = async () => {
-  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/parts?limit=1000`);
-  const result = await response.json();
-  return result.data || [];
+  try {
+    console.log('🔄 Fetching parts from:', `${import.meta.env.VITE_API_BASE_URL}/parts?limit=1000`);
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/parts?limit=1000`);
+    console.log('📡 Parts response status:', response.status);
+    
+    if (!response.ok) {
+      console.error('❌ Parts fetch failed:', response.status, response.statusText);
+      return [];
+    }
+    
+    const result = await response.json();
+    console.log('📦 Parts result:', result);
+    return result.data || result || [];
+  } catch (error) {
+    console.error('❌ Parts fetch error:', error);
+    return [];
+  }
 };
 
 const fetchActions = async () => {
@@ -76,7 +90,6 @@ const fetchProfiles = async () => {
 };
 
 export const useCombinedAssets = (showRemovedItems: boolean = false, options?: AssetsQueryOptions) => {
-  const [assets, setAssets] = useState<CombinedAsset[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const { toast } = useToast();
   
@@ -116,15 +129,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
       const result = await response.json();
       const data = result.data;
 
-      // Add to local state
-      const newAsset: CombinedAsset = {
-        ...data,
-        type: isAsset ? 'asset' : 'stock',
-        has_issues: false,
-        is_checked_out: false
-      };
-      
-      setAssets(prev => [...prev, newAsset]);
+      // Note: Asset will appear after refetch
       return data;
     } catch (error) {
       console.error(`Error creating ${isAsset ? 'asset' : 'stock item'}:`, error);
@@ -148,10 +153,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
       
       if (!response.ok) throw new Error('Failed to update');
 
-      // Update local state
-      setAssets(prev => prev.map(asset => 
-        asset.id === assetId ? { ...asset, ...updates } : asset
-      ));
+      // Note: Asset will update after refetch
 
       return true;
     } catch (error) {
@@ -167,7 +169,12 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
 
   // Process and paginate data
   const processedAssets = useMemo(() => {
-    if (loading) return [];
+    if (loading) {
+      console.log('🔄 Still loading data...');
+      return [];
+    }
+    
+    console.log('🔄 Raw data:', { toolsData: toolsData?.length, partsData: partsData?.length });
     
     // Process data directly from TanStack Query
     let filteredToolsData = toolsData || [];
@@ -176,6 +183,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
     }
     
     let filteredPartsData = partsData || [];
+    console.log('🔄 After initial filtering:', { tools: filteredToolsData.length, parts: filteredPartsData.length });
     
     // Apply low stock filter
     if (options?.showLowStock) {
@@ -209,37 +217,33 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
       );
     }
     
+    // Apply pagination to each type separately
+    const limit = options?.limit || 50;
+    const page = options?.page || 0;
+    
+    const paginatedParts = filteredPartsData.slice(0, (page + 1) * limit);
+    const paginatedTools = filteredToolsData.slice(0, (page + 1) * limit);
+    
     const allAssets: CombinedAsset[] = [
-      ...filteredToolsData.map(tool => ({
-        ...tool,
-        type: 'asset' as const,
+      ...paginatedParts.map(part => ({
+        ...part,
+        type: 'stock' as const,
         has_issues: false,
         is_checked_out: false
       })),
-      ...filteredPartsData.map(part => ({
-        ...part,
-        type: 'stock' as const,
+      ...paginatedTools.map(tool => ({
+        ...tool,
+        type: 'asset' as const,
         has_issues: false,
         is_checked_out: false
       }))
     ];
     
-    // Apply pagination
-    const limit = options?.limit || 50;
-    const page = options?.page || 0;
-    const startIndex = page * limit;
-    const endIndex = startIndex + limit;
-    
-    return allAssets.slice(0, endIndex); // Show items from 0 to current page end
+    return allAssets;
   }, [showRemovedItems, toolsData, partsData, loading, options?.search, options?.searchDescriptions, options?.showLowStock, options?.limit, options?.page]);
   
-  // Update assets when processed data changes
-  useEffect(() => {
-    setAssets(processedAssets);
-  }, [processedAssets]);
-
   return {
-    assets,
+    assets: processedAssets,
     loading,
     fetchAssets,
     createAsset,

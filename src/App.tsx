@@ -187,7 +187,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <AppVersion />
-            <BrowserRouter basename="/clever-widget-factory">
+            <BrowserRouter basename={import.meta.env.VITE_BASE_PATH || "/"}>
               <AppContent />
             </BrowserRouter>
           </TooltipProvider>

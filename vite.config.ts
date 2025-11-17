@@ -5,11 +5,8 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  // For GitHub Pages, always use the repository base path
-  const basePath = mode === 'production' ? '/clever-widget-factory/' : '/';
-  
   return {
-    base: basePath,
+    base: process.env.VITE_BASE_PATH || '/',
   server: {
     host: "::",
     port: 8080,

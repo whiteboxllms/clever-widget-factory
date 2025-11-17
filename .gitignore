@@ -42,3 +42,11 @@ latest_backup.sql
 # Lambda deployment packages
 *.zip
 lambda/**/*.zip
+
+# Supabase temp files
+supabase/.branches/
+supabase/.temp/
+
+# Migration docs
+API_GATEWAY_MIGRATION_PLAN.md
+LAMBDA_MIGRATION_PLAN.md

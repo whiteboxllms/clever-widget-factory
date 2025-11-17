@@ -4,8 +4,14 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
-  base: mode === 'production' ? '/clever-widget-factory/' : '/',
+export default defineConfig(({ mode }) => {
+  const branchName = process.env.GITHUB_REF_NAME || 'main';
+  const basePath = mode === 'production' 
+    ? (branchName === 'main' ? '/clever-widget-factory/' : `/clever-widget-factory/${branchName}/`)
+    : '/';
+  
+  return {
+    base: basePath,
   server: {
     host: "::",
     port: 8080,
@@ -26,4 +32,5 @@ export default defineConfig(({ mode }) => ({
   optimizeDeps: {
     exclude: ['pg']
   }
-}));
+  };
+});

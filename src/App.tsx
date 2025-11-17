@@ -187,7 +187,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <AppVersion />
-            <BrowserRouter>
+            <BrowserRouter basename="/clever-widget-factory">
               <AppContent />
             </BrowserRouter>
           </TooltipProvider>

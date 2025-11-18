@@ -36,6 +36,7 @@ interface AuthContextType {
   confirmSignIn: (newPassword: string) => Promise<{ error: any }>;
   signOut: () => Promise<{ error: any }>;
   resetPassword: (email: string) => Promise<{ error: any }>;
+  confirmResetPassword: (email: string, code: string, newPassword: string) => Promise<{ error: any }>;
   updatePassword: (password: string) => Promise<{ error: any }>;
 }
 
@@ -195,6 +196,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const handleConfirmResetPassword = async (email: string, code: string, newPassword: string) => {
+    try {
+      await confirmResetPassword({
+        username: email,
+        confirmationCode: code,
+        newPassword: newPassword,
+      });
+      return { error: null };
+    } catch (error: any) {
+      return { error };
+    }
+  };
+
   const handleUpdatePassword = async (password: string) => {
     try {
       await confirmResetPassword({
@@ -222,6 +236,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       confirmSignIn: handleConfirmSignIn,
       signOut: handleSignOut,
       resetPassword: handleResetPassword,
+      confirmResetPassword: handleConfirmResetPassword,
       updatePassword: handleUpdatePassword,
     }}>
       {children}

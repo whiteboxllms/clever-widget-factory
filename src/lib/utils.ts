@@ -77,16 +77,16 @@ export function getActionBorderStyle(action: {
   title?: string;
   policy?: string | null;
   assigned_to?: string | null;
-  plan_commitment?: boolean | null;
-  implementation_update_count?: number;
+  policy_agreed_at?: string | null;
+  policy_agreed_by?: string | null;
+  plan_commitment?: boolean;
+  has_implementation_updates?: boolean;
 }): ActionBorderStyle {
   const hasPolicy = hasActualContent(action.policy);
-  const hasImplementationUpdates = action.implementation_update_count && action.implementation_update_count > 0;
+  const hasImplementationUpdates = action.has_implementation_updates === true;
   const isAssigned = Boolean(action.assigned_to);
-  const hasPlanCommitment = action.plan_commitment === true;
+  const hasPolicyAgreement = Boolean(action.policy_agreed_at || action.plan_commitment);
 
-
-  
   // Green border for completed actions
   if (action.status === 'completed') {
     return {
@@ -96,9 +96,9 @@ export function getActionBorderStyle(action: {
     };
   }
   
-  // Yellow border when there are implementation updates AND there was first a plan
+  // Yellow border when there are implementation updates AND there was first a policy agreement
   // This ensures proper progression: Gray → Blue → Yellow → Green
-  if (hasImplementationUpdates && hasPolicy && hasPlanCommitment) {
+  if (hasImplementationUpdates && hasPolicy && hasPolicyAgreement) {
     return {
       bgColor: 'bg-background',
       borderColor: 'border-yellow-500 border-2 shadow-yellow-200 shadow-lg dark:border-yellow-600 dark:shadow-yellow-900',
@@ -107,7 +107,7 @@ export function getActionBorderStyle(action: {
   }
   
   // Blue border when there's a policy AND plan commitment (ready to work)
-  if (hasPolicy && hasPlanCommitment) {
+  if (hasPolicy && hasPolicyAgreement) {
     return {
       bgColor: '',
       borderColor: 'border-blue-500 border-2 shadow-blue-200 shadow-lg dark:border-blue-600 dark:shadow-blue-900',

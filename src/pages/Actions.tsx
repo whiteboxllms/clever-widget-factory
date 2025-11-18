@@ -520,9 +520,9 @@ export default function Actions() {
                                 <User className="h-3 w-3 flex-shrink-0" />
                                 <span 
                                   className="truncate max-w-[80px]"
-                                  style={{ color: getUserColor(action.assigned_to) }}
+                                  style={{ color: action.assigned_to_color || getUserColor(action.assigned_to) }}
                                 >
-                                  {profiles.find(p => p.user_id === action.assigned_to)?.full_name || 'Loading...'}
+                                  {action.assigned_to_name || profiles.find(p => p.user_id === action.assigned_to)?.full_name || 'Unknown User'}
                                 </span>
                               </Badge>
                             ) : (
@@ -538,8 +538,8 @@ export default function Actions() {
                                   variant="secondary" 
                                   className="flex items-center gap-1 max-w-full overflow-hidden"
                                   style={{ 
-                                    borderColor: getUserColor(participant.user_id),
-                                    color: getUserColor(participant.user_id)
+                                    borderColor: participant.favorite_color || getUserColor(participant.user_id),
+                                    color: participant.favorite_color || getUserColor(participant.user_id)
                                   }}
                                 >
                                   <User className="h-3 w-3 flex-shrink-0" />
@@ -633,9 +633,9 @@ export default function Actions() {
                                  <User className="h-3 w-3 flex-shrink-0" />
                                  <span 
                                    className="truncate max-w-[80px]"
-                                   style={{ color: getUserColor(action.assigned_to) }}
+                                   style={{ color: action.assigned_to_color || getUserColor(action.assigned_to) }}
                                  >
-                                   {profiles.find(p => p.user_id === action.assigned_to)?.full_name || 'Loading...'}
+                                   {action.assigned_to_name || profiles.find(p => p.user_id === action.assigned_to)?.full_name || 'Unknown User'}
                                  </span>
                                </Badge>
                              ) : (

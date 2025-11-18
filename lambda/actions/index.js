@@ -62,10 +62,16 @@ exports.handler = async (event) => {
         SELECT 
           a.*,
           om.full_name as assigned_to_name,
-          CASE WHEN scores.action_id IS NOT NULL THEN true ELSE false END as has_score
+          CASE WHEN scores.action_id IS NOT NULL THEN true ELSE false END as has_score,
+          CASE WHEN updates.action_id IS NOT NULL THEN true ELSE false END as has_implementation_updates
         FROM actions a
         LEFT JOIN organization_members om ON a.assigned_to = om.user_id
         LEFT JOIN action_scores scores ON a.id = scores.action_id
+        LEFT JOIN (
+          SELECT DISTINCT action_id 
+          FROM action_implementation_updates
+          WHERE update_type != 'policy_agreement' OR update_type IS NULL
+        ) updates ON a.id = updates.action_id
         WHERE om.cognito_user_id = '${cognitoUserId}'
         ORDER BY a.created_at DESC
       ) t;`;
@@ -128,10 +134,16 @@ exports.handler = async (event) => {
         SELECT 
           a.*,
           om.full_name as assigned_to_name,
-          CASE WHEN scores.action_id IS NOT NULL THEN true ELSE false END as has_score
+          CASE WHEN scores.action_id IS NOT NULL THEN true ELSE false END as has_score,
+          CASE WHEN updates.action_id IS NOT NULL THEN true ELSE false END as has_implementation_updates
         FROM actions a
         LEFT JOIN organization_members om ON a.assigned_to = om.user_id
         LEFT JOIN action_scores scores ON a.id = scores.action_id
+        LEFT JOIN (
+          SELECT DISTINCT action_id 
+          FROM action_implementation_updates
+          WHERE update_type != 'policy_agreement' OR update_type IS NULL
+        ) updates ON a.id = updates.action_id
         ${whereClause} 
         ORDER BY a.created_at DESC 
         ${limitClause}
@@ -156,10 +168,7 @@ exports.handler = async (event) => {
     console.error('Error:', error);
     return {
       statusCode: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      },
+      headers,
       body: JSON.stringify({ error: error.message })
     };
   }

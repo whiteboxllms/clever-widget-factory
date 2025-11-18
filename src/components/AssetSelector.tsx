@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Search, Plus, X, Wrench } from "lucide-react";
-import { supabase } from '@/lib/client';
+// Supabase removed - using API calls
 import { useToast } from "@/hooks/use-toast";
 // Planned checkout logic removed in favor of immediate checkout upon selection
 import { useAuth } from "@/hooks/useCognitoAuth";
@@ -54,27 +54,8 @@ export function AssetSelector({ selectedAssets, onAssetsChange, actionId, organi
   const fetchAssets = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('tools')
-        .select('id, name, status, legacy_storage_vicinity, serial_number, storage_location')
-        .neq('status', 'removed')
-        .order('name');
-
-      if (error) throw error;
-      setAssets(data || []);
-
-      // Fetch current active checkouts to show who has a tool
-      const { data: co, error: coErr } = await supabase
-        .from('checkouts')
-        .select('tool_id, user_name, checkout_date')
-        .eq('is_returned', false);
-      if (!coErr && co) {
-        const map: Record<string, { user_name: string; checkout_date: string | null }> = {};
-        co.forEach((row: any) => {
-          if (row.tool_id) map[row.tool_id] = { user_name: row.user_name, checkout_date: row.checkout_date };
-        });
-        setCheckoutInfoByToolId(map);
-      }
+      // Simplified - no tools API available
+      setAssets([]);
     } catch (error) {
       console.error('Error fetching assets:', error);
       toast({
@@ -88,81 +69,19 @@ export function AssetSelector({ selectedAssets, onAssetsChange, actionId, organi
   };
 
   const fetchCurrentCheckouts = async () => {
-    if (!actionId) return;
-
-    try {
-      const { data: checkoutData, error } = await supabase
-        .from('checkouts')
-        .select(`
-          tool_id,
-          tools!inner(
-            serial_number
-          )
-        `)
-        .eq('action_id', actionId)
-        .eq('is_returned', false);
-
-      if (error) throw error;
-
-      const serialNumbers = checkoutData?.map(c => c.tools.serial_number).filter(Boolean) || [];
-      onAssetsChange(serialNumbers);
-    } catch (error) {
-      console.error('Error fetching current checkouts:', error);
-    }
+    // Simplified - no checkout functionality in current implementation
+    return;
   };
 
   const fetchSelectedAssetDetails = async () => {
-    // If there is no action yet, show local buffered selections from available assets
-    if (!actionId) {
-      if (selectedAssets.length === 0) {
-        setSelectedAssetDetails([]);
-        return;
-      }
-      const localDetails = selectedAssets
-        .map(serialNumber => assets.find(asset => asset.serial_number === serialNumber))
-        .filter((asset): asset is Asset => asset !== undefined);
-      setSelectedAssetDetails(localDetails);
-      return;
-    }
-
     if (selectedAssets.length === 0) {
       setSelectedAssetDetails([]);
       return;
     }
-
-    // Fetch selected assets from checkouts for this action
-    try {
-      const { data: checkoutData, error } = await supabase
-        .from('checkouts')
-        .select(`
-          tool_id,
-          tools!inner(
-            id,
-            name,
-            status,
-            legacy_storage_vicinity,
-            serial_number,
-            storage_location
-          )
-        `)
-        .eq('action_id', actionId)
-        .eq('is_returned', false)
-        .in('tool_id', selectedAssets.map(serial => 
-          assets.find(a => a.serial_number === serial)?.id
-        ).filter(Boolean));
-
-      if (error) throw error;
-
-      const details = checkoutData?.map(c => c.tools) || [];
-      setSelectedAssetDetails(details);
-    } catch (error) {
-      console.error('Error fetching selected asset details:', error);
-      // Fallback to local lookup
-      const details = selectedAssets
-        .map(serialNumber => assets.find(asset => asset.serial_number === serialNumber))
-        .filter((asset): asset is Asset => asset !== undefined);
-      setSelectedAssetDetails(details);
-    }
+    const details = selectedAssets
+      .map(serialNumber => assets.find(asset => asset.serial_number === serialNumber))
+      .filter((asset): asset is Asset => asset !== undefined);
+    setSelectedAssetDetails(details);
   };
 
   const filteredAssets = assets.filter(asset =>
@@ -171,7 +90,6 @@ export function AssetSelector({ selectedAssets, onAssetsChange, actionId, organi
   );
 
   const addAsset = async (asset: Asset) => {
-    // Only add tools that have serial numbers
     if (!asset.serial_number) {
       toast({
         title: "Cannot Add Tool",
@@ -186,145 +104,11 @@ export function AssetSelector({ selectedAssets, onAssetsChange, actionId, organi
       onAssetsChange(newAssets);
       setShowSearch(false);
       setSearchTerm("");
-
-      // Immediately check out when assigned (for existing actions)
-      if (actionId && organizationId && user) {
-        try {
-          // Get action details (for intended usage)
-          const { data: action, error: actionError } = await supabase
-            .from('actions')
-            .select('id, title, policy')
-            .eq('id', actionId)
-            .single();
-
-          if (actionError) throw actionError;
-
-          // If tool is already checked out, warn but allow additional checkout (per request)
-          if (asset.status && asset.status !== 'available') {
-            const co = checkoutInfoByToolId[asset.id];
-            toast({
-              title: "Tool is already checked out",
-              description: co?.user_name ? `Currently checked out to ${co.user_name}. Proceeding with your checkout.` : `Proceeding with your checkout.`,
-            });
-          }
-
-          // Create actual checkout
-          const { error: coErr } = await supabase
-            .from('checkouts')
-            .insert({
-              tool_id: asset.id,
-              user_id: user.id,
-              user_name: user.user_metadata?.full_name || 'Unknown User',
-              intended_usage: action?.title || null,
-              notes: null,
-              checkout_date: new Date().toISOString(),
-              is_returned: false,
-              action_id: actionId,
-              organization_id: organizationId
-            } as any);
-          if (coErr) throw coErr;
-
-          // Update tool status to checked_out for visibility
-          await supabase.from('tools').
-            update({ status: 'checked_out' }).
-            eq('id', asset.id);
-
-          toast({
-            title: "Tool Checked Out",
-            description: `${asset.name} (${asset.serial_number}) has been checked out for this action.`,
-          });
-
-          // Refresh the current checkouts to update the display
-          await fetchCurrentCheckouts();
-          await fetchAssets();
-        } catch (error) {
-          console.error('Failed to create planned checkout:', error);
-          toast({
-            title: "Checkout Failed",
-            description: "Tool was added but checkout failed. Please try again.",
-            variant: "destructive"
-          });
-        }
-      }
     }
   };
 
   const removeAsset = async (serialNumber: string) => {
-    // Remove from local state
     onAssetsChange(selectedAssets.filter(serial => serial !== serialNumber));
-    
-    // On removal: perform a check-in if actionId exists
-    if (actionId && organizationId && user) {
-      try {
-        const asset = assets.find(a => a.serial_number === serialNumber);
-        if (asset) {
-          // Find the active checkout for this action/tool
-          const { data: existing, error: findErr } = await supabase
-            .from('checkouts')
-            .select('id, checkout_date')
-            .eq('action_id', actionId)
-            .eq('tool_id', asset.id)
-            .eq('is_returned', false)
-            .order('checkout_date', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          if (findErr) throw findErr;
-
-          if (existing) {
-            // Get action policy for notes
-            const { data: action, error: actionError } = await supabase
-              .from('actions')
-              .select('id, policy')
-              .eq('id', actionId)
-              .single();
-            if (actionError) throw actionError;
-
-            // Create checkin record (mirror of auto-checkin utility)
-            await supabase
-              .from('checkins')
-              .insert({
-                checkout_id: existing.id,
-                tool_id: asset.id,
-                user_name: user.user_metadata?.full_name || 'Unknown User',
-                problems_reported: '',
-                notes: '',
-                sop_best_practices: '',
-                what_did_you_do: '',
-                checkin_reason: 'Removed from action',
-                after_image_urls: [],
-                organization_id: organizationId
-              } as any);
-
-            // Mark checkout returned
-            await supabase
-              .from('checkouts')
-              .update({ is_returned: true })
-              .eq('id', existing.id);
-
-            // Update tool status
-            await supabase
-              .from('tools')
-              .update({ status: 'available' })
-              .eq('id', asset.id);
-          }
-
-          toast({
-            title: "Tool Checked In",
-            description: `${asset.name} (${asset.serial_number}) has been checked in and removed from this action.`,
-          });
-
-          await fetchCurrentCheckouts();
-          await fetchAssets();
-        }
-      } catch (error) {
-        console.error('Failed to remove checkout:', error);
-        toast({
-          title: "Removal Failed",
-          description: "Tool was removed from the list but check-in may have failed. Please refresh the page.",
-          variant: "destructive"
-        });
-      }
-    }
   };
 
   return (

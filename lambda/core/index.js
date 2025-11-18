@@ -24,6 +24,8 @@ async function queryJSON(sql) {
   }
 }
 
+
+
 exports.handler = async (event) => {
   console.log('Event:', JSON.stringify(event, null, 2));
   
@@ -404,6 +406,137 @@ exports.handler = async (event) => {
           body: JSON.stringify({ data: result[0] })
         };
       }
+    }
+
+    // Actions endpoint with full details
+    if (httpMethod === 'GET' && path.endsWith('/actions')) {
+      const { limit, offset = 0, assigned_to, status } = event.queryStringParameters || {};
+      
+      let whereConditions = [];
+      if (assigned_to) {
+        whereConditions.push(`a.assigned_to = '${assigned_to}'`);
+      }
+      if (status) {
+        if (status === 'unresolved') {
+          whereConditions.push(`a.status IN ('not_started', 'in_progress', 'blocked')`);
+        } else {
+          whereConditions.push(`a.status = '${status}'`);
+        }
+      }
+      
+      const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+      const limitClause = limit ? `LIMIT ${limit} OFFSET ${offset}` : '';
+      
+      const sql = `SELECT json_agg(row_to_json(t)) FROM (
+        SELECT 
+          a.*,
+          om.full_name as assigned_to_name,
+          om.favorite_color as assigned_to_color,
+          CASE WHEN scores.action_id IS NOT NULL THEN true ELSE false END as has_score,
+          CASE WHEN updates.action_id IS NOT NULL THEN true ELSE false END as has_implementation_updates,
+          COALESCE(update_counts.count, 0) as implementation_update_count,
+          -- Asset details
+          CASE WHEN a.asset_id IS NOT NULL THEN
+            json_build_object(
+              'id', assets.id,
+              'name', assets.name,
+              'category', assets.category
+            )
+          END as asset,
+          -- Issue tool details  
+          CASE WHEN a.issue_tool_id IS NOT NULL THEN
+            json_build_object(
+              'id', issue_tools.id,
+              'name', issue_tools.name,
+              'category', issue_tools.category
+            )
+          END as issue_tool,
+          -- Mission details
+          CASE WHEN a.mission_id IS NOT NULL THEN
+            json_build_object(
+              'id', missions.id,
+              'title', missions.title,
+              'mission_number', missions.mission_number
+            )
+          END as mission,
+          -- Participants details
+          CASE WHEN participants.participants IS NOT NULL THEN
+            participants.participants
+          END as participants_details
+        FROM actions a
+        LEFT JOIN profiles om ON a.assigned_to = om.user_id
+        LEFT JOIN action_scores scores ON a.id = scores.action_id
+        LEFT JOIN (
+          SELECT DISTINCT action_id 
+          FROM action_implementation_updates
+          WHERE update_type != 'policy_agreement' OR update_type IS NULL
+        ) updates ON a.id = updates.action_id
+        LEFT JOIN (
+          SELECT action_id, COUNT(*) as count
+          FROM action_implementation_updates
+          WHERE update_type != 'policy_agreement' OR update_type IS NULL
+          GROUP BY action_id
+        ) update_counts ON a.id = update_counts.action_id
+        LEFT JOIN tools assets ON a.asset_id = assets.id
+        LEFT JOIN tools issue_tools ON a.issue_tool_id = issue_tools.id
+        LEFT JOIN missions ON a.mission_id = missions.id
+        LEFT JOIN (
+          SELECT 
+            ap.action_id,
+            json_agg(
+              json_build_object(
+                'user_id', om_part.user_id,
+                'full_name', om_part.full_name,
+                'favorite_color', om_part.favorite_color
+              )
+            ) as participants
+          FROM action_participants ap
+          LEFT JOIN profiles om_part ON ap.user_id = om_part.user_id
+          GROUP BY ap.action_id
+        ) participants ON a.id = participants.action_id
+        ${whereClause} 
+        ORDER BY a.updated_at DESC 
+        ${limitClause}
+      ) t;`;
+      
+      const result = await queryJSON(sql);
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
+      };
+    }
+
+    // Action implementation updates endpoint
+    if (httpMethod === 'GET' && path.endsWith('/action_implementation_updates')) {
+      const { action_id, limit = 50 } = event.queryStringParameters || {};
+      
+      if (!action_id) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'action_id parameter required' })
+        };
+      }
+      
+      const sql = `SELECT json_agg(row_to_json(t)) FROM (
+        SELECT 
+          aiu.*,
+          om.full_name as updated_by_name,
+          om.favorite_color as updated_by_color
+        FROM action_implementation_updates aiu
+        LEFT JOIN profiles om ON aiu.updated_by = om.user_id
+        WHERE aiu.action_id = '${action_id}' 
+        ORDER BY aiu.created_at DESC 
+        LIMIT ${limit}
+      ) t;`;
+      
+      const result = await queryJSON(sql);
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
+      };
     }
 
     // Generic query endpoint

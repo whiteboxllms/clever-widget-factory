@@ -19,6 +19,10 @@ async function queryJSON(sql) {
     await client.connect();
     const result = await client.query(sql);
     return result.rows;
+  } catch (error) {
+    console.error('SQL Error:', error);
+    console.error('SQL Query:', sql);
+    throw error;
   } finally {
     await client.end();
   }
@@ -49,6 +53,109 @@ exports.handler = async (event) => {
     }
 
     // Route handling
+    if (httpMethod === 'POST' && pathParts[pathParts.length - 1] === 'actions') {
+      // POST /api/actions - Create or Update action
+      const body = JSON.parse(event.body || '{}');
+      const { id, created_by, updated_by, ...actionData } = body;
+      
+      // Helper to format array values based on column type
+      const formatArrayValue = (key, value) => {
+        if (!Array.isArray(value)) return value;
+        if (key === 'participants') {
+          return value.length === 0 ? 'ARRAY[]::uuid[]' : `ARRAY[${value.map(v => `'${v}'`).join(',')}]::uuid[]`;
+        }
+        if (key === 'required_tools' || key === 'attachments') {
+          return value.length === 0 ? 'ARRAY[]::text[]' : `ARRAY[${value.map(v => `'${v.replace(/'/g, "''")}'`).join(',')}]::text[]`;
+        }
+        return `'${JSON.stringify(value)}'::jsonb`;
+      };
+      
+      // Set audit fields - generate UUID if not provided
+      const userId = created_by || updated_by || require('crypto').randomUUID();
+      
+      // Check if action exists if id is provided
+      let isUpdate = false;
+      if (id) {
+        try {
+          const checkResult = await queryJSON(`SELECT id FROM actions WHERE id = '${id}' LIMIT 1`);
+          isUpdate = checkResult.length > 0;
+        } catch (error) {
+          console.log('Error checking action existence:', error);
+        }
+      }
+      
+      if (isUpdate) {
+        // Update existing action - use simple string interpolation for now
+        const updatePairs = [`updated_by = '${userId}'`]; // Always update the updated_by field
+        for (const [key, value] of Object.entries(actionData)) {
+          if (key !== 'id' && value !== undefined) {
+            let escapedValue;
+            if (value === null) {
+              escapedValue = 'NULL';
+            } else if (typeof value === 'string') {
+              escapedValue = `'${value.replace(/'/g, "''")}'`;
+            } else if (Array.isArray(value)) {
+              escapedValue = formatArrayValue(key, value);
+            } else if (typeof value === 'boolean') {
+              escapedValue = value;
+            } else {
+              escapedValue = value;
+            }
+            updatePairs.push(`${key} = ${escapedValue}`);
+          }
+        }
+        
+        const sql = `
+          UPDATE actions 
+          SET ${updatePairs.join(', ')}, updated_at = NOW()
+          WHERE id = '${id}'
+          RETURNING *
+        `;
+        
+        const result = await queryJSON(sql);
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ data: result[0] })
+        };
+      } else {
+        // Create new action - generate UUID
+        const uuid = require('crypto').randomUUID();
+        
+        // Add audit fields for creation
+        const fieldsWithAudit = ['id', 'created_by', 'updated_by', ...Object.keys(actionData)];
+        const valuesWithAudit = [uuid, userId, userId, ...Object.values(actionData)];
+        
+        const escapedValuesWithAudit = valuesWithAudit.map((v, idx) => {
+          if (v === null) {
+            return 'NULL';
+          } else if (typeof v === 'string') {
+            return `'${v.replace(/'/g, "''")}'`;
+          } else if (Array.isArray(v)) {
+            const key = fieldsWithAudit[idx];
+            return formatArrayValue(key, v);
+          } else if (typeof v === 'boolean') {
+            return v;
+          } else {
+            return v;
+          }
+        });
+        
+        const sql = `
+          INSERT INTO actions (${fieldsWithAudit.join(', ')}, created_at, updated_at)
+          VALUES (${escapedValuesWithAudit.join(', ')}, NOW(), NOW())
+          RETURNING *
+        `;
+        
+        const result = await queryJSON(sql);
+        return {
+          statusCode: 201,
+          headers,
+          body: JSON.stringify({ data: result[0] })
+        };
+      }
+    }
+
     if (httpMethod === 'GET' && pathParts[pathParts.length - 1] === 'my-actions') {
       // GET /api/actions/my-actions
       const { cognitoUserId } = queryStringParameters || {};
@@ -64,10 +171,16 @@ exports.handler = async (event) => {
         SELECT 
           a.*,
           om.full_name as assigned_to_name,
-          CASE WHEN scores.action_id IS NOT NULL THEN true ELSE false END as has_score
+          CASE WHEN scores.action_id IS NOT NULL THEN true ELSE false END as has_score,
+          CASE WHEN updates.action_id IS NOT NULL THEN true ELSE false END as has_implementation_updates
         FROM actions a
         LEFT JOIN organization_members om ON a.assigned_to = om.user_id
         LEFT JOIN action_scores scores ON a.id = scores.action_id
+        LEFT JOIN (
+          SELECT DISTINCT action_id 
+          FROM action_implementation_updates
+          WHERE update_type != 'policy_agreement' OR update_type IS NULL
+        ) updates ON a.id = updates.action_id
         WHERE om.cognito_user_id = '${cognitoUserId}'
         ORDER BY a.created_at DESC
       `;
@@ -103,10 +216,22 @@ exports.handler = async (event) => {
         SELECT 
           a.*,
           om.full_name as assigned_to_name,
-          CASE WHEN scores.action_id IS NOT NULL THEN true ELSE false END as has_score
+          om.favorite_color as assigned_to_color,
+          CASE WHEN scores.action_id IS NOT NULL THEN true ELSE false END as has_score,
+          CASE WHEN updates.action_id IS NOT NULL THEN true ELSE false END as has_implementation_updates,
+          (
+            SELECT COUNT(*) 
+            FROM action_implementation_updates aiu 
+            WHERE aiu.action_id = a.id
+          ) as implementation_update_count
         FROM actions a
         LEFT JOIN organization_members om ON a.assigned_to = om.user_id
         LEFT JOIN action_scores scores ON a.id = scores.action_id
+        LEFT JOIN (
+          SELECT DISTINCT action_id 
+          FROM action_implementation_updates
+          WHERE update_type != 'policy_agreement' OR update_type IS NULL
+        ) updates ON a.id = updates.action_id
         ${whereClause} 
         ORDER BY a.created_at DESC 
         ${limitClause}

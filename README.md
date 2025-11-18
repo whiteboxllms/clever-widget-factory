@@ -32,12 +32,19 @@ The AWS API Gateway provides these endpoints:
 ### Database Connection
 - **All environments**: AWS RDS PostgreSQL instance
 
+### Database Migrations
+Run database migrations using the Lambda function:
+```bash
+aws lambda invoke --function-name cwf-db-migration --payload '{"sql":"YOUR_SQL_HERE"}' response.json --region us-west-2 --cli-binary-format raw-in-base64-out
+```
+
 ### Migration Status
 ✅ **COMPLETED**: Migrated from Supabase to AWS infrastructure
 - Frontend updated to use API service instead of Supabase client
 - Database migrated to PostgreSQL
 - Authentication moved to AWS Cognito
 - File storage moved to AWS S3
+- Policy agreement system implemented (actions now use `policy_agreed_at`/`policy_agreed_by` fields)
 
 ### Legacy Files (To Be Removed)
 The following files are legacy from the Supabase era and should be ignored:

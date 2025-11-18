@@ -551,6 +551,10 @@ export function UnifiedActionDialog({
       
       const actionStatus = formData.status || 'not_started';
 
+      // Get current user for audit fields
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id || '00000000-0000-0000-0000-000000000000';
+
       const actionData: any = {
         title: formData.title.trim(),
         description: formData.description || null,
@@ -567,22 +571,29 @@ export function UnifiedActionDialog({
         issue_reference: formData.issue_reference || null,
         status: actionStatus,
         plan_commitment: formData.plan_commitment || false,
-        organization_id: organizationId
+        organization_id: organizationId,
+        created_by: isCreating || !action?.id ? userId : action.created_by || userId,
+        updated_by: userId
       };
 
 
 
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/actions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(isCreating || !action?.id ? actionData : { ...actionData, id: action.id })
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || 'Failed to save action');
+      }
+
+      const result = await response.json();
+      const data = result.data;
+
+      // After insert, create planned checkouts for any buffered tools (serials in formData.required_tool_serial_numbers)
       if (isCreating || !action?.id) {
-        // Creating new action
-        const { data, error } = await supabase
-          .from('actions')
-          .insert(actionData)
-          .select('*')
-          .single();
-
-        if (error) throw error;
-
-        // After insert, create planned checkouts for any buffered tools (serials in formData.required_tool_serial_numbers)
         try {
           if ((formData.required_tool_serial_numbers || []).length > 0) {
             // Resolve serials to tool rows
@@ -622,29 +633,13 @@ export function UnifiedActionDialog({
         } catch (planErr) {
           console.error('Failed to create planned checkouts after action insert:', planErr);
         }
-
-        toast({
-          title: "Success",
-          description: "Action created successfully"
-        });
-        onActionSaved(data as unknown as BaseAction);
-      } else {
-        // Updating existing action
-        const { data, error } = await supabase
-          .from('actions')
-          .update(actionData)
-          .eq('id', action.id)
-          .select('*')
-          .single();
-
-        if (error) throw error;
-
-        toast({
-          title: "Success",
-          description: "Action updated successfully"
-        });
-        onActionSaved(data as unknown as BaseAction);
       }
+
+      toast({
+        title: "Success",
+        description: isCreating || !action?.id ? "Action created successfully" : "Action updated successfully"
+      });
+      onActionSaved(data as unknown as BaseAction);
       onOpenChange(false);
     } catch (error) {
       console.error('Error saving action:', error);

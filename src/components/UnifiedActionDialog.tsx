@@ -74,7 +74,6 @@ export function UnifiedActionDialog({
   const organizationId = useOrganizationId();
   const [formData, setFormData] = useState<Partial<BaseAction>>({});
   const [missionData, setMissionData] = useState<any>(null);
-  const [newTool, setNewTool] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [estimatedDate, setEstimatedDate] = useState<Date | undefined>();
@@ -124,8 +123,6 @@ export function UnifiedActionDialog({
           // Editing existing action
           setFormData({
             ...action,
-            required_tools: action.required_tools || [],
-            required_tool_serial_numbers: action.required_tool_serial_numbers || [],
             required_stock: action.required_stock || [],
             attachments: action.attachments || []
           });
@@ -136,8 +133,6 @@ export function UnifiedActionDialog({
           // Creating new action with context
           setFormData({
             ...context.prefilledData,
-            required_tools: context.prefilledData.required_tools || [],
-            required_tool_serial_numbers: context.prefilledData.required_tool_serial_numbers || [],
             required_stock: context.prefilledData.required_stock || [],
             attachments: context.prefilledData.attachments || []
           });
@@ -150,8 +145,6 @@ export function UnifiedActionDialog({
             assigned_to: null,
             status: 'not_started',
             plan_commitment: false,
-            required_tools: [],
-            required_tool_serial_numbers: [],
             required_stock: [],
             attachments: []
           });
@@ -295,7 +288,6 @@ export function UnifiedActionDialog({
         policy: formData.policy,
         assigned_to: formData.assigned_to,
         estimated_duration: formData.estimated_duration,
-        required_tools: formData.required_tools,
         required_stock: formData.required_stock,
         attachments: formData.attachments,
         updated_at: new Date().toISOString()
@@ -460,22 +452,7 @@ export function UnifiedActionDialog({
     }
   };
 
-  const addTool = () => {
-    if (newTool.trim() && !(formData.required_tools || []).includes(newTool.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        required_tools: [...(prev.required_tools || []), newTool.trim()]
-      }));
-      setNewTool('');
-    }
-  };
 
-  const removeTool = (tool: string) => {
-    setFormData(prev => ({
-      ...prev,
-      required_tools: (prev.required_tools || []).filter(t => t !== tool)
-    }));
-  };
 
   const removeAttachment = (index: number) => {
     setFormData(prev => ({
@@ -562,7 +539,6 @@ export function UnifiedActionDialog({
         assigned_to: formData.assigned_to === 'unassigned' ? null : formData.assigned_to || null,
         participants: formData.participants || [],
         estimated_duration: estimatedDuration,
-        required_tools: formData.required_tools || [],
         required_stock: formData.required_stock || [],
         attachments: formData.attachments || [],
         mission_id: formData.mission_id || null,
@@ -592,48 +568,7 @@ export function UnifiedActionDialog({
       const result = await response.json();
       const data = result.data;
 
-      // After insert, create planned checkouts for any buffered tools (serials in formData.required_tool_serial_numbers)
-      if (isCreating || !action?.id) {
-        try {
-          if ((formData.required_tool_serial_numbers || []).length > 0) {
-            // Resolve serials to tool rows
-            const { data: tools } = await supabase
-              .from('tools')
-              .select('id, serial_number')
-              .in('serial_number', formData.required_tool_serial_numbers || []);
 
-            // Get current user for user fields
-            const { data: { user } } = await supabase.auth.getUser();
-
-            const createdAction: { id: string; title?: string | null } = { id: (data as unknown as { id: string }).id, title: (data as unknown as { title?: string | null }).title };
-
-            for (const serial of (formData.required_tool_serial_numbers || [])) {
-              const tool = tools?.find(t => t.serial_number === serial);
-              if (!tool || !user) continue;
-
-              // Fetch action title for intended usage
-              const actionTitle = createdAction.title || 'Action';
-
-              // Create planned checkout for each buffered serial
-              await supabase
-                .from('checkouts')
-                .insert({
-                  tool_id: tool.id,
-                  user_id: user.id,
-                  user_name: user.user_metadata?.full_name || 'Unknown User',
-                  intended_usage: actionTitle,
-                  notes: `Planned for action: ${actionTitle}`,
-                  checkout_date: null,
-                  is_returned: false,
-                  action_id: createdAction.id,
-                  organization_id: organizationId
-                } as any);
-            }
-          }
-        } catch (planErr) {
-          console.error('Failed to create planned checkouts after action insert:', planErr);
-        }
-      }
 
       toast({
         title: "Success",
@@ -898,11 +833,8 @@ export function UnifiedActionDialog({
                 Assets
               </Label>
               <AssetSelector
-                selectedAssets={formData.required_tool_serial_numbers || []}
-                onAssetsChange={(assets) => setFormData(prev => ({ 
-                  ...prev, 
-                  required_tool_serial_numbers: assets 
-                }))}
+                selectedAssets={[]}
+                onAssetsChange={() => {}}
                 actionId={action?.id}
                 organizationId={organizationId}
                 isInImplementationMode={isInImplementationMode}
@@ -996,12 +928,13 @@ export function UnifiedActionDialog({
                 <div className="flex flex-wrap gap-2">
                   {(formData.attachments || []).map((url, index) => {
                     const isPdf = url.toLowerCase().endsWith('.pdf');
+                    const fullUrl = url.startsWith('http') ? url : `https://cwf-dev-assets.s3.us-west-2.amazonaws.com/${url}`;
                     return (
                       <div key={index} className="relative">
                         {isPdf ? (
                           <div
                             className="h-16 w-16 flex items-center justify-center bg-muted rounded border cursor-pointer hover:bg-muted/80"
-                            onClick={() => window.open(url, '_blank')}
+                            onClick={() => window.open(fullUrl, '_blank')}
                           >
                             <svg className="h-8 w-8 text-destructive" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -1009,10 +942,10 @@ export function UnifiedActionDialog({
                           </div>
                         ) : (
                           <img
-                            src={url}
+                            src={fullUrl}
                             alt={`Attachment ${index + 1}`}
                             className="h-16 w-16 object-cover rounded border cursor-pointer"
-                            onClick={() => window.open(url, '_blank')}
+                            onClick={() => window.open(fullUrl, '_blank')}
                           />
                         )}
                         <Button

@@ -4,10 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Search, Plus, X, Wrench } from "lucide-react";
-// Supabase removed - using API calls
 import { useToast } from "@/hooks/use-toast";
-// Planned checkout logic removed in favor of immediate checkout upon selection
 import { useAuth } from "@/hooks/useCognitoAuth";
+import { useToolsData } from "@/hooks/tools/useToolsData";
 
 interface Asset {
   id: string;
@@ -26,19 +25,16 @@ interface AssetSelectorProps {
   isInImplementationMode?: boolean;
 }
 
-export function AssetSelector({ selectedAssets, onAssetsChange, actionId, organizationId, isInImplementationMode }: AssetSelectorProps) {
-  const [assets, setAssets] = useState<Asset[]>([]);
+export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused2, actionId, organizationId, isInImplementationMode }: AssetSelectorProps) {
+  const [selectedAssets, setSelectedAssets] = useState<string[]>([]);
   const [selectedAssetDetails, setSelectedAssetDetails] = useState<Asset[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showSearch, setShowSearch] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [checkoutInfoByToolId, setCheckoutInfoByToolId] = useState<Record<string, { user_name: string; checkout_date: string | null }>>({});
   const { toast } = useToast();
   const { user } = useAuth();
+  const { tools: assets, loading, activeCheckouts } = useToolsData();
 
-  useEffect(() => {
-    fetchAssets();
-  }, []);
+
 
   useEffect(() => {
     fetchSelectedAssetDetails();
@@ -51,26 +47,22 @@ export function AssetSelector({ selectedAssets, onAssetsChange, actionId, organi
     }
   }, [actionId]);
 
-  const fetchAssets = async () => {
-    setLoading(true);
-    try {
-      // Simplified - no tools API available
-      setAssets([]);
-    } catch (error) {
-      console.error('Error fetching assets:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch assets",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   const fetchCurrentCheckouts = async () => {
-    // Simplified - no checkout functionality in current implementation
-    return;
+    if (!actionId) return;
+    
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkouts?action_id=${actionId}&is_returned=false`);
+      if (!response.ok) return;
+      
+      const result = await response.json();
+      const checkouts = result.data || [];
+      const serials = checkouts.map((c: any) => c.tool_serial_number).filter(Boolean);
+      setSelectedAssets(serials);
+    } catch (error) {
+      console.error('Error fetching checkouts:', error);
+    }
   };
 
   const fetchSelectedAssetDetails = async () => {
@@ -99,16 +91,60 @@ export function AssetSelector({ selectedAssets, onAssetsChange, actionId, organi
       return;
     }
 
-    if (!selectedAssets.includes(asset.serial_number)) {
-      const newAssets = [...selectedAssets, asset.serial_number];
-      onAssetsChange(newAssets);
-      setShowSearch(false);
-      setSearchTerm("");
+    if (selectedAssets.includes(asset.serial_number)) return;
+
+    if (actionId && user) {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkouts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tool_id: asset.id,
+            user_id: user.id,
+            user_name: user.user_metadata?.full_name || 'Unknown',
+            action_id: actionId,
+            organization_id: organizationId,
+            is_returned: false
+          })
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          if (error.error?.includes('duplicate key')) {
+            toast({ title: "Already Added", description: "This asset is already attached to this action" });
+            return;
+          }
+          throw new Error('Failed to create checkout');
+        }
+      } catch (error) {
+        console.error('Error creating checkout:', error);
+        toast({ title: "Error", description: "Failed to add asset", variant: "destructive" });
+        return;
+      }
     }
+
+    setSelectedAssets([...selectedAssets, asset.serial_number]);
+    setShowSearch(false);
+    setSearchTerm("");
   };
 
   const removeAsset = async (serialNumber: string) => {
-    onAssetsChange(selectedAssets.filter(serial => serial !== serialNumber));
+    if (actionId) {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkouts?action_id=${actionId}&is_returned=false`);
+        if (response.ok) {
+          const result = await response.json();
+          const checkout = result.data?.find((c: any) => c.tool_serial_number === serialNumber);
+          if (checkout) {
+            await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkouts/${checkout.id}`, {
+              method: 'DELETE'
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error removing checkout:', error);
+      }
+    }
+    setSelectedAssets(selectedAssets.filter(serial => serial !== serialNumber));
   };
 
   return (
@@ -212,8 +248,8 @@ export function AssetSelector({ selectedAssets, onAssetsChange, actionId, organi
                           {asset.storage_location && (
                             <span>• {asset.storage_location}</span>
                           )}
-                    {asset.status && asset.status !== 'available' && (
-                      <span>• Checked out{checkoutInfoByToolId[asset.id]?.user_name ? ` to ${checkoutInfoByToolId[asset.id].user_name}` : ''}</span>
+                    {activeCheckouts[asset.id] && (
+                      <span>• Checked out to {activeCheckouts[asset.id].user_name}</span>
                     )}
                         </div>
                       </div>

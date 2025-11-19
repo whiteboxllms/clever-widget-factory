@@ -225,7 +225,7 @@ exports.handler = async (event) => {
             WHERE aiu.action_id = a.id
           ) as implementation_update_count
         FROM actions a
-        LEFT JOIN organization_members om ON a.assigned_to = om.user_id
+        LEFT JOIN profiles om ON a.assigned_to = om.user_id
         LEFT JOIN action_scores scores ON a.id = scores.action_id
         LEFT JOIN (
           SELECT DISTINCT action_id 

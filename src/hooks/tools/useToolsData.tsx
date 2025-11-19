@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/client';
 import { useToast } from '@/hooks/use-toast';
 
 export interface Tool {
@@ -33,51 +32,26 @@ export const useToolsData = (showRemovedItems: boolean = false) => {
 
   const fetchTools = async () => {
     try {
-      let query = supabase
-        .from('tools')
-        .select(`
-          id,
-          name,
-          description,
-          category,
-          status,
-          image_url,
-          legacy_storage_vicinity,
-          parent_structure_id,
-          storage_location,
-          actual_location,
-          serial_number,
-          last_maintenance,
-          manual_url,
-          
-          stargazer_sop,
-          created_at,
-          updated_at,
-          has_motor,
-          last_audited_at,
-          audit_status
-        `);
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+      const response = await fetch(`${apiBaseUrl}/tools`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch tools');
+      }
+      const result = await response.json();
+      let toolsData = result.data || [];
       
       if (!showRemovedItems) {
-        query = query.neq('status', 'removed');
+        toolsData = toolsData.filter((tool: Tool) => tool.status !== 'removed');
       }
       
-      const { data, error } = await query.order('name');
+      setTools(toolsData);
 
-      if (error) throw error;
-      setTools(data || []);
-
-      // Fetch active checkouts for all tools
-      const { data: checkoutsData, error: checkoutsError } = await supabase
-        .from('checkouts')
-        .select('tool_id, user_name, user_id')
-        .eq('is_returned', false);
-
-      if (checkoutsError) {
-        console.error('Error fetching active checkouts:', checkoutsError);
-      } else {
+      // Fetch active checkouts
+      const checkoutsResponse = await fetch(`${apiBaseUrl}/checkouts?is_returned=false`);
+      if (checkoutsResponse.ok) {
+        const checkoutsResult = await checkoutsResponse.json();
         const checkoutMap: {[key: string]: {user_name: string, user_id: string}} = {};
-        checkoutsData?.forEach(checkout => {
+        checkoutsResult.data?.forEach((checkout: any) => {
           checkoutMap[checkout.tool_id] = { user_name: checkout.user_name, user_id: checkout.user_id };
         });
         setActiveCheckouts(checkoutMap);
@@ -95,105 +69,15 @@ export const useToolsData = (showRemovedItems: boolean = false) => {
   };
 
   const updateTool = async (toolId: string, updates: any) => {
-    try {
-      // Fetch current values before updating
-      const { data: currentTool } = await supabase
-        .from('tools')
-        .select('*')
-        .eq('id', toolId)
-        .single();
-      
-      const { error } = await supabase
-        .from('tools')
-        .update(updates)
-        .eq('id', toolId);
-
-      if (error) throw error;
-
-      // Log history
-      if (currentTool) {
-        try {
-          const currentUser = await supabase.auth.getUser();
-          if (currentUser.data.user) {
-            const historyPromises = [];
-            
-            for (const [field, newValue] of Object.entries(updates)) {
-              const oldValue = currentTool[field];
-              
-              if (oldValue !== newValue) {
-                const changeType = field === 'status' ? 'status_change' : 'updated';
-                
-                historyPromises.push(
-                  supabase
-                    .from('asset_history')
-                    .insert({
-                      asset_id: toolId,
-                      changed_by: currentUser.data.user.id,
-                      changed_at: new Date().toISOString(),
-                      change_type: changeType,
-                      field_changed: field,
-                      old_value: oldValue ? String(oldValue) : null,
-                      new_value: newValue ? String(newValue) : null,
-                      notes: `Field '${field}' updated`,
-                      organization_id: currentTool.organization_id
-                    })
-                );
-              }
-            }
-            
-            if (historyPromises.length > 0) {
-              await Promise.all(historyPromises);
-            }
-          }
-        } catch (historyError) {
-          console.warn('Failed to log asset updates:', historyError);
-        }
-      }
-
-      // Update local state
-      setTools(prev => prev.map(tool => 
-        tool.id === toolId ? { ...tool, ...updates } : tool
-      ));
-
-      return true;
-    } catch (error) {
-      console.error('Error updating tool:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update tool",
-        variant: "destructive"
-      });
-      return false;
-    }
+    // TODO: Implement tool updates via AWS API
+    console.warn('Tool updates not yet implemented for AWS API');
+    return false;
   };
 
   const createTool = async (toolData: any) => {
-    try {
-      console.log('Creating tool with data:', toolData);
-      const { data, error } = await supabase
-        .from('tools')
-        .insert(toolData)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
-
-      // Add to local state
-      setTools(prev => [...prev, data]);
-      
-      return data;
-    } catch (error) {
-      console.error('Error creating tool:', error);
-      toast({
-        title: "Error",
-        description: `Failed to create tool: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive"
-      });
-      return null;
-    }
+    // TODO: Implement tool creation via AWS API
+    console.warn('Tool creation not yet implemented for AWS API');
+    return null;
   };
 
   useEffect(() => {

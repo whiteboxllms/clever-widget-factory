@@ -46,6 +46,16 @@ aws lambda invoke --function-name cwf-db-migration --payload '{"sql":"YOUR_SQL_H
 - File storage moved to AWS S3
 - Policy agreement system implemented (actions now use `policy_agreed_at`/`policy_agreed_by` fields)
 
+### User ID Migration Reference
+During Cognito migration, user IDs were updated. Reference for any remaining migrations:
+
+| User | Old UUID | New Cognito UUID |
+|------|----------|------------------|
+| Malone | `4d7124f9-c0f2-490d-a765-3a3f8d1dbad8` | `989163e0-7011-70ee-6d93-853674acd43c` |
+| Lester Paniel | `7dd4187f-ff2a-4367-9e7b-0c8741f25495` | `68d173b0-60f1-70ea-6084-338e74051fcc` |
+| Mae Dela Torre | `48155769-4d22-4d36-9982-095ac9ad6b2c` | `1891f310-c071-705a-2c72-0d0a33c92bf0` |
+| Stefan Hamilton | `b8006f2b-0ec7-4107-b05a-b4c6b49541fd` | `08617390-b001-708d-f61e-07a1698282ec` |
+
 ### Legacy Files (To Be Removed)
 The following files are legacy from the Supabase era and should be ignored:
 - `supabase/` directory

@@ -278,17 +278,51 @@ exports.handler = async (event) => {
     }
 
     // Checkouts endpoint
-    if (httpMethod === 'GET' && path.endsWith('/checkouts')) {
-      const { returned } = event.queryStringParameters || {};
-      let whereClause = '';
-      if (returned === 'false') {
-        whereClause = 'WHERE returned = false';
-      } else if (returned === 'true') {
-        whereClause = 'WHERE returned = true';
+    if (path.endsWith('/checkouts') || path.match(/\/checkouts\/[a-f0-9-]+$/)) {
+      if (httpMethod === 'DELETE') {
+        const checkoutId = path.split('/').pop();
+        const sql = `DELETE FROM checkouts WHERE id = '${checkoutId}' RETURNING *`;
+        const result = await queryJSON(sql);
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ data: result[0] })
+        };
       }
       
+      if (httpMethod === 'POST') {
+        const body = JSON.parse(event.body || '{}');
+        const { tool_id, user_id, user_name, action_id, organization_id, is_returned } = body;
+        const sql = `
+          INSERT INTO checkouts (tool_id, user_id, user_name, action_id, organization_id, is_returned, checkout_date)
+          VALUES ('${tool_id}', '${user_id}', '${user_name.replace(/'/g, "''")}', ${action_id ? `'${action_id}'` : 'NULL'}, '${organization_id}', ${is_returned}, ${is_returned ? 'NOW()' : 'NULL'})
+          RETURNING *
+        `;
+        const result = await queryJSON(sql);
+        return {
+          statusCode: 201,
+          headers,
+          body: JSON.stringify({ data: result[0] })
+        };
+      }
+      
+      if (httpMethod === 'GET') {
+      const { is_returned, action_id } = event.queryStringParameters || {};
+      let whereConditions = [];
+      if (is_returned === 'false') {
+        whereConditions.push('is_returned = false');
+      } else if (is_returned === 'true') {
+        whereConditions.push('is_returned = true');
+      }
+      if (action_id) {
+        whereConditions.push(`action_id = '${action_id}'`);
+      }
+      const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+      
       const sql = `SELECT json_agg(row_to_json(t)) FROM (
-        SELECT * FROM checkouts ${whereClause} ORDER BY checkout_date DESC
+        SELECT c.*, t.serial_number as tool_serial_number FROM checkouts c
+        LEFT JOIN tools t ON c.tool_id = t.id
+        ${whereClause} ORDER BY checkout_date DESC
       ) t;`;
       
       const result = await queryJSON(sql);
@@ -297,6 +331,7 @@ exports.handler = async (event) => {
         headers,
         body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
       };
+      }
     }
 
     // Missions endpoint

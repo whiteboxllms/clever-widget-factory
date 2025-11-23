@@ -18,6 +18,7 @@ import { useActionScores, ActionScore } from '@/hooks/useActionScores';
 import { BaseAction, Profile } from '@/types/actions';
 import { cn, hasActualContent, getActionBorderStyle } from '@/lib/utils';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { apiService } from '@/lib/apiService';
 
 // Using unified BaseAction interface from types/actions.ts
 
@@ -51,8 +52,7 @@ export default function Actions() {
   const { getScoreForAction } = useActionScores();
 
   const fetchActions = async () => {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/actions`);
-    const result = await response.json();
+    const result = await apiService.get('/actions');
     return result.data || [];
   };
 
@@ -511,7 +511,7 @@ export default function Actions() {
                           <div className="flex flex-wrap gap-2 overflow-hidden">
                             {action.mission && (
                               <Badge variant="outline" className="bg-indigo-100 text-indigo-800 max-w-full overflow-hidden">
-                                <span className="truncate">Mission #{action.mission.mission_number}: {action.mission.title.length > 15 ? `${action.mission.title.substring(0, 15)}...` : action.mission.title}</span>
+                                <span className="truncate">Project #{action.mission.mission_number}: {action.mission.title.length > 15 ? `${action.mission.title.substring(0, 15)}...` : action.mission.title}</span>
                               </Badge>
                             )}
                             
@@ -627,7 +627,7 @@ export default function Actions() {
                           <div className="flex flex-wrap gap-2 overflow-hidden">
                             {action.mission && (
                             <Badge variant="outline" className="bg-indigo-100 text-indigo-800 max-w-full overflow-hidden">
-                              <span className="truncate">Mission #{action.mission.mission_number}: {action.mission.title.length > 15 ? `${action.mission.title.substring(0, 15)}...` : action.mission.title}</span>
+                              <span className="truncate">Project #{action.mission.mission_number}: {action.mission.title.length > 15 ? `${action.mission.title.substring(0, 15)}...` : action.mission.title}</span>
                             </Badge>
                             )}
                             

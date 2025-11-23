@@ -213,25 +213,20 @@ export default function Inventory() {
 
   const fetchParts = async () => {
     try {
-      // Use AWS API instead of Supabase
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/parts`);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch parts: ${response.statusText}`);
-      }
-      
-      const result = await response.json();
-      const partsData = result.data || [];
+      // Use API service with automatic Authorization header
+      const { apiService, getApiData } = await import('@/lib/apiService');
+      const response = await apiService.get<{ data: Part[] }>('/parts');
+      const partsData = getApiData(response) || [];
       
       // Sort by name
       partsData.sort((a: Part, b: Part) => (a.name || '').localeCompare(b.name || ''));
       
       setParts(partsData);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching parts:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch parts",
+        description: error.message || "Failed to fetch parts",
         variant: "destructive",
       });
     } finally {
@@ -478,7 +473,6 @@ export default function Inventory() {
             changed_by: currentUser.id,
             change_reason: 'Item created',
             order_id: null,
-            organization_id: organizationId
           }]);
 
         if (historyError) {
@@ -676,7 +670,6 @@ export default function Inventory() {
             quantity_change: quantityChanged ? (newQuantity - oldQuantity) : null,
             changed_by: currentUser.id,
             change_reason: changeReason,
-            organization_id: organizationId
           }]);
 
         if (historyError) {
@@ -837,7 +830,6 @@ export default function Inventory() {
             order_id: fulfilledOrderId,
             supplier_name: quantityOperation === 'add' ? (quantityChange.supplierName || null) : null,
             supplier_url: quantityOperation === 'add' ? (quantityChange.supplierUrl || null) : null,
-            organization_id: organizationId
           }]);
 
         if (historyError) {

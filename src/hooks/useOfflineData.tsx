@@ -1,46 +1,40 @@
 import { useQuery } from '@tanstack/react-query';
 import { offlineQueryConfig } from '@/lib/queryConfig';
+import { apiService, getApiData } from '@/lib/apiService';
 
 const fetchTools = async () => {
-  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/tools?limit=1000`);
-  const result = await response.json();
-  return result.data || [];
+  const response = await apiService.get<{ data: any[] }>('/tools?limit=1000');
+  return getApiData(response) || [];
 };
 
 const fetchParts = async () => {
-  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/parts?limit=1000`);
-  const result = await response.json();
-  return result.data || [];
+  const response = await apiService.get<{ data: any[] }>('/parts?limit=1000');
+  return getApiData(response) || [];
 };
 
 const fetchActions = async () => {
-  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/actions?limit=1000`);
-  const result = await response.json();
-  return result.data || [];
+  const response = await apiService.get<{ data: any[] }>('/actions?limit=1000');
+  return getApiData(response) || [];
 };
 
 const fetchOrganizationMembers = async () => {
-  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/organization_members`);
-  const result = await response.json();
-  return result.data || [];
+  const response = await apiService.get<{ data: any[] }>('/organization_members');
+  return getApiData(response) || [];
 };
 
 const fetchProfiles = async () => {
-  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/profiles`);
-  const result = await response.json();
-  return result.data || [];
+  const response = await apiService.get<{ data: any[] }>('/profiles');
+  return getApiData(response) || [];
 };
 
 const fetchCheckouts = async () => {
-  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkouts`);
-  const result = await response.json();
-  return result.data || [];
+  const response = await apiService.get<{ data: any[] }>('/checkouts');
+  return getApiData(response) || [];
 };
 
 const fetchIssues = async () => {
-  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/issues`);
-  const result = await response.json();
-  return result.data || [];
+  const response = await apiService.get<{ data: any[] }>('/issues');
+  return getApiData(response) || [];
 };
 
 export const useOfflineData = () => {

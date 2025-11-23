@@ -163,7 +163,7 @@ const templates: MissionTemplate[] = [
   },
   {
     id: 'custom',
-    name: 'Custom Mission',
+    name: 'Custom Project',
     description: 'Start from scratch with your own structure',
     icon: Lightbulb,
     category: 'Custom',
@@ -182,7 +182,7 @@ export function MissionTemplates({ onSelectTemplate, onClose }: MissionTemplates
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold mb-2">Choose a Mission Template</h3>
+        <h3 className="text-lg font-semibold mb-2">Choose a Project Template</h3>
         <p className="text-sm text-muted-foreground">
           Select a template to get started quickly, or choose custom to build from scratch.
         </p>

@@ -67,3 +67,6 @@ coverage/
 # Shell scripts (temporary migration scripts)
 run-*.sh
 check-db.sh
+
+# Prototype/one-time scripts
+prototype/

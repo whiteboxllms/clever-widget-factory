@@ -145,7 +145,6 @@ export function IssueResolutionDialog({
           new_status: 'resolved',
           changed_by: (await supabase.auth.getUser()).data.user?.id,
           notes: `Resolved: ${form.resolution_notes}`,
-          organization_id: organizationId
         });
 
       if (historyError) throw historyError;

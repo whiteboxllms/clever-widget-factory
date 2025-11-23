@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+import { apiService } from '@/lib/apiService';
 
 export interface CheckoutHistory {
   id: string;
@@ -74,8 +73,7 @@ export const useToolHistory = () => {
     setToolHistory([]); // Clear previous history while loading
     try {
       // Fetch all checkouts (both returned and not returned)
-      const checkoutsResponse = await fetch(`${API_BASE_URL}/checkouts?tool_id=${toolId}`);
-      const checkoutsResult = await checkoutsResponse.json();
+      const checkoutsResult = await apiService.get(`/checkouts?tool_id=${toolId}`);
       const checkoutsData = checkoutsResult.data || [];
 
       // Simplified: Only fetch checkouts for now

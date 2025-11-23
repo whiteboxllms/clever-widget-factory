@@ -133,7 +133,6 @@ const AuditTool = () => {
         .from('tool_audits')
         .insert({
           ...auditData,
-          organization_id: organizationId
         });
 
       if (auditError) throw auditError;

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 
 import { useToast } from '@/hooks/use-toast';
 import { Tool } from './useToolsData';
+import { apiService } from '@/lib/apiService';
 
 export const useParentStructures = () => {
   const [parentStructures, setParentStructures] = useState<Tool[]>([]);
@@ -10,11 +11,8 @@ export const useParentStructures = () => {
 
   const fetchParentStructures = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/tools?category=Infrastructure,Container&status=!removed`);
-      const data = await response.json();
-      
-      if (!response.ok) throw new Error('Failed to fetch parent structures');
-      setParentStructures(data || []);
+      const result = await apiService.get('/tools?category=Infrastructure,Container&status=!removed');
+      setParentStructures(result.data || []);
     } catch (error) {
       console.error('Error fetching parent structures:', error);
       toast({

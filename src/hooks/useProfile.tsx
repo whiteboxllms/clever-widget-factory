@@ -2,25 +2,70 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { useToast } from '@/hooks/use-toast';
 import { offlineQueryConfig, offlineMutationConfig } from '@/lib/queryConfig';
+import { apiService, getApiData } from '@/lib/apiService';
+
+interface OrganizationMember {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  role: string;
+  full_name?: string;
+  is_active: boolean;
+}
+
+interface Organization {
+  id: string;
+  name: string;
+  subdomain: string | null;
+  settings: any;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 const fetchProfile = async (userId: string) => {
-  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/profiles?user_id=${userId}`);
-  const result = await response.json();
-  return result.data?.[0] || null;
+  const response = await apiService.get(`/profiles?user_id=${userId}`);
+  const data = getApiData(response);
+  return Array.isArray(data) ? data[0] : data;
+};
+
+const fetchOrganizationMemberships = async () => {
+  const response = await apiService.get('/organization_members');
+  const data = getApiData(response);
+  return Array.isArray(data) ? data : [];
+};
+
+// Create organization object from membership
+// The organization_members query doesn't include org name, so we use a default
+// The organization_id is the key piece of data we need
+const createOrganizationFromMembership = (membership: OrganizationMember | null): Organization | null => {
+  if (!membership?.organization_id) return null;
+  
+  // Default to "Stargazer Farm" for the default organization ID
+  // This matches the default org used throughout the codebase
+  const defaultOrgId = '00000000-0000-0000-0000-000000000001';
+  const orgName = membership.organization_id === defaultOrgId 
+    ? 'Stargazer Farm' 
+    : 'Organization';
+  
+  return {
+    id: membership.organization_id,
+    name: orgName,
+    subdomain: null,
+    settings: {},
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
 };
 
 const updateProfile = async ({ userId, full_name, favorite_color }: { userId: string, full_name?: string, favorite_color?: string }) => {
-  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/profiles`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      user_id: userId,
-      full_name,
-      favorite_color
-    })
+  const response = await apiService.post('/profiles', {
+    user_id: userId,
+    full_name,
+    favorite_color
   });
-  if (!response.ok) throw new Error('Failed to update');
-  return response.json();
+  return response;
 };
 
 export function useProfile() {
@@ -28,12 +73,28 @@ export function useProfile() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: profile, isLoading } = useQuery({
+  // Fetch profile data
+  const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ['profile', user?.userId],
     queryFn: () => fetchProfile(user!.userId),
     enabled: !!user,
     ...offlineQueryConfig,
   });
+
+  // Fetch organization memberships
+  const { data: memberships = [], isLoading: membershipsLoading } = useQuery({
+    queryKey: ['organization_memberships'],
+    queryFn: fetchOrganizationMemberships,
+    enabled: !!user,
+    ...offlineQueryConfig,
+  });
+
+  // Get primary organization (first active membership, or first one)
+  const primaryMembership = memberships.find((m: OrganizationMember) => m.is_active !== false) || memberships[0];
+  const primaryOrganizationId = primaryMembership?.organization_id;
+  
+  // Create organization object from membership (minimal for now)
+  const organization = createOrganizationFromMembership(primaryMembership);
 
   const mutation = useMutation({
     mutationFn: updateProfile,
@@ -64,11 +125,22 @@ export function useProfile() {
     }
   };
 
+  const isLoading = profileLoading || membershipsLoading;
+
   return {
+    // Profile data
     fullName: profile?.full_name || '',
     displayName: profile?.full_name || '',
     favoriteColor: profile?.favorite_color || '#6B7280',
     updateFullName,
     isLoading: isLoading || mutation.isPending,
+    
+    // Organization data (from memberships)
+    organization: organization as Organization | null,
+    organizationMember: primaryMembership as OrganizationMember | null,
+    organizationId: primaryOrganizationId || null,
+    role: primaryMembership?.role || null,
+    isAdmin: primaryMembership?.role === 'admin',
+    allMemberships: memberships as OrganizationMember[],
   };
 }

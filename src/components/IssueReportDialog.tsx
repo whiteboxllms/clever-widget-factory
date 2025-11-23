@@ -161,7 +161,6 @@ export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: Issu
           new_status: 'removed',
           changed_by: (await supabase.auth.getUser()).data.user?.id,
           notes: 'Issue removed by contributor',
-          organization_id: organizationId
         });
 
       if (historyError) throw historyError;

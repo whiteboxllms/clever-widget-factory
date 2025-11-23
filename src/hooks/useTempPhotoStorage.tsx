@@ -100,7 +100,6 @@ export const useTempPhotoStorage = () => {
             file_name: tempPhoto.fileName,
             file_url: uploadData.path,
             file_type: compressionResult.file.type,
-            organization_id: organizationId,
             attachment_type: 'evidence',
             uploaded_by: (await supabase.auth.getUser()).data.user?.id
           })

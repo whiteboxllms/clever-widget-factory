@@ -80,7 +80,6 @@ export function MissionTaskList({ missionId, profiles, canEdit = false, missionN
           policy: actionData.policy,
           observations: actionData.observations,
           assigned_to: actionData.assigned_to || null,
-          organization_id: organizationId
         })
         .select()
         .single();
@@ -147,9 +146,9 @@ export function MissionTaskList({ missionId, profiles, canEdit = false, missionN
 
       {actions.length === 0 && !isAddingAction ? (
         <div className="text-center py-8 text-muted-foreground">
-          <p>No actions defined for this mission.</p>
+          <p>No actions defined for this project.</p>
           {canEdit && (
-            <p className="text-sm mt-2">Add actions to break down the mission into manageable steps.</p>
+            <p className="text-sm mt-2">Add actions to break down the project into manageable steps.</p>
           )}
         </div>
       ) : (

@@ -26,6 +26,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   session: any | null;
+  idToken: string | null; // Cognito ID token for API requests
   loading: boolean;
   isAdmin: boolean;
   isContributor: boolean;
@@ -45,6 +46,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<any | null>(null);
+  const [idToken, setIdToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isContributor, setIsContributor] = useState(false);
@@ -71,12 +73,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const currentUser = await getCurrentUser();
         const session = await fetchAuthSession();
         
+        // Fetch user's full name from profiles table (the correct source)
+        let fullName: string | undefined = undefined;
+        try {
+          // Get ID token from session for authenticated request
+          const idToken = session.tokens?.idToken?.toString();
+          const headers: HeadersInit = { 'Content-Type': 'application/json' };
+          if (idToken) {
+            headers['Authorization'] = `Bearer ${idToken}`;
+          }
+          
+          // Use profiles endpoint instead of organization_members
+          // Profiles is the correct source for user display names
+          const response = await fetch(
+            `${import.meta.env.VITE_API_BASE_URL}/profiles?user_id=${currentUser.userId}`,
+            { headers }
+          );
+          if (response.ok) {
+            const result = await response.json();
+            const profiles = Array.isArray(result) ? result : (result?.data || []);
+            const profile = profiles[0]; // Get first profile
+            if (profile?.full_name) {
+              fullName = profile.full_name;
+            }
+          }
+        } catch (error) {
+          console.warn('Could not fetch user full name from profiles:', error);
+        }
+        
+        // Use email as username if available, otherwise use Cognito username
+        const email = currentUser.signInDetails?.loginId || currentUser.username;
+        const username = email.includes('@') ? email : currentUser.username;
+        
         const userData: User = {
           id: currentUser.userId,
           userId: currentUser.userId,
-          username: currentUser.username,
-          email: currentUser.signInDetails?.loginId,
-          name: currentUser.username
+          username: username,
+          email: email,
+          name: fullName || email || currentUser.username
         };
         
         setUser(userData);
@@ -85,6 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         setUser(null);
         setSession(null);
+        setIdToken(null);
         setIsAdmin(false);
         setIsContributor(false);
         setIsLeadership(false);
@@ -123,12 +158,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const currentUser = await getCurrentUser();
         const session = await fetchAuthSession();
         
+        // Fetch user's full name from profiles table (the correct source)
+        let fullName: string | undefined = undefined;
+        try {
+          // Get ID token from session for authenticated request
+          const idToken = session.tokens?.idToken?.toString();
+          const headers: HeadersInit = { 'Content-Type': 'application/json' };
+          if (idToken) {
+            headers['Authorization'] = `Bearer ${idToken}`;
+          }
+          
+          // Use profiles endpoint instead of organization_members
+          // Profiles is the correct source for user display names
+          const response = await fetch(
+            `${import.meta.env.VITE_API_BASE_URL}/profiles?user_id=${currentUser.userId}`,
+            { headers }
+          );
+          if (response.ok) {
+            const result = await response.json();
+            const profiles = Array.isArray(result) ? result : (result?.data || []);
+            const profile = profiles[0]; // Get first profile
+            if (profile?.full_name) {
+              fullName = profile.full_name;
+            }
+          }
+        } catch (error) {
+          console.warn('Could not fetch user full name from profiles:', error);
+        }
+        
+        // Use email as username if available, otherwise use Cognito username
+        const emailValue = currentUser.signInDetails?.loginId || currentUser.username;
+        const username = emailValue.includes('@') ? emailValue : currentUser.username;
+        
         const userData: User = {
           id: currentUser.userId,
           userId: currentUser.userId,
-          username: currentUser.username,
-          email: currentUser.signInDetails?.loginId,
-          name: currentUser.username
+          username: username,
+          email: emailValue,
+          name: fullName || emailValue || currentUser.username
         };
         
         setUser(userData);
@@ -226,6 +293,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider value={{
       user,
       session,
+      idToken,
       loading,
       isAdmin,
       isContributor,

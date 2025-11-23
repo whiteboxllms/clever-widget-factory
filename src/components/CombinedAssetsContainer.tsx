@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
+import { apiService } from '@/lib/apiService';
 import { ArrowLeft, Plus, BarChart3 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -120,10 +121,7 @@ export const CombinedAssetsContainer = () => {
   useEffect(() => {
     const fetchPendingOrders = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/parts_orders`);
-        const result = await response.json();
-
-        if (!response.ok) throw new Error('Failed to fetch orders');
+        const result = await apiService.get('/parts_orders');
 
         // Ensure orders is an array
         const orders = Array.isArray(result) ? result : (result?.data || []);
@@ -319,37 +317,22 @@ export const CombinedAssetsContainer = () => {
       }
 
       // Update the parts table
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/parts/${selectedAsset.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ current_quantity: newQuantity })
-      });
-
-      if (!response.ok) throw new Error('Failed to update quantity');
+      await apiService.put(`/parts/${selectedAsset.id}`, { current_quantity: newQuantity });
 
       // Log the change to history
       try {
         // Log the change to history via API
-        const historyResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/parts_history`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            part_id: selectedAsset.id,
-            change_type: quantityOperation === 'add' ? 'quantity_add' : 'quantity_remove',
-            old_quantity: currentQty,
-            new_quantity: newQuantity,
-            quantity_change: quantityOperation === 'add' ? change : -change,
-            change_reason: quantityChange.reason || `Quantity ${quantityOperation}ed`,
-            supplier_name: quantityChange.supplierName || null,
-            supplier_url: quantityChange.supplierUrl || null
-          })
+        await apiService.post('/parts_history', {
+          part_id: selectedAsset.id,
+          change_type: quantityOperation === 'add' ? 'quantity_add' : 'quantity_remove',
+          old_quantity: currentQty,
+          new_quantity: newQuantity,
+          quantity_change: quantityOperation === 'add' ? change : -change,
+          change_reason: quantityChange.reason || `Quantity ${quantityOperation}ed`,
+          supplier_name: quantityChange.supplierName || null,
+          supplier_url: quantityChange.supplierUrl || null
         });
-
-        if (!historyResponse.ok) {
-          console.error('Error logging history');
-        } else {
-          console.log('History entry created successfully');
-        }
+        console.log('History entry created successfully');
       } catch (historyError) {
         console.error('History logging failed:', historyError);
       }
@@ -381,20 +364,10 @@ export const CombinedAssetsContainer = () => {
     try {
       if (selectedAsset.type === 'asset') {
         // For assets, set status to 'removed'
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/tools/${selectedAsset.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'removed' })
-        });
-
-        if (!response.ok) throw new Error('Failed to remove asset');
+        await apiService.put(`/tools/${selectedAsset.id}`, { status: 'removed' });
       } else {
         // For stock items, delete the record like the inventory page
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/parts/${selectedAsset.id}`, {
-          method: 'DELETE'
-        });
-
-        if (!response.ok) throw new Error('Failed to remove stock item');
+        await apiService.delete(`/parts/${selectedAsset.id}`);
       }
 
       await refetch();

@@ -358,7 +358,6 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
           quantity_change: -(resource.quantity || 1),
           changed_by: user.id,
           change_reason: `Used for mission - ${resource.quantity || 1} ${resource.unit || 'pieces'} of ${resource.name}`,
-          organization_id: organizationId
         });
 
       if (historyError) {

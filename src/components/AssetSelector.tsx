@@ -7,6 +7,7 @@ import { Search, Plus, X, Wrench } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { useToolsData } from "@/hooks/tools/useToolsData";
+import { apiService } from '@/lib/apiService';
 
 interface Asset {
   id: string;
@@ -53,10 +54,7 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
     if (!actionId) return;
     
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkouts?action_id=${actionId}&is_returned=false`);
-      if (!response.ok) return;
-      
-      const result = await response.json();
+      const result = await apiService.get(`/checkouts?action_id=${actionId}&is_returned=false`);
       const checkouts = result.data || [];
       const serials = checkouts.map((c: any) => c.tool_serial_number).filter(Boolean);
       setSelectedAssets(serials);
@@ -99,12 +97,9 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
         let actionInProgress = false;
         if (actionId) {
           try {
-            const actionResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/actions?id=${actionId}`);
-            if (actionResponse.ok) {
-              const actionResult = await actionResponse.json();
-              const actionData = Array.isArray(actionResult.data) ? actionResult.data[0] : actionResult.data;
-              actionInProgress = actionData?.plan_commitment === true;
-            }
+            const actionResult = await apiService.get(`/actions?id=${actionId}`);
+            const actionData = Array.isArray(actionResult.data) ? actionResult.data[0] : actionResult.data;
+            actionInProgress = actionData?.plan_commitment === true;
           } catch (error) {
             console.warn('Could not fetch action status, defaulting to planned checkout:', error);
           }
@@ -120,13 +115,10 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
             userFullName = (user as any).name;
           } else {
             // Try to fetch from organization_members
-            const memberResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/organization_members?cognito_user_id=${user.id}`);
-            if (memberResponse.ok) {
-              const memberResult = await memberResponse.json();
-              const member = Array.isArray(memberResult?.data) ? memberResult.data[0] : memberResult?.data;
-              if (member?.full_name) {
-                userFullName = member.full_name;
-              }
+            const memberResult = await apiService.get('/organization_members');
+            const member = Array.isArray(memberResult?.data) ? memberResult.data.find((m: any) => m.cognito_user_id === user.id) : memberResult?.data;
+            if (member?.full_name) {
+              userFullName = member.full_name;
             }
           }
         } catch (error) {
@@ -139,7 +131,6 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
           user_id: user.id,
           user_name: userFullName,
           action_id: actionId,
-          organization_id: organizationId,
           is_returned: false
         };
 
@@ -149,18 +140,14 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
         }
         // Otherwise, checkout_date will be NULL (planned checkout)
 
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkouts`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(checkoutPayload)
-        });
-        if (!response.ok) {
-          const error = await response.json();
-          if (error.error?.includes('duplicate key')) {
+        try {
+          await apiService.post('/checkouts', checkoutPayload);
+        } catch (error: any) {
+          if (error.message?.includes('duplicate key')) {
             toast({ title: "Already Added", description: "This asset is already attached to this action" });
             return;
           }
-          throw new Error('Failed to create checkout');
+          throw error;
         }
       } catch (error) {
         console.error('Error creating checkout:', error);
@@ -178,12 +165,10 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
     if (actionId && user) {
       try {
         // Fetch the checkout
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkouts?action_id=${actionId}&is_returned=false`);
-        if (response.ok) {
-          const result = await response.json();
-          const checkout = result.data?.find((c: any) => c.tool_serial_number === serialNumber);
-          
-          if (checkout) {
+        const result = await apiService.get(`/checkouts?action_id=${actionId}&is_returned=false`);
+        const checkout = result.data?.find((c: any) => c.tool_serial_number === serialNumber);
+        
+        if (checkout) {
             // Check if this is an active checkout (has checkout_date)
             const isActiveCheckout = checkout.checkout_date != null;
             
@@ -199,13 +184,10 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
                   userFullName = (user as any).name;
                 } else {
                   // Try to fetch from organization_members
-                  const memberResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/organization_members?cognito_user_id=${user.id}`);
-                  if (memberResponse.ok) {
-                    const memberResult = await memberResponse.json();
-                    const member = Array.isArray(memberResult?.data) ? memberResult.data[0] : memberResult?.data;
-                    if (member?.full_name) {
-                      userFullName = member.full_name;
-                    }
+                  const memberResult = await apiService.get('/organization_members');
+                  const member = Array.isArray(memberResult?.data) ? memberResult.data.find((m: any) => m.cognito_user_id === user.id) : memberResult?.data;
+                  if (member?.full_name) {
+                    userFullName = member.full_name;
                   }
                 }
               } catch (error) {
@@ -213,54 +195,27 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
               }
 
               // Create checkin record
-              const checkinResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkins`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  checkout_id: checkout.id,
-                  tool_id: checkout.tool_id,
-                  user_name: userFullName,
-                  problems_reported: '',
-                  notes: 'Tool removed from action',
-                  sop_best_practices: '',
-                  what_did_you_do: '',
-                  checkin_reason: 'Tool removed from in-progress action',
-                  after_image_urls: [],
-                  organization_id: organizationId
-                })
+              await apiService.post('/checkins', {
+                checkout_id: checkout.id,
+                tool_id: checkout.tool_id,
+                user_name: userFullName,
+                problems_reported: '',
+                notes: 'Tool removed from action',
+                sop_best_practices: '',
+                what_did_you_do: '',
+                checkin_reason: 'Tool removed from in-progress action',
+                after_image_urls: [],
+                organization_id: organizationId
               });
-
-              if (!checkinResponse.ok) {
-                throw new Error('Failed to create checkin record');
-              }
 
               // Mark checkout as returned
-              const updateResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkouts/${checkout.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ is_returned: true })
-              });
-
-              if (!updateResponse.ok) {
-                throw new Error('Failed to mark checkout as returned');
-              }
+              await apiService.put(`/checkouts/${checkout.id}`, { is_returned: true });
 
               // Update tool status to available
-              const toolResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/tools/${checkout.tool_id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: 'available' })
-              });
-
-              if (!toolResponse.ok) {
-                throw new Error('Failed to update tool status');
-              }
-            } else {
-              // For planned checkouts, just delete the checkout record
-              await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkouts/${checkout.id}`, {
-                method: 'DELETE'
-              });
-            }
+              await apiService.put(`/tools/${checkout.tool_id}`, { status: 'available' });
+          } else {
+            // For planned checkouts, just delete the checkout record
+            await apiService.delete(`/checkouts/${checkout.id}`);
           }
         }
       } catch (error) {

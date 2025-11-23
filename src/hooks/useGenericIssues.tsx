@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { BaseIssue, ContextType, ToolIssue, OrderIssue } from "@/types/issues";
+import { apiService } from "@/lib/apiService";
 
 export interface GenericIssuesFilters {
   contextType?: ContextType;
@@ -34,12 +35,8 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
         }
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/issues?${params}`);
-      const data = await response.json();
-
-      if (!response.ok) throw new Error('Failed to fetch issues');
-
-      setIssues((data || []) as BaseIssue[]);
+      const data = await apiService.get(`/issues?${params}`);
+      setIssues((data.data || []) as BaseIssue[]);
     } catch (error) {
       console.error('Error fetching issues:', error);
       toast({
@@ -66,14 +63,7 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
         damage_assessment: issueData.damage_assessment
       };
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/issues`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(insertData)
-      });
-      
-      const data = await response.json();
-      if (!response.ok) throw new Error('Failed to create issue');
+      const data = await apiService.post(`/issues`, insertData);
 
       toast({
         title: "Issue reported",
@@ -97,28 +87,18 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
   const updateIssue = async (issueId: string, updates: Partial<BaseIssue>) => {
     try {
       // Get current issue data to track changes
-      const currentResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/issues/${issueId}`);
-      const currentIssue = await currentResponse.json();
-      if (!currentResponse.ok) throw new Error('Failed to fetch current issue');
+      const currentData = await apiService.get(`/issues/${issueId}`);
+      const currentIssue = currentData.data;
 
       // Update the issue
-      const updateResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/issues/${issueId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates)
-      });
-      if (!updateResponse.ok) throw new Error('Failed to update issue');
+      await apiService.put(`/issues/${issueId}`, updates);
 
       // Create history entry for the update
-      await fetch(`${import.meta.env.VITE_API_BASE_URL}/issue_history`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          issue_id: issueId,
-          old_status: currentIssue.status,
-          new_status: updates.status || currentIssue.status,
-          notes: 'Issue updated'
-        })
+      await apiService.post(`/issue_history`, {
+        issue_id: issueId,
+        old_status: currentIssue.status,
+        new_status: updates.status || currentIssue.status,
+        notes: 'Issue updated'
       });
 
       toast({

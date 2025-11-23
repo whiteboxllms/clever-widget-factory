@@ -10,8 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { ToolCheckInDialog } from '@/components/ToolCheckInDialog';
 import type { Tool } from '@/hooks/tools/useToolsData';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+import { apiService } from '@/lib/apiService';
 
 type CheckoutWithTool = {
   id: string;
@@ -49,19 +48,11 @@ export default function CheckIn() {
       console.log('Timestamp:', new Date().toISOString());
       
       // Fetch checkouts from AWS API
-      const checkoutsResponse = await fetch(`${API_BASE_URL}/checkouts?is_returned=false`);
-      if (!checkoutsResponse.ok) {
-        throw new Error('Failed to fetch checkouts');
-      }
-      const checkoutsResult = await checkoutsResponse.json();
+      const checkoutsResult = await apiService.get('/checkouts?is_returned=false');
       const checkoutsData = checkoutsResult.data || [];
 
       // Fetch tools to get full tool details
-      const toolsResponse = await fetch(`${API_BASE_URL}/tools`);
-      if (!toolsResponse.ok) {
-        throw new Error('Failed to fetch tools');
-      }
-      const toolsResult = await toolsResponse.json();
+      const toolsResult = await apiService.get('/tools');
       const toolsData = toolsResult.data || [];
 
       // Create a map of tools by ID for quick lookup

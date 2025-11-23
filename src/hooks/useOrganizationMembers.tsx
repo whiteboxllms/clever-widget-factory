@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
 import { useToast } from '@/hooks/use-toast';
+import { apiService } from '@/lib/apiService';
 
 export interface OrganizationMember {
   id: string;
@@ -19,14 +20,7 @@ export function useOrganizationMembers() {
     try {
       setLoading(true);
       
-      // Use API directly to get organization members with proper filtering
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api'}/organization_members?organization_id=${organizationId || '00000000-0000-0000-0000-000000000001'}`);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch organization members: ${response.status}`);
-      }
-      
-      const result = await response.json();
+      const result = await apiService.get(`/organization_members?organization_id=${organizationId || '00000000-0000-0000-0000-000000000001'}`);
       const data = result.data || [];
 
       // Transform to match OrganizationMember interface

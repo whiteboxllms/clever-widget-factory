@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/client';
+import { apiService } from './apiService';
 
 export interface AutoCheckoutOptions {
   actionId: string;
@@ -149,10 +150,9 @@ export async function createPlannedCheckoutsForAction(options: AutoCheckoutOptio
 export async function activatePlannedCheckoutsForAction(actionId: string, organizationId: string): Promise<void> {
   try {
     // Get planned checkouts for this action
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkouts?action_id=${actionId}&is_returned=false`);
-    const result = await response.json();
+    const result = await apiService.get(`/checkouts?action_id=${actionId}&is_returned=false`);
     
-    if (!response.ok || !result.data || result.data.length === 0) {
+    if (!result.data || result.data.length === 0) {
       console.log('No planned checkouts to activate');
       return;
     }
@@ -167,11 +167,7 @@ export async function activatePlannedCheckoutsForAction(actionId: string, organi
     
     // Update each checkout to set checkout_date and tool status
     for (const checkout of plannedCheckouts) {
-      await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkouts/${checkout.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ checkout_date: null })
-      });
+      await apiService.put(`/checkouts/${checkout.id}`, { checkout_date: null });
     }
     
     console.log(`Activated ${plannedCheckouts.length} planned checkouts for action ${actionId}`);
@@ -191,8 +187,7 @@ export async function autoCheckinToolsForAction(options: AutoCheckinOptions): Pr
   try {
 
     // Get all unreturned checkouts for this action
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkouts?action_id=${actionId}&is_returned=false`);
-    const result = await response.json();
+    const result = await apiService.get(`/checkouts?action_id=${actionId}&is_returned=false`);
     const checkouts = result.data || [];
 
     if (checkouts.length === 0) {
@@ -203,54 +198,36 @@ export async function autoCheckinToolsForAction(options: AutoCheckinOptions): Pr
     for (const checkout of checkouts) {
       if (checkout.checkout_date) {
         // This is an active checkout - create a proper checkin record
-        await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkins`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            checkout_id: checkout.id,
-            tool_id: checkout.tool_id,
-            user_name: checkout.user_name || 'Unknown User',
-            problems_reported: '',
-            notes: notes || 'Auto-checked in - action completed',
-            sop_best_practices: '',
-            what_did_you_do: '',
-            checkin_reason: checkinReason || 'Action completed',
-            after_image_urls: [],
-            organization_id: organizationId
-          })
+        await apiService.post('/checkins', {
+          checkout_id: checkout.id,
+          tool_id: checkout.tool_id,
+          user_name: checkout.user_name || 'Unknown User',
+          problems_reported: '',
+          notes: notes || 'Auto-checked in - action completed',
+          sop_best_practices: '',
+          what_did_you_do: '',
+          checkin_reason: checkinReason || 'Action completed',
+          after_image_urls: [],
         });
       } else {
         // This is a planned checkout - create a checkin record for planned checkout
-        await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkins`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            checkout_id: checkout.id,
-            tool_id: checkout.tool_id,
-            user_name: checkout.user_name || 'Unknown User',
-            problems_reported: '',
-            notes: notes || 'Auto-checked in - planned checkout completed',
-            sop_best_practices: '',
-            what_did_you_do: '',
-            checkin_reason: checkinReason || 'Action completed - planned checkout',
-            after_image_urls: [],
-            organization_id: organizationId
-          })
+        await apiService.post('/checkins', {
+          checkout_id: checkout.id,
+          tool_id: checkout.tool_id,
+          user_name: checkout.user_name || 'Unknown User',
+          problems_reported: '',
+          notes: notes || 'Auto-checked in - planned checkout completed',
+          sop_best_practices: '',
+          what_did_you_do: '',
+          checkin_reason: checkinReason || 'Action completed - planned checkout',
+          after_image_urls: []
         });
       }
 
       // Mark checkout as returned and update tool status
-      await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkouts/${checkout.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_returned: true })
-      });
+      await apiService.put(`/checkouts/${checkout.id}`, { is_returned: true });
 
-      await fetch(`${import.meta.env.VITE_API_BASE_URL}/tools/${checkout.tool_id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'available' })
-      });
+      await apiService.put(`/tools/${checkout.tool_id}`, { status: 'available' });
 
       console.log(`Checked in tool ${checkout.tool_id} for action ${actionId}`);
     }
@@ -416,8 +393,7 @@ async function autoCheckinSingleTool(options: {
  */
 export async function hasPlannedCheckouts(actionId: string, organizationId: string): Promise<boolean> {
   try {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkouts?action_id=${actionId}&organization_id=${organizationId}&is_returned=false&checkout_date=null&limit=1`);
-    const result = await response.json();
+    const result = await apiService.get(`/checkouts?action_id=${actionId}&organization_id=${organizationId}&is_returned=false&checkout_date=null&limit=1`);
     return result.data && result.data.length > 0;
   } catch (error) {
     console.error('Error checking for planned checkouts:', error);

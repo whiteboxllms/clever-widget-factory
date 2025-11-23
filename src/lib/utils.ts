@@ -186,7 +186,7 @@ export async function processStockConsumption(
           quantity_change: -stockItem.quantity,
           changed_by: userId,
           change_reason: `Used for action: ${actionTitle} - ${stockItem.quantity} ${stockItem.part_name}`,
-          organization_id: organizationId
+          action_id: actionId, // Link to the action for auditability
         })
       });
 

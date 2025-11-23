@@ -56,7 +56,7 @@ export default function Dashboard() {
       color: "bg-yellow-500"
     },
     {
-      title: "Stargazer Missions",
+      title: "Stargazer Projects",
       description: "Manage objectives and track progress",
       icon: Flag,
       path: "/missions",

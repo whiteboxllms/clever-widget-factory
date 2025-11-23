@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft } from 'lucide-react';
 import { useAuth } from "@/hooks/useCognitoAuth";
+import { apiService } from '@/lib/apiService';
 import { useToast } from '@/hooks/use-toast';
 import { useProfile } from '@/hooks/useProfile';
 
@@ -39,17 +40,11 @@ export default function SettingsPage() {
     
     setColorLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/profiles`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: user.userId,
-          full_name: fullName, // Preserve existing name
-          favorite_color: color
-        })
+      await apiService.post('/profiles', {
+        user_id: user.userId,
+        full_name: fullName, // Preserve existing name
+        favorite_color: color
       });
-
-      if (!response.ok) throw new Error('Failed to update');
 
       setFavoriteColor(color);
       toast({

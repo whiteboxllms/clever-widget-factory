@@ -77,7 +77,6 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
           new_status: 'removed',
           changed_by: (await supabase.auth.getUser()).data.user?.id,
           notes: 'Issue removed during check-in',
-          organization_id: organizationId
         });
 
       if (historyError) throw historyError;

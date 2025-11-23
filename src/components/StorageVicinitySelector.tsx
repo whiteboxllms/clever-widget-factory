@@ -86,7 +86,6 @@ export function StorageVicinitySelector({ value, onValueChange, placeholder = "S
           name: newVicinity.name.trim(),
           description: newVicinity.description.trim() || null,
           created_by: user.id,
-          organization_id: organizationId
         })
         .select()
         .single();

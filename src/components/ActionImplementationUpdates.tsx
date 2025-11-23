@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
+import { apiService } from '@/lib/apiService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import TiptapEditor from './TiptapEditor';
@@ -56,13 +57,7 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
   const fetchUpdates = async () => {
     try {
       console.log('Fetching updates for action:', actionId);
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/action_implementation_updates?action_id=${actionId}`);
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to fetch updates');
-      }
-
+      const result = await apiService.get(`/action_implementation_updates?action_id=${actionId}`);
       const data = result.data || [];
       console.log('Fetched updates from server:', data.length, 'updates');
 
@@ -75,8 +70,7 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
       if (missingUserIds.length > 0) {
         try {
           const profilePromises = missingUserIds.map(async (userId) => {
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/profiles?user_id=${userId}`);
-            const result = await response.json();
+            const result = await apiService.get(`/profiles?user_id=${userId}`);
             return result.data?.[0] || null;
           });
           
@@ -117,20 +111,11 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
     try {
       if (!user) throw new Error('Not authenticated');
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/action_implementation_updates`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action_id: actionId,
-          update_text: newUpdateText,
-          updated_by: user.userId
-        })
+      await apiService.post('/action_implementation_updates', {
+        action_id: actionId,
+        update_text: newUpdateText,
+        updated_by: user.userId
       });
-
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || 'Failed to add update');
-      }
 
       setNewUpdateText('');
       
@@ -141,8 +126,7 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
       if (updates.length === 0) {
         try {
           // Check if action has plan_commitment
-          const actionResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/actions`);
-          const actionResult = await actionResponse.json();
+          const actionResult = await apiService.get('/actions');
           const action = actionResult.data?.find((a: any) => a.id === actionId);
           
           if (action?.plan_commitment === true) {
@@ -190,19 +174,10 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/action_implementation_updates`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: editingUpdateId,
-          update_text: editingText
-        })
+      await apiService.put('/action_implementation_updates', {
+        id: editingUpdateId,
+        update_text: editingText
       });
-
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || 'Failed to update');
-      }
 
       setEditingUpdateId(null);
       setEditingText('');
@@ -241,16 +216,7 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
     setIsDeleting(updateId);
     
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/action_implementation_updates`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: updateId })
-      });
-
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || 'Failed to delete');
-      }
+      await apiService.delete(`/action_implementation_updates?id=${updateId}`);
 
       console.log('Delete successful, refreshing from server...');
       

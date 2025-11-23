@@ -1,6 +1,7 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import { useAuth } from "@/hooks/useCognitoAuth";
-import { UserMappingService } from '@/lib/userMappingService';
+import { createContext, useContext } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/useCognitoAuth';
+import { useProfile } from '@/hooks/useProfile';
 
 interface Organization {
   id: string;
@@ -31,76 +32,39 @@ interface OrganizationContextType {
 const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
 
 export function OrganizationProvider({ children }: { children: React.ReactNode }) {
-  const { user, loading: authLoading } = useAuth();
-  const [organization, setOrganization] = useState<Organization | null>(null);
-  const [organizationMember, setOrganizationMember] = useState<OrganizationMember | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const isAdmin = organizationMember?.role === 'admin';
-
-  const fetchOrganizationData = async () => {
-    console.log('🔍 fetchOrganizationData called with user:', user);
-    
-    if (!user) {
-      console.log('❌ No user, skipping organization fetch');
-      setOrganization(null);
-      setOrganizationMember(null);
-      setLoading(false);
-      return;
-    }
-
-    console.log('🔍 Setting up Stargazer Farm organization for user:', user.userId);
-
-    try {
-      const mockMember = {
-        id: 'f6583e34-45f7-4523-aecd-5f62c8abb7b5',
-        organization_id: '00000000-0000-0000-0000-000000000001',
-        user_id: user.userId, // Use actual Cognito user ID
-        role: 'admin',
-        invited_by: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      const mockOrganization = {
-        id: '00000000-0000-0000-0000-000000000001',
-        name: 'Stargazer Farm',
-        subdomain: 'stargazer-farm',
-        settings: {},
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      console.log('✅ Using Cognito user ID for clean architecture');
-      setOrganizationMember(mockMember);
-      setOrganization(mockOrganization);
-    } catch (error) {
-      console.error('Error in fetchOrganizationData:', error);
-      setOrganization(null);
-      setOrganizationMember(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  
+  // Use useProfile to get real organization data instead of mock data
+  const {
+    organization,
+    organizationMember,
+    isAdmin,
+    isLoading
+  } = useProfile();
 
   const refreshOrganization = async () => {
-    setLoading(true);
-    await fetchOrganizationData();
-  };
-
-  useEffect(() => {
-    if (!authLoading) {
-      fetchOrganizationData();
+    // Invalidate queries to force refetch
+    if (user?.userId) {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['profile', user.userId] }),
+        queryClient.invalidateQueries({ queryKey: ['organization_memberships', user.userId] }),
+      ]);
     }
-  }, [user, authLoading]);
+  };
 
   return (
     <OrganizationContext.Provider value={{
       organization,
-      organizationMember,
+      organizationMember: organizationMember ? {
+        id: organizationMember.id,
+        organization_id: organizationMember.organization_id,
+        user_id: organizationMember.user_id,
+        role: organizationMember.role,
+        invited_by: null
+      } : null,
       isAdmin,
-      loading,
+      loading: isLoading,
       refreshOrganization,
     }}>
       {children}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { apiService } from '@/lib/apiService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,7 +19,6 @@ import { IssueResolutionDialog } from '@/components/IssueResolutionDialog';
 import { useImageUpload } from '@/hooks/useImageUpload';
 import type { Tool } from '@/hooks/tools/useToolsData';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 const DEFAULT_ORGANIZATION_ID = '00000000-0000-0000-0000-000000000001';
 
 
@@ -97,14 +97,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
     if (!tool) return;
 
     try {
-      const params = new URLSearchParams({
-        tool_id: tool.id,
-        is_returned: 'false',
-        limit: '1'
-      });
-      const response = await fetch(`${API_BASE_URL}/checkouts?${params.toString()}`);
-      if (!response.ok) throw new Error('Failed to fetch checkout');
-      const result = await response.json();
+      const result = await apiService.get(`/checkouts?tool_id=${tool.id}&is_returned=false&limit=1`);
       const checkoutData = Array.isArray(result?.data) ? result.data[0] : null;
       setCheckout(checkoutData || null);
     } catch (error) {
@@ -238,51 +231,23 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         checkinData.after_image_urls = uploadedPhotoUrls;
       }
 
-      const checkinResponse = await fetch(`${API_BASE_URL}/checkins`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...checkinData,
-          organization_id: organizationId || DEFAULT_ORGANIZATION_ID
-        })
-      });
-      const checkinResult = await checkinResponse.json();
-      if (!checkinResponse.ok) {
-        throw new Error(checkinResult?.error || 'Failed to create check-in');
-      }
+      await apiService.post('/checkins', checkinData);
 
-      const checkoutUpdateResponse = await fetch(`${API_BASE_URL}/checkouts/${checkout.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_returned: true })
-      });
-      const checkoutUpdateResult = await checkoutUpdateResponse.json();
-      if (!checkoutUpdateResponse.ok) {
-        throw new Error(checkoutUpdateResult?.error || 'Failed to update checkout');
-      }
+      await apiService.put(`/checkouts/${checkout.id}`, { is_returned: true });
 
       if (form.tool_issues.trim()) {
         try {
-          const issueResponse = await fetch(`${API_BASE_URL}/issues`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              context_type: 'tool',
-              context_id: tool.id,
-              reported_by: user?.id || 'unknown-user',
-              description: form.tool_issues.trim(),
-              issue_type: 'general',
-              status: 'active',
-              organization_id: organizationId || DEFAULT_ORGANIZATION_ID,
-              related_checkout_id: checkout.id,
-              report_photo_urls: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : [],
-              workflow_status: 'reported'
-            })
+          await apiService.post('/issues', {
+            context_type: 'tool',
+            context_id: tool.id,
+            reported_by: user?.id || 'unknown-user',
+            description: form.tool_issues.trim(),
+            issue_type: 'general',
+            status: 'active',
+            related_checkout_id: checkout.id,
+            report_photo_urls: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : [],
+            workflow_status: 'reported'
           });
-          if (!issueResponse.ok) {
-            const issueResult = await issueResponse.json();
-            console.error('Error creating issue from check-in:', issueResult);
-          }
         } catch (issueError) {
           console.error('Error creating issue from check-in:', issueError);
         }
@@ -294,19 +259,10 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
           : tool.legacy_storage_vicinity
         : tool.storage_location || null;
 
-      const toolUpdateResponse = await fetch(`${API_BASE_URL}/tools/${tool.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'available',
-          ...(locationLabel ? { actual_location: locationLabel } : {})
-        })
+      await apiService.put(`/tools/${tool.id}`, {
+        status: 'available',
+        ...(locationLabel ? { actual_location: locationLabel } : {})
       });
-
-      if (!toolUpdateResponse.ok) {
-        const toolUpdateResult = await toolUpdateResponse.json();
-        throw new Error(toolUpdateResult?.error || 'Failed to update tool');
-      }
 
       toast({
         title: "Tool checked in successfully",

@@ -1,5 +1,6 @@
 // Cognito to Organization Member mapping service
 import { getCurrentUser } from 'aws-amplify/auth';
+import { apiService } from './apiService';
 
 interface CognitoMapping {
   cognito_user_id: string;
@@ -37,11 +38,8 @@ class CognitoMappingService {
       }
 
       // Try to find by email in organization_members
-      const response = await fetch(`/api/organization_members/by-email?email=${encodeURIComponent(email)}`);
-      if (response.ok) {
-        const result = await response.json();
-        return result.data?.user_id || null;
-      }
+      const result = await apiService.get(`/api/organization_members/by-email?email=${encodeURIComponent(email)}`);
+      return result.data?.user_id || null;
 
       return null;
     } catch (error) {
@@ -55,8 +53,7 @@ class CognitoMappingService {
     if (!memberId) return [];
 
     try {
-      const response = await fetch(`/api/actions?assigned_to=${memberId}`);
-      const result = await response.json();
+      const result = await apiService.get(`/api/actions?assigned_to=${memberId}`);
       return result.data || [];
     } catch (error) {
       console.error('Failed to fetch user actions:', error);

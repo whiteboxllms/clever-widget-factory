@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useUserNames } from '@/hooks/useUserNames';
 import { offlineQueryConfig } from '@/lib/queryConfig';
+import { apiService } from '@/lib/apiService';
 
 export interface CombinedAsset {
   id: string;
@@ -46,25 +47,14 @@ type AssetsQueryOptions = {
 };
 
 const fetchTools = async () => {
-  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/tools?limit=1000`);
-  const result = await response.json();
+  const result = await apiService.get('/tools?limit=1000');
   return result.data || [];
 };
 
 const fetchParts = async () => {
   try {
-    console.log('🔄 Fetching parts from:', `${import.meta.env.VITE_API_BASE_URL}/parts?limit=1000`);
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/parts?limit=1000`);
-    console.log('📡 Parts response status:', response.status);
-    
-    if (!response.ok) {
-      console.error('❌ Parts fetch failed:', response.status, response.statusText);
-      return [];
-    }
-    
-    const result = await response.json();
-    console.log('📦 Parts result:', result);
-    return result.data || result || [];
+    const result = await apiService.get('/parts?limit=1000');
+    return result.data || [];
   } catch (error) {
     console.error('❌ Parts fetch error:', error);
     return [];
@@ -72,20 +62,17 @@ const fetchParts = async () => {
 };
 
 const fetchActions = async () => {
-  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/actions?limit=1000`);
-  const result = await response.json();
+  const result = await apiService.get('/actions?limit=1000');
   return result.data || [];
 };
 
 const fetchOrganizationMembers = async () => {
-  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/organization_members`);
-  const result = await response.json();
+  const result = await apiService.get('/organization_members');
   return result.data || [];
 };
 
 const fetchProfiles = async () => {
-  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/profiles`);
-  const result = await response.json();
+  const result = await apiService.get('/profiles');
   return result.data || [];
 };
 
@@ -120,14 +107,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
   const createAsset = async (assetData: Record<string, unknown>, isAsset: boolean) => {
     try {
       const endpoint = isAsset ? 'tools' : 'parts';
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(assetData)
-      });
-      
-      if (!response.ok) throw new Error('Failed to create');
-      const result = await response.json();
+      const result = await apiService.post(`/${endpoint}`, assetData);
       const data = result.data;
 
       // Note: Asset will appear after refetch
@@ -146,13 +126,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
   const updateAsset = async (assetId: string, updates: Partial<CombinedAsset>, isAsset: boolean) => {
     try {
       const endpoint = isAsset ? 'tools' : 'parts';
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: assetId, ...updates })
-      });
-      
-      if (!response.ok) throw new Error('Failed to update');
+      await apiService.post(`/${endpoint}`, { id: assetId, ...updates });
 
       // Note: Asset will update after refetch
 

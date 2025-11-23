@@ -135,9 +135,9 @@ export function MissionActionList({ missionId, profiles, canEdit = false, missio
 
       {actions.length === 0 && !isAddingAction ? (
         <div className="text-center py-8 text-muted-foreground">
-          <p>No actions defined for this mission.</p>
+          <p>No actions defined for this project.</p>
           {canEdit && (
-            <p className="text-sm mt-2">Add actions to break down the mission into manageable steps.</p>
+            <p className="text-sm mt-2">Add actions to break down the project into manageable steps.</p>
           )}
         </div>
       ) : (

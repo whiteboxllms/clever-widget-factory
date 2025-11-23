@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Search, Plus, X, Package } from "lucide-react";
 import { supabase } from '@/lib/client';
 import { useToast } from "@/hooks/use-toast";
+import { apiService } from '@/lib/apiService';
 
 interface StockItem {
   id: string;
@@ -41,13 +42,8 @@ export function StockSelector({ selectedStock, onStockChange }: StockSelectorPro
   const fetchStockItems = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/parts`);
-      const result = await response.json();
+      const result = await apiService.get('/parts');
       
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to fetch parts');
-      }
-
       // Filter parts with current_quantity > 0
       const stockItems = (result.data || []).filter((part: any) => part.current_quantity > 0);
       setStockItems(stockItems);

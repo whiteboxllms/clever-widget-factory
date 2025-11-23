@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { apiService } from "@/lib/apiService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -86,15 +86,12 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/organization_members?cognito_user_id=${user.id}`);
-        if (response.ok) {
-          const result = await response.json();
-          const member = Array.isArray(result?.data) ? result.data[0] : null;
-          const memberName = preferName(member?.full_name);
-          if (memberName && isMounted) {
-            setUserFullName(memberName);
-            return;
-          }
+        const result = await apiService.get('/organization_members');
+        const member = Array.isArray(result?.data) ? result.data.find((m: any) => m.cognito_user_id === user.id) : null;
+        const memberName = preferName(member?.full_name);
+        if (memberName && isMounted) {
+          setUserFullName(memberName);
+          return;
         }
       } catch (error) {
         console.warn('Failed to resolve organization member name', error);
@@ -150,8 +147,7 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
 
     try {
       // Check for existing active checkouts
-      const checkoutsResponse = await fetch(`${API_BASE_URL}/checkouts?tool_id=${tool.id}&is_returned=false`);
-      const checkoutsResult = await checkoutsResponse.json();
+      const checkoutsResult = await apiService.get(`/checkouts?tool_id=${tool.id}&is_returned=false`);
       const existingCheckouts = checkoutsResult.data || [];
 
       if (existingCheckouts.length > 0) {
@@ -165,30 +161,19 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
       }
 
       // Create checkout record with immediate checkout_date
-      const checkoutResponse = await fetch(`${API_BASE_URL}/checkouts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tool_id: tool.id,
-          user_id: user?.id,
-          user_name: userFullName,
-          intended_usage: form.intendedUsage || null,
-          notes: form.notes || null,
-          action_id: taskId || null,
-          organization_id: organizationId,
-          is_returned: false,
-          checkout_date: new Date().toISOString()
-        })
+      await apiService.post('/checkouts', {
+        tool_id: tool.id,
+        user_id: user?.id,
+        user_name: userFullName,
+        intended_usage: form.intendedUsage || null,
+        notes: form.notes || null,
+        action_id: taskId || null,
+        is_returned: false,
+        checkout_date: new Date().toISOString()
       });
-
-      if (!checkoutResponse.ok) throw new Error('Failed to create checkout');
 
       // Update tool status
-      await fetch(`${API_BASE_URL}/tools/${tool.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'checked_out' })
-      });
+      await apiService.put(`/tools/${tool.id}`, { status: 'checked_out' });
 
       toast({
         title: "Success",

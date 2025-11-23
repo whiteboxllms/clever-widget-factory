@@ -16,6 +16,7 @@ import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
+import { apiService } from '@/lib/apiService';
 
 import { useTempPhotoStorage } from "@/hooks/useTempPhotoStorage";
 import { hasActualContent } from "@/lib/utils";
@@ -117,14 +118,16 @@ export function SimpleMissionForm({
 
   const fetchTools = async () => {
     try {
-      const { data, error } = await supabase
-        .from('tools')
-        .select('id, name, serial_number, status')
-        .neq('status', 'removed')
-        .order('name');
-
-      if (error) throw error;
-      setTools(data || []);
+      const result = await apiService.get('/tools');
+      let toolsData = result.data || [];
+      
+      // Filter out removed tools client-side
+      toolsData = toolsData.filter((tool: Tool) => tool.status !== 'removed');
+      
+      // Sort by name
+      toolsData.sort((a: Tool, b: Tool) => a.name.localeCompare(b.name));
+      
+      setTools(toolsData);
     } catch (error) {
       console.error('Error fetching tools:', error);
     }
@@ -277,7 +280,6 @@ export function SimpleMissionForm({
             template_name: selectedTemplate?.name || null,
             template_color: selectedTemplate?.color || null,
             template_icon: selectedTemplate?.icon ? getIconName(selectedTemplate.icon) : null,
-            organization_id: organizationId,
             status: 'draft' // Mark as draft
           })
           .select()
@@ -641,7 +643,7 @@ export function SimpleMissionForm({
             </div>
             <div>
               <h3 className="font-semibold text-foreground">{selectedTemplate.name}</h3>
-              <p className="text-sm text-foreground/80">Define your mission details below</p>
+              <p className="text-sm text-foreground/80">Define your project details below</p>
             </div>
           </div>
         </div>
@@ -650,12 +652,12 @@ export function SimpleMissionForm({
       {/* Basic Information */}
       <div className="space-y-4">
         <div>
-          <Label htmlFor="title">Mission Title *</Label>
+          <Label htmlFor="title">Project Title *</Label>
           <Input
             id="title"
             value={formData.title}
             onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-            placeholder="Enter mission title"
+            placeholder="Enter project title"
           />
         </div>
         
@@ -1014,17 +1016,18 @@ export function SimpleMissionForm({
                 formData.title && formData.title.trim() &&
                 formData.problem_statement && formData.problem_statement.trim()
               );
-              const enabledClasses = 'bg-primary text-black hover:bg-primary/90 opacity-100';
+              // Use blue color scheme for primary action button with good contrast
+              const enabledClasses = 'bg-blue-600 text-white hover:bg-blue-700 opacity-100';
               const disabledClasses = 'bg-muted text-muted-foreground opacity-50 cursor-not-allowed';
               const baseClasses = 'transition-colors';
-              const colorClasses = selectedTemplate ? `${selectedTemplate.color} text-black opacity-100 hover:opacity-90` : enabledClasses;
+              const colorClasses = selectedTemplate ? `${selectedTemplate.color} text-white opacity-100 hover:opacity-90` : enabledClasses;
               return (
                 <Button
                   onClick={handleSubmit}
                   disabled={!isCreateValid}
                   className={`${baseClasses} ${isCreateValid ? colorClasses : disabledClasses}`}
                 >
-                  {draftMissionId ? 'Finalize Mission' : 'Create Mission'}
+                  {draftMissionId ? 'Finalize Project' : 'Create Project'}
                 </Button>
               );
             })()

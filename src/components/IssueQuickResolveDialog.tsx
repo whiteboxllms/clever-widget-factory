@@ -105,7 +105,6 @@ export function IssueQuickResolveDialog({
           new_status: 'resolved',
           field_changed: 'status',
           notes: `Issue resolved. Root cause: ${formData.rootCause}. Resolution: ${formData.resolutionNotes}`,
-          organization_id: organizationId
         });
 
       if (historyError) throw historyError;

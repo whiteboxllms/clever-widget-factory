@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle, Circle, Clock, User, Upload, Image, ChevronDown, ChevronRight, Save, X, Link, Target, Copy } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { uploadToS3, getS3Url } from '@/lib/s3Service';
+import { apiService } from '@/lib/apiService';
 
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
@@ -160,10 +161,9 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     // Only load real photos for saved actions
     if (!action.id.startsWith('temp-')) {
       try {
-        const response = await fetch(`/api/actions/${action.id}`);
-        const data = await response.json();
+        const data = await apiService.get(`/api/actions/${action.id}`);
         
-        if (response.ok) {
+        if (data) {
           // Convert attachment URLs to photo format
           const attachmentPhotos = (data?.attachments || []).map((url: string, index: number) => ({
             id: `attachment-${index}`,
@@ -200,13 +200,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
       const normalizedPolicy = sanitizeRichText(editData.policy);
       const updateData: { policy: string | null; assigned_to?: string } = { policy: normalizedPolicy };
       
-      const response = await fetch(`/api/actions/${action.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
-      });
-
-      if (!response.ok) throw new Error('Failed to update action');
+      await apiService.put(`/api/actions/${action.id}`, updateData);
       
       setHasUnsavedPolicy(false);
       // Don't call onUpdate() here to prevent disruptive refreshes
@@ -270,7 +264,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
         
         toast({
           title: "Photos Added",
-          description: `${files.length} photo${files.length > 1 ? 's' : ''} will be saved when you create the mission`,
+          description: `${files.length} photo${files.length > 1 ? 's' : ''} will be saved when you create the project`,
         });
       } catch (error) {
         console.error('Failed to add temporary photos:', error);
@@ -324,21 +318,12 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
           const relativePath = `mission-evidence/${fileName}`;
 
           // Add to action's attachments array
-          const response = await fetch(`/api/actions/${action.id}`);
-          const currentAction = await response.json();
-          
-          if (!response.ok) throw new Error('Failed to fetch action');
+          const currentAction = await apiService.get(`/api/actions/${action.id}`);
 
           const currentAttachments = currentAction?.attachments || [];
           const updatedAttachments = [...currentAttachments, relativePath];
 
-          const updateResponse = await fetch(`/api/actions/${action.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ attachments: updatedAttachments })
-          });
-
-          if (!updateResponse.ok) throw new Error('Failed to update attachments');
+          await apiService.put(`/api/actions/${action.id}`, { attachments: updatedAttachments });
 
           enhancedToast.showUploadSuccess(file.name);
           enhancedToast.dismiss(uploadToast.id);
@@ -417,10 +402,10 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
 
     // Check if there are any implementation updates
     try {
-      const response = await fetch(`/api/action_implementation_updates?action_id=${action.id}&limit=1`);
-      const updates = await response.json();
+      const result = await apiService.get(`/api/action_implementation_updates?action_id=${action.id}&limit=1`);
+      const updates = result.data || [];
       
-      if (!response.ok || !updates || updates.length === 0) {
+      if (!updates || updates.length === 0) {
         toast({
           title: "Implementation Required",
           description: "Please add at least one implementation update before completing",
@@ -462,13 +447,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
         completed_at: new Date().toISOString()
       };
       
-      const response = await fetch(`/api/actions/${action.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
-      });
-
-      if (!response.ok) throw new Error('Failed to complete action');
+      await apiService.put(`/api/actions/${action.id}`, updateData);
 
       // Auto-checkin tools
       try {

@@ -13,10 +13,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { offlineQueryConfig } from '@/lib/queryConfig';
 import { ArrowLeft, Rocket, Flag, Calendar, User, CheckCircle, Clock, AlertCircle, Wrench, Microscope, GraduationCap, Hammer, Lightbulb, ChevronDown, ChevronUp, Filter, Settings } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { MissionTemplates } from '@/components/MissionTemplates';
 import { SimpleMissionForm } from '@/components/SimpleMissionForm';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-
+import { apiService } from '@/lib/apiService';
 
 import { withAuth, checkUserRole as checkUserRoleAuth } from '@/lib/authUtils';
 import { hasActualContent } from '@/lib/utils';
@@ -70,9 +69,11 @@ const Missions = () => {
   const queryClient = useQueryClient();
 
   const fetchMissions = async () => {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/missions`);
-    const result = await response.json();
-    return Array.isArray(result) ? result : (result?.data || []);
+    // Use apiService to include authentication headers
+    const { apiService, getApiData } = await import('@/lib/apiService');
+    const response = await apiService.get('/missions');
+    const data = getApiData(response);
+    return Array.isArray(data) ? data : [];
   };
 
   const { data: missions = [], isLoading: loading } = useQuery({
@@ -84,12 +85,10 @@ const Missions = () => {
   // Use standardized profiles for consistent "Assigned to" dropdown
   const { profiles } = useActionProfiles();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showTemplates, setShowTemplates] = useState(true);
   const { data: organizationMembers = [] } = useQuery({
     queryKey: ['organization_members'],
     queryFn: async () => {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/organization_members`);
-      const result = await response.json();
+      const result = await apiService.get('/organization_members');
       return Array.isArray(result) ? result : (result?.data || []);
     },
     ...offlineQueryConfig,
@@ -103,21 +102,6 @@ const Missions = () => {
 
   const isAdmin = userRole === 'admin';
   const isContributorOrAdmin = userRole === 'admin' || userRole === 'contributor';
-  const [selectedTemplate, setSelectedTemplate] = useState<{
-    id: string;
-    name: string;
-    description: string;
-    icon: React.ComponentType<{ className?: string }>;
-    category: string;
-    defaultTasks: Array<{
-      title: string;
-      description: string;
-      plan?: string;
-      observations?: string;
-    }>;
-    estimatedDuration: string;
-    color: string;
-  } | null>(null);
   const [expandedProblemStatements, setExpandedProblemStatements] = useState<Set<string>>(new Set());
   const [showCompletedMissions, setShowCompletedMissions] = useState(false);
   const [showBackloggedMissions, setShowBackloggedMissions] = useState(false);
@@ -125,13 +109,7 @@ const Missions = () => {
 
   const createMissionMutation = useMutation({
     mutationFn: async (missionData: any) => {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/missions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(missionData)
-      });
-      if (!response.ok) throw new Error('Failed to create mission');
-      return response.json();
+      return await apiService.post('/missions', missionData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['missions'] });
@@ -279,40 +257,6 @@ const Missions = () => {
   };
 
 
-  const handleTemplateSelect = (template: {
-    id: string;
-    name: string;
-    description: string;
-    icon: React.ComponentType<{ className?: string }>;
-    category: string;
-    defaultTasks: Array<{
-      title: string;
-      description: string;
-      plan?: string;
-      observations?: string;
-    }>;
-    estimatedDuration: string;
-    color: string;
-  }) => {
-    setSelectedTemplate(template);
-    setShowTemplates(false);
-
-    // Reset form with template data and default QA to current user
-    setFormData({
-      title: '',
-      problem_statement: '',
-      qa_assigned_to: user?.id || (() => {
-        throw new Error('User must be authenticated to create missions');
-      })(),
-      // Default to current user
-      actions: template.defaultTasks.length > 0 ? template.defaultTasks.map((task) => ({
-        title: task.title,
-        policy: task.plan || '',
-        observations: task.observations || '',
-        assigned_to: null
-      })) : []
-    });
-  };
   const handleCreateMission = async () => {
     if (!user || !formData.title.trim() || !formData.problem_statement.trim() || !formData.qa_assigned_to) {
       toast({
@@ -346,24 +290,12 @@ const Missions = () => {
       // Use withAuth wrapper for the mission creation
       const result = await withAuth(async session => {
         // Create the mission
-        const missionResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/missions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: formData.title,
-            problem_statement: formData.problem_statement,
-            created_by: session.user.id,
-            qa_assigned_to: formData.qa_assigned_to || null,
-            template_id: selectedTemplate?.id || null,
-            template_name: selectedTemplate?.name || null,
-            template_color: selectedTemplate?.color || null,
-            template_icon: selectedTemplate?.icon ? getIconName(selectedTemplate.icon) : null,
-            organization_id: organizationId
-          })
+        const missionResult = await apiService.post('/missions', {
+          title: formData.title,
+          problem_statement: formData.problem_statement,
+          created_by: session.user.id,
+          qa_assigned_to: formData.qa_assigned_to || null,
         });
-        
-        if (!missionResponse.ok) throw new Error('Failed to create mission');
-        const missionResult = await missionResponse.json();
         const missionData = missionResult.data || missionResult;
 
         // Handle both new tasks from form and existing orphaned tasks
@@ -374,23 +306,15 @@ const Missions = () => {
         
         // Create new tasks
         if (tasksToCreate.length > 0) {
-          const tasksResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/actions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(tasksToCreate.map(task => ({
-              mission_id: missionData.id,
-              title: task.title,
-              description: task.description || null,
-              policy: task.policy || null,
-              observations: task.observations || null,
-              assigned_to: task.assigned_to || null,
-              plan_commitment: task.plan_commitment || false,
-              organization_id: organizationId
-            })))
-          });
-          
-          if (!tasksResponse.ok) throw new Error('Failed to create tasks');
-          const tasksResult = await tasksResponse.json();
+          const tasksResult = await apiService.post('/actions', tasksToCreate.map(task => ({
+            mission_id: missionData.id,
+            title: task.title,
+            description: task.description || null,
+            policy: task.policy || null,
+            observations: task.observations || null,
+            assigned_to: task.assigned_to || null,
+            plan_commitment: task.plan_commitment || false,
+          })));
           const tasksData = Array.isArray(tasksResult) ? tasksResult : (tasksResult?.data || []);
           
           // Create task ID mapping from temp IDs to real IDs
@@ -407,14 +331,7 @@ const Missions = () => {
         // Update existing orphaned tasks with the mission ID
         if (existingTasksToUpdate.length > 0) {
           for (const task of existingTasksToUpdate) {
-            const updateResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/actions/${task.id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ mission_id: missionData.id })
-            });
-            
-            if (!updateResponse.ok) throw new Error('Failed to update task');
-            const updatedTask = await updateResponse.json();
+            const updatedTask = await apiService.put(`/actions/${task.id}`, { mission_id: missionData.id });
             createdTasks.push(updatedTask.data || updatedTask);
           }
         }
@@ -441,8 +358,6 @@ const Missions = () => {
           </div>
       });
       setShowCreateDialog(false);
-      setShowTemplates(true);
-      setSelectedTemplate(null);
       resetFormData();
       fetchMissions();
       
@@ -482,8 +397,6 @@ const Missions = () => {
   };
   const resetDialog = () => {
     setShowCreateDialog(false);
-    setShowTemplates(true);
-    setSelectedTemplate(null);
     resetFormData();
   };
   const toggleProblemStatement = (missionId: string) => {
@@ -542,13 +455,7 @@ const Missions = () => {
     return Math.round((mission.completed_task_count || 0) / mission.task_count * 100);
   };
   const getDialogTitle = () => {
-    if (showTemplates) {
-      return "Create New Mission";
-    }
-    if (selectedTemplate) {
-      return `Create ${selectedTemplate.name} Mission`;
-    }
-    return "Create New Mission";
+    return "Create New Project";
   };
 
   const processedMissions = useMemo(() => {
@@ -610,44 +517,34 @@ const Missions = () => {
               Back to Dashboard
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">Stargazer Missions</h1>
+              <h1 className="text-2xl font-bold">Stargazer Projects</h1>
               <p className="text-muted-foreground">Manage objectives and track progress</p>
             </div>
           </div>
           
-          {isAdmin && <Dialog open={showCreateDialog} onOpenChange={open => {
-          setShowCreateDialog(open);
-          if (open) {
-            // Always start with template selection when opening
-            setShowTemplates(true);
-            setSelectedTemplate(null);
-          }
-        }}>
+          {isAdmin && <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
               <DialogTrigger asChild>
                 <Button>
                   <Rocket className="h-4 w-4 mr-2" />
-                  Create Mission
+                  Create Project
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{getDialogTitle()}</DialogTitle>
                   <DialogDescription>
-                    {showTemplates ? "Choose a template to get started quickly" : "Define your mission details"}
+                    Define your project details
                   </DialogDescription>
                 </DialogHeader>
                 
-                {showTemplates ? <MissionTemplates onSelectTemplate={handleTemplateSelect} onClose={resetDialog} /> : <SimpleMissionForm formData={formData} setFormData={setFormData} profiles={profiles} onSubmit={handleCreateMission} onCancel={resetDialog} defaultTasks={selectedTemplate?.defaultTasks?.map(task => ({
-                  title: task.title,
-                  policy: task.plan || '',
-                  observations: task.observations || '',
-                  assigned_to: null
-                })) || []} selectedTemplate={selectedTemplate ? {
-                  id: selectedTemplate.id,
-                  name: selectedTemplate.name,
-                  color: selectedTemplate.color,
-                  icon: selectedTemplate.icon
-                } : undefined} />}
+                <SimpleMissionForm 
+                  formData={formData} 
+                  setFormData={setFormData} 
+                  profiles={profiles} 
+                  onSubmit={handleCreateMission} 
+                  onCancel={resetDialog} 
+                  defaultTasks={[]}
+                />
               </DialogContent>
             </Dialog>}
 
@@ -662,7 +559,7 @@ const Missions = () => {
               <Button variant="ghost" className="h-auto p-2 hover:bg-muted/50">
                 <div className="flex items-center gap-2">
                   <Filter className="h-4 w-4" />
-                  <span className="text-sm font-medium">Mission Filters</span>
+                  <span className="text-sm font-medium">Project Filters</span>
                   {(showCompletedMissions || showBackloggedMissions) && (
                     <div className="flex items-center gap-1">
                       <div className="w-2 h-2 bg-primary rounded-full" />
@@ -742,19 +639,19 @@ const Missions = () => {
 
       <main className="p-6">
         <div className="max-w-7xl mx-auto">
-          {loading ? <div className="text-center py-8">Loading missions...</div> : missions.length === 0 ? <div className="text-center py-8">
+          {loading ? <div className="text-center py-8">Loading projects...</div> : missions.length === 0 ? <div className="text-center py-8">
               <Flag className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No missions yet</h3>
+              <h3 className="text-lg font-semibold mb-2">No projects yet</h3>
               <p className="text-muted-foreground">
-                {isAdmin ? "Create your first mission to get started." : "No missions have been created yet."}
+                {isAdmin ? "Create your first project to get started." : "No projects have been created yet."}
               </p>
             </div> : <div className="space-y-8">
-              {/* Active Missions */}
+              {/* Active Projects */}
               {groupedMissions.active.length > 0 && (
                 <div>
                   <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                     <AlertCircle className="h-5 w-5" />
-                    Active Missions ({groupedMissions.active.length})
+                    Active Projects ({groupedMissions.active.length})
                   </h2>
                   <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     {groupedMissions.active.map(mission => {
@@ -764,7 +661,7 @@ const Missions = () => {
                       <div className="flex items-start justify-between">
                          <CardTitle className="flex items-center gap-2">
                            {getStatusIcon(mission.status)}
-                           MISSION-{String(mission.mission_number).padStart(3, '0')}: {mission.title}
+                           PROJECT-{String(mission.mission_number).padStart(3, '0')}: {mission.title}
                          </CardTitle>
                       </div>
                       <Collapsible open={expandedProblemStatements.has(mission.id)} onOpenChange={() => toggleProblemStatement(mission.id)}>
@@ -817,14 +714,14 @@ const Missions = () => {
                 </div>
               )}
 
-              {/* Completed Missions */}
+              {/* Completed Projects */}
               {groupedMissions.completed.length > 0 && (
                 <Collapsible open={showCompletedMissions} onOpenChange={setShowCompletedMissions}>
                   <CollapsibleTrigger asChild>
                     <Button variant="ghost" className="h-auto p-0 text-left justify-start hover:bg-transparent">
                       <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                         <CheckCircle className="h-5 w-5" />
-                        Completed Missions ({groupedMissions.completed.length})
+                        Completed Projects ({groupedMissions.completed.length})
                         {showCompletedMissions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </h2>
                     </Button>
@@ -892,14 +789,14 @@ const Missions = () => {
                 </Collapsible>
               )}
 
-              {/* Backlogged Missions */}
+              {/* Backlogged Projects */}
               {groupedMissions.backlogged.length > 0 && (
                 <Collapsible open={showBackloggedMissions} onOpenChange={setShowBackloggedMissions}>
                   <CollapsibleTrigger asChild>
                     <Button variant="ghost" className="h-auto p-0 text-left justify-start hover:bg-transparent">
                       <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                         <Clock className="h-5 w-5" />
-                        Backlogged Missions ({groupedMissions.backlogged.length})
+                        Backlogged Projects ({groupedMissions.backlogged.length})
                         {showBackloggedMissions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </h2>
                     </Button>

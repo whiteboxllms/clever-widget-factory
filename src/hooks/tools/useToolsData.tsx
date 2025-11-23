@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { apiService } from '@/lib/apiService';
 
 export interface Tool {
   id: string;
@@ -41,12 +42,7 @@ export const useToolsData = (showRemovedItems: boolean = false) => {
 
   const fetchTools = async () => {
     try {
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-      const response = await fetch(`${apiBaseUrl}/tools`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch tools');
-      }
-      const result = await response.json();
+      const result = await apiService.get('/tools');
       let toolsData = result.data || [];
       
       if (!showRemovedItems) {
@@ -56,15 +52,12 @@ export const useToolsData = (showRemovedItems: boolean = false) => {
       setTools(toolsData);
 
       // Fetch active checkouts
-      const checkoutsResponse = await fetch(`${apiBaseUrl}/checkouts?is_returned=false`);
-      if (checkoutsResponse.ok) {
-        const checkoutsResult = await checkoutsResponse.json();
-        const checkoutMap: {[key: string]: {user_name: string, user_id: string}} = {};
-        checkoutsResult.data?.forEach((checkout: any) => {
-          checkoutMap[checkout.tool_id] = { user_name: checkout.user_name, user_id: checkout.user_id };
-        });
-        setActiveCheckouts(checkoutMap);
-      }
+      const checkoutsResult = await apiService.get('/checkouts?is_returned=false');
+      const checkoutMap: {[key: string]: {user_name: string, user_id: string}} = {};
+      checkoutsResult.data?.forEach((checkout: any) => {
+        checkoutMap[checkout.tool_id] = { user_name: checkout.user_name, user_id: checkout.user_id };
+      });
+      setActiveCheckouts(checkoutMap);
     } catch (error) {
       console.error('Error fetching tools:', error);
       toast({

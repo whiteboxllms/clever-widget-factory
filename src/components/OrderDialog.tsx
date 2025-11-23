@@ -123,7 +123,6 @@ export function OrderDialog({
             part_id: partId,
             ordered_by: user.id,
             status: 'pending',
-            organization_id: organizationId
           }]);
 
         if (error) throw error;

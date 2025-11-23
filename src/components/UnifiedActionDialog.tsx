@@ -24,6 +24,7 @@ import {
 import { supabase } from '@/lib/client';
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
+import { apiService } from '@/lib/apiService';
 import { 
   Paperclip, 
   Calendar as CalendarIcon, 
@@ -179,8 +180,7 @@ export function UnifiedActionDialog({
     const fetchMissionData = async () => {
       if (formData.mission_id) {
         try {
-          const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/missions`);
-          const result = await response.json();
+          const result = await apiService.get('/missions');
           const missions = result.data || [];
           const mission = missions.find((m: any) => m.id === formData.mission_id);
           setMissionData(mission || null);
@@ -204,7 +204,7 @@ export function UnifiedActionDialog({
       return 'Create Action from Issue';
     }
     if (context?.type === 'mission') {
-      return 'Create Mission Action';
+      return 'Create Project Action';
     }
     if (context?.type === 'asset') {
       return 'Create Asset Action';
@@ -221,8 +221,7 @@ export function UnifiedActionDialog({
     if (!action?.id) return false;
     
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/action_implementation_updates?action_id=${action.id}&limit=1`);
-      const result = await response.json();
+      const result = await apiService.get(`/action_implementation_updates?action_id=${action.id}&limit=1`);
       const updates = result.data || [];
       
       return updates && updates.length > 0;
@@ -239,8 +238,7 @@ export function UnifiedActionDialog({
     }
     
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/action_implementation_updates?action_id=${action.id}&limit=1`);
-      const result = await response.json();
+      const result = await apiService.get(`/action_implementation_updates?action_id=${action.id}&limit=1`);
       const updates = result.data || [];
       
       setIsInImplementationMode(updates && updates.length > 0);
@@ -272,25 +270,19 @@ export function UnifiedActionDialog({
       }
 
       // Update action to completed status
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/actions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: action.id,
-          title: formData.title,
-          description: formData.description,
-          policy: formData.policy,
-          assigned_to: formData.assigned_to,
-          estimated_duration: formData.estimated_duration,
-          required_stock: formData.required_stock,
-          attachments: formData.attachments,
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
+      await apiService.post('/actions', {
+        id: action.id,
+        title: formData.title,
+        description: formData.description,
+        policy: formData.policy,
+        assigned_to: formData.assigned_to,
+        estimated_duration: formData.estimated_duration,
+        required_stock: formData.required_stock,
+        attachments: formData.attachments,
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       });
-
-      if (!response.ok) throw new Error('Failed to complete action');
 
       // Auto-checkin tools
       try {
@@ -460,15 +452,6 @@ export function UnifiedActionDialog({
       return;
     }
 
-    if (!organizationId) {
-      toast({
-        title: "Error",
-        description: "Organization context not available",
-        variant: "destructive"
-      });
-      return;
-    }
-
     setIsSubmitting(true);
     
     try {
@@ -499,25 +482,13 @@ export function UnifiedActionDialog({
         plan_commitment: formData.plan_commitment || false,
         policy_agreed_at: formData.policy_agreed_at || null,
         policy_agreed_by: formData.policy_agreed_by || null,
-        organization_id: organizationId,
         created_by: isCreating || !action?.id ? userId : action.created_by || userId,
         updated_by: userId
       };
 
 
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/actions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(isCreating || !action?.id ? actionData : { ...actionData, id: action.id })
-      });
-
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || 'Failed to save action');
-      }
-
-      const result = await response.json();
+      const result = await apiService.post('/actions', isCreating || !action?.id ? actionData : { ...actionData, id: action.id });
       const data = result.data;
 
       // Use optimistic update - merge saved data with what we sent
@@ -600,11 +571,11 @@ export function UnifiedActionDialog({
             <div className="bg-primary/5 border border-primary/20 p-4 rounded-lg">
               <div className="flex items-center gap-2 mb-2">
                 <Target className="h-4 w-4 text-primary" />
-                <h4 className="font-semibold text-sm">Mission Context</h4>
+                <h4 className="font-semibold text-sm">Project Context</h4>
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-medium">
-                  Mission #{missionData.mission_number}: {missionData.title}
+                  Project #{missionData.mission_number}: {missionData.title}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   {missionData.problem_statement}

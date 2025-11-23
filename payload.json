@@ -1,1 +1,1 @@
-{"sql":"ALTER TABLE actions ADD COLUMN policy_agreed_at TIMESTAMP, ADD COLUMN policy_agreed_by TEXT;"}
+{"dryRun":true}

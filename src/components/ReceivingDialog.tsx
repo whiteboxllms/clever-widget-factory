@@ -165,7 +165,6 @@ export function ReceivingDialog({
             changed_by: user.data.user.id,
             order_id: order.id,
             supplier_name: order.supplier_name,
-            organization_id: organizationId
           });
 
         if (historyError) throw historyError;

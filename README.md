@@ -29,6 +29,18 @@ The AWS API Gateway provides these endpoints:
 - `GET /api/parts` - Get parts
 - `POST /api/query` - Execute custom SQL queries
 
+#### `/api/tools` response
+Tools are served by the `cwf-core-lambda` function which queries the AWS RDS instance. Each tool row now includes checkout metadata resolved server-side (no extra checkout request required):
+- `is_checked_out` (boolean)
+- `checked_out_user_id`
+- `checked_out_to`
+- `checked_out_date`
+- `expected_return_date`
+- `checkout_intended_usage`
+- `checkout_notes`
+
+When a tool has an active checkout (`is_returned = false` in `checkouts`), `status` is automatically overridden to `checked_out`.
+
 ### Database Connection
 - **All environments**: AWS RDS PostgreSQL instance
 
@@ -61,3 +73,17 @@ The following files are legacy from the Supabase era and should be ignored:
 - `supabase/` directory
 - Any files referencing `@supabase/supabase-js`
 - `SUPABASE_TO_AWS_MIGRATION_PLAN.md` (migration is complete)
+
+### TODO / Known Issues
+
+#### Database Functions & Triggers
+- **`get_user_organization_id()` function error**: When creating parts history, error `{error: 'function get_user_organization_id() does not exist'}` occurs. 
+  - **Status**: Partially fixed - stub function created but may need verification
+  - **Root Cause**: Database triggers on `parts_history` table (or other tables) may be calling this Supabase-era function
+  - **Temporary Fix**: Created stub function that returns default org ID (`00000000-0000-0000-0000-000000000001`)
+  - **Proper Fix Needed**: 
+    1. Find all triggers using `get_user_organization_id()` (see `find-triggers-using-org-id.sql`)
+    2. Remove triggers or update them to not use this function
+    3. Ensure all Lambda INSERT statements explicitly include `organization_id` from request body
+    4. Remove stub function once triggers are cleaned up
+  - **Files**: `fix-get-user-org-id.sql`, `find-triggers-using-org-id.sql`

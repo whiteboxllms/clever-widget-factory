@@ -1,5 +1,6 @@
 const { Client } = require('pg');
 const { randomUUID } = require('crypto');
+const { getAuthorizerContext, buildOrganizationFilter, hasPermission, canAccessOrganization } = require('./shared/authorizerContext');
 
 // Database configuration
 const dbConfig = {
@@ -46,6 +47,9 @@ async function queryJSON(sql) {
     await client.connect();
     const result = await client.query(sql);
     return result.rows;
+  } catch (error) {
+    console.error('Database query error:', error);
+    throw error;
   } finally {
     await client.end();
   }
@@ -58,14 +62,40 @@ exports.handler = async (event) => {
   
   const { httpMethod, path } = event;
   
+  // Extract authorizer context (organization_id, permissions, etc.)
+  const authContext = getAuthorizerContext(event);
+  const organizationId = authContext.organization_id;
+  const hasDataReadAll = hasPermission(authContext, 'data:read:all');
+  
+  // Log error if organization_id is missing - don't use fallback to hide problems
+  if (!organizationId) {
+    console.error('❌ ERROR: organization_id is missing from authorizer context!');
+    console.error('   This indicates a problem with the Lambda authorizer configuration.');
+    console.error('   Authorizer context:', JSON.stringify(authContext, null, 2));
+    console.error('   Event requestContext:', JSON.stringify(event.requestContext, null, 2));
+  }
+  
+  // CORS headers (define early for error responses)
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+  };
+  
+  // Set accessibleOrgIds from authContext (may be empty for some endpoints like profiles)
+  const accessibleOrgIds = authContext.accessible_organization_ids || [];
+  
+  console.log('Authorizer context:', {
+    organization_id: organizationId || 'MISSING',
+    accessible_orgs: accessibleOrgIds,
+    accessible_orgs_count: accessibleOrgIds.length,
+    has_data_read_all: hasDataReadAll,
+    permissions: authContext.permissions
+  });
+  
   try {
-    // CORS headers
-    const headers = {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
-    };
+    // CORS headers already defined above
 
     // Handle preflight requests
     if (httpMethod === 'OPTIONS') {
@@ -273,10 +303,13 @@ exports.handler = async (event) => {
         let whereConditions = [];
         
         if (part_id) {
-          whereConditions.push(`ph.part_id = ${escapeLiteral(part_id)}::uuid`);
+          // Cast both sides to ensure type compatibility
+          // If part_id column is UUID, cast the parameter. If it's TEXT, cast the column.
+          // Try casting the parameter first: 'value'::uuid
+          whereConditions.push(`ph.part_id::text = '${escapeLiteral(part_id)}'`);
         }
         if (organization_id) {
-          whereConditions.push(`ph.organization_id = ${escapeLiteral(organization_id)}::uuid`);
+          whereConditions.push(`ph.organization_id::text = '${escapeLiteral(organization_id)}'`);
         }
         if (change_type) {
           whereConditions.push(`ph.change_type = '${escapeLiteral(change_type)}'`);
@@ -291,9 +324,9 @@ exports.handler = async (event) => {
         const sql = `SELECT json_agg(row_to_json(t)) FROM (
           SELECT 
             ph.*,
-            COALESCE(om.full_name, ph.changed_by) as changed_by_name
+            COALESCE(om.full_name, ph.changed_by::text) as changed_by_name
           FROM parts_history ph
-          LEFT JOIN organization_members om ON ph.changed_by = om.cognito_user_id
+          LEFT JOIN organization_members om ON ph.changed_by::text = om.cognito_user_id::text
           ${whereClause} ORDER BY ph.changed_at DESC ${limitClause}
         ) t;`;
         
@@ -307,13 +340,32 @@ exports.handler = async (event) => {
       
       if (httpMethod === 'POST') {
         const body = JSON.parse(event.body || '{}');
-        const { part_id, change_type, old_quantity, new_quantity, quantity_change, changed_by, change_reason, organization_id } = body;
+        const { part_id, change_type, old_quantity, new_quantity, quantity_change, change_reason } = body;
         
         if (!part_id || change_type === undefined || old_quantity === undefined || new_quantity === undefined) {
           return {
             statusCode: 400,
             headers,
             body: JSON.stringify({ error: 'part_id, change_type, old_quantity, and new_quantity are required' })
+          };
+        }
+        
+        if (!organizationId) {
+          console.error('❌ ERROR: Cannot create parts_history entry - organization_id is missing from authorizer context');
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Server configuration error: organization context not available' })
+          };
+        }
+        
+        const userId = authContext.cognito_user_id;
+        if (!userId) {
+          console.error('❌ ERROR: Cannot create parts_history entry - cognito_user_id is missing from authorizer context');
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Server configuration error: user context not available' })
           };
         }
         
@@ -328,9 +380,9 @@ exports.handler = async (event) => {
             ${old_quantity},
             ${new_quantity},
             ${quantity_change !== undefined ? quantity_change : 'NULL'},
-            ${formatSqlValue(changed_by || 'system')},
+            ${formatSqlValue(userId)},
             ${formatSqlValue(change_reason)},
-            ${formatSqlValue(organization_id || '00000000-0000-0000-0000-000000000001')},
+            ${formatSqlValue(organizationId)},
             NOW(),
             NOW()
           )
@@ -376,7 +428,7 @@ exports.handler = async (event) => {
 
       if (httpMethod === 'POST') {
         const body = JSON.parse(event.body || '{}');
-        const requiredFields = ['context_id', 'description', 'reported_by', 'organization_id'];
+        const requiredFields = ['context_id', 'description', 'reported_by'];
         const missing = requiredFields.filter(field => !body[field]);
         if (missing.length > 0) {
           return {
@@ -386,6 +438,17 @@ exports.handler = async (event) => {
           };
         }
 
+        // Always use organizationId from authorizer context (not from request body)
+        if (!organizationId) {
+          console.error('❌ ERROR: Cannot create issue - organization_id is missing from authorizer context');
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Server configuration error: organization context not available' })
+          };
+        }
+        const orgId = organizationId;
+
         const insertData = {
           context_type: body.context_type || 'tool',
           context_id: body.context_id,
@@ -394,7 +457,7 @@ exports.handler = async (event) => {
           status: body.status || 'active',
           workflow_status: body.workflow_status || 'reported',
           reported_by: body.reported_by,
-          organization_id: body.organization_id,
+          organization_id: orgId,
           related_checkout_id: body.related_checkout_id || null,
           report_photo_urls: body.report_photo_urls || [],
           issue_metadata: body.issue_metadata || {},
@@ -510,15 +573,23 @@ exports.handler = async (event) => {
         };
       }
 
-      const issueInfo = await queryJSON(`SELECT organization_id FROM issues WHERE id = '${issue_id}' LIMIT 1`);
-      const organizationId = body.organization_id || issueInfo?.[0]?.organization_id || '00000000-0000-0000-0000-000000000001';
+      // Always use organizationId from authorizer context (not from request body)
+      if (!organizationId) {
+        console.error('❌ ERROR: Cannot create issue history - organization_id is missing from authorizer context');
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Server configuration error: organization context not available' })
+        };
+      }
+      const orgId = organizationId;
       const changedBy = body.changed_by ? escapeLiteral(body.changed_by) : 'system';
       const oldStatus = body.old_status ? `'${escapeLiteral(body.old_status)}'` : 'NULL';
       const notes = body.notes ? `'${escapeLiteral(body.notes)}'` : 'NULL';
 
       const sql = `
         INSERT INTO issue_history (issue_id, old_status, new_status, notes, organization_id, changed_by, changed_at, created_at)
-        VALUES ('${issue_id}', ${oldStatus}, '${escapeLiteral(new_status)}', ${notes}, '${organizationId}', '${changedBy}', NOW(), NOW())
+        VALUES ('${issue_id}', ${oldStatus}, '${escapeLiteral(new_status)}', ${notes}, '${orgId}', '${changedBy}', NOW(), NOW())
         RETURNING *;
       `;
 
@@ -605,51 +676,80 @@ exports.handler = async (event) => {
     // Profiles endpoint
     if (path.endsWith('/profiles')) {
       if (httpMethod === 'GET') {
-        const { user_id } = event.queryStringParameters || {};
-        let whereClause = user_id ? `WHERE user_id = '${user_id}'` : '';
-        
-        const sql = `SELECT json_agg(row_to_json(t)) FROM (
-          SELECT * FROM profiles ${whereClause}
-        ) t;`;
-        
-        const result = await queryJSON(sql);
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
-        };
+        try {
+          const { user_id } = event.queryStringParameters || {};
+          let whereClause = '';
+          
+          if (user_id) {
+            // Use formatSqlValue to safely escape user_id and prevent SQL injection
+            const safeUserId = formatSqlValue(user_id);
+            whereClause = `WHERE user_id = ${safeUserId}`;
+          }
+          
+          const sql = `SELECT json_agg(row_to_json(t)) FROM (
+            SELECT * FROM profiles ${whereClause}
+          ) t;`;
+          
+          const result = await queryJSON(sql);
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
+          };
+        } catch (error) {
+          console.error('Error fetching profiles:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Internal server error', message: error.message })
+          };
+        }
       }
       
       if (httpMethod === 'POST') {
-        const body = JSON.parse(event.body || '{}');
-        const { user_id, full_name, favorite_color } = body;
-        
-        if (!user_id) {
+        try {
+          const body = JSON.parse(event.body || '{}');
+          const { user_id, full_name, favorite_color } = body;
+          
+          if (!user_id) {
+            return {
+              statusCode: 400,
+              headers,
+              body: JSON.stringify({ error: 'user_id required' })
+            };
+          }
+          
+          // Use formatSqlValue to safely escape all values and prevent SQL injection
+          const safeUserId = formatSqlValue(user_id);
+          const safeFullName = formatSqlValue(full_name || '');
+          const safeFavoriteColor = formatSqlValue(favorite_color);
+          
+          // Upsert profile
+          const sql = `
+            INSERT INTO profiles (user_id, full_name, favorite_color, updated_at) 
+            VALUES (${safeUserId}, ${safeFullName}, ${safeFavoriteColor}, NOW())
+            ON CONFLICT (user_id) 
+            DO UPDATE SET 
+              full_name = EXCLUDED.full_name,
+              favorite_color = EXCLUDED.favorite_color,
+              updated_at = NOW()
+            RETURNING *;
+          `;
+          
+          const result = await queryJSON(sql);
           return {
-            statusCode: 400,
+            statusCode: 200,
             headers,
-            body: JSON.stringify({ error: 'user_id required' })
+            body: JSON.stringify({ data: result })
+          };
+        } catch (error) {
+          console.error('Error creating/updating profile:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Internal server error', message: error.message })
           };
         }
-        
-        // Upsert profile
-        const sql = `
-          INSERT INTO profiles (user_id, full_name, favorite_color, updated_at) 
-          VALUES ('${user_id}', '${full_name || ''}', ${favorite_color ? `'${favorite_color}'` : 'NULL'}, NOW())
-          ON CONFLICT (user_id) 
-          DO UPDATE SET 
-            full_name = EXCLUDED.full_name,
-            favorite_color = ${favorite_color ? `'${favorite_color}'` : 'NULL'},
-            updated_at = NOW()
-          RETURNING *;
-        `;
-        
-        const result = await queryJSON(sql);
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({ data: result })
-        };
       }
     }
 
@@ -673,7 +773,13 @@ exports.handler = async (event) => {
           what_did_you_do: body.what_did_you_do !== undefined ? body.what_did_you_do : '',
           checkin_reason: body.checkin_reason !== undefined ? body.checkin_reason : null,
           after_image_urls: afterImageArray,
-          organization_id: body.organization_id || '00000000-0000-0000-0000-000000000001'
+          organization_id: (() => {
+            if (!organizationId) {
+              console.error('❌ ERROR: Cannot create checkin - organization_id is missing from authorizer context');
+              throw new Error('Server configuration error: organization context not available');
+            }
+            return organizationId;
+          })()
         };
 
         const requiredFields = ['checkout_id', 'tool_id', 'user_name'];
@@ -755,11 +861,21 @@ exports.handler = async (event) => {
       
       if (httpMethod === 'POST') {
         const body = JSON.parse(event.body || '{}');
-        const { tool_id, user_id, user_name, intended_usage, notes, action_id, organization_id, is_returned, checkout_date } = body;
+        const { tool_id, user_id, user_name, intended_usage, notes, action_id, is_returned, checkout_date } = body;
+        // Always use organizationId from authorizer context (not from request body)
+        if (!organizationId) {
+          console.error('❌ ERROR: Cannot create checkout - organization_id is missing from authorizer context');
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Server configuration error: organization context not available' })
+          };
+        }
+        const orgId = organizationId;
         const checkoutDateValue = checkout_date ? `'${checkout_date}'` : (is_returned ? 'NOW()' : 'NULL');
         const sql = `
           INSERT INTO checkouts (tool_id, user_id, user_name, intended_usage, notes, action_id, organization_id, is_returned, checkout_date)
-          VALUES ('${tool_id}', '${user_id}', '${user_name.replace(/'/g, "''")}', ${intended_usage ? `'${intended_usage.replace(/'/g, "''")}'` : 'NULL'}, ${notes ? `'${notes.replace(/'/g, "''")}'` : 'NULL'}, ${action_id ? `'${action_id}'` : 'NULL'}, '${organization_id}', ${is_returned}, ${checkoutDateValue})
+          VALUES ('${tool_id}', '${user_id}', '${user_name.replace(/'/g, "''")}', ${intended_usage ? `'${intended_usage.replace(/'/g, "''")}'` : 'NULL'}, ${notes ? `'${notes.replace(/'/g, "''")}'` : 'NULL'}, ${action_id ? `'${action_id}'` : 'NULL'}, '${orgId}', ${is_returned}, ${checkoutDateValue})
           RETURNING *
         `;
         const result = await queryJSON(sql);
@@ -811,16 +927,66 @@ exports.handler = async (event) => {
     // Missions endpoint
     if (path.endsWith('/missions')) {
       if (httpMethod === 'GET') {
+        // Use same pattern as actions/parts - build organization filter to return everything user has access to
+        const contextForFilter = {
+          ...authContext,
+          accessible_organization_ids: accessibleOrgIds,
+          permissions: authContext.permissions || []
+        };
+        const orgFilter = buildOrganizationFilter(contextForFilter, 'm');
+        
+        // Build WHERE clause - empty condition means user has data:read:all permission (return all), 
+        // otherwise filter by accessible orgs
+        const whereClause = orgFilter.condition ? `WHERE ${orgFilter.condition}` : '';
+        
         const sql = `SELECT json_agg(row_to_json(t)) FROM (
-          SELECT * FROM missions ORDER BY created_at DESC
+          SELECT * FROM missions m ${whereClause} ORDER BY created_at DESC
         ) t;`;
         
-        const result = await queryJSON(sql);
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
-        };
+        // Enhanced logging for debugging
+        console.log('Missions GET endpoint:', {
+          path,
+          organization_id: organizationId,
+          accessible_orgs: accessibleOrgIds,
+          accessible_orgs_count: accessibleOrgIds.length,
+          has_data_read_all: hasDataReadAll,
+          permissions: authContext.permissions,
+          orgFilter_condition: orgFilter.condition,
+          whereClause: whereClause,
+          sql: sql.substring(0, 300)
+        });
+        
+        try {
+          const result = await queryJSON(sql);
+          const missions = result?.[0]?.json_agg || [];
+          
+          console.log('Missions query result:', {
+            result_type: typeof result,
+            result_length: result?.length,
+            json_agg_type: typeof result?.[0]?.json_agg,
+            missions_count: missions.length,
+            first_mission_org_id: missions[0]?.organization_id || 'none',
+            first_mission_title: missions[0]?.title || 'none'
+          });
+          
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ data: missions })
+          };
+        } catch (error) {
+          console.error('❌ ERROR: Failed to query missions:', error);
+          console.error('   SQL:', sql);
+          console.error('   Error details:', error.message, error.stack);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ 
+              error: 'Failed to fetch missions',
+              message: error.message 
+            })
+          };
+        }
       }
       
       if (httpMethod === 'POST') {
@@ -875,15 +1041,26 @@ exports.handler = async (event) => {
           }
         }
         
-        const orgId = organization_id || '00000000-0000-0000-0000-000000000001';
+        // Always use organizationId from authorizer context (not from request body)
+        // This ensures security - users can't create resources in organizations they don't belong to
+        if (!organizationId) {
+          console.error('❌ ERROR: Cannot create mission - organization_id is missing from authorizer context');
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Server configuration error: organization context not available' })
+          };
+        }
+        const orgId = organizationId;
         
-        // Try without organization_id to see if there's a default or trigger
+        // Include organization_id in INSERT
         const sql = `
           INSERT INTO missions (
             title, 
             problem_statement, 
             created_by, 
             qa_assigned_to,
+            organization_id,
             status, 
             template_id,
             template_name,
@@ -896,6 +1073,7 @@ exports.handler = async (event) => {
             '${(problem_statement || '').replace(/'/g, "''")}', 
             '${dbUserId}', 
             ${dbQaUserId ? `'${dbQaUserId}'` : 'NULL'},
+            '${orgId}',
             'planning',
             ${template_id ? `'${template_id}'` : 'NULL'},
             ${template_name ? `'${template_name.replace(/'/g, "''")}'` : 'NULL'},
@@ -1076,7 +1254,13 @@ exports.handler = async (event) => {
         formatSqlValue(body.plan_commitment),
         formatSqlValue(body.policy_agreed_at),
         formatSqlValue(body.policy_agreed_by),
-        formatSqlValue(body.organization_id),
+        (() => {
+          if (!organizationId) {
+            console.error('❌ ERROR: Cannot create action - organization_id is missing from authorizer context');
+            throw new Error('Server configuration error: organization context not available');
+          }
+          return formatSqlValue(organizationId);
+        })(),
         formatSqlValue(body.created_by),
         formatSqlValue(body.updated_by),
         formatSqlValue(now),

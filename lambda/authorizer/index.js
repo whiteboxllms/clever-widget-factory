@@ -2,9 +2,12 @@
  * Lambda Authorizer for API Gateway
  * 
  * Validates Cognito JWT tokens and extracts organization context:
- * - organization_id: User's organization UUID
- * - is_superadmin: Whether user has superadmin privileges
- * - user_role: User's role in their organization
+ * - organization_id: User's primary organization UUID
+ * - organization_memberships: All direct organization memberships
+ * - accessible_organization_ids: All orgs user can access (direct + partners)
+ * - partner_access: Partner agency relationships
+ * - permissions: System permissions based on role
+ * - user_role: User's role in primary organization
  * 
  * Uses caching to reduce database calls (5 minute TTL)
  */
@@ -101,6 +104,52 @@ function verifyToken(token) {
 }
 
 /**
+ * Calculate user permissions based on role and system grants
+ */
+function calculatePermissions(userRole, organizationMemberships) {
+  const permissions = [];
+  
+  // Role-based permissions
+  switch (userRole) {
+    case 'admin':
+      permissions.push(
+        'organizations:read',
+        'organizations:update',
+        'members:manage',
+        'data:read',
+        'data:write'
+      );
+      break;
+    case 'leadership':
+      permissions.push(
+        'organizations:read',
+        'data:read',
+        'data:write'
+      );
+      break;
+    case 'contributor':
+      permissions.push(
+        'data:read',
+        'data:write'
+      );
+      break;
+    case 'viewer':
+      permissions.push('data:read');
+      break;
+    default:
+      permissions.push('data:read'); // Default read-only
+  }
+  
+  // Check if user is admin in multiple orgs (could grant cross-org permissions)
+  const adminOrgs = organizationMemberships.filter(m => m.role === 'admin');
+  if (adminOrgs.length > 1) {
+    permissions.push('organizations:read:multiple');
+  }
+  
+  return permissions;
+}
+
+/**
  * Get user organization data from database
  * Includes primary organization and partner organization access
  */
@@ -110,31 +159,63 @@ async function getUserOrganizationData(cognitoUserId) {
   try {
     await dbClient.connect();
     
-    // Get primary organization membership
-    const primaryQuery = `
+    // Get ALL organization memberships (user can belong to multiple orgs)
+    const membershipsQuery = `
       SELECT 
         organization_id,
-        role,
-        COALESCE(super_admin, false) as is_superadmin
+        role
       FROM organization_members
       WHERE cognito_user_id = $1
         AND is_active = true
-      ORDER BY created_at ASC
-      LIMIT 1;
+      ORDER BY created_at ASC;
     `;
     
-    const primaryResult = await dbClient.query(primaryQuery, [cognitoUserId]);
+    console.log('Querying organization memberships for:', cognitoUserId);
+    const membershipsResult = await dbClient.query(membershipsQuery, [cognitoUserId]);
     
-    if (primaryResult.rows.length === 0) {
+    console.log('Memberships query result:', {
+      cognito_user_id: cognitoUserId,
+      rows_found: membershipsResult.rows.length,
+      memberships: membershipsResult.rows
+    });
+    
+    if (membershipsResult.rows.length === 0) {
+      console.error('❌ ERROR: No active organization memberships found for user:', cognitoUserId);
+      console.error('   This user will not be able to access any data!');
       return null;
     }
     
-    const primary = primaryResult.rows[0];
+    // Primary organization is the first one (oldest membership)
+    const primary = membershipsResult.rows[0];
     const primaryOrgId = primary.organization_id;
+    
+    // All direct organization memberships (user is a direct member of these orgs)
+    const directMemberships = membershipsResult.rows.map(row => ({
+      organization_id: row.organization_id,
+      role: row.role
+    }));
+    
+    // Build accessible org IDs from direct memberships
+    const directOrgIds = directMemberships.map(m => m.organization_id);
+    
+    console.log('Building accessible organization IDs:', {
+      cognito_user_id: cognitoUserId,
+      direct_memberships: directMemberships,
+      direct_org_ids: directOrgIds,
+      direct_org_ids_count: directOrgIds.length
+    });
+    
+    // Validate that we have at least one organization membership
+    if (directOrgIds.length === 0) {
+      console.error('❌ ERROR: No organization memberships found for user:', cognitoUserId);
+      console.error('   This user has no active memberships in organization_members table.');
+      console.error('   User will not be able to access any data.');
+      throw new Error(`No organization memberships found for user ${cognitoUserId}. User must be added to at least one organization.`);
+    }
     
     // Try to get partner organization memberships (gracefully handle if tables don't exist yet)
     let partnerAccess = [];
-    let accessibleOrgIds = [primaryOrgId];
+    let accessibleOrgIds = [...directOrgIds]; // Start with all direct memberships
     
     try {
       const partnerQuery = `
@@ -169,22 +250,54 @@ async function getUserOrganizationData(cognitoUserId) {
         organization_id: row.accessible_organization_id
       }));
       
-      // Build accessible organization IDs list (primary + partner orgs)
+      // Add partner orgs to accessible list (avoid duplicates)
+      const partnerOrgIds = partnerAccess.map(p => p.organization_id);
       accessibleOrgIds = [
-        primaryOrgId,
-        ...partnerAccess.map(p => p.organization_id)
+        ...new Set([...directOrgIds, ...partnerOrgIds]) // Remove duplicates
       ];
     } catch (error) {
       // Partner tables don't exist yet - that's okay, continue with primary org only
       console.log('Partner tables not available yet, using primary organization only');
     }
     
+    // Calculate permissions based on role and memberships
+    // Removed superadmin concept - access is now based on permissions like 'data:read:all'
+    const permissions = calculatePermissions(primary.role || 'member', directMemberships);
+    
+    // Grant data:read:all if user is admin in multiple organizations (Stefan's case)
+    // This replaces the old superadmin concept
+    if (directMemberships.length > 1 && directMemberships.every(m => m.role === 'admin')) {
+      permissions.push('data:read:all');
+      console.log('Granting data:read:all permission - user is admin in multiple organizations');
+    }
+    
+    // Final validation: ensure accessibleOrgIds is not empty (should never happen if directOrgIds check passed)
+    if (accessibleOrgIds.length === 0) {
+      console.error('❌ CRITICAL ERROR: accessibleOrgIds is empty after building!');
+      console.error('   This should never happen if directOrgIds validation passed.');
+      console.error('   cognito_user_id:', cognitoUserId);
+      console.error('   primary_org_id:', primaryOrgId);
+      console.error('   direct_memberships:', directMemberships);
+      throw new Error(`Failed to build accessible_organization_ids for user ${cognitoUserId}. This is a system error.`);
+    }
+    
+    // Log for debugging
+    console.log('User organization data:', {
+      cognito_user_id: cognitoUserId,
+      primary_org_id: primaryOrgId,
+      direct_memberships_count: directMemberships.length,
+      accessible_org_ids: accessibleOrgIds,
+      accessible_org_ids_count: accessibleOrgIds.length,
+      permissions: permissions
+    });
+    
     return {
-      organization_id: primaryOrgId,
-      accessible_organization_ids: accessibleOrgIds,
-      partner_access: partnerAccess,
-      role: primary.role || 'member',
-      is_superadmin: primary.is_superadmin || false
+      organization_id: primaryOrgId, // Primary org (first membership)
+      organization_memberships: directMemberships, // All direct memberships with roles
+      accessible_organization_ids: accessibleOrgIds, // All accessible orgs (direct + partners)
+      partner_access: partnerAccess, // Partner relationships
+      role: primary.role || 'member', // Role in primary org
+      permissions: permissions // Calculated permissions
     };
   } finally {
     await dbClient.end();
@@ -257,15 +370,36 @@ exports.handler = async (event) => {
     }
     
     // Generate policy with context
-    // Include partner access information for multi-tenant data filtering
+    // Include all organization memberships and partner access for multi-tenant data filtering
+    // Validate that accessible_organization_ids is present and not empty
+    if (!userData.accessible_organization_ids || userData.accessible_organization_ids.length === 0) {
+      console.error('❌ ERROR: accessible_organization_ids is missing or empty in userData!');
+      console.error('   cognito_user_id:', cognitoUserId);
+      console.error('   userData:', JSON.stringify(userData, null, 2));
+      throw new Error(`User ${cognitoUserId} has no accessible organizations. User must be added to at least one organization.`);
+    }
+    
+    const accessibleOrgIds = userData.accessible_organization_ids;
+    
     const context = {
       organization_id: userData.organization_id,
-      accessible_organization_ids: JSON.stringify(userData.accessible_organization_ids || [userData.organization_id]),
+      organization_memberships: JSON.stringify(userData.organization_memberships || []),
+      accessible_organization_ids: JSON.stringify(accessibleOrgIds),
       partner_access: JSON.stringify(userData.partner_access || []),
       cognito_user_id: cognitoUserId,
-      is_superadmin: userData.is_superadmin ? 'true' : 'false',
-      user_role: userData.role
+      user_role: userData.role,
+      permissions: JSON.stringify(userData.permissions || [])
     };
+    
+    console.log('Authorizer context being set:', {
+      cognito_user_id: cognitoUserId,
+      organization_id: userData.organization_id,
+      accessible_organization_ids: accessibleOrgIds,
+      accessible_orgs_count: accessibleOrgIds.length,
+      accessible_orgs_json: JSON.stringify(accessibleOrgIds),
+      permissions: userData.permissions,
+      has_data_read_all: userData.permissions?.includes('data:read:all') || false
+    });
     
     // Allow access to all API Gateway resources
     const resource = event.methodArn.split('/').slice(0, 2).join('/') + '/*/*';

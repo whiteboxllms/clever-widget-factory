@@ -95,17 +95,64 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
 
     if (actionId && user) {
       try {
+        // Check if action is in progress (has plan_commitment)
+        let actionInProgress = false;
+        if (actionId) {
+          try {
+            const actionResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/actions?id=${actionId}`);
+            if (actionResponse.ok) {
+              const actionResult = await actionResponse.json();
+              const actionData = Array.isArray(actionResult.data) ? actionResult.data[0] : actionResult.data;
+              actionInProgress = actionData?.plan_commitment === true;
+            }
+          } catch (error) {
+            console.warn('Could not fetch action status, defaulting to planned checkout:', error);
+          }
+        }
+
+        // Resolve user full name
+        let userFullName = 'Unknown User';
+        try {
+          const userMetadata = (user as any)?.user_metadata;
+          if (userMetadata?.full_name) {
+            userFullName = userMetadata.full_name;
+          } else if ((user as any)?.name) {
+            userFullName = (user as any).name;
+          } else {
+            // Try to fetch from organization_members
+            const memberResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/organization_members?cognito_user_id=${user.id}`);
+            if (memberResponse.ok) {
+              const memberResult = await memberResponse.json();
+              const member = Array.isArray(memberResult?.data) ? memberResult.data[0] : memberResult?.data;
+              if (member?.full_name) {
+                userFullName = member.full_name;
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('Could not resolve user full name:', error);
+        }
+
+        // Create checkout - active if action is in progress, planned otherwise
+        const checkoutPayload: any = {
+          tool_id: asset.id,
+          user_id: user.id,
+          user_name: userFullName,
+          action_id: actionId,
+          organization_id: organizationId,
+          is_returned: false
+        };
+
+        // If action is in progress, set checkout_date to activate immediately
+        if (actionInProgress) {
+          checkoutPayload.checkout_date = new Date().toISOString();
+        }
+        // Otherwise, checkout_date will be NULL (planned checkout)
+
         const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkouts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tool_id: asset.id,
-            user_id: user.id,
-            user_name: user.user_metadata?.full_name || 'Unknown',
-            action_id: actionId,
-            organization_id: organizationId,
-            is_returned: false
-          })
+          body: JSON.stringify(checkoutPayload)
         });
         if (!response.ok) {
           const error = await response.json();
@@ -128,20 +175,102 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
   };
 
   const removeAsset = async (serialNumber: string) => {
-    if (actionId) {
+    if (actionId && user) {
       try {
+        // Fetch the checkout
         const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkouts?action_id=${actionId}&is_returned=false`);
         if (response.ok) {
           const result = await response.json();
           const checkout = result.data?.find((c: any) => c.tool_serial_number === serialNumber);
+          
           if (checkout) {
-            await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkouts/${checkout.id}`, {
-              method: 'DELETE'
-            });
+            // Check if this is an active checkout (has checkout_date)
+            const isActiveCheckout = checkout.checkout_date != null;
+            
+            if (isActiveCheckout) {
+              // For active checkouts, create a checkin record and mark as returned
+              // Resolve user full name
+              let userFullName = 'Unknown User';
+              try {
+                const userMetadata = (user as any)?.user_metadata;
+                if (userMetadata?.full_name) {
+                  userFullName = userMetadata.full_name;
+                } else if ((user as any)?.name) {
+                  userFullName = (user as any).name;
+                } else {
+                  // Try to fetch from organization_members
+                  const memberResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/organization_members?cognito_user_id=${user.id}`);
+                  if (memberResponse.ok) {
+                    const memberResult = await memberResponse.json();
+                    const member = Array.isArray(memberResult?.data) ? memberResult.data[0] : memberResult?.data;
+                    if (member?.full_name) {
+                      userFullName = member.full_name;
+                    }
+                  }
+                }
+              } catch (error) {
+                console.warn('Could not resolve user full name:', error);
+              }
+
+              // Create checkin record
+              const checkinResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkins`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  checkout_id: checkout.id,
+                  tool_id: checkout.tool_id,
+                  user_name: userFullName,
+                  problems_reported: '',
+                  notes: 'Tool removed from action',
+                  sop_best_practices: '',
+                  what_did_you_do: '',
+                  checkin_reason: 'Tool removed from in-progress action',
+                  after_image_urls: [],
+                  organization_id: organizationId
+                })
+              });
+
+              if (!checkinResponse.ok) {
+                throw new Error('Failed to create checkin record');
+              }
+
+              // Mark checkout as returned
+              const updateResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkouts/${checkout.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_returned: true })
+              });
+
+              if (!updateResponse.ok) {
+                throw new Error('Failed to mark checkout as returned');
+              }
+
+              // Update tool status to available
+              const toolResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/tools/${checkout.tool_id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'available' })
+              });
+
+              if (!toolResponse.ok) {
+                throw new Error('Failed to update tool status');
+              }
+            } else {
+              // For planned checkouts, just delete the checkout record
+              await fetch(`${import.meta.env.VITE_API_BASE_URL}/checkouts/${checkout.id}`, {
+                method: 'DELETE'
+              });
+            }
           }
         }
       } catch (error) {
         console.error('Error removing checkout:', error);
+        toast({
+          title: "Error",
+          description: "Failed to remove asset from action",
+          variant: "destructive"
+        });
+        return;
       }
     }
     setSelectedAssets(selectedAssets.filter(serial => serial !== serialNumber));

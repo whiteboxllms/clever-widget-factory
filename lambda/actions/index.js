@@ -111,6 +111,72 @@ exports.handler = async (event) => {
       };
     }
 
+    // POST/PUT action (create/update)
+    if ((httpMethod === 'POST' || httpMethod === 'PUT') && path.endsWith('/actions')) {
+      const body = JSON.parse(event.body || '{}');
+      const { id, created_by, updated_by, updated_at, completed_at, ...actionData } = body;
+      
+      const userId = created_by || updated_by || require('crypto').randomUUID();
+      
+      if (id) {
+        // Update
+        const updates = [];
+        for (const [key, val] of Object.entries(actionData)) {
+          if (val === undefined) continue;
+          if (val === null) updates.push(`${key} = NULL`);
+          else if (typeof val === 'string') updates.push(`${key} = '${val.replace(/'/g, "''")}'`);
+          else if (typeof val === 'boolean') updates.push(`${key} = ${val}`);
+          else if (Array.isArray(val)) {
+            if (key === 'participants') {
+              updates.push(`${key} = ARRAY[${val.map(v => `'${v}'`).join(',')}]::uuid[]`);
+            } else if (key === 'required_tools' || key === 'attachments') {
+              updates.push(`${key} = ARRAY[${val.map(v => `'${v.replace(/'/g, "''")}'`).join(',')}]::text[]`);
+            } else {
+              updates.push(`${key} = '${JSON.stringify(val).replace(/'/g, "''")}'::jsonb`);
+            }
+          } else if (typeof val === 'object') updates.push(`${key} = '${JSON.stringify(val).replace(/'/g, "''")}'::jsonb`);
+          else updates.push(`${key} = ${val}`);
+        }
+        updates.push(`updated_by = '${userId}'`);
+        if (completed_at) updates.push(`completed_at = '${completed_at}'`);
+        
+        const sql = `UPDATE actions SET ${updates.join(', ')}, updated_at = NOW() WHERE id = '${id}' RETURNING *`;
+        const result = await queryJSON(sql);
+        return { statusCode: 200, headers, body: JSON.stringify({ data: result[0] }) };
+      } else {
+        // Create
+        const uuid = require('crypto').randomUUID();
+        const fields = ['id', 'created_by', 'updated_by', ...Object.keys(actionData)];
+        const values = [`'${uuid}'`, `'${userId}'`, `'${userId}'`];
+        
+        for (const [key, val] of Object.entries(actionData)) {
+          if (val === null) {
+            values.push('NULL');
+          } else if (typeof val === 'string') {
+            values.push(`'${val.replace(/'/g, "''")}'`);
+          } else if (typeof val === 'boolean') {
+            values.push(val);
+          } else if (Array.isArray(val)) {
+            if (key === 'participants') {
+              values.push(`ARRAY[${val.map(v => `'${v}'`).join(',')}]::uuid[]`);
+            } else if (key === 'required_tools' || key === 'attachments') {
+              values.push(`ARRAY[${val.map(v => `'${v.replace(/'/g, "''")}'`).join(',')}]::text[]`);
+            } else {
+              values.push(`'${JSON.stringify(val).replace(/'/g, "''")}'::jsonb`);
+            }
+          } else if (typeof val === 'object') {
+            values.push(`'${JSON.stringify(val).replace(/'/g, "''")}'::jsonb`);
+          } else {
+            values.push(val);
+          }
+        }
+        
+        const sql = `INSERT INTO actions (${fields.join(', ')}, created_at, updated_at) VALUES (${values.join(', ')}, NOW(), NOW()) RETURNING *`;
+        const result = await queryJSON(sql);
+        return { statusCode: 201, headers, body: JSON.stringify({ data: result[0] }) };
+      }
+    }
+
     // Actions endpoint
     if (httpMethod === 'GET' && path.endsWith('/actions')) {
       const { limit, offset = 0, assigned_to, status } = queryStringParameters || {};
@@ -134,10 +200,16 @@ exports.handler = async (event) => {
         SELECT 
           a.*,
           om.full_name as assigned_to_name,
+          om.favorite_color as assigned_to_color,
           CASE WHEN scores.action_id IS NOT NULL THEN true ELSE false END as has_score,
-          CASE WHEN updates.action_id IS NOT NULL THEN true ELSE false END as has_implementation_updates
+          CASE WHEN updates.action_id IS NOT NULL THEN true ELSE false END as has_implementation_updates,
+          COALESCE((
+            SELECT COUNT(*) 
+            FROM action_implementation_updates aiu 
+            WHERE aiu.action_id = a.id
+          ), 0) as implementation_update_count
         FROM actions a
-        LEFT JOIN organization_members om ON a.assigned_to = om.user_id
+        LEFT JOIN profiles om ON a.assigned_to = om.user_id
         LEFT JOIN action_scores scores ON a.id = scores.action_id
         LEFT JOIN (
           SELECT DISTINCT action_id 
@@ -168,7 +240,10 @@ exports.handler = async (event) => {
     console.error('Error:', error);
     return {
       statusCode: 500,
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
       body: JSON.stringify({ error: error.message })
     };
   }

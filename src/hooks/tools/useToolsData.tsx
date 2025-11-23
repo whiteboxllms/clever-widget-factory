@@ -22,6 +22,15 @@ export interface Tool {
   has_motor?: boolean;
   last_audited_at?: string;
   audit_status?: string;
+  
+  // Checkout fields from Lambda API
+  is_checked_out?: boolean;
+  checked_out_user_id?: string;
+  checked_out_to?: string;
+  checked_out_date?: string;
+  expected_return_date?: string;
+  checkout_intended_usage?: string;
+  checkout_notes?: string;
 }
 
 export const useToolsData = (showRemovedItems: boolean = false) => {

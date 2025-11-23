@@ -23,19 +23,21 @@ interface CombinedAsset {
   storage_location?: string;
   storage_vicinity?: string;
   parent_structure_id?: string;
-  parent_structure_name?: string; // Resolved name from parent_structure_id
-  area_display?: string; // Computed field: parent_structure_name || legacy_storage_vicinity
+  parent_structure_name?: string;
+  area_display?: string;
   legacy_storage_vicinity?: string;
   has_issues?: boolean;
-  is_checked_out?: boolean;
-  checked_out_to?: string;
-  checked_out_user_id?: string;
-  checked_out_date?: string;
   accountable_person_id?: string;
-  accountable_person_name?: string; // Will be populated from user lookup
-  accountable_person_color?: string; // Favorite color of accountable person
+  accountable_person_name?: string;
+  accountable_person_color?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+interface CheckoutInfo {
+  user_name: string;
+  user_id: string;
+  checkout_date?: string;
 }
 
 interface CombinedAssetCardProps {
@@ -44,6 +46,7 @@ interface CombinedAssetCardProps {
   isAdmin: boolean;
   currentUserId?: string;
   currentUserEmail?: string;
+  checkoutInfo?: CheckoutInfo;
   onView: (asset: CombinedAsset) => void;
   onEdit: (asset: CombinedAsset) => void;
   onRemove: (asset: CombinedAsset) => void;
@@ -66,7 +69,8 @@ const arePropsEqual = (prevProps: CombinedAssetCardProps, nextProps: CombinedAss
       prevProps.isAdmin !== nextProps.isAdmin ||
       prevProps.currentUserId !== nextProps.currentUserId ||
       prevProps.currentUserEmail !== nextProps.currentUserEmail ||
-      prevProps.hasPendingOrders !== nextProps.hasPendingOrders) {
+      prevProps.hasPendingOrders !== nextProps.hasPendingOrders ||
+      prevProps.checkoutInfo?.user_id !== nextProps.checkoutInfo?.user_id) {
     return false;
   }
 
@@ -91,7 +95,6 @@ const arePropsEqual = (prevProps: CombinedAssetCardProps, nextProps: CombinedAss
     status: prevAsset.status !== nextAsset.status,
     current_quantity: prevAsset.current_quantity !== nextAsset.current_quantity,
     has_issues: prevAsset.has_issues !== nextAsset.has_issues,
-    is_checked_out: prevAsset.is_checked_out !== nextAsset.is_checked_out,
     accountable_person_name: prevAsset.accountable_person_name !== nextAsset.accountable_person_name,
     accountable_person_color: prevAsset.accountable_person_color !== nextAsset.accountable_person_color,
     updated_at: prevAsset.updated_at !== nextAsset.updated_at
@@ -118,9 +121,6 @@ const arePropsEqual = (prevProps: CombinedAssetCardProps, nextProps: CombinedAss
       prevAsset.parent_structure_name !== nextAsset.parent_structure_name ||
       prevAsset.legacy_storage_vicinity !== nextAsset.legacy_storage_vicinity ||
       prevAsset.area_display !== nextAsset.area_display ||
-      prevAsset.checked_out_to !== nextAsset.checked_out_to ||
-      prevAsset.checked_out_user_id !== nextAsset.checked_out_user_id ||
-      prevAsset.checked_out_date !== nextAsset.checked_out_date ||
       prevAsset.accountable_person_id !== nextAsset.accountable_person_id ||
       prevAsset.created_at !== nextAsset.created_at) {
     return false;
@@ -135,6 +135,7 @@ export const CombinedAssetCard = memo(({
   isAdmin,
   currentUserId,
   currentUserEmail,
+  checkoutInfo,
   onView,
   onEdit,
   onRemove,
@@ -152,20 +153,38 @@ export const CombinedAssetCard = memo(({
   
   
   const { containerRef, imageUrl } = useVisibleImage(asset.id, asset.type, asset.image_url);
+  const checkoutDateDisplay = useMemo(() => {
+    if (!checkoutInfo?.checkout_date) return null;
+    const parsedDate = new Date(checkoutInfo.checkout_date);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return null;
+    }
+    const datePart = parsedDate.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+    const timePart = parsedDate.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+    return `${datePart} at ${timePart}`;
+  }, [checkoutInfo?.checkout_date]);
   
   function getStatusBadge() {
     if (asset.type === 'asset') {
-      if (asset.is_checked_out) {
-        return <Badge variant="outline" className="text-orange-600 border-orange-600">Checked Out</Badge>;
-      }
-      
       switch (asset.status) {
         case 'available':
           return <Badge variant="outline" className="text-green-600 border-green-600">Available</Badge>;
+        case 'checked_out':
+          return <Badge variant="outline" className="text-orange-600 border-orange-600">Checked Out</Badge>;
         case 'in_use':
           return <Badge variant="outline" className="text-blue-600 border-blue-600">In Use</Badge>;
         case 'unavailable':
           return <Badge variant="outline" className="text-red-600 border-red-600">Unavailable</Badge>;
+        case 'removed':
+          return <Badge variant="outline" className="text-gray-600 border-gray-600">Removed</Badge>;
         default:
           return <Badge variant="outline">Unknown</Badge>;
       }
@@ -187,7 +206,7 @@ export const CombinedAssetCard = memo(({
 
   const statusBadge = useMemo(() => {
     return getStatusBadge();
-  }, [asset.type, asset.is_checked_out, asset.status, asset.minimum_quantity, asset.current_quantity]);
+  }, [asset.type, asset.status, asset.minimum_quantity, asset.current_quantity]);
   
   const iconColor = useMemo(() => {
     return getIconColor();
@@ -252,22 +271,12 @@ export const CombinedAssetCard = memo(({
             </div>
           )}
 
-          {asset.is_checked_out && asset.checked_out_to && (
+          {checkoutInfo && (
             <div>
-              <span className="font-medium">Checked out to:</span> {asset.checked_out_to}
-              {asset.checked_out_date && (
-                <div className="text-xs text-muted-foreground mt-1">
-                  Since {new Date(asset.checked_out_date).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric'
-                  }) + ' at ' + new Date(asset.checked_out_date).toLocaleTimeString('en-US', {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    hour12: true
-                  })}
-                </div>
-              )}
+              <span className="font-medium">Checked out to:</span> {checkoutInfo.user_name}
+              <div className="text-xs text-muted-foreground mt-1">
+                {checkoutDateDisplay ? `Since ${checkoutDateDisplay}` : 'Checkout date unavailable'}
+              </div>
             </div>
           )}
 
@@ -297,7 +306,7 @@ export const CombinedAssetCard = memo(({
 
         <div className="flex gap-2 mt-4 mt-auto pt-4" onClick={(e) => e.stopPropagation()}>
           {/* Asset-specific buttons */}
-          {asset.type === 'asset' && asset.status === 'available' && !asset.is_checked_out && onCheckout && (
+          {asset.type === 'asset' && asset.status === 'available' && !checkoutInfo && onCheckout && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -320,7 +329,7 @@ export const CombinedAssetCard = memo(({
             </TooltipProvider>
           )}
 
-          {asset.type === 'asset' && asset.is_checked_out && asset.checked_out_user_id === currentUserId && onCheckin && (
+          {asset.type === 'asset' && checkoutInfo && checkoutInfo.user_id === currentUserId && onCheckin && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>

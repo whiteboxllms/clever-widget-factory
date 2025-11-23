@@ -224,7 +224,7 @@ export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: Issu
               {isLoading ? (
                 <p className="text-sm text-muted-foreground">Loading existing issues...</p>
               ) : (() => {
-                const activeIssues = issues.filter(issue => issue.status !== 'resolved');
+                const activeIssues = Array.isArray(issues) ? issues.filter(issue => issue.status !== 'resolved') : [];
                 return activeIssues.length > 0 ? (
                   <div className="space-y-3">
                      {activeIssues.map((issue) => (
@@ -252,7 +252,7 @@ export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: Issu
 
           {/* Resolved Issues */}
           {(() => {
-            const resolvedIssues = issues.filter(issue => issue.status === 'resolved');
+            const resolvedIssues = Array.isArray(issues) ? issues.filter(issue => issue.status === 'resolved') : [];
             return resolvedIssues.length > 0 ? (
               <Card>
                 <CardHeader>

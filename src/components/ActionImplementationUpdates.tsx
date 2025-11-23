@@ -137,11 +137,17 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
       // Refresh updates to show the new one immediately
       await fetchUpdates();
       
-      // Check if this is the second implementation update (moving from agreement to actual work)
-      // and activate planned checkouts if needed
-      if (updates.length === 1) {
+      // Activate planned checkouts if plan is committed and this is the first implementation update
+      if (updates.length === 0) {
         try {
-          await activatePlannedCheckoutsIfNeeded(actionId, organizationId);
+          // Check if action has plan_commitment
+          const actionResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/actions`);
+          const actionResult = await actionResponse.json();
+          const action = actionResult.data?.find((a: any) => a.id === actionId);
+          
+          if (action?.plan_commitment === true) {
+            await activatePlannedCheckoutsIfNeeded(actionId, organizationId);
+          }
         } catch (checkoutError) {
           console.error('Error activating planned checkouts:', checkoutError);
           // Don't fail the update if checkout fails - this is a background operation
@@ -309,7 +315,7 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
       {/* Implementation Updates Section */}
       <div>
         <div className="flex items-center mb-2">
-          <Label className="text-sm font-medium">Implementation Updates</Label>
+          <Label className="text-sm font-medium text-foreground">Implementation Updates</Label>
         </div>
         
         {/* Add new update form */}
@@ -432,8 +438,8 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
                           />
                         </div>
                       ) : (
-                        <div className="prose prose-sm max-w-none text-sm">
-                          <div dangerouslySetInnerHTML={{ __html: update.update_text }} />
+                        <div className="prose prose-sm max-w-none text-sm text-foreground">
+                          <div className="text-foreground" dangerouslySetInnerHTML={{ __html: update.update_text }} />
                         </div>
                       )}
                     </div>

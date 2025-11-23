@@ -29,6 +29,7 @@ import { useToolIssues } from "@/hooks/useGenericIssues";
 import { useInventoryIssues } from "@/hooks/useGenericIssues";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useImageUpload } from "@/hooks/useImageUpload";
+import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
 
 
 export const CombinedAssetsContainer = () => {
@@ -83,6 +84,19 @@ export const CombinedAssetsContainer = () => {
     searchDescriptions,
     showLowStock
   });
+  const { members: organizationMembers } = useOrganizationMembers();
+  const checkoutDisplayNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    organizationMembers.forEach(member => {
+      if (member.user_id) {
+        map.set(member.user_id, member.full_name);
+      }
+      if (member.id && !map.has(member.id)) {
+        map.set(member.id, member.full_name);
+      }
+    });
+    return map;
+  }, [organizationMembers]);
 
 
   useEffect(() => {
@@ -162,6 +176,19 @@ export const CombinedAssetsContainer = () => {
   const filteredAssets = useMemo(() => {
     // Skip filtering during loading to prevent flicker
     if (loading && assets.length === 0) return [];
+    
+    if (showMyCheckedOut) {
+      console.log('=== MY CHECKED OUT FILTER (Combined Assets) ===');
+      console.log('User ID:', user?.id);
+      console.log('Total assets:', assets.length);
+      console.log('Assets (not stock):', assets.filter(a => a.type === 'asset').length);
+      console.log('Checked out assets:', assets.filter(a => a.type === 'asset' && a.is_checked_out).map(a => ({
+        name: a.name,
+        is_checked_out: a.is_checked_out,
+        checked_out_user_id: a.checked_out_user_id,
+        matches: a.checked_out_user_id === user?.id
+      })));
+    }
     
     return assets.filter(asset => {
       // Type filters
@@ -551,6 +578,7 @@ export const CombinedAssetsContainer = () => {
         isAdmin={isAdmin}
         currentUserId={user?.id}
         currentUserEmail={user?.email}
+        userNameMap={checkoutDisplayNameMap}
             onView={handleShowAssetDetails}
             onEdit={handleEdit}
             onRemove={handleRemove}

@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { toast } from '@/hooks/use-toast';
 import { useOrganizationMembers } from '@/hooks/useOrganizationMembers';
@@ -94,7 +94,10 @@ export default function Actions() {
     setIsEditDialogOpen(true);
   };
 
+  const queryClient = useQueryClient();
+  
   const handleSaveAction = async () => {
+    queryClient.invalidateQueries({ queryKey: ['actions'] });
     setIsEditDialogOpen(false);
     setEditingAction(null);
     setIsCreating(false);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useUserNames } from '@/hooks/useUserNames';
 import { offlineQueryConfig } from '@/lib/queryConfig';
@@ -92,6 +92,7 @@ const fetchProfiles = async () => {
 export const useCombinedAssets = (showRemovedItems: boolean = false, options?: AssetsQueryOptions) => {
   const [currentPage, setCurrentPage] = useState(0);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   const { data: toolsData = [], isLoading: toolsLoading } = useQuery({
     queryKey: ['tools'],
@@ -235,7 +236,10 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
         ...tool,
         type: 'asset' as const,
         has_issues: false,
-        is_checked_out: false
+        is_checked_out: Boolean(tool.is_checked_out),
+        checked_out_user_id: tool.checked_out_user_id,
+        checked_out_to: tool.checked_out_to,
+        checked_out_date: tool.checked_out_date
       }))
     ];
     
@@ -248,6 +252,14 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
     fetchAssets,
     createAsset,
     updateAsset,
-    refetch: () => fetchAssets({ page: 0, append: false })
+    refetch: async () => {
+      // Invalidate and refetch both tools and parts queries
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['tools'] }),
+        queryClient.invalidateQueries({ queryKey: ['parts'] })
+      ]);
+      // Reset to first page
+      setCurrentPage(0);
+    }
   };
 };

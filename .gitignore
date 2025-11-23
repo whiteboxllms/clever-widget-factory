@@ -50,3 +50,20 @@ supabase/.temp/
 # Migration docs
 API_GATEWAY_MIGRATION_PLAN.md
 LAMBDA_MIGRATION_PLAN.md
+
+# Temporary files
+tmp.html
+*.tmp
+tmp/
+
+# Unused directories
+*-UNUSED/
+*_UNUSED/
+
+# Test results and coverage (already handled but explicit)
+test-results.*
+coverage/
+
+# Shell scripts (temporary migration scripts)
+run-*.sh
+check-db.sh

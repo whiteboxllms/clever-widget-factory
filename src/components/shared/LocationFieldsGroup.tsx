@@ -68,11 +68,11 @@ export const LocationFieldsGroup: React.FC<LocationFieldsGroupProps> = ({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="none">None</SelectItem>
-            {parentStructures.map((structure) => (
+            {Array.isArray(parentStructures) ? parentStructures.map((structure) => (
               <SelectItem key={structure.id} value={structure.id}>
                 {structure.name} ({structure.category})
               </SelectItem>
-            ))}
+            )) : null}
           </SelectContent>
         </Select>
       );

@@ -8,12 +8,24 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from "@/hooks/useCognitoAuth";
-import { supabase } from '@/lib/client';
-import { Tables } from '@/integrations/supabase/types';
 import { ToolCheckInDialog } from '@/components/ToolCheckInDialog';
+import type { Tool } from '@/hooks/tools/useToolsData';
 
-type CheckoutWithTool = Tables<'checkouts'> & {
-  tools: Tables<'tools'>;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+type CheckoutWithTool = {
+  id: string;
+  tool_id: string;
+  user_id: string;
+  user_name: string;
+  checkout_date: string;
+  is_returned: boolean;
+  expected_return_date?: string | null;
+  intended_usage?: string | null;
+  notes?: string | null;
+  action_id?: string | null;
+  tool_serial_number?: string;
+  tools?: Tool;
 };
 
 export default function CheckIn() {
@@ -36,31 +48,40 @@ export default function CheckIn() {
       console.log('Network status:', navigator.onLine ? 'Online' : 'Offline');
       console.log('Timestamp:', new Date().toISOString());
       
-      const { data, error } = await supabase
-        .from('checkouts')
-        .select(`
-          *,
-          tools(*)
-        `)
-        .eq('is_returned', false)
-        .order('checkout_date', { ascending: false });
-
-      console.log('Checkout fetch result:', { data: data?.length, error });
-      console.log('Raw data:', data);
-
-      if (error) {
-        console.error('Supabase error details:', error);
-        console.error('Error code:', error.code);
-        console.error('Error message:', error.message);
-        console.error('Error details:', error.details);
-        throw error;
+      // Fetch checkouts from AWS API
+      const checkoutsResponse = await fetch(`${API_BASE_URL}/checkouts?is_returned=false`);
+      if (!checkoutsResponse.ok) {
+        throw new Error('Failed to fetch checkouts');
       }
-      setCheckouts(data || []);
-      console.log('Successfully loaded checkouts:', data?.length || 0);
+      const checkoutsResult = await checkoutsResponse.json();
+      const checkoutsData = checkoutsResult.data || [];
+
+      // Fetch tools to get full tool details
+      const toolsResponse = await fetch(`${API_BASE_URL}/tools`);
+      if (!toolsResponse.ok) {
+        throw new Error('Failed to fetch tools');
+      }
+      const toolsResult = await toolsResponse.json();
+      const toolsData = toolsResult.data || [];
+
+      // Create a map of tools by ID for quick lookup
+      const toolsMap = new Map(toolsData.map((tool: Tool) => [tool.id, tool]));
+
+      // Merge checkout data with tool data
+      const checkoutsWithTools = checkoutsData.map((checkout: CheckoutWithTool) => ({
+        ...checkout,
+        tools: toolsMap.get(checkout.tool_id)
+      }));
+
+      console.log('Checkout fetch result:', { count: checkoutsWithTools.length });
+      console.log('Raw data:', checkoutsWithTools);
+
+      setCheckouts(checkoutsWithTools);
+      console.log('Successfully loaded checkouts:', checkoutsWithTools.length);
     } catch (error) {
       console.error('Error fetching checkouts:', error);
       console.error('Error type:', typeof error);
-      console.error('Error stack:', error?.stack);
+      console.error('Error stack:', error instanceof Error ? error.stack : undefined);
       
       // Enhanced error details
       let errorMessage = "Failed to load checked out tools";
@@ -180,10 +201,10 @@ export default function CheckIn() {
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg">
-                        {checkout.tools.name}
-                        {checkout.tools.serial_number && (
+                        {checkout.tools?.name || 'Unknown Tool'}
+                        {checkout.tool_serial_number && (
                           <span className="text-sm font-normal text-muted-foreground ml-2">
-                            {checkout.tools.serial_number}
+                            {checkout.tool_serial_number}
                           </span>
                         )}
                       </CardTitle>
@@ -210,11 +231,13 @@ export default function CheckIn() {
                           hour12: true
                         })}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className={getStatusColor(checkout.tools.status)}>
-                          {checkout.tools.status}
-                        </Badge>
-                      </div>
+                      {checkout.tools?.status && (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className={getStatusColor(checkout.tools.status)}>
+                            {checkout.tools.status}
+                          </Badge>
+                        </div>
+                      )}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { useFiveWhysAgent } from './useFiveWhysAgent';
 import { testScenarios } from '@/test-utils/testScenarios';
@@ -10,15 +10,37 @@ import {
   assertHasNumberedOptions,
   assertNoMultipleWhyQuestions,
 } from '@/test-utils/assertionHelpers';
+import { AuthWrapper } from '@/test-utils/testWrappers';
+import { mockApiResponse, setupFetchMock } from '@/test-utils/mocks';
+
+// Mock aws-amplify/auth module
+vi.mock('aws-amplify/auth', () => ({
+  getCurrentUser: vi.fn().mockResolvedValue({
+    userId: 'test-user-id',
+    username: 'test@example.com',
+    signInDetails: { loginId: 'test@example.com' },
+  }),
+  fetchAuthSession: vi.fn().mockResolvedValue({
+    tokens: {
+      accessToken: { payload: { sub: 'test-user-id' } },
+      idToken: { payload: { sub: 'test-user-id', email: 'test@example.com' } },
+    },
+  }),
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+  signUp: vi.fn(),
+  resetPassword: vi.fn(),
+  confirmResetPassword: vi.fn(),
+  confirmSignIn: vi.fn(),
+}));
 
 // Set timeout for API calls
 const API_TIMEOUT = 30000; // 30 seconds
 
 describe('5 Whys Agent', () => {
   beforeAll(() => {
-    // Note: OpenRouter API key is now stored server-side in Supabase Edge Functions
-    // Tests should mock the chatFiveWhys service call or use a test MCP server
-    // For now, tests should be updated to mock the service layer
+    // Mock API calls - you may want to customize these per test
+    setupFetchMock(() => mockApiResponse({ success: true }));
   });
 
   testScenarios.forEach((scenario) => {
@@ -27,8 +49,11 @@ describe('5 Whys Agent', () => {
       let whyCount: number;
 
       it(scenario.description, async () => {
-        const { result } = renderHook(() =>
-          useFiveWhysAgent(scenario.issue, 'test-org-id')
+        const { result } = renderHook(
+          () => useFiveWhysAgent(scenario.issue, 'test-org-id'),
+          {
+            wrapper: AuthWrapper,
+          }
         );
 
         // Initialize the session

@@ -47,7 +47,7 @@ import { StockSelector } from './StockSelector';
 import { MultiParticipantSelector } from './MultiParticipantSelector';
 import { cn, sanitizeRichText, getActionBorderStyle } from "@/lib/utils";
 import { BaseAction, Profile, ActionCreationContext } from "@/types/actions";
-import { autoCheckinToolsForAction } from '@/lib/autoToolCheckout';
+import { autoCheckinToolsForAction, activatePlannedCheckoutsIfNeeded } from '@/lib/autoToolCheckout';
 import { generateActionUrl, copyToClipboard } from "@/lib/urlUtils";
 
 interface UnifiedActionDialogProps {
@@ -70,7 +70,7 @@ export function UnifiedActionDialog({
   isCreating = false
 }: UnifiedActionDialogProps) {
   const { toast } = useToast();
-  const { isLeadership } = useAuth();
+  const { isLeadership, user } = useAuth();
   const organizationId = useOrganizationId();
   const [formData, setFormData] = useState<Partial<BaseAction>>({});
   const [missionData, setMissionData] = useState<any>(null);
@@ -123,6 +123,9 @@ export function UnifiedActionDialog({
           // Editing existing action
           setFormData({
             ...action,
+            plan_commitment: action.plan_commitment || false,
+            policy_agreed_at: action.policy_agreed_at || null,
+            policy_agreed_by: action.policy_agreed_by || null,
             required_stock: action.required_stock || [],
             attachments: action.attachments || []
           });
@@ -145,6 +148,8 @@ export function UnifiedActionDialog({
             assigned_to: null,
             status: 'not_started',
             plan_commitment: false,
+            policy_agreed_at: null,
+            policy_agreed_by: null,
             required_stock: [],
             attachments: []
           });
@@ -174,18 +179,11 @@ export function UnifiedActionDialog({
     const fetchMissionData = async () => {
       if (formData.mission_id) {
         try {
-          const { data, error } = await supabase
-            .from('missions')
-            .select('id, title, problem_statement, mission_number, status')
-            .eq('id', formData.mission_id)
-            .single();
-
-          if (error) {
-            console.error('Error fetching mission data:', error);
-            return;
-          }
-
-          setMissionData(data);
+          const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/missions`);
+          const result = await response.json();
+          const missions = result.data || [];
+          const mission = missions.find((m: any) => m.id === formData.mission_id);
+          setMissionData(mission || null);
         } catch (error) {
           console.error('Error fetching mission data:', error);
         }
@@ -223,11 +221,9 @@ export function UnifiedActionDialog({
     if (!action?.id) return false;
     
     try {
-      const { data: updates } = await supabase
-        .from('action_implementation_updates')
-        .select('id')
-        .eq('action_id', action.id)
-        .limit(1);
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/action_implementation_updates?action_id=${action.id}&limit=1`);
+      const result = await response.json();
+      const updates = result.data || [];
       
       return updates && updates.length > 0;
     } catch (error) {
@@ -269,47 +265,32 @@ export function UnifiedActionDialog({
     setIsCompleting(true);
     
     try {
-      // Get the current user for inventory logging
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (!currentUser?.id) {
-        throw new Error('User must be authenticated to complete actions');
-      }
-
       // Process required stock consumption if any
       const requiredStock = formData.required_stock || [];
       if (requiredStock.length > 0) {
-        await processStockConsumption(requiredStock, action.id, currentUser.id);
+        await processStockConsumption(requiredStock, action.id);
       }
 
-      // First save any pending changes
-      const updateData = {
-        title: formData.title,
-        description: formData.description,
-        policy: formData.policy,
-        assigned_to: formData.assigned_to,
-        estimated_duration: formData.estimated_duration,
-        required_stock: formData.required_stock,
-        attachments: formData.attachments,
-        updated_at: new Date().toISOString()
-      };
-
-      const { error: saveError } = await supabase
-        .from('actions')
-        .update(updateData)
-        .eq('id', action.id);
-
-      if (saveError) throw saveError;
-
-      // Then mark as completed
-      const { error: completeError } = await supabase
-        .from('actions')
-        .update({
+      // Update action to completed status
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/actions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: action.id,
+          title: formData.title,
+          description: formData.description,
+          policy: formData.policy,
+          assigned_to: formData.assigned_to,
+          estimated_duration: formData.estimated_duration,
+          required_stock: formData.required_stock,
+          attachments: formData.attachments,
           status: 'completed',
-          completed_at: new Date().toISOString()
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
-        .eq('id', action.id);
+      });
 
-      if (completeError) throw completeError;
+      if (!response.ok) throw new Error('Failed to complete action');
 
       // Auto-checkin tools
       try {
@@ -371,52 +352,26 @@ export function UnifiedActionDialog({
     }
   };
 
-  const processStockConsumption = async (requiredStock: any[], actionId: string, userId: string) => {
-    for (const stockItem of requiredStock) {
-      try {
-        // Get current quantity and update parts table
-        const { data: partData, error: fetchError } = await supabase
-          .from('parts')
-          .select('current_quantity')
-          .eq('id', stockItem.part_id)
-          .single();
-
-        if (fetchError) {
-          console.error(`Failed to fetch part ${stockItem.part_id}:`, fetchError);
-          throw new Error(`Part with ID ${stockItem.part_id} not found or access denied`);
-        }
-
-        const newQuantity = Math.max(0, (partData?.current_quantity || 0) - stockItem.quantity);
-        
-        const { error: updateError } = await supabase
-          .from('parts')
-          .update({ current_quantity: newQuantity })
-          .eq('id', stockItem.part_id);
-
-        if (updateError) throw updateError;
-
-        // Log to parts_history table
-        const { error: historyError } = await supabase
-          .from('parts_history')
-          .insert({
-            part_id: stockItem.part_id,
-            change_type: 'quantity_remove',
-            old_quantity: partData?.current_quantity || 0,
-            new_quantity: newQuantity,
-            quantity_change: -stockItem.quantity,
-            changed_by: userId,
-            change_reason: `Used for action: ${formData.title} - ${stockItem.quantity} ${stockItem.part_name}`,
-            organization_id: organizationId
-          });
-
-        if (historyError) {
-          console.error('Error creating parts history:', historyError);
-        }
-      } catch (error) {
-        console.error(`Error processing stock item ${stockItem.part_id}:`, error);
-        throw error;
-      }
+  const processStockConsumption = async (requiredStock: any[], actionId: string) => {
+    if (!requiredStock || requiredStock.length === 0) {
+      return; // No stock to process
     }
+
+    if (!user?.id || !organizationId) {
+      console.error('User ID and organization ID required for stock consumption');
+      return;
+    }
+
+    // Use the utility function from utils.ts
+    const { processStockConsumption: processStock } = await import('@/lib/utils');
+    await processStock(
+      requiredStock,
+      actionId,
+      user.id,
+      formData.title || action?.title || 'Unknown Action',
+      organizationId,
+      action?.mission_id
+    );
   };
 
 
@@ -471,12 +426,8 @@ export function UnifiedActionDialog({
     setIsSubmitting(true);
     
     try {
-      const { error } = await supabase
-        .from('actions')
-        .delete()
-        .eq('id', action.id);
-
-      if (error) throw error;
+      // TODO: Implement DELETE endpoint for actions
+      throw new Error('Delete action not yet implemented');
 
       toast({
         title: "Success",
@@ -528,8 +479,7 @@ export function UnifiedActionDialog({
       
       const actionStatus = formData.status || 'not_started';
 
-      // Get current user for audit fields
-      const { data: { user } } = await supabase.auth.getUser();
+      // Get current user ID
       const userId = user?.id || '00000000-0000-0000-0000-000000000000';
 
       const actionData: any = {
@@ -547,6 +497,8 @@ export function UnifiedActionDialog({
         issue_reference: formData.issue_reference || null,
         status: actionStatus,
         plan_commitment: formData.plan_commitment || false,
+        policy_agreed_at: formData.policy_agreed_at || null,
+        policy_agreed_by: formData.policy_agreed_by || null,
         organization_id: organizationId,
         created_by: isCreating || !action?.id ? userId : action.created_by || userId,
         updated_by: userId
@@ -568,13 +520,14 @@ export function UnifiedActionDialog({
       const result = await response.json();
       const data = result.data;
 
-
+      // Use optimistic update - merge saved data with what we sent
+      const optimisticData = { ...actionData, ...data, id: data?.id || action?.id };
 
       toast({
         title: "Success",
         description: isCreating || !action?.id ? "Action created successfully" : "Action updated successfully"
       });
-      onActionSaved(data as unknown as BaseAction);
+      onActionSaved(optimisticData as unknown as BaseAction);
       onOpenChange(false);
     } catch (error) {
       console.error('Error saving action:', error);
@@ -784,28 +737,17 @@ export function UnifiedActionDialog({
                       setFormData({
                         ...formData, 
                         plan_commitment: checked,
+                        policy_agreed_at: checked ? new Date().toISOString() : null,
+                        policy_agreed_by: checked ? user?.id : null,
                         status: checked ? 'in_progress' : 'not_started'
                       });
                       
-                      // Create implementation update when toggled
-                      if (action?.id) {
+                      // Activate planned checkouts when plan is committed
+                      if (action?.id && checked) {
                         try {
-                          const { data: { user } } = await supabase.auth.getUser();
-                          if (user) {
-                            const updateText = checked 
-                              ? "Leadership approved this action plan and committed to implementation."
-                              : "Leadership withdrew approval of this action plan.";
-                            
-                            await supabase
-                              .from('action_implementation_updates')
-                              .insert({
-                                action_id: action.id,
-                                update_text: updateText,
-                                updated_by: user.id
-                              });
-                          }
+                          await activatePlannedCheckoutsIfNeeded(action.id, organizationId);
                         } catch (error) {
-                          console.error('Error creating implementation update:', error);
+                          console.error('Error activating checkouts:', error);
                         }
                       }
                     }}
@@ -866,7 +808,7 @@ export function UnifiedActionDialog({
             
             <TabsContent value="plan" className="mt-4">
               <div>
-                <Label>Action Policy</Label>
+                <Label className="text-foreground">Action Policy</Label>
                 <div className="mt-2 border rounded-lg">
                  <TiptapEditor
                    key={`plan-${action?.id || 'new'}`}

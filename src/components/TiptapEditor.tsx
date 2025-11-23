@@ -154,8 +154,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       <EditorContent
         editor={editor}
         className={cn(
-          'prose prose-sm max-w-none p-3 min-h-[120px] focus-within:outline-none',
-          '[&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[100px]',
+          'prose prose-sm max-w-none p-3 min-h-[120px] focus-within:outline-none text-foreground',
+          '[&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[100px] [&_.ProseMirror]:text-foreground',
+          '[&_.ProseMirror_p]:text-foreground [&_.ProseMirror_ul]:text-foreground [&_.ProseMirror_ol]:text-foreground',
+          '[&_.ProseMirror_li]:text-foreground [&_.ProseMirror_strong]:text-foreground [&_.ProseMirror_em]:text-foreground',
           readOnly && 'cursor-default'
         )}
         placeholder={placeholder}

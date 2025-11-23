@@ -80,10 +80,10 @@ export function getActionBorderStyle(action: {
   policy_agreed_at?: string | null;
   policy_agreed_by?: string | null;
   plan_commitment?: boolean;
-  has_implementation_updates?: boolean;
+  implementation_update_count?: number;
 }): ActionBorderStyle {
   const hasPolicy = hasActualContent(action.policy);
-  const hasImplementationUpdates = action.has_implementation_updates === true;
+  const hasImplementationUpdates = (action.implementation_update_count ?? 0) > 0;
   const isAssigned = Boolean(action.assigned_to);
   const hasPolicyAgreement = Boolean(action.policy_agreed_at || action.plan_commitment);
 
@@ -139,45 +139,61 @@ export async function processStockConsumption(
     return; // No stock to process
   }
 
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
   for (const stockItem of requiredStock) {
     try {
-      // Get current quantity and update parts table
-      const { data: partData, error: fetchError } = await supabase
-        .from('parts')
-        .select('current_quantity')
-        .eq('id', stockItem.part_id)
-        .single();
-
-      if (fetchError) {
-        console.error(`Failed to fetch part ${stockItem.part_id}:`, fetchError);
-        throw new Error(`Part with ID ${stockItem.part_id} not found or access denied`);
+      // Get current quantity
+      const fetchResponse = await fetch(`${API_BASE_URL}/parts`);
+      
+      if (!fetchResponse.ok) {
+        throw new Error(`Failed to fetch parts: ${fetchResponse.statusText}`);
+      }
+      
+      const fetchResult = await fetchResponse.json();
+      const parts = fetchResult.data || [];
+      const partData = parts.find((p: any) => p.id === stockItem.part_id);
+      
+      if (!partData) {
+        console.error(`Part ${stockItem.part_id} not found`);
+        throw new Error(`Part with ID ${stockItem.part_id} not found`);
       }
 
-      const newQuantity = Math.max(0, (partData?.current_quantity || 0) - stockItem.quantity);
+      const oldQuantity = partData.current_quantity || 0;
+      const newQuantity = Math.max(0, oldQuantity - stockItem.quantity);
       
-      const { error: updateError } = await supabase
-        .from('parts')
-        .update({ current_quantity: newQuantity })
-        .eq('id', stockItem.part_id);
+      // Update part quantity
+      const updateResponse = await fetch(`${API_BASE_URL}/parts/${stockItem.part_id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_quantity: newQuantity })
+      });
 
-      if (updateError) throw updateError;
+      if (!updateResponse.ok) {
+        const error = await updateResponse.json();
+        throw new Error(`Failed to update part: ${error.error || updateResponse.statusText}`);
+      }
 
       // Log to parts_history table
-      const { error: historyError } = await supabase
-        .from('parts_history')
-        .insert({
+      const historyResponse = await fetch(`${API_BASE_URL}/parts_history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           part_id: stockItem.part_id,
           change_type: 'quantity_remove',
-          old_quantity: partData?.current_quantity || 0,
+          old_quantity: oldQuantity,
           new_quantity: newQuantity,
           quantity_change: -stockItem.quantity,
           changed_by: userId,
           change_reason: `Used for action: ${actionTitle} - ${stockItem.quantity} ${stockItem.part_name}`,
           organization_id: organizationId
-        });
+        })
+      });
 
-      if (historyError) {
-        console.error('Error creating parts history:', historyError);
+      if (!historyResponse.ok) {
+        const error = await historyResponse.json();
+        console.error('Error creating parts history:', error);
+        // Don't throw - the main operation succeeded
       }
     } catch (error) {
       console.error(`Error processing stock item ${stockItem.part_id}:`, error);

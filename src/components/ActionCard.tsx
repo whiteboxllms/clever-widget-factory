@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,14 @@ interface ActionCardProps {
   tempPhotoStorage?: ReturnType<typeof useTempPhotoStorage>;
   compact?: boolean;
   onToggleComplete?: (action: any) => void;
+}
+
+interface ImplementationUpdate {
+  id: string;
+  action_id: string;
+  updated_by: string;
+  update_text: string;
+  created_at: string;
 }
 
 export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSave, onCancel, onEdit, tempPhotoStorage, compact = false, onToggleComplete }: ActionCardProps) {
@@ -130,7 +138,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     return () => clearTimeout(timeoutId);
   }, [editData.policy, hasUnsavedPolicy, isSavingPolicy]);
 
-  // Load photos and scores for actions when component mounts
+  // Load photos and scores when component mounts
   useEffect(() => {
     if (action.id && !action.id.startsWith('temp-')) {
       loadPhotos();
@@ -427,8 +435,6 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     setIsCompleting(true);
     
     try {
-      // Note: User authentication would be handled by the API
-
       // Process required stock consumption if any
       const requiredStock = action.required_stock || [];
       if (requiredStock.length > 0) {
@@ -533,10 +539,6 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     }
   };
 
-  const getActionTheme = () => {
-    return getActionBorderStyle(action);
-  };
-
   const getStatusIcon = () => {
     if (action.status === 'completed') {
       return <CheckCircle className="w-4 h-4 text-emerald-600" />;
@@ -575,7 +577,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     return <Badge variant="outline">Not Started</Badge>;
   };
 
-  const theme = getActionTheme();
+  const theme = getActionBorderStyle(action);
 
   if (isEditing) {
     // Check if action should default to implementation updates based on border color logic

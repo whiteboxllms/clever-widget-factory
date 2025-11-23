@@ -24,6 +24,8 @@ jobs:
       run: npm ci
     
     - name: Build
+      env:
+        VITE_BASE_PATH: /clever-widget-factory/
       run: npm run build -- --mode production
     
     - name: Setup Pages

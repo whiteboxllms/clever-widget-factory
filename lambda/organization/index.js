@@ -66,13 +66,14 @@ exports.handler = async (event) => {
       const orgIdsList = accessibleOrgIds.map(id => `'${id.replace(/'/g, "''")}'`).join(',');
       
       const sql = `SELECT json_agg(row_to_json(t)) FROM (
-        SELECT user_id, full_name, role, cognito_user_id
+        SELECT DISTINCT ON (cognito_user_id) cognito_user_id as user_id, full_name, role, cognito_user_id, favorite_color
         FROM organization_members
         WHERE is_active = true 
           AND full_name IS NOT NULL 
           AND trim(full_name) != ''
+          AND cognito_user_id IS NOT NULL
           AND organization_id IN (${orgIdsList})
-        ORDER BY full_name
+        ORDER BY cognito_user_id, full_name
       ) t;`;
       
       const result = await queryJSON(sql);

@@ -132,25 +132,19 @@ export async function processStockConsumption(
   actionId: string,
   userId: string,
   actionTitle: string,
-  organizationId: string,
   missionId?: string
 ): Promise<void> {
   if (!requiredStock || requiredStock.length === 0) {
     return; // No stock to process
   }
 
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  // Import apiService dynamically to avoid circular dependencies
+  const { apiService } = await import('./apiService');
 
   for (const stockItem of requiredStock) {
     try {
-      // Get current quantity
-      const fetchResponse = await fetch(`${API_BASE_URL}/parts`);
-      
-      if (!fetchResponse.ok) {
-        throw new Error(`Failed to fetch parts: ${fetchResponse.statusText}`);
-      }
-      
-      const fetchResult = await fetchResponse.json();
+      // Get current quantity using apiService (includes auth token)
+      const fetchResult = await apiService.get('/parts');
       const parts = fetchResult.data || [];
       const partData = parts.find((p: any) => p.id === stockItem.part_id);
       
@@ -162,23 +156,14 @@ export async function processStockConsumption(
       const oldQuantity = partData.current_quantity || 0;
       const newQuantity = Math.max(0, oldQuantity - stockItem.quantity);
       
-      // Update part quantity
-      const updateResponse = await fetch(`${API_BASE_URL}/parts/${stockItem.part_id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ current_quantity: newQuantity })
+      // Update part quantity using apiService (includes auth token)
+      await apiService.put(`/parts/${stockItem.part_id}`, {
+        current_quantity: newQuantity
       });
 
-      if (!updateResponse.ok) {
-        const error = await updateResponse.json();
-        throw new Error(`Failed to update part: ${error.error || updateResponse.statusText}`);
-      }
-
-      // Log to parts_history table
-      const historyResponse = await fetch(`${API_BASE_URL}/parts_history`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      // Log to parts_history table using apiService (includes auth token)
+      try {
+        await apiService.post('/parts_history', {
           part_id: stockItem.part_id,
           change_type: 'quantity_remove',
           old_quantity: oldQuantity,
@@ -187,12 +172,9 @@ export async function processStockConsumption(
           changed_by: userId,
           change_reason: `Used for action: ${actionTitle} - ${stockItem.quantity} ${stockItem.part_name}`,
           action_id: actionId, // Link to the action for auditability
-        })
-      });
-
-      if (!historyResponse.ok) {
-        const error = await historyResponse.json();
-        console.error('Error creating parts history:', error);
+        });
+      } catch (historyError) {
+        console.error('Error creating parts history:', historyError);
         // Don't throw - the main operation succeeded
       }
     } catch (error) {

@@ -52,11 +52,15 @@ exports.handler = async (event) => {
       'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
     };
 
-    // Handle preflight requests
+    // Handle preflight requests for all paths
     if (httpMethod === 'OPTIONS') {
       return {
         statusCode: 200,
-        headers,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+          'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+        },
         body: ''
       };
     }
@@ -125,6 +129,62 @@ exports.handler = async (event) => {
       };
     }
 
+    // DELETE action
+    if (httpMethod === 'DELETE' && path.includes('/actions/')) {
+      const actionId = path.split('/actions/')[1];
+      const orgFilter = buildOrganizationFilter(authContext, 'actions');
+      const sql = `DELETE FROM actions WHERE id = '${actionId}' ${orgFilter.condition ? 'AND ' + orgFilter.condition : ''} RETURNING id`;
+      const result = await queryJSON(sql);
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ data: result[0] })
+      };
+    }
+
+    // PUT action by ID (update via path parameter)
+    if (httpMethod === 'PUT' && path.includes('/actions/')) {
+      const actionId = path.split('/actions/')[1].split('/')[0]; // Extract ID, handle trailing slashes
+      const body = JSON.parse(event.body || '{}');
+      const { created_by, updated_by, updated_at, completed_at, ...actionData } = body;
+      
+      const userId = updated_by || authContext.cognito_user_id || require('crypto').randomUUID();
+      
+      const updates = [];
+      for (const [key, val] of Object.entries(actionData)) {
+        if (val === undefined) continue;
+        if (val === null) updates.push(`${key} = NULL`);
+        else if (typeof val === 'string') updates.push(`${key} = '${val.replace(/'/g, "''")}'`);
+        else if (typeof val === 'boolean') updates.push(`${key} = ${val}`);
+        else if (Array.isArray(val)) {
+          if (key === 'participants') {
+            updates.push(`${key} = ARRAY[${val.map(v => `'${v}'`).join(',')}]::uuid[]`);
+          } else if (key === 'required_tools' || key === 'attachments') {
+            updates.push(`${key} = ARRAY[${val.map(v => `'${v.replace(/'/g, "''")}'`).join(',')}]::text[]`);
+          } else {
+            updates.push(`${key} = '${JSON.stringify(val).replace(/'/g, "''")}'::jsonb`);
+          }
+        } else if (typeof val === 'object') updates.push(`${key} = '${JSON.stringify(val).replace(/'/g, "''")}'::jsonb`);
+        else updates.push(`${key} = ${val}`);
+      }
+      updates.push(`updated_by = '${userId}'`);
+      if (completed_at) updates.push(`completed_at = '${completed_at}'`);
+      
+      const orgFilter = buildOrganizationFilter(authContext, 'actions');
+      const sql = `UPDATE actions SET ${updates.join(', ')}, updated_at = NOW() WHERE id = '${actionId}' ${orgFilter.condition ? 'AND ' + orgFilter.condition : ''} RETURNING *`;
+      const result = await queryJSON(sql);
+      
+      if (!result || result.length === 0) {
+        return {
+          statusCode: 404,
+          headers,
+          body: JSON.stringify({ error: 'Action not found' })
+        };
+      }
+      
+      return { statusCode: 200, headers, body: JSON.stringify({ data: result[0] }) };
+    }
+
     // POST/PUT action (create/update)
     if ((httpMethod === 'POST' || httpMethod === 'PUT') && path.endsWith('/actions')) {
       const body = JSON.parse(event.body || '{}');
@@ -160,8 +220,9 @@ exports.handler = async (event) => {
       } else {
         // Create
         const uuid = require('crypto').randomUUID();
-        const fields = ['id', 'created_by', 'updated_by', ...Object.keys(actionData)];
-        const values = [`'${uuid}'`, `'${userId}'`, `'${userId}'`];
+        const orgId = accessibleOrgIds[0]; // Use first accessible org
+        const fields = ['id', 'created_by', 'updated_by', 'organization_id', ...Object.keys(actionData)];
+        const values = [`'${uuid}'`, `'${userId}'`, `'${userId}'`, `'${orgId}'`];
         
         for (const [key, val] of Object.entries(actionData)) {
           if (val === null) {
@@ -223,7 +284,10 @@ exports.handler = async (event) => {
             SELECT COUNT(*) 
             FROM action_implementation_updates aiu 
             WHERE aiu.action_id = a.id
-          ), 0) as implementation_update_count
+          ), 0) as implementation_update_count,
+          CASE WHEN a.asset_id IS NOT NULL THEN
+            json_build_object('id', t.id, 'name', t.name, 'category', t.category)
+          ELSE NULL END as asset
         FROM actions a
         LEFT JOIN profiles om ON a.assigned_to = om.user_id
         LEFT JOIN action_scores scores ON a.id = scores.action_id
@@ -232,6 +296,7 @@ exports.handler = async (event) => {
           FROM action_implementation_updates
           WHERE update_type != 'policy_agreement' OR update_type IS NULL
         ) updates ON a.id = updates.action_id
+        LEFT JOIN tools t ON a.asset_id = t.id
         ${whereClause} 
         ORDER BY a.created_at DESC 
         ${limitClause}

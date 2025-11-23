@@ -173,7 +173,7 @@ exports.handler = async (event) => {
       if (httpMethod === 'GET') {
         const { limit = 50, offset = 0 } = event.queryStringParameters || {};
         const sql = `SELECT json_agg(row_to_json(result)) FROM (
-          SELECT 
+          SELECT DISTINCT ON (tools.id)
             tools.*,
             CASE 
               WHEN active_checkouts.id IS NOT NULL THEN 'checked_out'
@@ -195,10 +195,14 @@ exports.handler = async (event) => {
             active_checkouts.intended_usage as checkout_intended_usage,
             active_checkouts.notes as checkout_notes
           FROM tools
-          LEFT JOIN checkouts active_checkouts
-            ON active_checkouts.tool_id = tools.id
-            AND active_checkouts.is_returned = false
-          ORDER BY tools.name 
+          LEFT JOIN LATERAL (
+            SELECT * FROM checkouts
+            WHERE checkouts.tool_id = tools.id
+              AND checkouts.is_returned = false
+            ORDER BY checkouts.checkout_date DESC NULLS LAST, checkouts.created_at DESC
+            LIMIT 1
+          ) active_checkouts ON true
+          ORDER BY tools.id, tools.name 
           LIMIT ${limit} OFFSET ${offset}
         ) result;`;
         
@@ -872,18 +876,64 @@ exports.handler = async (event) => {
           };
         }
         const orgId = organizationId;
+        
+        // Check for existing active checkout for this tool
+        // An active checkout is one where is_returned = false
+        const checkActiveCheckoutSql = `
+          SELECT id, user_name, checkout_date 
+          FROM checkouts 
+          WHERE tool_id = '${tool_id}' 
+            AND is_returned = false
+            AND organization_id = '${orgId}'
+          LIMIT 1
+        `;
+        const existingCheckouts = await queryJSON(checkActiveCheckoutSql);
+        
+        if (existingCheckouts && existingCheckouts.length > 0) {
+          const existingCheckout = existingCheckouts[0];
+          return {
+            statusCode: 409,
+            headers,
+            body: JSON.stringify({ 
+              error: 'Tool already has an active checkout',
+              details: `This tool is currently checked out to ${existingCheckout.user_name || 'another user'}. Please return the tool before creating a new checkout.`,
+              existing_checkout: {
+                id: existingCheckout.id,
+                user_name: existingCheckout.user_name,
+                checkout_date: existingCheckout.checkout_date
+              }
+            })
+          };
+        }
+        
         const checkoutDateValue = checkout_date ? `'${checkout_date}'` : (is_returned ? 'NOW()' : 'NULL');
         const sql = `
           INSERT INTO checkouts (tool_id, user_id, user_name, intended_usage, notes, action_id, organization_id, is_returned, checkout_date)
           VALUES ('${tool_id}', '${user_id}', '${user_name.replace(/'/g, "''")}', ${intended_usage ? `'${intended_usage.replace(/'/g, "''")}'` : 'NULL'}, ${notes ? `'${notes.replace(/'/g, "''")}'` : 'NULL'}, ${action_id ? `'${action_id}'` : 'NULL'}, '${orgId}', ${is_returned}, ${checkoutDateValue})
           RETURNING *
         `;
-        const result = await queryJSON(sql);
-        return {
-          statusCode: 201,
-          headers,
-          body: JSON.stringify({ data: result[0] })
-        };
+        
+        try {
+          const result = await queryJSON(sql);
+          return {
+            statusCode: 201,
+            headers,
+            body: JSON.stringify({ data: result[0] })
+          };
+        } catch (error) {
+          // Catch duplicate key constraint violation
+          if (error.message && error.message.includes('idx_unique_active_checkout_per_tool')) {
+            return {
+              statusCode: 409,
+              headers,
+              body: JSON.stringify({ 
+                error: 'Tool already has an active checkout',
+                details: 'This tool is currently checked out. Please return the tool before creating a new checkout.'
+              })
+            };
+          }
+          throw error;
+        }
       }
       
       if (httpMethod === 'GET') {
@@ -1091,6 +1141,99 @@ exports.handler = async (event) => {
           statusCode: 201,
           headers,
           body: JSON.stringify({ data: result[0] })
+        };
+      }
+    }
+
+    // Missions by ID endpoint (GET, PUT, DELETE)
+    if (path.includes('/missions/') && !path.endsWith('/missions')) {
+      const missionId = path.split('/missions/')[1]?.split('/')[0]; // Extract ID, handle trailing paths
+      
+      if (httpMethod === 'GET') {
+        const orgFilter = buildOrganizationFilter(authContext, 'm');
+        const whereClause = orgFilter.condition ? `WHERE m.id = '${missionId}' AND ${orgFilter.condition}` : `WHERE m.id = '${missionId}'`;
+        
+        const sql = `SELECT json_agg(row_to_json(t)) FROM (
+          SELECT * FROM missions m ${whereClause}
+        ) t;`;
+        
+        const result = await queryJSON(sql);
+        const mission = result?.[0]?.json_agg?.[0];
+        
+        if (!mission) {
+          return {
+            statusCode: 404,
+            headers,
+            body: JSON.stringify({ error: 'Mission not found' })
+          };
+        }
+        
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ data: mission })
+        };
+      }
+      
+      if (httpMethod === 'PUT') {
+        const body = JSON.parse(event.body || '{}');
+        const { id, created_by, created_at, updated_at, ...missionData } = body;
+        
+        // Build UPDATE statement
+        const updates = [];
+        for (const [key, val] of Object.entries(missionData)) {
+          if (val === undefined) continue;
+          if (val === null) updates.push(`${key} = NULL`);
+          else if (typeof val === 'string') updates.push(`${key} = '${val.replace(/'/g, "''")}'`);
+          else if (typeof val === 'boolean') updates.push(`${key} = ${val}`);
+          else updates.push(`${key} = ${val}`);
+        }
+        updates.push(`updated_at = NOW()`);
+        
+        const orgFilter = buildOrganizationFilter(authContext, 'm');
+        const whereClause = orgFilter.condition 
+          ? `WHERE id = '${missionId}' AND ${orgFilter.condition}`
+          : `WHERE id = '${missionId}'`;
+        
+        const sql = `UPDATE missions SET ${updates.join(', ')} ${whereClause} RETURNING *;`;
+        const result = await queryJSON(sql);
+        
+        if (!result || result.length === 0) {
+          return {
+            statusCode: 404,
+            headers,
+            body: JSON.stringify({ error: 'Mission not found' })
+          };
+        }
+        
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ data: result[0] })
+        };
+      }
+      
+      if (httpMethod === 'DELETE') {
+        const orgFilter = buildOrganizationFilter(authContext, 'm');
+        const whereClause = orgFilter.condition 
+          ? `WHERE id = '${missionId}' AND ${orgFilter.condition}`
+          : `WHERE id = '${missionId}'`;
+        
+        const sql = `DELETE FROM missions ${whereClause} RETURNING id;`;
+        const result = await queryJSON(sql);
+        
+        if (!result || result.length === 0) {
+          return {
+            statusCode: 404,
+            headers,
+            body: JSON.stringify({ error: 'Mission not found' })
+          };
+        }
+        
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ data: { id: result[0].id } })
         };
       }
     }

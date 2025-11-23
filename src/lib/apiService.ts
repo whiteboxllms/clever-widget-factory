@@ -108,8 +108,9 @@ async function apiRequest<T = any>(
 
     // Handle 401 Unauthorized - token may be expired
     if (response.status === 401) {
-      console.warn('Unauthorized request - token may be expired');
-      // Could trigger token refresh here if needed
+      console.warn('Unauthorized request - token expired, redirecting to login');
+      window.location.href = '/login';
+      throw error;
     }
 
     // Handle 403 Forbidden - user doesn't have permission

@@ -8,6 +8,8 @@ export interface OrganizationMember {
   user_id: string;
   full_name: string;
   role: string;
+  favorite_color?: string;
+  cognito_user_id?: string;
 }
 
 export function useOrganizationMembers() {
@@ -20,7 +22,7 @@ export function useOrganizationMembers() {
     try {
       setLoading(true);
       
-      const result = await apiService.get(`/organization_members?organization_id=${organizationId || '00000000-0000-0000-0000-000000000001'}`);
+      const result = await apiService.get('/organization_members');
       const data = result.data || [];
 
       // Transform to match OrganizationMember interface
@@ -29,7 +31,8 @@ export function useOrganizationMembers() {
         user_id: member.user_id,
         full_name: member.full_name,
         role: member.role,
-        favorite_color: member.favorite_color
+        favorite_color: member.favorite_color,
+        cognito_user_id: member.cognito_user_id
       }));
 
       setMembers(organizationMembers);
@@ -46,10 +49,8 @@ export function useOrganizationMembers() {
   };
 
   useEffect(() => {
-    if (organizationId) {
-      fetchMembers();
-    }
-  }, [organizationId]);
+    fetchMembers();
+  }, []);
 
   return {
     members,

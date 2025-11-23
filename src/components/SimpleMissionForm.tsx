@@ -10,13 +10,14 @@ import { ChevronDown, ChevronRight, Plus, Upload, Image, X, Trash2, Archive, Inf
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-import { supabase } from '@/lib/client';
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
-import { apiService } from '@/lib/apiService';
+import { apiService, getApiData } from '@/lib/apiService';
+import { getS3Url, deleteFromS3 } from '@/lib/s3Service';
+import { useAuth } from '@/hooks/useCognitoAuth';
 
 import { useTempPhotoStorage } from "@/hooks/useTempPhotoStorage";
 import { hasActualContent } from "@/lib/utils";
@@ -111,6 +112,7 @@ export function SimpleMissionForm({
   const { uploadImages, isUploading: isImageUploading } = useImageUpload();
   const enhancedToast = useEnhancedToast();
   const tempPhotoStorage = useTempPhotoStorage();
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchTools();
@@ -162,15 +164,18 @@ export function SimpleMissionForm({
     if (!missionId) return;
     
     try {
-      const { data: tasksData, error } = await supabase
-        .from('actions')
-        .select('*')
-        .eq('mission_id', missionId)
-        .order('updated_at', { ascending: false });
+      const response = await apiService.get('/actions');
+      const allTasks = getApiData(response) || [];
+      const tasksData = allTasks.filter((task: any) => task.mission_id === missionId);
+      
+      // Sort by updated_at descending
+      tasksData.sort((a: any, b: any) => {
+        const dateA = new Date(a.updated_at || a.created_at || 0).getTime();
+        const dateB = new Date(b.updated_at || b.created_at || 0).getTime();
+        return dateB - dateA;
+      });
 
-      if (error) throw error;
-
-      const updatedTasks = tasksData?.map(task => ({
+      const updatedTasks = tasksData.map((task: any) => ({
         id: task.id,
         title: task.title,
         description: task.description || '',
@@ -185,7 +190,7 @@ export function SimpleMissionForm({
         required_tools: task.required_tools || [],
         required_stock: Array.isArray(task.required_stock) ? task.required_stock as { part_id: string; quantity: number; part_name: string; }[] : [],
         attachments: task.attachments || []
-      })) || [];
+      }));
 
       setFormData(prev => ({ ...prev, actions: updatedTasks }));
     } catch (error) {
@@ -230,20 +235,23 @@ export function SimpleMissionForm({
     try {
       console.log('Loading photos for mission:', missionId);
       
-      const { data: attachments, error } = await supabase
-        .from('mission_attachments')
-        .select('id, file_url, file_name')
-        .eq('mission_id', missionId)
-        .eq('attachment_type', 'evidence')
-        .is('task_id', null); // Problem photos don't have task_id
+      const response = await apiService.get('/mission_attachments');
+      const allAttachments = getApiData(response) || [];
+      const attachments = allAttachments.filter((att: any) => 
+        att.mission_id === missionId &&
+        att.attachment_type === 'evidence' &&
+        !att.task_id
+      );
       
-      console.log('Photo query result:', { attachments, error });
-      
-      if (error) throw error;
+      console.log('Photo query result:', { attachments });
       
       if (attachments && attachments.length > 0) {
         console.log('Setting problem photos:', attachments);
-        setProblemPhotos(attachments);
+        setProblemPhotos(attachments.map((att: any) => ({
+          id: att.id,
+          file_url: att.file_url,
+          file_name: att.file_name
+        })));
       } else {
         console.log('No problem photos found for mission');
         setProblemPhotos([]);
@@ -258,7 +266,6 @@ export function SimpleMissionForm({
     // If this is the first action and we're in create mode, create a draft mission first
     if (!isEditing && !draftMissionId && formData.actions.length === 0) {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           toast({
             title: "Error",
@@ -269,23 +276,19 @@ export function SimpleMissionForm({
         }
 
         // Create draft mission
-        const { data: missionData, error: missionError } = await supabase
-          .from('missions')
-          .insert({
-            title: formData.title || 'Draft Mission',
-            problem_statement: formData.problem_statement || 'Draft mission - details to be filled',
-            created_by: user.id,
-            qa_assigned_to: formData.qa_assigned_to || null,
-            template_id: selectedTemplate?.id || null,
-            template_name: selectedTemplate?.name || null,
-            template_color: selectedTemplate?.color || null,
-            template_icon: selectedTemplate?.icon ? getIconName(selectedTemplate.icon) : null,
-            status: 'draft' // Mark as draft
-          })
-          .select()
-          .single();
-
-        if (missionError) throw missionError;
+        const response = await apiService.post('/missions', {
+          title: formData.title || 'Draft Mission',
+          problem_statement: formData.problem_statement || 'Draft mission - details to be filled',
+          created_by: user.id,
+          qa_assigned_to: formData.qa_assigned_to || null,
+          template_id: selectedTemplate?.id || null,
+          template_name: selectedTemplate?.name || null,
+          template_color: selectedTemplate?.color || null,
+          template_icon: selectedTemplate?.icon ? getIconName(selectedTemplate.icon) : null,
+          status: 'draft' // Mark as draft
+        });
+        
+        const missionData = getApiData(response) || response;
         
         setDraftMissionId(missionData.id);
         toast({
@@ -395,30 +398,32 @@ export function SimpleMissionForm({
       const edited = index !== null ? formData.actions[index] : null;
       if (edited?.id) {
         (async () => {
-          const { data } = await supabase
-            .from('actions')
-            .select('*')
-            .eq('id', edited.id)
-            .single();
-          if (!data) return;
-          const updated: Task = {
-            id: data.id,
-            title: data.title,
-            description: data.description || '',
-            policy: data.policy || '',
-            observations: data.observations || '',
-            assigned_to: data.assigned_to,
-            status: data.status,
-            plan_commitment: data.plan_commitment || false,
-            estimated_completion_date: data.estimated_duration ? new Date(data.estimated_duration) : undefined,
-            required_tools: (data.required_tools || []) as string[],
-            required_stock: (Array.isArray(data.required_stock) ? data.required_stock : []) as { part_id: string; quantity: number; part_name: string; }[],
-            attachments: (data.attachments || []) as string[]
-          };
-          setFormData(prev => ({
-            ...prev,
-            actions: prev.actions.map((t, i) => (i === index ? updated : t))
-          }));
+          try {
+            const response = await apiService.get('/actions');
+            const allActions = getApiData(response) || [];
+            const data = allActions.find((action: any) => action.id === edited.id);
+            if (!data) return;
+            const updated: Task = {
+              id: data.id,
+              title: data.title,
+              description: data.description || '',
+              policy: data.policy || '',
+              observations: data.observations || '',
+              assigned_to: data.assigned_to,
+              status: data.status,
+              plan_commitment: data.plan_commitment || false,
+              estimated_completion_date: data.estimated_duration ? new Date(data.estimated_duration) : undefined,
+              required_tools: (data.required_tools || []) as string[],
+              required_stock: (Array.isArray(data.required_stock) ? data.required_stock : []) as { part_id: string; quantity: number; part_name: string; }[],
+              attachments: (data.attachments || []) as string[]
+            };
+            setFormData(prev => ({
+              ...prev,
+              actions: prev.actions.map((t, i) => (i === index ? updated : t))
+            }));
+          } catch (error) {
+            console.error('Error fetching action:', error);
+          }
         })();
       }
     }
@@ -430,22 +435,10 @@ export function SimpleMissionForm({
     const taskToRemove = formData.actions[index];
     
     // If editing mode, delete from database
-    if (isEditing && missionId) {
+    if (isEditing && missionId && taskToRemove.id) {
       try {
-        // Get existing tasks to find the database ID
-        const { data: existingTasks } = await supabase
-          .from('actions')
-          .select('*')
-          .eq('mission_id', missionId)
-          .order('updated_at', { ascending: false });
-
-        if (existingTasks && existingTasks[index]) {
-          // Delete from database
-          await supabase
-            .from('actions')
-            .delete()
-            .eq('id', existingTasks[index].id);
-        }
+        // Delete from database using API
+        await apiService.delete(`/actions?id=${taskToRemove.id}`);
       } catch (error) {
         console.error('Error deleting task:', error);
         toast({
@@ -488,22 +481,18 @@ export function SimpleMissionForm({
       const uploadResult = Array.isArray(result) ? result[0] : result;
 
       // Save attachment record for editing mode
-      if (isEditing && missionId) {
-        const { data: attachmentData, error: attachmentError } = await supabase
-          .from('mission_attachments')
-          .insert({
-            mission_id: missionId,
-            file_name: file.name,
-            file_url: uploadResult.fileName, // Use fileName from result
-            file_type: file.type,
-            attachment_type: 'evidence',
-            uploaded_by: (await supabase.auth.getUser()).data.user?.id,
-            organization_id: organizationId
-          })
-          .select()
-          .single();
-
-        if (attachmentError) throw attachmentError;
+      if (isEditing && missionId && user) {
+        const response = await apiService.post('/mission_attachments', {
+          mission_id: missionId,
+          file_name: file.name,
+          file_url: uploadResult.fileName, // Use fileName from result
+          file_type: file.type,
+          attachment_type: 'evidence',
+          uploaded_by: user.id,
+          organization_id: organizationId
+        });
+        
+        const attachmentData = getApiData(response) || response;
         
         // Add to photos list with the real attachment ID
         setProblemPhotos(prev => [...prev, {
@@ -536,25 +525,13 @@ export function SimpleMissionForm({
         console.log('Attempting to delete photo:', { photoId, photoUrl: photo.file_url });
         
         // Delete from database first
-        const { error: dbError } = await supabase
-          .from('mission_attachments')
-          .delete()
-          .eq('id', photo.id);
+        await apiService.delete(`/mission_attachments?id=${photo.id}`);
         
-        if (dbError) {
-          console.error('Database deletion error:', dbError);
-          throw dbError;
-        }
-        
-        // Delete from storage
-        const { error: storageError } = await supabase.storage
-          .from('mission-evidence')
-          .remove([photo.file_url]);
-        
-        if (storageError) {
-          console.error('Storage deletion error:', storageError);
-          // Don't throw - storage deletion failure shouldn't block the operation
-        }
+        // Delete from S3 storage
+        const relativePath = photo.file_url.startsWith('mission-evidence/') 
+          ? photo.file_url 
+          : `mission-evidence/${photo.file_url}`;
+        await deleteFromS3(relativePath);
         
         toast({
           title: "Photo removed",
@@ -586,7 +563,6 @@ export function SimpleMissionForm({
     try {
       // If we have a draft mission, update it instead of creating new
       if (draftMissionId) {
-        const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           toast({
             title: "Error",
@@ -597,17 +573,12 @@ export function SimpleMissionForm({
         }
 
         // Update the draft mission to final status
-        const { error: updateError } = await supabase
-          .from('missions')
-          .update({
-            title: formData.title,
-            problem_statement: formData.problem_statement,
-            qa_assigned_to: formData.qa_assigned_to,
-            status: 'active' // Change from draft to active
-          })
-          .eq('id', draftMissionId);
-
-        if (updateError) throw updateError;
+        await apiService.put(`/missions/${draftMissionId}`, {
+          title: formData.title,
+          problem_statement: formData.problem_statement,
+          qa_assigned_to: formData.qa_assigned_to,
+          status: 'active' // Change from draft to active
+        });
 
         toast({
           title: "Mission Updated",
@@ -709,13 +680,13 @@ export function SimpleMissionForm({
               {problemPhotos.map((photo) => (
                 <div key={photo.id} className="relative group">
                   <img
-                    src={`${supabase.storage.from('mission-evidence').getPublicUrl(photo.file_url).data.publicUrl}`}
+                    src={getS3Url(photo.file_url.startsWith('mission-evidence/') ? photo.file_url : `mission-evidence/${photo.file_url}`)}
                     alt={photo.file_name}
                     className="w-full h-24 object-cover rounded-md border"
                     onError={(e) => {
                       console.log('Failed to load image from mission-evidence, trying mission-attachments bucket');
                       const target = e.target as HTMLImageElement;
-                      const fallbackUrl = supabase.storage.from('mission-attachments').getPublicUrl(photo.file_url).data.publicUrl;
+                      const fallbackUrl = getS3Url(photo.file_url.startsWith('mission-attachments/') ? photo.file_url : `mission-attachments/${photo.file_url}`);
                       console.log('Trying fallback URL:', fallbackUrl);
                       target.src = fallbackUrl;
                     }}

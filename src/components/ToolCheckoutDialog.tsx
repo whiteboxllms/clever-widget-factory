@@ -191,13 +191,26 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
       onOpenChange(false);
       onSuccess();
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error checking out tool:', error);
-      toast({
-        title: "Error",
-        description: "Failed to check out tool",
-        variant: "destructive"
-      });
+      
+      // Handle duplicate key constraint violation
+      if (error.error?.includes('active checkout') || 
+          error.message?.includes('idx_unique_active_checkout_per_tool') ||
+          error.message?.includes('duplicate key')) {
+        const errorMessage = error.details || error.error || "This tool is already checked out";
+        toast({
+          title: "Tool Already Checked Out",
+          description: errorMessage,
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: error.details || error.error || "Failed to check out tool",
+          variant: "destructive"
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }

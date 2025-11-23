@@ -78,6 +78,7 @@ export function UnifiedActionDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [estimatedDate, setEstimatedDate] = useState<Date | undefined>();
+  const [implementationUpdateCount, setImplementationUpdateCount] = useState<number>(0);
   const [isFormInitialized, setIsFormInitialized] = useState(false);
   const [currentActionId, setCurrentActionId] = useState<string | null>(null);
   const [currentContextType, setCurrentContextType] = useState<string | null>(null);
@@ -128,10 +129,16 @@ export function UnifiedActionDialog({
             policy_agreed_at: action.policy_agreed_at || null,
             policy_agreed_by: action.policy_agreed_by || null,
             required_stock: action.required_stock || [],
+            required_tools: action.required_tools || [],
             attachments: action.attachments || []
           });
+          // Initialize implementation update count from action
+          setImplementationUpdateCount(action.implementation_update_count || 0);
           if (action.estimated_duration) {
             setEstimatedDate(new Date(action.estimated_duration));
+          } else {
+            // Explicitly set to undefined if no estimated_duration exists
+            setEstimatedDate(undefined);
           }
         } else if (context?.prefilledData) {
           // Creating new action with context
@@ -140,6 +147,8 @@ export function UnifiedActionDialog({
             required_stock: context.prefilledData.required_stock || [],
             attachments: context.prefilledData.attachments || []
           });
+          // Don't set default estimated completion date - explicitly set to undefined
+          setEstimatedDate(undefined);
         } else {
           // Default new action
           setFormData({
@@ -154,6 +163,8 @@ export function UnifiedActionDialog({
             required_stock: [],
             attachments: []
           });
+          // Don't set default estimated completion date - explicitly set to undefined
+          setEstimatedDate(undefined);
         }
         
         setIsFormInitialized(true);
@@ -194,6 +205,15 @@ export function UnifiedActionDialog({
 
     fetchMissionData();
   }, [formData.mission_id]);
+
+  // Sync implementation update count when action changes
+  useEffect(() => {
+    if (action?.id) {
+      setImplementationUpdateCount(action.implementation_update_count || 0);
+    } else {
+      setImplementationUpdateCount(0);
+    }
+  }, [action?.id, action?.implementation_update_count]);
 
   const getDialogTitle = () => {
     if (!isCreating && action) {
@@ -263,6 +283,17 @@ export function UnifiedActionDialog({
     setIsCompleting(true);
     
     try {
+      // Ensure we have user ID before processing stock
+      if (!user?.id) {
+        toast({
+          title: "Error",
+          description: "User authentication is missing. Please refresh the page.",
+          variant: "destructive"
+        });
+        setIsCompleting(false);
+        return;
+      }
+
       // Process required stock consumption if any
       const requiredStock = formData.required_stock || [];
       if (requiredStock.length > 0) {
@@ -288,7 +319,6 @@ export function UnifiedActionDialog({
       try {
         await autoCheckinToolsForAction({
           actionId: action.id,
-          organizationId: organizationId,
           checkinReason: 'Action completed',
           notes: 'Auto-checked in when action was completed'
         });
@@ -348,22 +378,39 @@ export function UnifiedActionDialog({
     if (!requiredStock || requiredStock.length === 0) {
       return; // No stock to process
     }
-
-    if (!user?.id || !organizationId) {
-      console.error('User ID and organization ID required for stock consumption');
+    
+    if (!user?.id) {
+      console.error('User ID required for stock consumption', { 
+        userId: user?.id
+      });
+      toast({
+        title: "Error",
+        description: "Unable to process stock consumption: user information missing",
+        variant: "destructive"
+      });
       return;
     }
 
-    // Use the utility function from utils.ts
-    const { processStockConsumption: processStock } = await import('@/lib/utils');
-    await processStock(
-      requiredStock,
-      actionId,
-      user.id,
-      formData.title || action?.title || 'Unknown Action',
-      organizationId,
-      action?.mission_id
-    );
+    try {
+      // Use the utility function from utils.ts
+      // Organization ID is handled by the backend authorizer, not needed here
+      const { processStockConsumption: processStock } = await import('@/lib/utils');
+      await processStock(
+        requiredStock,
+        actionId,
+        user.id,
+        formData.title || action?.title || 'Unknown Action',
+        action?.mission_id
+      );
+    } catch (error) {
+      console.error('Error processing stock consumption:', error);
+      toast({
+        title: "Error",
+        description: "Failed to process stock consumption. Please try again.",
+        variant: "destructive"
+      });
+      throw error; // Re-throw so calling function can handle it
+    }
   };
 
 
@@ -418,8 +465,7 @@ export function UnifiedActionDialog({
     setIsSubmitting(true);
     
     try {
-      // TODO: Implement DELETE endpoint for actions
-      throw new Error('Delete action not yet implemented');
+      await apiService.delete(`/actions/${action.id}`);
 
       toast({
         title: "Success",
@@ -473,6 +519,7 @@ export function UnifiedActionDialog({
         participants: formData.participants || [],
         estimated_duration: estimatedDuration,
         required_stock: formData.required_stock || [],
+        required_tools: formData.required_tools || [],
         attachments: formData.attachments || [],
         mission_id: formData.mission_id || null,
         asset_id: formData.asset_id || null,
@@ -513,12 +560,13 @@ export function UnifiedActionDialog({
   };
 
   // Get border styling based on current form data
+  // Use local implementationUpdateCount state so border updates immediately when updates are added
   const borderStyle = getActionBorderStyle({
     status: action?.status || formData.status || 'not_started',
     policy: formData.policy,
     assigned_to: formData.assigned_to,
     plan_commitment: formData.plan_commitment,
-    implementation_update_count: action?.implementation_update_count
+    implementation_update_count: implementationUpdateCount
   });
 
 
@@ -713,7 +761,86 @@ export function UnifiedActionDialog({
                         status: checked ? 'in_progress' : 'not_started'
                       });
                       
-                      // Activate planned checkouts when plan is committed
+                      // Create checkouts from required_tools when plan is committed
+                      if (action?.id && checked && formData.required_tools && Array.isArray(formData.required_tools) && formData.required_tools.length > 0) {
+                        try {
+                          // Get current user info
+                          const userId = user?.id || '00000000-0000-0000-0000-000000000000';
+                          let userFullName = 'Unknown User';
+                          try {
+                            const userMetadata = (user as any)?.user_metadata;
+                            if (userMetadata?.full_name) {
+                              userFullName = userMetadata.full_name;
+                            } else if ((user as any)?.name) {
+                              userFullName = (user as any).name;
+                            } else {
+                              const memberResult = await apiService.get('/organization_members');
+                              const member = Array.isArray(memberResult?.data) ? memberResult.data.find((m: any) => m.cognito_user_id === userId) : memberResult?.data;
+                              if (member?.full_name) {
+                                userFullName = member.full_name;
+                              }
+                            }
+                          } catch (error) {
+                            console.warn('Could not resolve user full name:', error);
+                          }
+
+                          // Create active checkouts for all tools in required_tools
+                          for (const toolId of formData.required_tools) {
+                            if (!toolId) {
+                              console.warn('Skipping checkout creation: toolId is missing');
+                              continue;
+                            }
+                            
+                            try {
+                              await apiService.post('/checkouts', {
+                                tool_id: toolId,
+                                user_id: userId,
+                                user_name: userFullName,
+                                action_id: action.id,
+                                is_returned: false,
+                                checkout_date: new Date().toISOString()
+                              });
+                            } catch (error: any) {
+                              // Ignore if tool already has active checkout
+                              const errorMessage = typeof error.message === 'string' ? error.message : String(error.message || '');
+                              const errorData = error.error || {};
+                              const errorDataStr = typeof errorData === 'string' ? errorData : JSON.stringify(errorData);
+                              
+                              // Check for various error conditions
+                              const isActiveCheckoutError = 
+                                errorMessage.includes('active checkout') ||
+                                errorMessage.includes('idx_unique_active_checkout_per_tool') ||
+                                errorMessage.includes('duplicate key') ||
+                                errorDataStr.includes('active checkout') ||
+                                errorDataStr.includes('idx_unique_active_checkout_per_tool') ||
+                                errorDataStr.includes('duplicate key') ||
+                                error?.status === 409;
+                              
+                              if (!isActiveCheckoutError) {
+                                console.error(`Error creating checkout for tool ${toolId}:`, {
+                                  error,
+                                  errorMessage,
+                                  errorData,
+                                  toolId,
+                                  userId,
+                                  userFullName,
+                                  actionId: action.id
+                                });
+                                // Show toast for unexpected errors
+                                toast({
+                                  title: "Error",
+                                  description: `Failed to create checkout for tool. ${errorMessage}`,
+                                  variant: "destructive"
+                                });
+                              }
+                            }
+                          }
+                        } catch (error) {
+                          console.error('Error creating checkouts from required_tools:', error);
+                        }
+                      }
+                      
+                      // Also activate any existing planned checkouts
                       if (action?.id && checked) {
                         try {
                           await activatePlannedCheckoutsIfNeeded(action.id, organizationId);
@@ -751,6 +878,8 @@ export function UnifiedActionDialog({
                 actionId={action?.id}
                 organizationId={organizationId}
                 isInImplementationMode={isInImplementationMode}
+                formData={formData}
+                setFormData={setFormData}
               />
             </div>
 
@@ -796,9 +925,15 @@ export function UnifiedActionDialog({
                 <ActionImplementationUpdates
                   actionId={action.id}
                   profiles={profiles}
-                  onUpdate={() => {
-                    // Refresh the action data if needed
-                    onActionSaved?.();
+                  onUpdate={async () => {
+                    // Update local implementation update count immediately for border color
+                    try {
+                      const result = await apiService.get(`/action_implementation_updates?action_id=${action.id}`);
+                      const updates = result.data || [];
+                      setImplementationUpdateCount(updates.length);
+                    } catch (error) {
+                      console.error('Error fetching update count:', error);
+                    }
                   }}
                 />
               ) : (

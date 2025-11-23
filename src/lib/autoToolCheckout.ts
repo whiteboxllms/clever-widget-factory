@@ -12,7 +12,7 @@ export interface AutoCheckoutOptions {
 
 export interface AutoCheckinOptions {
   actionId: string;
-  organizationId: string;
+  organizationId?: string; // Optional - backend gets it from authorizer context
   checkinReason?: string;
   notes?: string;
 }
@@ -147,7 +147,8 @@ export async function createPlannedCheckoutsForAction(options: AutoCheckoutOptio
  * Converts planned checkouts to actual checkouts when implementation begins
  * This sets checkout_date to the current timestamp
  */
-export async function activatePlannedCheckoutsForAction(actionId: string, organizationId: string): Promise<void> {
+export async function activatePlannedCheckoutsForAction(actionId: string, organizationId?: string): Promise<void> {
+  // organizationId is not needed - backend gets it from authorizer context
   try {
     // Get planned checkouts for this action
     const result = await apiService.get(`/checkouts?action_id=${actionId}&is_returned=false`);
@@ -182,7 +183,8 @@ export async function activatePlannedCheckoutsForAction(actionId: string, organi
  * Only checks in tools that are currently checked out for this action
  */
 export async function autoCheckinToolsForAction(options: AutoCheckinOptions): Promise<void> {
-  const { actionId, organizationId, checkinReason, notes } = options;
+  const { actionId, checkinReason, notes } = options;
+  // organizationId is not needed - backend gets it from authorizer context
 
   try {
 
@@ -391,10 +393,14 @@ async function autoCheckinSingleTool(options: {
 /**
  * Checks if an action has any planned checkouts that could be activated
  */
-export async function hasPlannedCheckouts(actionId: string, organizationId: string): Promise<boolean> {
+export async function hasPlannedCheckouts(actionId: string, organizationId?: string): Promise<boolean> {
+  // organizationId is optional - backend filters by organization from authorizer context
   try {
-    const result = await apiService.get(`/checkouts?action_id=${actionId}&organization_id=${organizationId}&is_returned=false&checkout_date=null&limit=1`);
-    return result.data && result.data.length > 0;
+    // Backend will filter by organization from authorizer, so we don't need to pass it
+    const result = await apiService.get(`/checkouts?action_id=${actionId}&is_returned=false`);
+    // Filter for planned checkouts (checkout_date is null) on the client side
+    const plannedCheckouts = (result.data || []).filter((c: any) => !c.checkout_date);
+    return plannedCheckouts.length > 0;
   } catch (error) {
     console.error('Error checking for planned checkouts:', error);
     return false;
@@ -405,16 +411,17 @@ export async function hasPlannedCheckouts(actionId: string, organizationId: stri
  * Activates planned checkouts when plan is committed
  * This is called when the user commits to the plan and is ready to start work
  */
-export async function activatePlannedCheckoutsIfNeeded(actionId: string, organizationId: string): Promise<void> {
+export async function activatePlannedCheckoutsIfNeeded(actionId: string, organizationId?: string): Promise<void> {
+  // organizationId is not needed - backend gets it from authorizer context
   try {
     // Check if there are any planned checkouts to activate
-    const hasPlanned = await hasPlannedCheckouts(actionId, organizationId);
+    const hasPlanned = await hasPlannedCheckouts(actionId, organizationId || '');
     if (!hasPlanned) {
       return; // No planned checkouts to activate
     }
 
     // Activate the checkouts
-    await activatePlannedCheckoutsForAction(actionId, organizationId);
+    await activatePlannedCheckoutsForAction(actionId);
     console.log(`Activated planned checkouts for action ${actionId} (plan committed)`);
   } catch (error) {
     console.error('Error activating planned checkouts if needed:', error);

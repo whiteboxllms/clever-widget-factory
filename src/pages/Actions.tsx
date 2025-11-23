@@ -681,6 +681,7 @@ export default function Actions() {
           action={editingAction || undefined}
           onActionSaved={handleSaveAction}
           profiles={profiles}
+          isCreating={isCreating}
        />
 
        {/* Score Dialog */}

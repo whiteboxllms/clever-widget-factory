@@ -428,7 +428,6 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
           action.id, 
           currentUser.id, 
           action.title, 
-          organizationId,
           action.mission_id
         );
       }
@@ -453,7 +452,6 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
       try {
         await autoCheckinToolsForAction({
           actionId: action.id,
-          organizationId: organizationId,
           checkinReason: 'Action completed',
           notes: 'Auto-checked in when action was completed'
         });

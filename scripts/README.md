@@ -1,74 +1,81 @@
-# Database Restoration and Post-Backup Migration Script
+# API Gateway Scripts
 
-This script automates the process of restoring a database from backup and applying post-backup migrations. It supports both local development and production environments.
+## Automatic CORS Setup
 
-## Usage
+### `setup-cors.sh`
 
-### Local Development (Default)
+Automatically configures CORS for any API Gateway endpoint. This script:
+- Finds or creates the API Gateway resource
+- Creates/updates the OPTIONS method for preflight requests
+- Sets up CORS headers (Allow-Origin, Allow-Methods, Allow-Headers)
+- Deploys changes to production
+
+**Usage:**
 ```bash
-./scripts/restore-and-migrate.sh
+./scripts/setup-cors.sh <endpoint_path>
 ```
 
-### Production
+**Examples:**
 ```bash
-# Set your production database URL
-export PROD_DATABASE_URL="postgresql://user:password@host:port/database"
+# Simple endpoint
+./scripts/setup-cors.sh /api/mission_attachments
 
-# Run with production flag
-./scripts/restore-and-migrate.sh --prod
+# Parameterized endpoint
+./scripts/setup-cors.sh /api/mission_attachments/{id}
+
+# Actions endpoint
+./scripts/setup-cors.sh /api/actions
+
+# Actions with ID
+./scripts/setup-cors.sh /api/actions/{id}
 ```
 
-### Custom Backup File
+**When to use:**
+- After creating a new API endpoint in Lambda
+- When you see CORS errors in the browser console
+- After adding a new HTTP method (GET, POST, PUT, DELETE) to an endpoint
+
+**What it does:**
+1. Finds the API Gateway resource for the endpoint
+2. Creates the resource if it doesn't exist
+3. Creates/updates the OPTIONS method
+4. Configures CORS headers:
+   - `Access-Control-Allow-Origin: *`
+   - `Access-Control-Allow-Methods: GET,POST,PUT,DELETE,OPTIONS`
+   - `Access-Control-Allow-Headers: Content-Type,Authorization`
+5. Deploys to production stage
+
+**Note:** Changes may take 1-2 minutes to propagate. Clear your browser cache if you still see CORS errors.
+
+## Quick Reference
+
+### Common Endpoints That Need CORS
+
+After adding a new endpoint, run:
 ```bash
-./scripts/restore-and-migrate.sh --backup "my-backup-file.backup"
+./scripts/setup-cors.sh /api/<your-endpoint>
 ```
 
-## What the Script Does
-
-1. **Checks Prerequisites**: Verifies required tools (psql, supabase CLI, docker)
-2. **Local Mode**:
-   - Stops Supabase if running
-   - Deletes local database volume
-   - Starts fresh Supabase instance
-3. **Production Mode**:
-   - Shows warning and requires confirmation
-   - Uses PROD_DATABASE_URL environment variable
-4. **Restores Database**: Loads backup file using psql (includes schema + data)
-5. **Fixes Migration Order**: Automatically renames audit fields migration to run before observations migration
-6. **Runs Post-Backup Migrations**: Executes all post-backup migrations in timestamp order
-7. **Verifies Database**: Checks that key tables exist and migrations were applied
-
-## Environment Variables
-
-- `PROD_DATABASE_URL`: Required for production mode. Format: `postgresql://user:password@host:port/database`
-
-## Safety Features
-
-- **Production Confirmation**: Requires typing "RESTORE" to confirm production operations
-- **Backup Verification**: Checks that backup file exists before attempting restoration
-- **Error Handling**: Exits on any error with clear messages
-- **Post-Backup Migration Order Fix**: Automatically handles the migration dependency issue we encountered
-
-## Example Output
-
+If you have a parameterized endpoint:
+```bash
+./scripts/setup-cors.sh /api/<your-endpoint>
+./scripts/setup-cors.sh /api/<your-endpoint>/{id}
 ```
-[INFO] Starting database restoration and post-backup migration process...
-[INFO] Running in LOCAL mode
-[INFO] Supabase is already running
-[INFO] Stopping Supabase...
-[INFO] Removing local database volume...
-[INFO] Starting Supabase with fresh database...
-[INFO] Restoring database from backups/db_cluster-10-10-2025@17-03-17.backup...
-[SUCCESS] Database restoration completed
-[INFO] Fixing migration order by renaming audit fields migration...
-[SUCCESS] Migration order fixed
-[INFO] Running migrations from supabase/migrations_archive/20251011_pre_cleanup...
-[INFO] Running migration: 20251002000000_remove_mission_status_constraints.sql
-[SUCCESS] Migration 20251002000000_remove_mission_status_constraints.sql completed successfully
-...
-[SUCCESS] All migrations completed successfully
-[INFO] Verifying database restoration...
-[SUCCESS] Database verification passed - all key tables exist
-[SUCCESS] Migration verification passed - action_implementation_updates table exists
-[SUCCESS] Database restoration and migration process completed successfully!
+
+### Troubleshooting
+
+**Still seeing CORS errors?**
+1. Wait 1-2 minutes for changes to propagate
+2. Clear browser cache (Cmd+Shift+R or Ctrl+Shift+R)
+3. Check that the endpoint path is correct
+4. Verify the Lambda function returns CORS headers in responses
+
+**Check if CORS is configured:**
+```bash
+curl -X OPTIONS 'https://0720au267k.execute-api.us-west-2.amazonaws.com/prod/api/<your-endpoint>' \
+  -H 'Origin: http://localhost:8080' \
+  -H 'Access-Control-Request-Method: GET' \
+  -v
 ```
+
+You should see `Access-Control-Allow-Origin: *` in the response headers.

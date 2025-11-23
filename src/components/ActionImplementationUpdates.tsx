@@ -138,8 +138,8 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
         }
       }
       
-      // Don't call onUpdate for add operations to keep action open
-      // onUpdate?.();
+      // Call onUpdate to update border color immediately
+      onUpdate?.();
 
       if (updates.length > 0) {
         toast({
@@ -229,9 +229,8 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
         description: "Implementation update has been removed",
       });
       
-      // Don't call onUpdate for delete operations to keep action open
-      // Border color will update when the action is next opened/refreshed
-      // onUpdate?.();
+      // Call onUpdate to update border color immediately
+      onUpdate?.();
     } catch (error) {
       console.error('Error deleting update:', error);
       toast({

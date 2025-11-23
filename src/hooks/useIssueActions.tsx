@@ -53,7 +53,6 @@ export const useIssueActions = () => {
           action.id, 
           currentUser.id, 
           action.title, 
-          organizationId,
           action.mission_id
         );
       }
@@ -72,7 +71,6 @@ export const useIssueActions = () => {
       try {
         await autoCheckinToolsForAction({
           actionId: action.id,
-          organizationId: organizationId,
           checkinReason: 'Action completed',
           notes: 'Auto-checked in when action was completed'
         });

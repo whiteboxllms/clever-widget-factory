@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { SimpleMissionForm } from '../SimpleMissionForm';
 import { setupFetchMock, mockApiResponse } from '@/test-utils/mocks';
+import { AuthWrapper } from '@/test-utils/testWrappers';
 
 // Mock dependencies
 vi.mock('@/lib/client', () => ({
@@ -59,13 +60,15 @@ describe('SimpleMissionForm - UI Terminology', () => {
 
   it('should display "Project Title" label', () => {
     render(
-      <SimpleMissionForm
-        formData={mockFormData}
-        setFormData={mockSetFormData}
-        profiles={mockProfiles}
-        onSubmit={mockOnSubmit}
-        onCancel={mockOnCancel}
-      />
+      <AuthWrapper>
+        <SimpleMissionForm
+          formData={mockFormData}
+          setFormData={mockSetFormData}
+          profiles={mockProfiles}
+          onSubmit={mockOnSubmit}
+          onCancel={mockOnCancel}
+        />
+      </AuthWrapper>
     );
 
     // Should find "Project Title"
@@ -75,13 +78,15 @@ describe('SimpleMissionForm - UI Terminology', () => {
 
   it('should have "Enter project title" placeholder', () => {
     render(
-      <SimpleMissionForm
-        formData={mockFormData}
-        setFormData={mockSetFormData}
-        profiles={mockProfiles}
-        onSubmit={mockOnSubmit}
-        onCancel={mockOnCancel}
-      />
+      <AuthWrapper>
+        <SimpleMissionForm
+          formData={mockFormData}
+          setFormData={mockSetFormData}
+          profiles={mockProfiles}
+          onSubmit={mockOnSubmit}
+          onCancel={mockOnCancel}
+        />
+      </AuthWrapper>
     );
 
     // Should find placeholder with "project"
@@ -91,13 +96,15 @@ describe('SimpleMissionForm - UI Terminology', () => {
 
   it('should display "Create Project" button when not editing', () => {
     render(
-      <SimpleMissionForm
-        formData={mockFormData}
-        setFormData={mockSetFormData}
-        profiles={mockProfiles}
-        onSubmit={mockOnSubmit}
-        onCancel={mockOnCancel}
-      />
+      <AuthWrapper>
+        <SimpleMissionForm
+          formData={mockFormData}
+          setFormData={mockSetFormData}
+          profiles={mockProfiles}
+          onSubmit={mockOnSubmit}
+          onCancel={mockOnCancel}
+        />
+      </AuthWrapper>
     );
 
     // Should find "Create Project"
@@ -107,14 +114,16 @@ describe('SimpleMissionForm - UI Terminology', () => {
 
   it('should work correctly without a template', () => {
     render(
-      <SimpleMissionForm
-        formData={mockFormData}
-        setFormData={mockSetFormData}
-        profiles={mockProfiles}
-        onSubmit={mockOnSubmit}
-        onCancel={mockOnCancel}
-        defaultTasks={[]}
-      />
+      <AuthWrapper>
+        <SimpleMissionForm
+          formData={mockFormData}
+          setFormData={mockSetFormData}
+          profiles={mockProfiles}
+          onSubmit={mockOnSubmit}
+          onCancel={mockOnCancel}
+          defaultTasks={[]}
+        />
+      </AuthWrapper>
     );
 
     // Should not show template header

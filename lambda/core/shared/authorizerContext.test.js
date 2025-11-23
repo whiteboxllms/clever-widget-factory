@@ -33,7 +33,6 @@ describe('getAuthorizerContext', () => {
     assert.strictEqual(context.organization_id, 'org-1');
     assert.deepStrictEqual(context.accessible_organization_ids, ['org-1', 'org-2']);
     assert.deepStrictEqual(context.permissions, ['data:read', 'data:write']);
-    assert.strictEqual(context.is_superadmin, false);
     assert.strictEqual(context.user_role, 'admin');
   });
 
@@ -106,9 +105,9 @@ describe('hasPermission', () => {
 });
 
 describe('canAccessOrganization', () => {
-  test('should allow superadmin to access any org', () => {
+  test('should allow users with data:read:all permission to access any org', () => {
     const context = {
-      is_superadmin: true,
+      permissions: ['data:read:all'],
       accessible_organization_ids: ['org-1']
     };
 
@@ -150,9 +149,9 @@ describe('canAccessOrganization', () => {
 });
 
 describe('buildOrganizationFilter', () => {
-  test('should return empty condition for superadmin', () => {
+  test('should return empty condition for users with data:read:all permission', () => {
     const context = {
-      is_superadmin: true,
+      permissions: ['data:read:all'],
       accessible_organization_ids: ['org-1']
     };
 

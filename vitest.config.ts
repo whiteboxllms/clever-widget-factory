@@ -8,6 +8,11 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test-utils/setupTests.ts'],
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/lambda/**', // Lambda tests should be run with Node's test runner
+    ],
     // Enhanced reporting for local observability and CI/CD
     // Note: In CI, we override reporters to use 'github-actions' and 'junit'
     reporters: process.env.CI 

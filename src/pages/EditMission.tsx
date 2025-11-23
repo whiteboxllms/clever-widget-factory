@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Trash2, Archive } from 'lucide-react';
+import { ArrowLeft, Trash2, Archive } from 'lucide-react';
 import { Button } from "@/components/ui/button";
-import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator, BreadcrumbPage } from "@/components/ui/breadcrumb";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SimpleMissionForm } from '@/components/SimpleMissionForm';
 import { apiService } from '@/lib/apiService';
@@ -316,21 +315,20 @@ export default function EditMission() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="max-w-7xl mx-auto px-6 py-4">
-          
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbPage>Missions</BreadcrumbPage>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Edit Mission</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-          
-          <h1 className="text-2xl font-bold mt-2">Edit Mission</h1>
-          <p className="text-muted-foreground">Update the mission details</p>
+          <div className="flex items-center gap-4">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate('/missions')}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Missions
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold">Edit Mission</h1>
+              <p className="text-muted-foreground">Update the mission details</p>
+            </div>
+          </div>
         </div>
       </header>
 

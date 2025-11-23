@@ -3,12 +3,18 @@ const { randomUUID } = require('crypto');
 const { getAuthorizerContext, buildOrganizationFilter, hasPermission, canAccessOrganization } = require('./shared/authorizerContext');
 
 // Database configuration
+// SECURITY: Password must be provided via environment variable
+// Never hardcode passwords in source code
+if (!process.env.DB_PASSWORD) {
+  throw new Error('DB_PASSWORD environment variable is required');
+}
+
 const dbConfig = {
-  host: 'cwf-dev-postgres.ctmma86ykgeb.us-west-2.rds.amazonaws.com',
-  port: 5432,
-  database: 'postgres',
-  user: 'postgres',
-  password: process.env.DB_PASSWORD || 'CWF_Dev_2025!',
+  host: process.env.DB_HOST || 'cwf-dev-postgres.ctmma86ykgeb.us-west-2.rds.amazonaws.com',
+  port: parseInt(process.env.DB_PORT || '5432', 10),
+  database: process.env.DB_NAME || 'postgres',
+  user: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD,
   ssl: {
     rejectUnauthorized: false
   }
@@ -62,6 +68,24 @@ exports.handler = async (event) => {
   
   const { httpMethod, path } = event;
   
+  // CORS headers (define early for error responses)
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+  };
+  
+  // Handle preflight OPTIONS requests FIRST, before any authorizer context extraction
+  // OPTIONS requests don't go through the authorizer and may not have requestContext.authorizer
+  if (httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers,
+      body: ''
+    };
+  }
+  
   // Extract authorizer context (organization_id, permissions, etc.)
   const authContext = getAuthorizerContext(event);
   const organizationId = authContext.organization_id;
@@ -74,14 +98,6 @@ exports.handler = async (event) => {
     console.error('   Authorizer context:', JSON.stringify(authContext, null, 2));
     console.error('   Event requestContext:', JSON.stringify(event.requestContext, null, 2));
   }
-  
-  // CORS headers (define early for error responses)
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
-  };
   
   // Set accessibleOrgIds from authContext (may be empty for some endpoints like profiles)
   const accessibleOrgIds = authContext.accessible_organization_ids || [];
@@ -96,15 +112,6 @@ exports.handler = async (event) => {
   
   try {
     // CORS headers already defined above
-
-    // Handle preflight requests
-    if (httpMethod === 'OPTIONS') {
-      return {
-        statusCode: 200,
-        headers,
-        body: ''
-      };
-    }
 
     // Health check endpoint
     if (httpMethod === 'GET' && path.endsWith('/health')) {
@@ -137,7 +144,13 @@ exports.handler = async (event) => {
     }
 
     // Tools endpoint
-    if (path.endsWith('/tools') || path.match(/\/tools\/[a-f0-9-]+$/)) {
+    if (path.match(/\/tools\/[a-f0-9-]+$/)) {
+      const toolId = path.split('/').pop();
+      if (httpMethod === 'GET') {
+        const sql = `SELECT * FROM tools WHERE id = '${toolId}' LIMIT 1`;
+        const result = await queryJSON(sql);
+        return { statusCode: result?.[0] ? 200 : 404, headers, body: JSON.stringify({ data: result?.[0] || null }) };
+      }
       if (httpMethod === 'PUT') {
         const toolId = path.split('/').pop();
         const body = JSON.parse(event.body || '{}');
@@ -1241,7 +1254,7 @@ exports.handler = async (event) => {
 
     // Actions endpoint with full details
     if (httpMethod === 'GET' && path.endsWith('/actions')) {
-      const { limit, offset = 0, assigned_to, status, id } = event.queryStringParameters || {};
+      const { limit, offset = 0, assigned_to, status, id, linked_issue_id } = event.queryStringParameters || {};
       
       let whereConditions = [];
       if (id) {
@@ -1249,6 +1262,9 @@ exports.handler = async (event) => {
       }
       if (assigned_to) {
         whereConditions.push(`a.assigned_to = '${assigned_to}'`);
+      }
+      if (linked_issue_id) {
+        whereConditions.push(`a.linked_issue_id = '${escapeLiteral(linked_issue_id)}'`);
       }
       if (status) {
         if (status === 'unresolved') {
@@ -1573,33 +1589,110 @@ exports.handler = async (event) => {
       }
     }
 
-    // Generic query endpoint
-    if (httpMethod === 'POST' && path.endsWith('/query')) {
-      const body = JSON.parse(event.body || '{}');
-      const { sql, params = [] } = body;
-      
-      if (!sql) {
+    // Action scores endpoint
+    if (path.endsWith('/action_scores')) {
+      if (httpMethod === 'GET') {
+        const { asset_context_id, source_id, source_type } = event.queryStringParameters || {};
+        let whereConditions = [];
+        if (asset_context_id) whereConditions.push(`asset_context_id = '${escapeLiteral(asset_context_id)}'`);
+        if (source_id) whereConditions.push(`source_id = '${escapeLiteral(source_id)}'`);
+        if (source_type) whereConditions.push(`source_type = '${escapeLiteral(source_type)}'`);
+        const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+        
+        const sql = `SELECT json_agg(row_to_json(t)) FROM (
+          SELECT * FROM action_scores ${whereClause} ORDER BY created_at DESC
+        ) t;`;
+        
+        const result = await queryJSON(sql);
         return {
-          statusCode: 400,
+          statusCode: 200,
           headers,
-          body: JSON.stringify({ error: 'SQL query required' })
+          body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
         };
       }
-
-      // Simple parameter substitution (not production-ready)
-      let finalSql = sql;
-      params.forEach((param, i) => {
-        finalSql = finalSql.replace(`$${i + 1}`, `'${param}'`);
-      });
       
-      const jsonSql = `SELECT json_agg(row_to_json(t)) FROM (${finalSql}) t;`;
-      const result = await queryJSON(jsonSql);
+      if (httpMethod === 'POST') {
+        const body = JSON.parse(event.body || '{}');
+        const insertData = {
+          id: body.id || randomUUID(),
+          action_id: body.action_id,
+          asset_context_id: body.asset_context_id,
+          asset_context_name: body.asset_context_name,
+          source_type: body.source_type,
+          source_id: body.source_id,
+          prompt_id: body.prompt_id,
+          prompt_text: body.prompt_text,
+          scores: body.scores,
+          ai_response: body.ai_response || null,
+          likely_root_causes: body.likely_root_causes || null,
+          score_attribution_type: body.score_attribution_type || 'action'
+        };
+        
+        const columns = Object.keys(insertData);
+        const values = columns.map(col => formatSqlValue(insertData[col]));
+        
+        const sql = `INSERT INTO action_scores (${columns.join(', ')}, created_at, updated_at) VALUES (${values.join(', ')}, NOW(), NOW()) RETURNING *`;
+        const result = await queryJSON(sql);
+        return {
+          statusCode: 201,
+          headers,
+          body: JSON.stringify({ data: result[0] })
+        };
+      }
+    }
+    
+    // Scoring prompts endpoint
+    if (path.endsWith('/scoring_prompts')) {
+      if (httpMethod === 'GET') {
+        const sql = `SELECT json_agg(row_to_json(t)) FROM (SELECT * FROM scoring_prompts ORDER BY created_at DESC) t;`;
+        const result = await queryJSON(sql);
+        return { statusCode: 200, headers, body: JSON.stringify({ data: result?.[0]?.json_agg || [] }) };
+      }
+      if (httpMethod === 'POST') {
+        const body = JSON.parse(event.body || '{}');
+        const sql = `INSERT INTO scoring_prompts (name, prompt_text, is_default, created_by) VALUES (${formatSqlValue(body.name)}, ${formatSqlValue(body.prompt_text)}, ${body.is_default || false}, ${formatSqlValue(body.created_by)}) RETURNING *`;
+        const result = await queryJSON(sql);
+        return { statusCode: 201, headers, body: JSON.stringify({ data: result[0] }) };
+      }
+    }
+    
+    if (path.match(/\/scoring_prompts\/[a-f0-9-]+$/)) {
+      const promptId = path.split('/').pop();
+      if (httpMethod === 'PUT') {
+        const body = JSON.parse(event.body || '{}');
+        const updates = buildUpdateClauses(body, ['name', 'prompt_text', 'is_default']);
+        if (updates.length === 0) return { statusCode: 400, headers, body: JSON.stringify({ error: 'No fields to update' }) };
+        updates.push('updated_at = NOW()');
+        const sql = `UPDATE scoring_prompts SET ${updates.join(', ')} WHERE id = '${promptId}' RETURNING *`;
+        const result = await queryJSON(sql);
+        return { statusCode: 200, headers, body: JSON.stringify({ data: result[0] }) };
+      }
+    }
+    
+    if (path.match(/\/scoring_prompts\/[a-f0-9-]+\/set-default$/)) {
+      const promptId = path.split('/')[path.split('/').length - 2];
+      if (httpMethod === 'PUT') {
+        await queryJSON(`UPDATE scoring_prompts SET is_default = false`);
+        await queryJSON(`UPDATE scoring_prompts SET is_default = true WHERE id = '${promptId}'`);
+        return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
+      }
+    }
+    
+    // Action scores by ID
+    if (path.match(/\/action_scores\/[a-f0-9-]+$/)) {
+      const scoreId = path.split('/').pop();
       
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
-      };
+      if (httpMethod === 'PUT') {
+        const body = JSON.parse(event.body || '{}');
+        const updates = buildUpdateClauses(body, ['scores', 'ai_response', 'likely_root_causes']);
+        if (updates.length === 0) {
+          return { statusCode: 400, headers, body: JSON.stringify({ error: 'No fields to update' }) };
+        }
+        updates.push('updated_at = NOW()');
+        const sql = `UPDATE action_scores SET ${updates.join(', ')} WHERE id = '${scoreId}' RETURNING *`;
+        const result = await queryJSON(sql);
+        return { statusCode: 200, headers, body: JSON.stringify({ data: result[0] }) };
+      }
     }
 
     // Default 404

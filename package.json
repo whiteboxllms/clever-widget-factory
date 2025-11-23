@@ -18,7 +18,8 @@
     "test:report": "vitest run --reporter=html --outputFile=./test-results.html",
     "test:coverage": "vitest run --coverage",
     "test:verbose": "vitest --reporter=verbose",
-    "test:five-whys": "vitest run src/hooks/useFiveWhysAgent.test.ts"
+    "test:five-whys": "vitest run src/hooks/useFiveWhysAgent.test.ts",
+    "test:cors": "vitest run src/lib/apiService.cors.test.ts"
   },
   "dependencies": {
     "@aws-amplify/ui-react": "^6.13.1",

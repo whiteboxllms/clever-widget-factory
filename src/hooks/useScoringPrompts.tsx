@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/client';
+import { apiService } from '@/lib/apiService';
 import { useToast } from '@/hooks/use-toast';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
+import { getCurrentUser } from 'aws-amplify/auth';
 
 export interface ScoringPrompt {
   id: string;
@@ -22,13 +23,8 @@ export const useScoringPrompts = () => {
   const fetchPrompts = async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
-        .from('scoring_prompts')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setPrompts(data || []);
+      const response = await apiService.get('/scoring_prompts');
+      setPrompts(response.data || []);
     } catch (error) {
       console.error('Error fetching prompts:', error);
       toast({
@@ -43,21 +39,16 @@ export const useScoringPrompts = () => {
 
   const createPrompt = async (promptData: Partial<ScoringPrompt>) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await getCurrentUser();
       if (!user) throw new Error('User not authenticated');
 
-      const { data, error } = await supabase
-        .from('scoring_prompts')
-        .insert({
-          name: promptData.name,
-          prompt_text: promptData.prompt_text,
-          is_default: promptData.is_default || false,
-          created_by: user.id
-        } as any)
-        .select()
-        .single();
-
-      if (error) throw error;
+      const response = await apiService.post('/scoring_prompts', {
+        name: promptData.name,
+        prompt_text: promptData.prompt_text,
+        is_default: promptData.is_default || false,
+        created_by: user.userId
+      });
+      const data = response.data;
 
       await fetchPrompts();
       toast({
@@ -78,12 +69,7 @@ export const useScoringPrompts = () => {
 
   const updatePrompt = async (id: string, updates: Partial<ScoringPrompt>) => {
     try {
-      const { error } = await supabase
-        .from('scoring_prompts')
-        .update(updates)
-        .eq('id', id);
-
-      if (error) throw error;
+      await apiService.put(`/scoring_prompts/${id}`, updates);
 
       await fetchPrompts();
       toast({
@@ -103,19 +89,7 @@ export const useScoringPrompts = () => {
 
   const setDefaultPrompt = async (id: string) => {
     try {
-      // First, remove default from all prompts
-      await supabase
-        .from('scoring_prompts')
-        .update({ is_default: false })
-        .neq('id', id);
-
-      // Then set the selected prompt as default
-      const { error } = await supabase
-        .from('scoring_prompts')
-        .update({ is_default: true })
-        .eq('id', id);
-
-      if (error) throw error;
+      await apiService.put(`/scoring_prompts/${id}/set-default`, {});
 
       await fetchPrompts();
       toast({

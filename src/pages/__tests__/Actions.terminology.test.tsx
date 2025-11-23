@@ -51,6 +51,15 @@ describe('Actions Page - UI Terminology', () => {
           },
         ]);
       }
+      if (url.includes('/profiles')) {
+        return mockApiResponse([
+          {
+            user_id: 'test-user-id',
+            full_name: 'Test User',
+            role: 'admin',
+          },
+        ]);
+      }
       if (url.includes('/organization_members')) {
         return mockApiResponse([]);
       }
@@ -67,10 +76,15 @@ describe('Actions Page - UI Terminology', () => {
       </BrowserRouter>
     );
 
+    // Wait for user to be loaded first
+    await waitFor(() => {
+      expect(screen.queryByText(/Loading/i)).not.toBeInTheDocument();
+    }, { timeout: 5000 });
+
     await waitFor(() => {
       // BEFORE MIGRATION: Should find "Mission #"
       // AFTER MIGRATION: Update to expect "Project #"
-      const missionBadge = screen.getByText(/Mission #/i);
+      const missionBadge = screen.getByText(/Project #/i);
       expect(missionBadge).toBeInTheDocument();
     }, { timeout: 5000 });
   });

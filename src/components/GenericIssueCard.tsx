@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle, X, Clock, Edit, Plus, Target, Swords, Package, Wrench, Home, FileText } from "lucide-react";
-import { supabase } from '@/lib/client';
+import { apiService } from '@/lib/apiService';
 import { toast } from "@/hooks/use-toast";
 import { BaseIssue, ContextType, getContextBadgeColor, getContextIcon, getContextLabel, OrderIssue, getOrderIssueTypeLabel } from "@/types/issues";
 import { useGenericIssues } from "@/hooks/useGenericIssues";
@@ -71,26 +71,13 @@ export function GenericIssueCard({
         
         switch (issue.context_type) {
           case 'tool':
-            const { data: toolData } = await supabase
-              .from('tools')
-              .select('name, serial_number')
-              .eq('id', issue.context_id)
-              .single();
-            entity = toolData;
+            const toolResponse = await apiService.get(`/tools/${issue.context_id}`);
+            entity = toolResponse.data;
             break;
             
           case 'order':
-            const { data: orderData } = await supabase
-              .from('parts_orders')
-              .select(`
-                id, 
-                quantity_ordered, 
-                supplier_name,
-                parts!inner(name, unit)
-              `)
-              .eq('id', issue.context_id)
-              .single();
-            entity = orderData;
+            const orderResponse = await apiService.get(`/parts_orders/${issue.context_id}`);
+            entity = orderResponse.data;
             break;
             
           default:
@@ -188,26 +175,16 @@ export function GenericIssueCard({
   const handleAssignScore = async () => {
     if (issue.context_type === 'tool' && issue.context_id) {
       try {
-        const { data: tool, error } = await supabase
-          .from('tools')
-          .select('*')
-          .eq('id', issue.context_id)
-          .single();
-
-        if (error) {
-          console.error('Error fetching tool:', error);
-          toast({
-            title: "Error",
-            description: "Failed to fetch tool details.",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        setToolForScore(tool);
+        const response = await apiService.get(`/tools/${issue.context_id}`);
+        setToolForScore(response.data);
         setShowScoreDialog(true);
       } catch (error) {
         console.error('Error in handleAssignScore:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch tool details.",
+          variant: "destructive",
+        });
       }
     }
   };

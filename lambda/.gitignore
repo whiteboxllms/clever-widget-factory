@@ -1,0 +1,9 @@
+# Lambda environment files
+.env.local
+.env
+
+# Deployment packages
+*.zip
+
+# Node modules
+node_modules/

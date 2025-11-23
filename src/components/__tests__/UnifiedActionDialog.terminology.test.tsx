@@ -9,23 +9,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { UnifiedActionDialog } from '../UnifiedActionDialog';
 import { setupFetchMock, mockApiResponse } from '@/test-utils/mocks';
+import { AuthWrapper } from '@/test-utils/testWrappers';
 
 // Mock dependencies
 vi.mock('@/hooks/useOrganizationId', () => ({
   useOrganizationId: vi.fn(() => 'org-1'),
 }));
 
-vi.mock('@/hooks/useActionProfiles', () => ({
-  useActionProfiles: vi.fn(() => ({
-    profiles: [],
-  })),
-}));
-
 describe('UnifiedActionDialog - UI Terminology', () => {
   const defaultProps = {
     open: true,
     onOpenChange: vi.fn(),
-    onSuccess: vi.fn(),
+    onActionSaved: vi.fn(),
+    profiles: [] as any[],
   };
 
   beforeEach(() => {
@@ -52,16 +48,18 @@ describe('UnifiedActionDialog - UI Terminology', () => {
     };
 
     render(
-      <UnifiedActionDialog
-        {...defaultProps}
-        context={context}
-      />
+      <AuthWrapper>
+        <UnifiedActionDialog
+          {...defaultProps}
+          context={context}
+        />
+      </AuthWrapper>
     );
 
     await waitFor(() => {
       // BEFORE MIGRATION: Should find "Create Mission Action"
       // AFTER MIGRATION: Update to expect "Create Project Action"
-      const dialogTitle = screen.getByText(/Create Mission Action/i);
+      const dialogTitle = screen.getByText(/Create Project Action/i);
       expect(dialogTitle).toBeInTheDocument();
     });
   });
@@ -73,20 +71,22 @@ describe('UnifiedActionDialog - UI Terminology', () => {
     };
 
     render(
-      <UnifiedActionDialog
-        {...defaultProps}
-        context={context}
-        action={{
-          id: 'action-1',
-          mission_id: 'mission-1',
-        } as any}
-      />
+      <AuthWrapper>
+        <UnifiedActionDialog
+          {...defaultProps}
+          context={context}
+          action={{
+            id: 'action-1',
+            mission_id: 'mission-1',
+          } as any}
+        />
+      </AuthWrapper>
     );
 
     await waitFor(() => {
       // BEFORE MIGRATION: Should find "Mission Context"
       // AFTER MIGRATION: Update to expect "Project Context"
-      const contextLabel = screen.getByText(/Mission Context/i);
+      const contextLabel = screen.getByText(/Project Context/i);
       expect(contextLabel).toBeInTheDocument();
     });
   });
@@ -98,20 +98,22 @@ describe('UnifiedActionDialog - UI Terminology', () => {
     };
 
     render(
-      <UnifiedActionDialog
-        {...defaultProps}
-        context={context}
-        action={{
-          id: 'action-1',
-          mission_id: 'mission-1',
-        } as any}
-      />
+      <AuthWrapper>
+        <UnifiedActionDialog
+          {...defaultProps}
+          context={context}
+          action={{
+            id: 'action-1',
+            mission_id: 'mission-1',
+          } as any}
+        />
+      </AuthWrapper>
     );
 
     await waitFor(() => {
       // BEFORE MIGRATION: Should find "Mission #"
       // AFTER MIGRATION: Update to expect "Project #"
-      const missionNumber = screen.getByText(/Mission #/i);
+      const missionNumber = screen.getByText(/Project #/i);
       expect(missionNumber).toBeInTheDocument();
     });
   });

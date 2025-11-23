@@ -859,7 +859,9 @@ describe('InventoryHistoryDialog', () => {
 
       // Wait for the history to load
       await waitFor(() => {
-        expect(screen.getByText(/Removed/i)).toBeInTheDocument();
+        // Use getAllByText since there are multiple "Removed" elements
+        const removedElements = screen.getAllByText(/Removed/i);
+        expect(removedElements.length).toBeGreaterThan(0);
       }, { timeout: 3000 });
 
       // Verify action link is NOT displayed

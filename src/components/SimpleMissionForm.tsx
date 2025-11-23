@@ -6,17 +6,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronDown, ChevronRight, Plus, Upload, Image, X, Trash2, Archive, Info } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Trash2, Archive, Info } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
-import { useImageUpload } from "@/hooks/useImageUpload";
-import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { apiService, getApiData } from '@/lib/apiService';
-import { getS3Url, deleteFromS3 } from '@/lib/s3Service';
 import { useAuth } from '@/hooks/useCognitoAuth';
 
 import { useTempPhotoStorage } from "@/hooks/useTempPhotoStorage";
@@ -59,18 +56,15 @@ interface SimpleMissionFormProps {
   formData: {
     title: string;
     problem_statement: string;
-    qa_assigned_to: string;
     actions: Task[];
   };
   setFormData: (data: (prev: {
     title: string;
     problem_statement: string;
-    qa_assigned_to: string;
     actions: Task[];
   }) => {
     title: string;
     problem_statement: string;
-    qa_assigned_to: string;
     actions: Task[];
   }) => void;
   profiles: Profile[];
@@ -109,7 +103,6 @@ export function SimpleMissionForm({
   const [tools, setTools] = useState<Tool[]>([]);
   const organizationId = useOrganizationId();
   const { toast } = useToast();
-  const { uploadImages, isUploading: isImageUploading } = useImageUpload();
   const enhancedToast = useEnhancedToast();
   const tempPhotoStorage = useTempPhotoStorage();
   const { user } = useAuth();
@@ -144,7 +137,6 @@ export function SimpleMissionForm({
   const [editingTaskIndex, setEditingTaskIndex] = useState<number | null>(null);
   const [creatingNewTask, setCreatingNewTask] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
-  const [problemPhotos, setProblemPhotos] = useState<Array<{id: string; file_url: string; file_name: string}>>([]);
   const [draftMissionId, setDraftMissionId] = useState<string | null>(null);
 
   // Convert icon component to string name for database storage
@@ -198,13 +190,6 @@ export function SimpleMissionForm({
     }
   }, [missionId, setFormData]);
 
-  // Load existing problem photos when editing
-  useEffect(() => {
-    if (isEditing && missionId) {
-      loadExistingProblemPhotos();
-    }
-  }, [isEditing, missionId]);
-
   // Load tasks from database when editing a mission
   useEffect(() => {
     if (isEditing && missionId) {
@@ -229,39 +214,6 @@ export function SimpleMissionForm({
     }
   }, [defaultTasks]);
 
-  const loadExistingProblemPhotos = async () => {
-    if (!missionId) return;
-    
-    try {
-      console.log('Loading photos for mission:', missionId);
-      
-      const response = await apiService.get('/mission_attachments');
-      const allAttachments = getApiData(response) || [];
-      const attachments = allAttachments.filter((att: any) => 
-        att.mission_id === missionId &&
-        att.attachment_type === 'evidence' &&
-        !att.task_id
-      );
-      
-      console.log('Photo query result:', { attachments });
-      
-      if (attachments && attachments.length > 0) {
-        console.log('Setting problem photos:', attachments);
-        setProblemPhotos(attachments.map((att: any) => ({
-          id: att.id,
-          file_url: att.file_url,
-          file_name: att.file_name
-        })));
-      } else {
-        console.log('No problem photos found for mission');
-        setProblemPhotos([]);
-      }
-    } catch (error) {
-      console.error('Failed to load existing problem photos:', error);
-      setProblemPhotos([]);
-    }
-  };
-
   const addTask = async () => {
     // If this is the first action and we're in create mode, create a draft mission first
     if (!isEditing && !draftMissionId && formData.actions.length === 0) {
@@ -280,7 +232,6 @@ export function SimpleMissionForm({
           title: formData.title || 'Draft Mission',
           problem_statement: formData.problem_statement || 'Draft mission - details to be filled',
           created_by: user.id,
-          qa_assigned_to: formData.qa_assigned_to || null,
           template_id: selectedTemplate?.id || null,
           template_name: selectedTemplate?.name || null,
           template_color: selectedTemplate?.color || null,
@@ -464,100 +415,6 @@ export function SimpleMissionForm({
     });
   };
 
-  const handleProblemPhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      // Use the standard image upload pattern
-      const result = await uploadImages(file, {
-        bucket: 'mission-evidence' as const,
-        generateFileName: (file) => `problem-${Date.now()}-${file.name}`,
-        maxSizeMB: 0.5,
-        maxWidthOrHeight: 1920
-      });
-
-      // Handle both single result and array result
-      const uploadResult = Array.isArray(result) ? result[0] : result;
-
-      // Save attachment record for editing mode
-      if (isEditing && missionId && user) {
-        const response = await apiService.post('/mission_attachments', {
-          mission_id: missionId,
-          file_name: file.name,
-          file_url: uploadResult.fileName, // Use fileName from result
-          file_type: file.type,
-          attachment_type: 'evidence',
-          uploaded_by: user.id,
-          organization_id: organizationId
-        });
-        
-        const attachmentData = getApiData(response) || response;
-        
-        // Add to photos list with the real attachment ID
-        setProblemPhotos(prev => [...prev, {
-          id: attachmentData.id,
-          file_url: attachmentData.file_url,
-          file_name: attachmentData.file_name
-        }]);
-      } else {
-        // For creation mode, just add to the list (will be saved later)
-        setProblemPhotos(prev => [...prev, {
-          id: Date.now().toString(),
-          file_url: uploadResult.fileName,
-          file_name: file.name
-        }]);
-      }
-
-    } catch (error) {
-      console.error('Photo upload failed:', error);
-      // Error handling is already done by useImageUpload hook
-    }
-  };
-
-  const removeProblemPhoto = async (photoId: string) => {
-    const photo = problemPhotos.find(p => p.id === photoId);
-    if (!photo) return;
-
-    // If editing mode, try to delete from database (UUID format indicates it's a saved photo)
-    if (isEditing && missionId) {
-      try {
-        console.log('Attempting to delete photo:', { photoId, photoUrl: photo.file_url });
-        
-        // Delete from database first
-        await apiService.delete(`/mission_attachments?id=${photo.id}`);
-        
-        // Delete from S3 storage
-        const relativePath = photo.file_url.startsWith('mission-evidence/') 
-          ? photo.file_url 
-          : `mission-evidence/${photo.file_url}`;
-        await deleteFromS3(relativePath);
-        
-        toast({
-          title: "Photo removed",
-          description: "Photo has been deleted successfully."
-        });
-      } catch (error) {
-        console.error('Failed to remove photo:', error);
-        toast({
-          title: "Error",
-          description: "Failed to remove photo from database",
-          variant: "destructive"
-        });
-        return;
-      }
-    } else {
-      // For non-editing mode or temp photos, just show local removal
-      toast({
-        title: "Photo removed",
-        description: "Photo has been removed."
-      });
-    }
-
-    // Remove from local state
-    setProblemPhotos(prev => prev.filter(p => p.id !== photoId));
-  };
-
   // Enhanced onSubmit to handle temporary photo migration
   const handleSubmit = async () => {
     try {
@@ -576,7 +433,6 @@ export function SimpleMissionForm({
         await apiService.put(`/missions/${draftMissionId}`, {
           title: formData.title,
           problem_statement: formData.problem_statement,
-          qa_assigned_to: formData.qa_assigned_to,
           status: 'active' // Change from draft to active
         });
 
@@ -650,81 +506,6 @@ export function SimpleMissionForm({
             >
               https://www.perplexity.ai/spaces/stargazer-assistant-F45qc1H7SmeN5wF1nxJobg
             </a>
-          </div>
-        </div>
-
-        {/* Problem Photos */}
-        <div>
-          <div className="flex items-center gap-3">
-            <Label className="text-sm font-medium">Photos</Label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleProblemPhotoUpload}
-              disabled={isImageUploading}
-              className="hidden"
-              id="problem-photo-upload"
-            />
-            <label
-              htmlFor="problem-photo-upload"
-              className="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition-colors"
-            >
-              <Upload className="h-4 w-4" />
-              {isImageUploading ? 'Uploading...' : 'Upload Photos'}
-            </label>
-          </div>
-          
-          {/* Display problem photos */}
-          {problemPhotos.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
-              {problemPhotos.map((photo) => (
-                <div key={photo.id} className="relative group">
-                  <img
-                    src={getS3Url(photo.file_url.startsWith('mission-evidence/') ? photo.file_url : `mission-evidence/${photo.file_url}`)}
-                    alt={photo.file_name}
-                    className="w-full h-24 object-cover rounded-md border"
-                    onError={(e) => {
-                      console.log('Failed to load image from mission-evidence, trying mission-attachments bucket');
-                      const target = e.target as HTMLImageElement;
-                      const fallbackUrl = getS3Url(photo.file_url.startsWith('mission-attachments/') ? photo.file_url : `mission-attachments/${photo.file_url}`);
-                      console.log('Trying fallback URL:', fallbackUrl);
-                      target.src = fallbackUrl;
-                    }}
-                  />
-                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-md flex items-center justify-center">
-                    <Image className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                  <button
-                    onClick={() => removeProblemPhoto(photo.id)}
-                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        
-
-        {/* QA Assignment - Required Field */}
-        <div>
-          <div className="flex items-center gap-3">
-            <Label htmlFor="qa_assigned_to">QA Assigned To *</Label>
-            <Select value={formData.qa_assigned_to} onValueChange={(value) => 
-              setFormData(prev => ({ ...prev, qa_assigned_to: value }))
-            }>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Select QA person" />
-              </SelectTrigger>
-              <SelectContent>
-                {profiles.filter(p => p.role === 'admin').map((profile) => (
-                  <SelectItem key={profile.user_id} value={profile.user_id}>
-                    {profile.full_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </div>
 

@@ -63,7 +63,7 @@ describe('Dashboard - UI Terminology', () => {
 
     // BEFORE MIGRATION: Should find "Missions"
     // AFTER MIGRATION: Update to expect "Projects"
-    expect(dashboardContent).toMatch(/Stargazer Missions/);
+    expect(dashboardContent).toMatch(/Stargazer Projects/);
   });
 });
 

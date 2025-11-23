@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import Missions from '../Missions';
 import { AuthWrapper } from '@/test-utils/testWrappers';
@@ -91,6 +91,15 @@ describe('Missions Page - Create Project Flow', () => {
           },
         }));
       }
+      if (urlString.includes('/profiles')) {
+        return Promise.resolve(mockApiResponse([
+          {
+            user_id: 'test-user-id',
+            full_name: 'Test User',
+            role: 'admin',
+          },
+        ]));
+      }
       if (urlString.includes('/organization_members')) {
         return Promise.resolve(mockApiResponse([
           {
@@ -108,17 +117,21 @@ describe('Missions Page - Create Project Flow', () => {
   });
 
   it('should open form directly when Create Project is clicked', async () => {
-    render(
-      <BrowserRouter>
-        <AuthWrapper>
-          <Missions />
-        </AuthWrapper>
-      </BrowserRouter>
-    );
+    await act(async () => {
+      render(
+        <BrowserRouter>
+          <AuthWrapper>
+            <Missions />
+          </AuthWrapper>
+        </BrowserRouter>
+      );
+      // Give AuthProvider time to load user
+      await new Promise(resolve => setTimeout(resolve, 100));
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/Create Project/i)).toBeInTheDocument();
-    });
+    }, { timeout: 5000 });
 
     const createButton = screen.getByText(/Create Project/i);
     fireEvent.click(createButton);
@@ -132,17 +145,21 @@ describe('Missions Page - Create Project Flow', () => {
   });
 
   it('should NOT show template selection screen', async () => {
-    render(
-      <BrowserRouter>
-        <AuthWrapper>
-          <Missions />
-        </AuthWrapper>
-      </BrowserRouter>
-    );
+    await act(async () => {
+      render(
+        <BrowserRouter>
+          <AuthWrapper>
+            <Missions />
+          </AuthWrapper>
+        </BrowserRouter>
+      );
+      // Give AuthProvider time to load user
+      await new Promise(resolve => setTimeout(resolve, 100));
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/Create Project/i)).toBeInTheDocument();
-    });
+    }, { timeout: 5000 });
 
     const createButton = screen.getByText(/Create Project/i);
     fireEvent.click(createButton);
@@ -157,17 +174,21 @@ describe('Missions Page - Create Project Flow', () => {
   });
 
   it('should show form fields directly', async () => {
-    render(
-      <BrowserRouter>
-        <AuthWrapper>
-          <Missions />
-        </AuthWrapper>
-      </BrowserRouter>
-    );
+    await act(async () => {
+      render(
+        <BrowserRouter>
+          <AuthWrapper>
+            <Missions />
+          </AuthWrapper>
+        </BrowserRouter>
+      );
+      // Give AuthProvider time to load user
+      await new Promise(resolve => setTimeout(resolve, 100));
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/Create Project/i)).toBeInTheDocument();
-    });
+    }, { timeout: 5000 });
 
     const createButton = screen.getByText(/Create Project/i);
     fireEvent.click(createButton);
@@ -181,17 +202,21 @@ describe('Missions Page - Create Project Flow', () => {
   });
 
   it('should allow creating project without template data', async () => {
-    render(
-      <BrowserRouter>
-        <AuthWrapper>
-          <Missions />
-        </AuthWrapper>
-      </BrowserRouter>
-    );
+    await act(async () => {
+      render(
+        <BrowserRouter>
+          <AuthWrapper>
+            <Missions />
+          </AuthWrapper>
+        </BrowserRouter>
+      );
+      // Give AuthProvider time to load user
+      await new Promise(resolve => setTimeout(resolve, 100));
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/Create Project/i)).toBeInTheDocument();
-    });
+    }, { timeout: 5000 });
 
     const createButton = screen.getByText(/Create Project/i);
     fireEvent.click(createButton);

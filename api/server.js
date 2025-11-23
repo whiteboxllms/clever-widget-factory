@@ -11,11 +11,16 @@ app.use(cors());
 app.use(express.json());
 
 // RDS PostgreSQL connection details
-const RDS_HOST = 'cwf-dev-postgres.ctmma86ykgeb.us-west-2.rds.amazonaws.com';
-const RDS_PORT = '5432';
-const RDS_USER = 'postgres';
-const RDS_PASSWORD = 'CWF_Dev_2025!';
-const RDS_DATABASE = 'postgres';
+// SECURITY: Password must be provided via environment variable
+if (!process.env.RDS_PASSWORD) {
+  throw new Error('RDS_PASSWORD environment variable is required');
+}
+
+const RDS_HOST = process.env.RDS_HOST || 'cwf-dev-postgres.ctmma86ykgeb.us-west-2.rds.amazonaws.com';
+const RDS_PORT = process.env.RDS_PORT || '5432';
+const RDS_USER = process.env.RDS_USER || 'postgres';
+const RDS_PASSWORD = process.env.RDS_PASSWORD;
+const RDS_DATABASE = process.env.RDS_DATABASE || 'postgres';
 
 // Helper to execute SQL and return JSON
 async function queryJSON(sql) {

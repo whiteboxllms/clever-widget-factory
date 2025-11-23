@@ -1,11 +1,16 @@
 const { Client } = require('pg');
 
+// SECURITY: Password must be provided via environment variable
+if (!process.env.DB_PASSWORD) {
+  throw new Error('DB_PASSWORD environment variable is required');
+}
+
 const dbConfig = {
-  host: 'cwf-dev-postgres.ctmma86ykgeb.us-west-2.rds.amazonaws.com',
-  port: 5432,
-  database: 'postgres',
-  user: 'postgres',
-  password: process.env.DB_PASSWORD || 'CWF_Dev_2025!',
+  host: process.env.DB_HOST || 'cwf-dev-postgres.ctmma86ykgeb.us-west-2.rds.amazonaws.com',
+  port: parseInt(process.env.DB_PORT || '5432', 10),
+  database: process.env.DB_NAME || 'postgres',
+  user: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD,
   ssl: {
     rejectUnauthorized: false
   }

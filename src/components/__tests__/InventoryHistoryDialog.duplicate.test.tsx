@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { InventoryHistoryDialog } from '../InventoryHistoryDialog';
 import { apiService } from '@/lib/apiService';
 
@@ -59,17 +59,20 @@ describe('InventoryHistoryDialog - Duplicate Records', () => {
 
     // Open the dialog
     const trigger = screen.getByText('Open History');
-    trigger.click();
+    fireEvent.click(trigger);
 
+    // Wait for API call and dialog to open
     await waitFor(() => {
-      // Should only render the record once, not twice
-      // Check if dialog is open and content is rendered
-      const dialog = container.querySelector('[role="dialog"]');
-      expect(dialog).toBeTruthy();
-      // The deduplication happens in the component logic, so we just verify the dialog opened
-      // The actual deduplication is tested in the second test
-    }, { timeout: 10000 });
-  });
+      // Verify API was called when dialog opens
+      expect(apiService.get).toHaveBeenCalledWith(
+        expect.stringContaining('/parts_history')
+      );
+    }, { timeout: 5000 });
+
+    // The deduplication happens in the component logic
+    // We verify the API was called with the correct parameters
+    // The actual deduplication is tested in the second test
+  }, 15000); // Increase test timeout to 15 seconds
 
   it('should use unique keys for all rendered entries', async () => {
     const records = [

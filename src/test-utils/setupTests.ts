@@ -2,6 +2,24 @@ import { expect, afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
+const originalConsoleError = console.error;
+const loggedJsdomStacks = new Set<string>();
+
+const logJsdomUrlError = (source: string, error: unknown) => {
+  if (!error) return;
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const errorStack = error instanceof Error ? error.stack : undefined;
+  const logKey = errorStack || errorMessage;
+  if (!logKey || loggedJsdomStacks.has(logKey)) {
+    return;
+  }
+  loggedJsdomStacks.add(logKey);
+  originalConsoleError(
+    `[vitest][jsdom-url-error][${source}]`,
+    errorStack || errorMessage
+  );
+};
+
 // Cleanup after each test
 afterEach(() => {
   cleanup();
@@ -49,7 +67,6 @@ const isJsdomUrlError = (error: unknown): boolean => {
 };
 
 // Suppress console errors for JSDOM URL errors, but allow other errors
-const originalConsoleError = console.error;
 console.error = (...args: any[]) => {
   const errorString = args.map(String).join(' ');
   // Suppress JSDOM URL errors
@@ -59,6 +76,7 @@ console.error = (...args: any[]) => {
        errorString.includes('whatwg-url') ||
        errorString.includes('URL.js') ||
        errorString.includes('jsdom'))) {
+    logJsdomUrlError('console.error', args[0]);
     return; // Suppress
   }
   originalConsoleError.apply(console, args);
@@ -70,6 +88,7 @@ const originalUnhandledRejectionHandlers = process.listeners('unhandledRejection
 process.removeAllListeners('unhandledRejection');
 process.on('unhandledRejection', (reason, promise) => {
   if (isJsdomUrlError(reason)) {
+    logJsdomUrlError('unhandledRejection', reason);
     // Silently ignore known jsdom URL-related errors
     return;
   }
@@ -88,6 +107,7 @@ const originalUncaughtExceptionHandlers = process.listeners('uncaughtException')
 process.removeAllListeners('uncaughtException');
 process.on('uncaughtException', (error) => {
   if (isJsdomUrlError(error)) {
+    logJsdomUrlError('uncaughtException', error);
     // Silently ignore known jsdom URL-related errors
     return;
   }
@@ -105,6 +125,7 @@ process.on('uncaughtException', (error) => {
 if (typeof window !== 'undefined') {
   window.addEventListener('error', (event) => {
     if (isJsdomUrlError(event.error)) {
+      logJsdomUrlError('window.error', event.error);
       // Prevent the error from propagating
       event.preventDefault();
       event.stopPropagation();
@@ -113,6 +134,7 @@ if (typeof window !== 'undefined') {
   
   window.addEventListener('unhandledrejection', (event) => {
     if (isJsdomUrlError(event.reason)) {
+      logJsdomUrlError('window.unhandledrejection', event.reason);
       // Prevent the error from propagating
       event.preventDefault();
       event.stopPropagation();

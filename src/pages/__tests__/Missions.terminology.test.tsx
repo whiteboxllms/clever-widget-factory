@@ -159,9 +159,7 @@ describe('Missions Page - UI Terminology', () => {
     }, { timeout: 5000 });
 
     await waitFor(() => {
-      // BEFORE MIGRATION: Should find "Missions"
-      // AFTER MIGRATION: Update to expect "Projects"
-      const title = screen.getByText('Stargazer Missions');
+      const title = screen.getByText('Stargazer Projects');
       expect(title).toBeInTheDocument();
     });
   });
@@ -181,9 +179,7 @@ describe('Missions Page - UI Terminology', () => {
     }, { timeout: 5000 });
 
     await waitFor(() => {
-      // BEFORE MIGRATION: Should find "Create Mission"
-      // AFTER MIGRATION: Update to expect "Create Project"
-      const createButton = screen.getByText(/Create Mission/i);
+      const createButton = screen.getByText(/Create Project/i);
       expect(createButton).toBeInTheDocument();
     });
   });
@@ -203,9 +199,7 @@ describe('Missions Page - UI Terminology', () => {
     }, { timeout: 5000 });
 
     await waitFor(() => {
-      // BEFORE MIGRATION: Should find "Mission Filters"
-      // AFTER MIGRATION: Update to expect "Project Filters"
-      const filterLabel = screen.getByText(/Mission Filters/i);
+      const filterLabel = screen.getByText(/Project Filters/i);
       expect(filterLabel).toBeInTheDocument();
     });
   });

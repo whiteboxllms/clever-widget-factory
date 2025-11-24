@@ -126,7 +126,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
   const updateAsset = async (assetId: string, updates: Partial<CombinedAsset>, isAsset: boolean) => {
     try {
       const endpoint = isAsset ? 'tools' : 'parts';
-      await apiService.post(`/${endpoint}`, { id: assetId, ...updates });
+      await apiService.put(`/${endpoint}/${assetId}`, updates);
 
       // Note: Asset will update after refetch
 

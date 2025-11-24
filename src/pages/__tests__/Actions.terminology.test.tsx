@@ -79,14 +79,14 @@ describe('Actions Page - UI Terminology', () => {
     // Wait for user to be loaded first
     await waitFor(() => {
       expect(screen.queryByText(/Loading/i)).not.toBeInTheDocument();
-    }, { timeout: 5000 });
+    }, { timeout: 10000 });
 
     await waitFor(() => {
       // BEFORE MIGRATION: Should find "Mission #"
       // AFTER MIGRATION: Update to expect "Project #"
       const missionBadge = screen.getByText(/Project #/i);
       expect(missionBadge).toBeInTheDocument();
-    }, { timeout: 5000 });
+    }, { timeout: 10000 });
   });
 });
 

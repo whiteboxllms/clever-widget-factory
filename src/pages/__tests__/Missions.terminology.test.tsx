@@ -33,6 +33,22 @@ vi.mock('@/hooks/useOrganizationId', () => ({
   useOrganizationId: vi.fn(() => 'org-1'),
 }));
 
+// Mock useAuth and AuthProvider
+vi.mock('@/hooks/useCognitoAuth', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/useCognitoAuth')>();
+  return {
+    ...actual,
+    useAuth: vi.fn(() => ({
+      user: {
+        id: 'test-user-id',
+        username: 'test@example.com',
+      },
+      isLoading: false,
+      signOut: vi.fn(),
+    })),
+  };
+});
+
 // Mock useActionProfiles
 vi.mock('@/hooks/useActionProfiles', () => ({
   useActionProfiles: vi.fn(() => ({

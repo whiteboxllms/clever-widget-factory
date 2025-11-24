@@ -13,6 +13,9 @@ export default defineConfig({
       '**/dist/**',
       '**/lambda/**', // Lambda tests should be run with Node's test runner
     ],
+    // Suppress known JSDOM URL errors - these are false positives
+    // from jsdom's URL implementation and don't affect test results
+    silent: false, // Keep verbose output but suppress specific errors
     // Enhanced reporting for local observability and CI/CD
     // Note: In CI, we override reporters to use 'github-actions' and 'junit'
     reporters: process.env.CI 

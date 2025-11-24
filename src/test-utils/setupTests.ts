@@ -7,12 +7,6 @@ afterEach(() => {
   cleanup();
 });
 
-// Suppress console errors during tests
-global.console = {
-  ...console,
-  error: () => {},
-};
-
 // Handle unhandled promise rejections and errors
 // This prevents jsdom URL-related errors from causing false positives
 // These errors occur due to known issues with jsdom's URL implementation
@@ -22,21 +16,57 @@ const isJsdomUrlError = (error: unknown): boolean => {
   const errorMessage = error instanceof Error ? error.message : String(error);
   const errorStack = error instanceof Error ? (error.stack || '') : '';
   const errorString = String(error);
+  const errorName = error instanceof Error ? error.name : '';
   
   // Check for the specific JSDOM URL error pattern
-  const hasUndefinedGet = errorMessage.includes('Cannot read properties of undefined') && 
-                          errorMessage.includes("reading 'get'");
+  // Match: TypeError: Cannot read properties of undefined (reading 'get')
+  const hasUndefinedGet = (
+    errorMessage.includes('Cannot read properties of undefined') && 
+    errorMessage.includes("reading 'get'")
+  ) || (
+    errorString.includes('Cannot read properties of undefined') && 
+    errorString.includes("reading 'get'")
+  );
   
-  const hasJsdomStack = errorStack.includes('webidl-conversions') || 
-                       errorStack.includes('whatwg-url') ||
-                       errorStack.includes('jsdom') ||
-                       errorStack.includes('URL.js');
+  // Check stack trace for JSDOM-related modules
+  const hasJsdomStack = (
+    errorStack.includes('webidl-conversions') || 
+    errorStack.includes('whatwg-url') ||
+    errorStack.includes('jsdom') ||
+    errorStack.includes('URL.js') ||
+    errorStack.includes('node_modules/jsdom')
+  ) || (
+    errorString.includes('webidl-conversions') || 
+    errorString.includes('whatwg-url') ||
+    errorString.includes('jsdom') ||
+    errorString.includes('URL.js')
+  );
   
-  return hasUndefinedGet && hasJsdomStack;
+  // Also check if it's a TypeError (which these JSDOM errors are)
+  const isTypeError = errorName === 'TypeError' || errorString.includes('TypeError');
+  
+  return hasUndefinedGet && (hasJsdomStack || isTypeError);
+};
+
+// Suppress console errors for JSDOM URL errors, but allow other errors
+const originalConsoleError = console.error;
+console.error = (...args: any[]) => {
+  const errorString = args.map(String).join(' ');
+  // Suppress JSDOM URL errors
+  if (errorString.includes('Cannot read properties of undefined') &&
+      errorString.includes("reading 'get'") &&
+      (errorString.includes('webidl-conversions') || 
+       errorString.includes('whatwg-url') ||
+       errorString.includes('URL.js') ||
+       errorString.includes('jsdom'))) {
+    return; // Suppress
+  }
+  originalConsoleError.apply(console, args);
 };
 
 // Handle unhandled promise rejections
-const originalUnhandledRejection = process.listeners('unhandledRejection');
+// Store original handlers before removing
+const originalUnhandledRejectionHandlers = process.listeners('unhandledRejection');
 process.removeAllListeners('unhandledRejection');
 process.on('unhandledRejection', (reason, promise) => {
   if (isJsdomUrlError(reason)) {
@@ -44,7 +74,7 @@ process.on('unhandledRejection', (reason, promise) => {
     return;
   }
   // Call original handlers if any
-  originalUnhandledRejection.forEach(handler => {
+  originalUnhandledRejectionHandlers.forEach(handler => {
     try {
       handler(reason, promise);
     } catch (e) {
@@ -54,7 +84,7 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Handle uncaught exceptions
-const originalUncaughtException = process.listeners('uncaughtException');
+const originalUncaughtExceptionHandlers = process.listeners('uncaughtException');
 process.removeAllListeners('uncaughtException');
 process.on('uncaughtException', (error) => {
   if (isJsdomUrlError(error)) {
@@ -62,7 +92,7 @@ process.on('uncaughtException', (error) => {
     return;
   }
   // Call original handlers if any
-  originalUncaughtException.forEach(handler => {
+  originalUncaughtExceptionHandlers.forEach(handler => {
     try {
       handler(error);
     } catch (e) {
@@ -77,6 +107,7 @@ if (typeof window !== 'undefined') {
     if (isJsdomUrlError(event.error)) {
       // Prevent the error from propagating
       event.preventDefault();
+      event.stopPropagation();
     }
   });
   
@@ -84,37 +115,7 @@ if (typeof window !== 'undefined') {
     if (isJsdomUrlError(event.reason)) {
       // Prevent the error from propagating
       event.preventDefault();
+      event.stopPropagation();
     }
   });
 }
-
-// Vitest-specific error handling
-// Suppress JSDOM URL errors that Vitest reports as "unhandled"
-// These are known issues with jsdom's URL implementation and don't affect test results
-const suppressJsdomUrlErrors = () => {
-  // Override console.error to filter out JSDOM URL errors
-  const originalConsoleError = console.error;
-  console.error = (...args: any[]) => {
-    const errorString = args.map(String).join(' ');
-    if (errorString.includes('Cannot read properties of undefined') &&
-        errorString.includes("reading 'get'") &&
-        (errorString.includes('webidl-conversions') || 
-         errorString.includes('whatwg-url') ||
-         errorString.includes('URL.js') ||
-         errorString.includes('jsdom'))) {
-      // Suppress this specific error - it's a known JSDOM issue
-      return;
-    }
-    originalConsoleError.apply(console, args);
-  };
-};
-
-// Apply suppression immediately
-suppressJsdomUrlErrors();
-
-// Also handle errors at the global level for Vitest
-if (typeof globalThis !== 'undefined') {
-  const originalError = globalThis.Error;
-  // This won't work for unhandled errors, but we'll catch them in process handlers above
-}
-

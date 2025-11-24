@@ -18,6 +18,39 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
     
+    - name: Debug workspace paths
+      run: |
+        echo "::group::Workspace info"
+        echo "Current directory: $(pwd)"
+        echo "Workspace env: ${GITHUB_WORKSPACE}"
+        echo "Listing workspace root:"
+        ls -al
+        echo "Listing .github contents:"
+        ls -al .github || true
+        echo "Listing .github/workflows contents:"
+        ls -al .github/workflows || true
+        echo "::endgroup::"
+    
+    - name: Debug environment summary
+      run: |
+        echo "::group::Environment summary"
+        for key in GITHUB_WORKSPACE GITHUB_JOB GITHUB_REF GITHUB_SHA RUNNER_OS RUNNER_USER RUNNER_TEMP RUNNER_TOOL_CACHE CI NODE_VERSION npm_config_cache npm_execpath; do
+          echo "$key=${!key}"
+        done
+        echo "node version: $(node -v)"
+        echo "npm version:  $(npm -v)"
+        echo "::endgroup::"
+    
+    - name: Check .env presence and permissions
+      run: |
+        if [ -f .env ]; then
+          echo ".env found"
+          ls -l .env
+          stat .env || true
+        else
+          echo ".env missing from workspace"
+        fi
+    
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
@@ -28,7 +61,7 @@ jobs:
       run: npm ci
     
     - name: Run tests with coverage
-      run: npm run test:run -- --coverage --reporter=junit --reporter=github-actions --reporter=verbose --reporter=html
+      run: npm run test:run -- --coverage
       env:
         CI: true
     

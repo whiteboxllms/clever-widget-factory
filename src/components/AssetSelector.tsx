@@ -211,6 +211,8 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
               is_returned: false,
               checkout_date: new Date().toISOString()
             });
+            // Update tool status to checked_out
+            await apiService.put(`/tools/${asset.id}`, { status: 'checked_out' });
           } catch (error: any) {
             // Handle duplicate key constraint violation
             if (error.message?.includes('duplicate key') || 

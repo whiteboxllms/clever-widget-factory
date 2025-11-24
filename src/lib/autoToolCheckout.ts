@@ -168,7 +168,9 @@ export async function activatePlannedCheckoutsForAction(actionId: string, organi
     
     // Update each checkout to set checkout_date and tool status
     for (const checkout of plannedCheckouts) {
-      await apiService.put(`/checkouts/${checkout.id}`, { checkout_date: null });
+      await apiService.put(`/checkouts/${checkout.id}`, { checkout_date: new Date().toISOString() });
+      // Update tool status to checked_out
+      await apiService.put(`/tools/${checkout.tool_id}`, { status: 'checked_out' });
     }
     
     console.log(`Activated ${plannedCheckouts.length} planned checkouts for action ${actionId}`);

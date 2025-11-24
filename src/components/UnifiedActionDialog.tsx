@@ -800,6 +800,8 @@ export function UnifiedActionDialog({
                                 is_returned: false,
                                 checkout_date: new Date().toISOString()
                               });
+                              // Update tool status to checked_out
+                              await apiService.put(`/tools/${toolId}`, { status: 'checked_out' });
                             } catch (error: any) {
                               // Ignore if tool already has active checkout
                               const errorMessage = typeof error.message === 'string' ? error.message : String(error.message || '');

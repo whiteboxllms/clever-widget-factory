@@ -4,6 +4,7 @@ import '@testing-library/jest-dom/vitest';
 
 const originalConsoleError = console.error;
 const loggedJsdomStacks = new Set<string>();
+const shouldSuppressJsdomErrors = process.env.SUPPRESS_JSDOM_URL_ERRORS !== 'false';
 
 const logJsdomUrlError = (source: string, error: unknown) => {
   if (!error) return;
@@ -77,7 +78,9 @@ console.error = (...args: any[]) => {
        errorString.includes('URL.js') ||
        errorString.includes('jsdom'))) {
     logJsdomUrlError('console.error', args[0]);
-    return; // Suppress
+    if (shouldSuppressJsdomErrors) {
+      return;
+    }
   }
   originalConsoleError.apply(console, args);
 };
@@ -89,8 +92,9 @@ process.removeAllListeners('unhandledRejection');
 process.on('unhandledRejection', (reason, promise) => {
   if (isJsdomUrlError(reason)) {
     logJsdomUrlError('unhandledRejection', reason);
-    // Silently ignore known jsdom URL-related errors
-    return;
+    if (shouldSuppressJsdomErrors) {
+      return;
+    }
   }
   // Call original handlers if any
   originalUnhandledRejectionHandlers.forEach(handler => {
@@ -108,8 +112,9 @@ process.removeAllListeners('uncaughtException');
 process.on('uncaughtException', (error) => {
   if (isJsdomUrlError(error)) {
     logJsdomUrlError('uncaughtException', error);
-    // Silently ignore known jsdom URL-related errors
-    return;
+    if (shouldSuppressJsdomErrors) {
+      return;
+    }
   }
   // Call original handlers if any
   originalUncaughtExceptionHandlers.forEach(handler => {
@@ -126,18 +131,20 @@ if (typeof window !== 'undefined') {
   window.addEventListener('error', (event) => {
     if (isJsdomUrlError(event.error)) {
       logJsdomUrlError('window.error', event.error);
-      // Prevent the error from propagating
-      event.preventDefault();
-      event.stopPropagation();
+      if (shouldSuppressJsdomErrors) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
     }
   });
   
   window.addEventListener('unhandledrejection', (event) => {
     if (isJsdomUrlError(event.reason)) {
       logJsdomUrlError('window.unhandledrejection', event.reason);
-      // Prevent the error from propagating
-      event.preventDefault();
-      event.stopPropagation();
+      if (shouldSuppressJsdomErrors) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
     }
   });
 }

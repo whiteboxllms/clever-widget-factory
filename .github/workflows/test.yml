@@ -64,6 +64,7 @@ jobs:
       run: npm run test:run -- --coverage src/lib/utils.test.ts
       env:
         CI: true
+        SUPPRESS_JSDOM_URL_ERRORS: "false"
     
     - name: Publish Test Results
       uses: EnricoMi/publish-unit-test-result-action@v2

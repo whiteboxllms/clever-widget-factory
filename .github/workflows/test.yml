@@ -54,14 +54,14 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: '18'
+        node-version: '20'
         cache: 'npm'
     
     - name: Install dependencies
       run: npm ci
     
-    - name: Run targeted smoke test with coverage
-      run: npm run test:run -- --coverage src/lib/utils.test.ts
+    - name: Run tests with coverage
+      run: npm run test:run -- --coverage
       env:
         CI: true
         SUPPRESS_JSDOM_URL_ERRORS: "false"

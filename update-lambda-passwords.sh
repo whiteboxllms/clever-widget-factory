@@ -53,3 +53,4 @@ echo "   ALTER USER postgres WITH PASSWORD '8T!\$T5#N4q0%5j';"
 echo ""
 echo "Or via AWS RDS Console: Modify → Master password"
 
+

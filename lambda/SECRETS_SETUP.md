@@ -210,3 +210,4 @@ Secrets Manager can automatically rotate RDS passwords:
 - Increase cache TTL (default is 1 hour)
 - Check for Lambda cold starts (cache is lost on cold start)
 
+

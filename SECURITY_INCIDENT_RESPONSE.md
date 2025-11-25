@@ -188,3 +188,4 @@ fi
 - Production should use different credentials stored in AWS Secrets Manager
 - All future credentials must use environment variables or AWS Secrets Manager
 
+

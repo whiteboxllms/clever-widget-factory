@@ -177,3 +177,4 @@ psql -h cwf-dev-postgres.ctmma86ykgeb.us-west-2.rds.amazonaws.com \
 - ✅ Use environment variables in Lambda
 - ✅ Use AWS Secrets Manager for production (future improvement)
 
+

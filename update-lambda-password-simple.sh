@@ -49,3 +49,4 @@ echo ""
 echo "Done! Remember to update the database password in RDS first."
 echo "See ROTATE_DB_PASSWORD.md for instructions."
 
+

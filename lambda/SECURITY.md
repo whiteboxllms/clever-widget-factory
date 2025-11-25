@@ -61,3 +61,4 @@ Error: DB_PASSWORD environment variable is required
 
 This ensures that functions fail fast rather than using insecure defaults.
 
+

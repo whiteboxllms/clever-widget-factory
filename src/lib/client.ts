@@ -9,7 +9,16 @@ export const supabase = {
     delete: () => Promise.resolve({ data: null, error: null })
   }),
   auth: {
-    getUser: () => Promise.resolve({ data: { user: null }, error: null })
+    getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+    getSession: () => Promise.resolve({ 
+      data: { 
+        session: { 
+          access_token: 'mock-access-token',
+          refresh_token: 'mock-refresh-token'
+        } 
+      }, 
+      error: null 
+    })
   }
 };
 

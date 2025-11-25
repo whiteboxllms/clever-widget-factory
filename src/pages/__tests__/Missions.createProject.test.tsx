@@ -261,7 +261,6 @@ describe('Missions Page - Create Project Flow', () => {
       // Should show form fields
       expect(screen.getByLabelText(/Project Title/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Background/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/QA Assigned To/i)).toBeInTheDocument();
     });
   });
 

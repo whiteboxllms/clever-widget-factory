@@ -28,6 +28,7 @@ dist-ssr
 .env.local
 .env.production.local
 .env.development.local
+.env.*.local
 
 # AWS credentials
 aws-credentials.json
@@ -47,6 +48,7 @@ lambda/**/*.zip
 # Supabase temp files
 supabase/.branches/
 supabase/.temp/
+supabase/config.toml
 
 # Migration docs
 API_GATEWAY_MIGRATION_PLAN.md
@@ -61,7 +63,7 @@ tmp/
 *-UNUSED/
 *_UNUSED/
 
-# Test results and coverage (already handled but explicit)
+# Test results and coverage
 test-results.*
 coverage/
 

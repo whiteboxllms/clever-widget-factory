@@ -1,8 +1,18 @@
 #!/bin/bash
 
 USER_POOL_ID="us-west-2_84dcGaogx"
-REGION="us-west-2"
-TEMP_PASSWORD="StargazerFarm2025!"
+REGION="${AWS_REGION:-us-west-2}"
+TEMP_PASSWORD="${TEMP_USER_PASSWORD:-}"
+
+if [[ -z "$TEMP_PASSWORD" ]]; then
+  read -s -p "Enter temporary password to assign to migrated users: " TEMP_PASSWORD
+  echo
+fi
+
+if [[ -z "$TEMP_PASSWORD" ]]; then
+  echo "❌ ERROR: Provide TEMP_USER_PASSWORD env var or enter it interactively."
+  exit 1
+fi
 
 echo "🚀 Starting Cognito user migration..."
 
@@ -22,4 +32,4 @@ aws cognito-idp admin-create-user --user-pool-id $USER_POOL_ID --username "3fcd5
 
 aws cognito-idp admin-create-user --user-pool-id $USER_POOL_ID --username "0cb0a42d-272b-43ee-b047-7c0b6ec62f6e" --user-attributes Name=email,Value="vickyyap04@gmail.com" Name=email_verified,Value=true --message-action SUPPRESS --temporary-password "$TEMP_PASSWORD" --region $REGION && aws cognito-idp admin-set-user-password --user-pool-id $USER_POOL_ID --username "0cb0a42d-272b-43ee-b047-7c0b6ec62f6e" --password "$TEMP_PASSWORD" --permanent --region $REGION && echo "✅ vickyyap04@gmail.com"
 
-echo "🎉 Migration complete! All users can log in with password: $TEMP_PASSWORD"
+echo "🎉 Migration complete! Users were provisioned with the supplied temporary password (value omitted)."

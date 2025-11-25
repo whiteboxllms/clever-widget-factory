@@ -1,5 +1,7 @@
 # Clever Widget Factory
 
+A comprehensive asset management and accountability system built with React, TypeScript, and AWS.
+
 ## Current Architecture (Post-Migration)
 
 **⚠️ IMPORTANT: We are NO LONGER using Supabase. The application has been migrated to AWS infrastructure.**
@@ -12,9 +14,21 @@
 - **File Storage**: AWS S3
 - **Infrastructure**: Fully AWS-based
 
+## Local Development Setup
+
+### Prerequisites
+- Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+
 ### Development Setup
 
-1. **Start the frontend**:
+1. **Clone and install**:
+   ```bash
+   git clone <YOUR_GIT_URL>
+   cd clever-widget-factory
+   npm i
+   ```
+
+2. **Start the frontend**:
    ```bash
    npm run dev
    ```
@@ -67,6 +81,31 @@ During Cognito migration, user IDs were updated. Reference for any remaining mig
 | Lester Paniel | `7dd4187f-ff2a-4367-9e7b-0c8741f25495` | `68d173b0-60f1-70ea-6084-338e74051fcc` |
 | Mae Dela Torre | `48155769-4d22-4d36-9982-095ac9ad6b2c` | `1891f310-c071-705a-2c72-0d0a33c92bf0` |
 | Stefan Hamilton | `b8006f2b-0ec7-4107-b05a-b4c6b49541fd` | `08617390-b001-708d-f61e-07a1698282ec` |
+
+## What technologies are used for this project?
+
+This project is built with:
+
+- **Frontend**: React 18, TypeScript, Vite
+- **UI Components**: shadcn-ui, Radix UI, Tailwind CSS
+- **Database**: AWS RDS PostgreSQL
+- **Authentication**: AWS Cognito
+- **State Management**: React Query (TanStack Query)
+- **Forms**: React Hook Form with Zod validation
+- **Rich Text**: Tiptap editor
+- **Image Processing**: Browser Image Compression
+- **Date Handling**: date-fns
+- **Icons**: Lucide React
+
+## Testing
+
+Run the test suite:
+```bash
+npm test                    # Run all tests
+npm run test:watch          # Watch mode
+npm run test:ui             # UI mode
+npm run test:coverage       # With coverage
+```
 
 ### Legacy Files (To Be Removed)
 The following files are legacy from the Supabase era and should be ignored:

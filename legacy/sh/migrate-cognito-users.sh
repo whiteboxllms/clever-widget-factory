@@ -4,8 +4,18 @@
 # This ensures seamless authentication with existing data
 
 USER_POOL_ID="us-west-2_84dcGaogx"
-REGION="us-west-2"
-TEMP_PASSWORD="StargazerFarm2025!"
+REGION="${AWS_REGION:-us-west-2}"
+TEMP_PASSWORD="${TEMP_USER_PASSWORD:-}"
+
+if [[ -z "$TEMP_PASSWORD" ]]; then
+  read -s -p "Enter temporary password to assign to migrated users: " TEMP_PASSWORD
+  echo
+fi
+
+if [[ -z "$TEMP_PASSWORD" ]]; then
+  echo "❌ ERROR: Provide TEMP_USER_PASSWORD env var or enter it interactively."
+  exit 1
+fi
 
 echo "🚀 Starting Cognito user migration for Stargazer Farm team..."
 
@@ -60,12 +70,5 @@ done
 
 echo "🎉 Migration complete!"
 echo ""
-echo "📧 All users can now log in with:"
-echo "   Email: their email address"
-echo "   Password: $TEMP_PASSWORD"
-echo ""
-echo "🔑 User credentials:"
-for user_id in "${!USERS[@]}"; do
-  email="${USERS[$user_id]}"
-  echo "   $email -> Password: $TEMP_PASSWORD"
-done
+echo "📧 All users were provisioned with the temporary password passed to this script."
+echo "   (Password value intentionally omitted from logs.)"

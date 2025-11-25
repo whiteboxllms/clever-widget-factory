@@ -221,7 +221,7 @@ const Auth = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <img src="/logo-only.svg" alt="Stargazer Farm" className="h-20 w-20" />
+            <img src="/logo_only_with_diamond_bg.svg" alt="Stargazer Farm" className="h-20 w-20" />
           </div>
           <CardTitle className="text-3xl font-bold mb-2">Stargazer Farm</CardTitle>
           <p className="text-lg font-medium">AI-Assisted Project & Inventory Management</p>

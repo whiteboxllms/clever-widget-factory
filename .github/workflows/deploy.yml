@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ main, feature/aws-migration, deploy-clean ]
+    branches: [ main, 16-setup-domain ]
 
 jobs:
   build-and-deploy:
@@ -25,7 +25,7 @@ jobs:
     
     - name: Build
       env:
-        VITE_BASE_PATH: /clever-widget-factory/
+        VITE_BASE_PATH: /
         VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
         VITE_AWS_COGNITO_USER_POOL_ID: ${{ secrets.VITE_AWS_COGNITO_USER_POOL_ID }}
         VITE_AWS_COGNITO_CLIENT_ID: ${{ secrets.VITE_AWS_COGNITO_CLIENT_ID }}

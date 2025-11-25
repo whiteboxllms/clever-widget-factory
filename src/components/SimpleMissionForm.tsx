@@ -6,16 +6,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronDown, ChevronRight, Plus, Upload, Image, X, Trash2, Archive, Info } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Trash2, Archive, Info } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
-import { useImageUpload } from "@/hooks/useImageUpload";
-import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
+import { apiService, getApiData } from '@/lib/apiService';
+import { useAuth } from '@/hooks/useCognitoAuth';
 
 import { useTempPhotoStorage } from "@/hooks/useTempPhotoStorage";
 import { hasActualContent } from "@/lib/utils";
@@ -57,18 +56,15 @@ interface SimpleMissionFormProps {
   formData: {
     title: string;
     problem_statement: string;
-    qa_assigned_to: string;
     actions: Task[];
   };
   setFormData: (data: (prev: {
     title: string;
     problem_statement: string;
-    qa_assigned_to: string;
     actions: Task[];
   }) => {
     title: string;
     problem_statement: string;
-    qa_assigned_to: string;
     actions: Task[];
   }) => void;
   profiles: Profile[];
@@ -107,9 +103,9 @@ export function SimpleMissionForm({
   const [tools, setTools] = useState<Tool[]>([]);
   const organizationId = useOrganizationId();
   const { toast } = useToast();
-  const { uploadImages, isUploading: isImageUploading } = useImageUpload();
   const enhancedToast = useEnhancedToast();
   const tempPhotoStorage = useTempPhotoStorage();
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchTools();
@@ -117,14 +113,16 @@ export function SimpleMissionForm({
 
   const fetchTools = async () => {
     try {
-      const { data, error } = await supabase
-        .from('tools')
-        .select('id, name, serial_number, status')
-        .neq('status', 'removed')
-        .order('name');
-
-      if (error) throw error;
-      setTools(data || []);
+      const result = await apiService.get('/tools');
+      let toolsData = result.data || [];
+      
+      // Filter out removed tools client-side
+      toolsData = toolsData.filter((tool: Tool) => tool.status !== 'removed');
+      
+      // Sort by name
+      toolsData.sort((a: Tool, b: Tool) => a.name.localeCompare(b.name));
+      
+      setTools(toolsData);
     } catch (error) {
       console.error('Error fetching tools:', error);
     }
@@ -139,7 +137,6 @@ export function SimpleMissionForm({
   const [editingTaskIndex, setEditingTaskIndex] = useState<number | null>(null);
   const [creatingNewTask, setCreatingNewTask] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
-  const [problemPhotos, setProblemPhotos] = useState<Array<{id: string; file_url: string; file_name: string}>>([]);
   const [draftMissionId, setDraftMissionId] = useState<string | null>(null);
 
   // Convert icon component to string name for database storage
@@ -159,15 +156,18 @@ export function SimpleMissionForm({
     if (!missionId) return;
     
     try {
-      const { data: tasksData, error } = await supabase
-        .from('actions')
-        .select('*')
-        .eq('mission_id', missionId)
-        .order('updated_at', { ascending: false });
+      const response = await apiService.get('/actions');
+      const allTasks = getApiData(response) || [];
+      const tasksData = allTasks.filter((task: any) => task.mission_id === missionId);
+      
+      // Sort by updated_at descending
+      tasksData.sort((a: any, b: any) => {
+        const dateA = new Date(a.updated_at || a.created_at || 0).getTime();
+        const dateB = new Date(b.updated_at || b.created_at || 0).getTime();
+        return dateB - dateA;
+      });
 
-      if (error) throw error;
-
-      const updatedTasks = tasksData?.map(task => ({
+      const updatedTasks = tasksData.map((task: any) => ({
         id: task.id,
         title: task.title,
         description: task.description || '',
@@ -182,20 +182,13 @@ export function SimpleMissionForm({
         required_tools: task.required_tools || [],
         required_stock: Array.isArray(task.required_stock) ? task.required_stock as { part_id: string; quantity: number; part_name: string; }[] : [],
         attachments: task.attachments || []
-      })) || [];
+      }));
 
       setFormData(prev => ({ ...prev, actions: updatedTasks }));
     } catch (error) {
       console.error('Error loading tasks:', error);
     }
   }, [missionId, setFormData]);
-
-  // Load existing problem photos when editing
-  useEffect(() => {
-    if (isEditing && missionId) {
-      loadExistingProblemPhotos();
-    }
-  }, [isEditing, missionId]);
 
   // Load tasks from database when editing a mission
   useEffect(() => {
@@ -221,41 +214,10 @@ export function SimpleMissionForm({
     }
   }, [defaultTasks]);
 
-  const loadExistingProblemPhotos = async () => {
-    if (!missionId) return;
-    
-    try {
-      console.log('Loading photos for mission:', missionId);
-      
-      const { data: attachments, error } = await supabase
-        .from('mission_attachments')
-        .select('id, file_url, file_name')
-        .eq('mission_id', missionId)
-        .eq('attachment_type', 'evidence')
-        .is('task_id', null); // Problem photos don't have task_id
-      
-      console.log('Photo query result:', { attachments, error });
-      
-      if (error) throw error;
-      
-      if (attachments && attachments.length > 0) {
-        console.log('Setting problem photos:', attachments);
-        setProblemPhotos(attachments);
-      } else {
-        console.log('No problem photos found for mission');
-        setProblemPhotos([]);
-      }
-    } catch (error) {
-      console.error('Failed to load existing problem photos:', error);
-      setProblemPhotos([]);
-    }
-  };
-
   const addTask = async () => {
     // If this is the first action and we're in create mode, create a draft mission first
     if (!isEditing && !draftMissionId && formData.actions.length === 0) {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           toast({
             title: "Error",
@@ -266,24 +228,18 @@ export function SimpleMissionForm({
         }
 
         // Create draft mission
-        const { data: missionData, error: missionError } = await supabase
-          .from('missions')
-          .insert({
-            title: formData.title || 'Draft Mission',
-            problem_statement: formData.problem_statement || 'Draft mission - details to be filled',
-            created_by: user.id,
-            qa_assigned_to: formData.qa_assigned_to || null,
-            template_id: selectedTemplate?.id || null,
-            template_name: selectedTemplate?.name || null,
-            template_color: selectedTemplate?.color || null,
-            template_icon: selectedTemplate?.icon ? getIconName(selectedTemplate.icon) : null,
-            organization_id: organizationId,
-            status: 'draft' // Mark as draft
-          })
-          .select()
-          .single();
-
-        if (missionError) throw missionError;
+        const response = await apiService.post('/missions', {
+          title: formData.title || 'Draft Mission',
+          problem_statement: formData.problem_statement || 'Draft mission - details to be filled',
+          created_by: user.id,
+          template_id: selectedTemplate?.id || null,
+          template_name: selectedTemplate?.name || null,
+          template_color: selectedTemplate?.color || null,
+          template_icon: selectedTemplate?.icon ? getIconName(selectedTemplate.icon) : null,
+          status: 'draft' // Mark as draft
+        });
+        
+        const missionData = getApiData(response) || response;
         
         setDraftMissionId(missionData.id);
         toast({
@@ -393,30 +349,32 @@ export function SimpleMissionForm({
       const edited = index !== null ? formData.actions[index] : null;
       if (edited?.id) {
         (async () => {
-          const { data } = await supabase
-            .from('actions')
-            .select('*')
-            .eq('id', edited.id)
-            .single();
-          if (!data) return;
-          const updated: Task = {
-            id: data.id,
-            title: data.title,
-            description: data.description || '',
-            policy: data.policy || '',
-            observations: data.observations || '',
-            assigned_to: data.assigned_to,
-            status: data.status,
-            plan_commitment: data.plan_commitment || false,
-            estimated_completion_date: data.estimated_duration ? new Date(data.estimated_duration) : undefined,
-            required_tools: (data.required_tools || []) as string[],
-            required_stock: (Array.isArray(data.required_stock) ? data.required_stock : []) as { part_id: string; quantity: number; part_name: string; }[],
-            attachments: (data.attachments || []) as string[]
-          };
-          setFormData(prev => ({
-            ...prev,
-            actions: prev.actions.map((t, i) => (i === index ? updated : t))
-          }));
+          try {
+            const response = await apiService.get('/actions');
+            const allActions = getApiData(response) || [];
+            const data = allActions.find((action: any) => action.id === edited.id);
+            if (!data) return;
+            const updated: Task = {
+              id: data.id,
+              title: data.title,
+              description: data.description || '',
+              policy: data.policy || '',
+              observations: data.observations || '',
+              assigned_to: data.assigned_to,
+              status: data.status,
+              plan_commitment: data.plan_commitment || false,
+              estimated_completion_date: data.estimated_duration ? new Date(data.estimated_duration) : undefined,
+              required_tools: (data.required_tools || []) as string[],
+              required_stock: (Array.isArray(data.required_stock) ? data.required_stock : []) as { part_id: string; quantity: number; part_name: string; }[],
+              attachments: (data.attachments || []) as string[]
+            };
+            setFormData(prev => ({
+              ...prev,
+              actions: prev.actions.map((t, i) => (i === index ? updated : t))
+            }));
+          } catch (error) {
+            console.error('Error fetching action:', error);
+          }
         })();
       }
     }
@@ -428,22 +386,10 @@ export function SimpleMissionForm({
     const taskToRemove = formData.actions[index];
     
     // If editing mode, delete from database
-    if (isEditing && missionId) {
+    if (isEditing && missionId && taskToRemove.id) {
       try {
-        // Get existing tasks to find the database ID
-        const { data: existingTasks } = await supabase
-          .from('actions')
-          .select('*')
-          .eq('mission_id', missionId)
-          .order('updated_at', { ascending: false });
-
-        if (existingTasks && existingTasks[index]) {
-          // Delete from database
-          await supabase
-            .from('actions')
-            .delete()
-            .eq('id', existingTasks[index].id);
-        }
+        // Delete from database using API
+        await apiService.delete(`/actions?id=${taskToRemove.id}`);
       } catch (error) {
         console.error('Error deleting task:', error);
         toast({
@@ -469,122 +415,11 @@ export function SimpleMissionForm({
     });
   };
 
-  const handleProblemPhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      // Use the standard image upload pattern
-      const result = await uploadImages(file, {
-        bucket: 'mission-evidence',
-        generateFileName: (file) => `problem-${Date.now()}-${file.name}`,
-        maxSizeMB: 0.5,
-        maxWidthOrHeight: 1920
-      });
-
-      // Handle both single result and array result
-      const uploadResult = Array.isArray(result) ? result[0] : result;
-
-      // Save attachment record for editing mode
-      if (isEditing && missionId) {
-        const { data: attachmentData, error: attachmentError } = await supabase
-          .from('mission_attachments')
-          .insert({
-            mission_id: missionId,
-            file_name: file.name,
-            file_url: uploadResult.fileName, // Use fileName from result
-            file_type: file.type,
-            attachment_type: 'evidence',
-            uploaded_by: (await supabase.auth.getUser()).data.user?.id,
-            organization_id: organizationId
-          })
-          .select()
-          .single();
-
-        if (attachmentError) throw attachmentError;
-        
-        // Add to photos list with the real attachment ID
-        setProblemPhotos(prev => [...prev, {
-          id: attachmentData.id,
-          file_url: attachmentData.file_url,
-          file_name: attachmentData.file_name
-        }]);
-      } else {
-        // For creation mode, just add to the list (will be saved later)
-        setProblemPhotos(prev => [...prev, {
-          id: Date.now().toString(),
-          file_url: uploadResult.fileName,
-          file_name: file.name
-        }]);
-      }
-
-    } catch (error) {
-      console.error('Photo upload failed:', error);
-      // Error handling is already done by useImageUpload hook
-    }
-  };
-
-  const removeProblemPhoto = async (photoId: string) => {
-    const photo = problemPhotos.find(p => p.id === photoId);
-    if (!photo) return;
-
-    // If editing mode, try to delete from database (UUID format indicates it's a saved photo)
-    if (isEditing && missionId) {
-      try {
-        console.log('Attempting to delete photo:', { photoId, photoUrl: photo.file_url });
-        
-        // Delete from database first
-        const { error: dbError } = await supabase
-          .from('mission_attachments')
-          .delete()
-          .eq('id', photo.id);
-        
-        if (dbError) {
-          console.error('Database deletion error:', dbError);
-          throw dbError;
-        }
-        
-        // Delete from storage
-        const { error: storageError } = await supabase.storage
-          .from('mission-evidence')
-          .remove([photo.file_url]);
-        
-        if (storageError) {
-          console.error('Storage deletion error:', storageError);
-          // Don't throw - storage deletion failure shouldn't block the operation
-        }
-        
-        toast({
-          title: "Photo removed",
-          description: "Photo has been deleted successfully."
-        });
-      } catch (error) {
-        console.error('Failed to remove photo:', error);
-        toast({
-          title: "Error",
-          description: "Failed to remove photo from database",
-          variant: "destructive"
-        });
-        return;
-      }
-    } else {
-      // For non-editing mode or temp photos, just show local removal
-      toast({
-        title: "Photo removed",
-        description: "Photo has been removed."
-      });
-    }
-
-    // Remove from local state
-    setProblemPhotos(prev => prev.filter(p => p.id !== photoId));
-  };
-
   // Enhanced onSubmit to handle temporary photo migration
   const handleSubmit = async () => {
     try {
       // If we have a draft mission, update it instead of creating new
       if (draftMissionId) {
-        const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           toast({
             title: "Error",
@@ -595,17 +430,11 @@ export function SimpleMissionForm({
         }
 
         // Update the draft mission to final status
-        const { error: updateError } = await supabase
-          .from('missions')
-          .update({
-            title: formData.title,
-            problem_statement: formData.problem_statement,
-            qa_assigned_to: formData.qa_assigned_to,
-            status: 'active' // Change from draft to active
-          })
-          .eq('id', draftMissionId);
-
-        if (updateError) throw updateError;
+        await apiService.put(`/missions/${draftMissionId}`, {
+          title: formData.title,
+          problem_statement: formData.problem_statement,
+          status: 'active' // Change from draft to active
+        });
 
         toast({
           title: "Mission Updated",
@@ -641,7 +470,7 @@ export function SimpleMissionForm({
             </div>
             <div>
               <h3 className="font-semibold text-foreground">{selectedTemplate.name}</h3>
-              <p className="text-sm text-foreground/80">Define your mission details below</p>
+              <p className="text-sm text-foreground/80">Define your project details below</p>
             </div>
           </div>
         </div>
@@ -650,12 +479,12 @@ export function SimpleMissionForm({
       {/* Basic Information */}
       <div className="space-y-4">
         <div>
-          <Label htmlFor="title">Mission Title *</Label>
+          <Label htmlFor="title">Project Title *</Label>
           <Input
             id="title"
             value={formData.title}
             onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-            placeholder="Enter mission title"
+            placeholder="Enter project title"
           />
         </div>
         
@@ -677,81 +506,6 @@ export function SimpleMissionForm({
             >
               https://www.perplexity.ai/spaces/stargazer-assistant-F45qc1H7SmeN5wF1nxJobg
             </a>
-          </div>
-        </div>
-
-        {/* Problem Photos */}
-        <div>
-          <div className="flex items-center gap-3">
-            <Label className="text-sm font-medium">Photos</Label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleProblemPhotoUpload}
-              disabled={isImageUploading}
-              className="hidden"
-              id="problem-photo-upload"
-            />
-            <label
-              htmlFor="problem-photo-upload"
-              className="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition-colors"
-            >
-              <Upload className="h-4 w-4" />
-              {isImageUploading ? 'Uploading...' : 'Upload Photos'}
-            </label>
-          </div>
-          
-          {/* Display problem photos */}
-          {problemPhotos.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
-              {problemPhotos.map((photo) => (
-                <div key={photo.id} className="relative group">
-                  <img
-                    src={`${supabase.storage.from('mission-evidence').getPublicUrl(photo.file_url).data.publicUrl}`}
-                    alt={photo.file_name}
-                    className="w-full h-24 object-cover rounded-md border"
-                    onError={(e) => {
-                      console.log('Failed to load image from mission-evidence, trying mission-attachments bucket');
-                      const target = e.target as HTMLImageElement;
-                      const fallbackUrl = supabase.storage.from('mission-attachments').getPublicUrl(photo.file_url).data.publicUrl;
-                      console.log('Trying fallback URL:', fallbackUrl);
-                      target.src = fallbackUrl;
-                    }}
-                  />
-                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-md flex items-center justify-center">
-                    <Image className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                  <button
-                    onClick={() => removeProblemPhoto(photo.id)}
-                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        
-
-        {/* QA Assignment - Required Field */}
-        <div>
-          <div className="flex items-center gap-3">
-            <Label htmlFor="qa_assigned_to">QA Assigned To *</Label>
-            <Select value={formData.qa_assigned_to} onValueChange={(value) => 
-              setFormData(prev => ({ ...prev, qa_assigned_to: value }))
-            }>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Select QA person" />
-              </SelectTrigger>
-              <SelectContent>
-                {profiles.filter(p => p.role === 'admin').map((profile) => (
-                  <SelectItem key={profile.user_id} value={profile.user_id}>
-                    {profile.full_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </div>
 
@@ -1014,17 +768,18 @@ export function SimpleMissionForm({
                 formData.title && formData.title.trim() &&
                 formData.problem_statement && formData.problem_statement.trim()
               );
-              const enabledClasses = 'bg-primary text-black hover:bg-primary/90 opacity-100';
+              // Use blue color scheme for primary action button with good contrast
+              const enabledClasses = 'bg-blue-600 text-white hover:bg-blue-700 opacity-100';
               const disabledClasses = 'bg-muted text-muted-foreground opacity-50 cursor-not-allowed';
               const baseClasses = 'transition-colors';
-              const colorClasses = selectedTemplate ? `${selectedTemplate.color} text-black opacity-100 hover:opacity-90` : enabledClasses;
+              const colorClasses = selectedTemplate ? `${selectedTemplate.color} text-white opacity-100 hover:opacity-90` : enabledClasses;
               return (
                 <Button
                   onClick={handleSubmit}
                   disabled={!isCreateValid}
                   className={`${baseClasses} ${isCreateValid ? colorClasses : disabledClasses}`}
                 >
-                  {draftMissionId ? 'Finalize Mission' : 'Create Mission'}
+                  {draftMissionId ? 'Finalize Project' : 'Create Project'}
                 </Button>
               );
             })()

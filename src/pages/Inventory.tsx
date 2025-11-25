@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/client';
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Upload, UserPlus, Check, ChevronsUpDown, History, ArrowLeft, Info, BarChart3, ShoppingCart, X, Minus } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Upload, UserPlus, Check, ChevronsUpDown, History, ArrowLeft, Info, BarChart3, ShoppingCart, X, Minus, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { InventoryHistoryDialog } from '@/components/InventoryHistoryDialog';
 import { OrderDialog } from '@/components/OrderDialog';
@@ -196,30 +196,37 @@ export default function Inventory() {
     fetchPendingOrders();
   }, []);
 
+  // Refresh parts when window regains focus (user returns to tab)
+  // This ensures inventory shows updated quantities after actions complete
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchParts();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
   useEffect(() => {
     filterParts();
   }, [parts, searchTerm, showLowInventoryOnly]);
 
   const fetchParts = async () => {
     try {
-      const { data, error } = await supabase
-        .from('parts')
-        .select(`
-          *,
-          suppliers (
-            id,
-            name
-          )
-        `)
-        .order('name');
-
-      if (error) throw error;
-      setParts(data || []);
-    } catch (error) {
+      // Use API service with automatic Authorization header
+      const { apiService, getApiData } = await import('@/lib/apiService');
+      const response = await apiService.get<{ data: Part[] }>('/parts');
+      const partsData = getApiData(response) || [];
+      
+      // Sort by name
+      partsData.sort((a: Part, b: Part) => (a.name || '').localeCompare(b.name || ''));
+      
+      setParts(partsData);
+    } catch (error: any) {
       console.error('Error fetching parts:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch parts",
+        description: error.message || "Failed to fetch parts",
         variant: "destructive",
       });
     } finally {
@@ -466,7 +473,6 @@ export default function Inventory() {
             changed_by: currentUser.id,
             change_reason: 'Item created',
             order_id: null,
-            organization_id: organizationId
           }]);
 
         if (historyError) {
@@ -664,7 +670,6 @@ export default function Inventory() {
             quantity_change: quantityChanged ? (newQuantity - oldQuantity) : null,
             changed_by: currentUser.id,
             change_reason: changeReason,
-            organization_id: organizationId
           }]);
 
         if (historyError) {
@@ -825,7 +830,6 @@ export default function Inventory() {
             order_id: fulfilledOrderId,
             supplier_name: quantityOperation === 'add' ? (quantityChange.supplierName || null) : null,
             supplier_url: quantityOperation === 'add' ? (quantityChange.supplierUrl || null) : null,
-            organization_id: organizationId
           }]);
 
         if (historyError) {
@@ -1038,15 +1042,30 @@ export default function Inventory() {
         <div className="mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <h2 className="text-2xl font-bold text-foreground">Stock Items</h2>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate('/inventory/summary')}
-              className="flex items-center gap-2 self-start sm:self-auto"
-            >
-              <BarChart3 className="h-4 w-4" />
-              Summary
-            </Button>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  fetchParts();
+                  fetchPendingOrders();
+                }}
+                className="flex items-center gap-2"
+                title="Refresh inventory to see latest quantities"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Refresh
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/inventory/summary')}
+                className="flex items-center gap-2"
+              >
+                <BarChart3 className="h-4 w-4" />
+                Summary
+              </Button>
+            </div>
           </div>
           
           {/* Search and Filters */}

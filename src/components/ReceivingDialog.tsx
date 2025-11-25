@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Package, Calendar, Building2, Minus, AlertTriangle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/client';
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { OrderIssueReportDialog } from "./OrderIssueReportDialog";
@@ -165,7 +165,6 @@ export function ReceivingDialog({
             changed_by: user.data.user.id,
             order_id: order.id,
             supplier_name: order.supplier_name,
-            organization_id: organizationId
           });
 
         if (historyError) throw historyError;

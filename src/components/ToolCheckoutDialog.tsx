@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { apiService } from "@/lib/apiService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { Upload, X, ExternalLink, Loader2 } from "lucide-react";
 import { compressImage, formatFileSize } from "@/lib/imageUtils";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
@@ -57,25 +58,54 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
 
-  // Resolve user full name consistently: prefer auth user_metadata.full_name, fallback to RPC, then email
+  // Resolve user full name from Cognito metadata or organization members
   useEffect(() => {
-    const resolveUserName = async () => {
-      if (!user) return;
-      const meta = (user as unknown as { user_metadata?: { full_name?: string } })?.user_metadata;
-      const metaName = meta?.full_name;
-      if (metaName && metaName.trim().length > 0) {
-        setUserFullName(metaName);
+    let isMounted = true;
+    const resolveFullName = async () => {
+      if (!user) {
+        if (isMounted) setUserFullName("");
         return;
       }
+
+      const preferName = (value?: string | null) => {
+        if (!value) return null;
+        const trimmed = value.trim();
+        if (!trimmed || trimmed.includes('@')) return null;
+        return trimmed;
+      };
+
+      const metadataName = preferName((user as unknown as { user_metadata?: { full_name?: string } })?.user_metadata?.full_name);
+      const cognitoName = preferName(user.name);
+      if (metadataName && isMounted) {
+        setUserFullName(metadataName);
+        return;
+      }
+      if (cognitoName && isMounted) {
+        setUserFullName(cognitoName);
+        return;
+      }
+
       try {
-        const displayName = await supabase.rpc('get_user_display_name', { target_user_id: user.id });
-        setUserFullName((displayName.data as string) || user.email || "");
-      } catch {
-        setUserFullName(user.email || "");
+        const result = await apiService.get('/organization_members');
+        const member = Array.isArray(result?.data) ? result.data.find((m: any) => m.cognito_user_id === user.id) : null;
+        const memberName = preferName(member?.full_name);
+        if (memberName && isMounted) {
+          setUserFullName(memberName);
+          return;
+        }
+      } catch (error) {
+        console.warn('Failed to resolve organization member name', error);
+      }
+
+      if (isMounted) {
+        setUserFullName(user.email || user.username || "Unknown User");
       }
     };
 
-    resolveUserName();
+    resolveFullName();
+    return () => {
+      isMounted = false;
+    };
   }, [user]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -100,46 +130,13 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
   };
 
   const uploadImages = async (files: File[]): Promise<string[]> => {
-    const uploadPromises = files.map(async (file) => {
-      try {
-        const compressionResult = await compressImageDetailed(file);
-        enhancedToast.showCompressionComplete(compressionResult);
-        const compressedFile = compressionResult.file;
-      
-        const fileName = `checkout-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${compressedFile.name}`;
-        const { data, error } = await supabase.storage
-          .from('tool-images')
-          .upload(fileName, compressedFile);
-
-        if (error) {
-          // Extract status code from Supabase error
-          const statusCode = error && typeof error === 'object' && 'status' in error ? error.status as number : undefined;
-          enhancedToast.showUploadError(error.message, file.name, statusCode);
-          return null;
-        }
-
-        const { data: urlData } = supabase.storage
-          .from('tool-images')
-          .getPublicUrl(fileName);
-
-        enhancedToast.showUploadSuccess(fileName, urlData.publicUrl);
-        return urlData.publicUrl;
-      } catch (error) {
-        enhancedToast.showCompressionError(error.message, file.name);
-        return null;
-      }
-    });
-
-    const results = await Promise.all(uploadPromises);
-    const successCount = results.filter(url => url !== null).length;
-    
-    // Show upload completion toast
+    // TODO: Implement S3 upload via AWS API
     toast({
-      title: "Upload complete!",
-      description: `${successCount} image${successCount > 1 ? 's' : ''} uploaded successfully`,
+      title: "Image upload not yet implemented",
+      description: "S3 upload functionality pending",
+      variant: "destructive"
     });
-
-    return results.filter((url): url is string => url !== null);
+    return [];
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -149,125 +146,38 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
     setIsSubmitting(true);
 
     try {
-      // Step 1: Check for existing active checkouts before proceeding
-      const { data: existingCheckouts, error: checkoutCheckError } = await supabase
-        .from('checkouts')
-        .select('id, user_name')
-        .eq('tool_id', tool.id)
-        .eq('is_returned', false);
+      // Check for existing active checkouts
+      const checkoutsResult = await apiService.get(`/checkouts?tool_id=${tool.id}&is_returned=false`);
+      const existingCheckouts = checkoutsResult.data || [];
 
-      if (checkoutCheckError) {
-        console.error('Error checking existing checkouts:', checkoutCheckError);
-        throw new Error('Failed to verify tool availability');
-      }
-
-      if (existingCheckouts && existingCheckouts.length > 0) {
+      if (existingCheckouts.length > 0) {
         const checkout = existingCheckouts[0];
         toast({
           title: "Tool Already Checked Out",
-          description: `This tool is currently checked out to ${checkout.user_name}. Please ensure the tool is checked in before attempting a new checkout.`,
+          description: `This tool is currently checked out to ${checkout.user_name}.`,
           variant: "destructive"
         });
         return;
       }
 
-      // Step 2: Verify tool status is available
-      const { data: toolData, error: toolCheckError } = await supabase
-        .from('tools')
-        .select('status')
-        .eq('id', tool.id)
-        .single();
+      // Create checkout record with immediate checkout_date
+      await apiService.post('/checkouts', {
+        tool_id: tool.id,
+        user_id: user?.id,
+        user_name: userFullName,
+        intended_usage: form.intendedUsage || null,
+        notes: form.notes || null,
+        action_id: taskId || null,
+        is_returned: false,
+        checkout_date: new Date().toISOString()
+      });
 
-      if (toolCheckError) {
-        console.error('Error checking tool status:', toolCheckError);
-        throw new Error('Failed to verify tool status');
-      }
-
-      // Check if tool is already checked out and show warning
-      if (toolData?.status !== 'available') {
-        const { data: currentCheckout } = await supabase
-          .from('checkouts')
-          .select('user_name, intended_usage, checkout_date')
-          .eq('tool_id', tool.id)
-          .eq('is_returned', false)
-          .not('checkout_date', 'is', null)
-          .order('checkout_date', { ascending: false })
-          .limit(1)
-          .single();
-
-        const confirmed = window.confirm(
-          `Warning: This tool is currently ${toolData?.status || 'unavailable'}.${
-            currentCheckout ? ` It's checked out to ${currentCheckout.user_name} for "${currentCheckout.intended_usage}".` : ''
-          }\n\nDo you want to proceed with the checkout anyway?`
-        );
-        
-        if (!confirmed) {
-          return;
-        }
-      }
-      let beforeImageUrl = null;
-      if (form.beforeImageFiles.length > 0) {
-        const uploadedUrls = await uploadImages(form.beforeImageFiles);
-        beforeImageUrl = uploadedUrls[0] || null; // Use first image for now
-      }
-
-      // Create checkout record
-      const { data: checkoutData, error } = await supabase
-        .from('checkouts')
-        .insert({
-          tool_id: tool.id,
-          user_id: user?.id,
-          user_name: userFullName,
-          intended_usage: form.intendedUsage || null,
-          notes: form.notes || null,
-          before_image_url: beforeImageUrl,
-          pre_existing_issues: form.preCheckoutIssues || null,
-          action_id: taskId || null  // taskId is actually action ID in this context
-        } as any)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Note: mission_tool_usage table no longer exists
-      // Tools are now linked via action_id in checkouts table
-
-      // Update tool status to checked out
-      const { error: toolError } = await supabase
-        .from('tools')
-        .update({ 
-          status: 'checked_out'
-        })
-        .eq('id', tool.id);
-
-      if (toolError) throw toolError;
-
-      // Create issue record if pre-existing issues were reported
-      if (form.preCheckoutIssues && form.preCheckoutIssues.trim()) {
-        const { error: issueError } = await supabase
-          .from('issues')
-          .insert({
-            context_type: 'tool',
-            context_id: tool.id,
-            reported_by: user?.id,
-            description: form.preCheckoutIssues.trim(),
-            issue_type: 'efficiency',
-            status: 'active',
-            workflow_status: 'reported',
-            related_checkout_id: checkoutData.id,
-            report_photo_urls: beforeImageUrl ? [beforeImageUrl] : [],
-            organization_id: organizationId
-          });
-
-        if (issueError) {
-          console.error('Error creating issue from pre-checkout inspection:', issueError);
-          // Don't fail the checkout if issue creation fails
-        }
-      }
+      // Update tool status
+      await apiService.put(`/tools/${tool.id}`, { status: 'checked_out' });
 
       toast({
         title: "Success",
-        description: `${tool.name} has been checked out successfully${missionId ? ' for mission' : ''}`
+        description: `${tool.name} has been checked out successfully`
       });
 
       // Reset form
@@ -281,13 +191,26 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
       onOpenChange(false);
       onSuccess();
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error checking out tool:', error);
-      toast({
-        title: "Error",
-        description: "Failed to check out tool",
-        variant: "destructive"
-      });
+      
+      // Handle duplicate key constraint violation
+      if (error.error?.includes('active checkout') || 
+          error.message?.includes('idx_unique_active_checkout_per_tool') ||
+          error.message?.includes('duplicate key')) {
+        const errorMessage = error.details || error.error || "This tool is already checked out";
+        toast({
+          title: "Tool Already Checked Out",
+          description: errorMessage,
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: error.details || error.error || "Failed to check out tool",
+          variant: "destructive"
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }

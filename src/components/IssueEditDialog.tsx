@@ -48,7 +48,7 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
       if (selectedImages.length > 0) {
         try {
           const uploadResults = await uploadImages(selectedImages, {
-            bucket: 'tool-resolution-photos',
+            bucket: 'tool-resolution-photos' as const,
             generateFileName: (file, index) => `issue-edit-${issue.id}-${Date.now()}-${index || 1}-${file.name}`
           });
           

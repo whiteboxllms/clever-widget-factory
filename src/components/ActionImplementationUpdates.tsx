@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { apiService } from '@/lib/apiService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import TiptapEditor from './TiptapEditor';
@@ -10,6 +10,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { Plus, Edit2, Trash2, Check, X } from 'lucide-react';
 import { activatePlannedCheckoutsIfNeeded } from '@/lib/autoToolCheckout';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
+import { useAuth } from '@/hooks/useCognitoAuth';
+import { useOrganizationMembers } from '@/hooks/useOrganizationMembers';
 
 interface ActionImplementationUpdatesProps {
   actionId: string;
@@ -17,9 +19,18 @@ interface ActionImplementationUpdatesProps {
   onUpdate?: () => void;
 }
 
+interface OrganizationMember {
+  user_id: string;
+  full_name: string;
+  role: string;
+  cognito_user_id: string | null;
+}
+
 export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: ActionImplementationUpdatesProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const organizationId = useOrganizationId();
+  const { members: orgMembers } = useOrganizationMembers();
   const [updates, setUpdates] = useState<ImplementationUpdate[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -27,103 +38,57 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
   const [editingUpdateId, setEditingUpdateId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [hoveredUpdateId, setHoveredUpdateId] = useState<string | null>(null); // Added state for hover tracking
+  const [allProfiles, setAllProfiles] = useState(profiles);
+  const [hoveredUpdateId, setHoveredUpdateId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUpdates();
-    getCurrentUser();
   }, [actionId]);
+
+  useEffect(() => {
+    setAllProfiles(profiles);
+  }, [profiles]);
 
 
   const getCurrentUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    setCurrentUserId(user?.id || null);
+    // This will be handled by the useAuth hook
   };
 
   const fetchUpdates = async () => {
     try {
       console.log('Fetching updates for action:', actionId);
-      const { data, error } = await supabase
-        .from('action_implementation_updates')
-        .select('*')
-        .eq('action_id', actionId)
-        .order('created_at', { ascending: false });
+      const result = await apiService.get(`/action_implementation_updates?action_id=${actionId}`);
+      const data = result.data || [];
+      console.log('Fetched updates from server:', data.length, 'updates');
 
-      if (error) {
-        console.error('Error fetching updates:', error);
-        throw error;
-      }
-
-      console.log('Fetched updates from server:', data?.length || 0, 'updates');
-
-      // Use the profiles prop that should include favorite_color
-      // Create a map of user_id to profile data from the passed profiles
-      const profileMap = new Map();
-      profiles.forEach(profile => {
-        profileMap.set(profile.user_id, {
-          full_name: profile.full_name,
-          user_id: profile.user_id,
-          favorite_color: profile.favorite_color
-        });
-      });
-
-      // Add profile data to updates
-      let updatesWithProfiles = (data || []).map(update => {
-        const profile = profileMap.get(update.updated_by);
-        
-        return {
-          ...update,
-          updated_by_profile: profile || {
-            full_name: 'Unknown User',
-            user_id: update.updated_by,
-            favorite_color: null
-          }
-        };
-      });
-
-      // Check if we have any missing profiles and fetch them
-      const missingUserIds = updatesWithProfiles
-        .filter(update => !profileMap.has(update.updated_by))
-        .map(update => update.updated_by);
+      // Fetch missing user profiles
+      const userIds = [...new Set(data.map(update => update.updated_by))];
+      const missingUserIds = userIds.filter(userId => 
+        !allProfiles.some(profile => profile.user_id === userId)
+      );
 
       if (missingUserIds.length > 0) {
         try {
-          const { data: missingMembers, error: missingError } = await supabase
-            .from('organization_members')
-            .select('user_id, full_name')
-            .in('user_id', missingUserIds)
-            .eq('is_active', true);
-
-          if (missingError) {
-            console.error('Error fetching missing members:', missingError);
-          } else if (missingMembers) {
-            // Update the profile map with missing members
-            missingMembers.forEach(member => {
-              profileMap.set(member.user_id, {
-                full_name: member.full_name || 'Unknown User',
-                user_id: member.user_id,
-                favorite_color: null
-              });
-            });
-
-            // Re-map updates with the newly fetched profiles
-            updatesWithProfiles = (data || []).map(update => {
-              const profile = profileMap.get(update.updated_by);
-              return {
-                ...update,
-                updated_by_profile: profile || {
-                  full_name: 'Unknown User',
-                  user_id: update.updated_by,
-                  favorite_color: null
-                }
-              };
-            });
-          }
+          const profilePromises = missingUserIds.map(async (userId) => {
+            const result = await apiService.get(`/profiles?user_id=${userId}`);
+            return result.data?.[0] || null;
+          });
+          
+          const newProfiles = (await Promise.all(profilePromises)).filter(Boolean);
+          const updatedProfiles = [...allProfiles, ...newProfiles];
+          setAllProfiles(updatedProfiles);
         } catch (error) {
           console.error('Error fetching missing profiles:', error);
         }
       }
+
+      const updatesWithProfiles = (data || []).map(update => {
+        const profile = allProfiles.find(p => p.user_id === update.updated_by);
+        return {
+          ...update,
+          updated_by_profile: profile
+        };
+      });
 
       console.log('Setting updates in state:', updatesWithProfiles.length, 'updates');
       setUpdates(updatesWithProfiles);
@@ -144,37 +109,37 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
 
     setIsSubmitting(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User must be authenticated');
+      if (!user) throw new Error('Not authenticated');
 
-      const { error } = await supabase
-        .from('action_implementation_updates')
-        .insert({
-          action_id: actionId,
-          update_text: newUpdateText,
-          updated_by: user.id
-        });
-
-      if (error) throw error;
+      await apiService.post('/action_implementation_updates', {
+        action_id: actionId,
+        update_text: newUpdateText,
+        updated_by: user.userId
+      });
 
       setNewUpdateText('');
       
       // Refresh updates to show the new one immediately
       await fetchUpdates();
       
-      // Check if this is the second implementation update (moving from agreement to actual work)
-      // and activate planned checkouts if needed
-      if (updates.length === 1) {
+      // Activate planned checkouts if plan is committed and this is the first implementation update
+      if (updates.length === 0) {
         try {
-          await activatePlannedCheckoutsIfNeeded(actionId, organizationId);
+          // Check if action has plan_commitment
+          const actionResult = await apiService.get('/actions');
+          const action = actionResult.data?.find((a: any) => a.id === actionId);
+          
+          if (action?.plan_commitment === true) {
+            await activatePlannedCheckoutsIfNeeded(actionId, organizationId);
+          }
         } catch (checkoutError) {
           console.error('Error activating planned checkouts:', checkoutError);
           // Don't fail the update if checkout fails - this is a background operation
         }
       }
       
-      // Don't call onUpdate for add operations to keep action open
-      // onUpdate?.();
+      // Call onUpdate to update border color immediately
+      onUpdate?.();
 
       if (updates.length > 0) {
         toast({
@@ -209,12 +174,10 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase
-        .from('action_implementation_updates')
-        .update({ update_text: editingText })
-        .eq('id', editingUpdateId);
-
-      if (error) throw error;
+      await apiService.put('/action_implementation_updates', {
+        id: editingUpdateId,
+        update_text: editingText
+      });
 
       setEditingUpdateId(null);
       setEditingText('');
@@ -253,15 +216,7 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
     setIsDeleting(updateId);
     
     try {
-      const { error } = await supabase
-        .from('action_implementation_updates')
-        .delete()
-        .eq('id', updateId);
-
-      if (error) {
-        console.error('Delete error:', error);
-        throw error;
-      }
+      await apiService.delete(`/action_implementation_updates?id=${updateId}`);
 
       console.log('Delete successful, refreshing from server...');
       
@@ -274,9 +229,8 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
         description: "Implementation update has been removed",
       });
       
-      // Don't call onUpdate for delete operations to keep action open
-      // Border color will update when the action is next opened/refreshed
-      // onUpdate?.();
+      // Call onUpdate to update border color immediately
+      onUpdate?.();
     } catch (error) {
       console.error('Error deleting update:', error);
       toast({
@@ -289,9 +243,16 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
     }
   };
 
-  const getProfileName = (userId: string) => {
-    const profile = profiles.find(p => p.user_id === userId);
-    return profile?.full_name || 'Unknown User';
+  const getProfileName = (cognitoUserId: string) => {
+    // Find the user's database user_id based on their Cognito user ID
+    const currentUserProfile = orgMembers.find(p => p.cognito_user_id === cognitoUserId);
+    if (currentUserProfile) {
+      return currentUserProfile.full_name;
+    } else {
+      // Fallback: check if Cognito user ID matches user_id directly (like Stefan's case)
+      const profile = allProfiles.find(p => p.user_id === cognitoUserId);
+      return profile?.full_name;
+    }
   };
 
   // Get user's color from their profile preferences
@@ -300,9 +261,8 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
   };
 
   // Check if current user can edit/delete this update
-  const canEditUpdate = async (update: ImplementationUpdate) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    return user?.id === update.updated_by;
+  const canEditUpdate = (update: ImplementationUpdate) => {
+    return user?.userId === update.updated_by;
   };
 
   if (loading) {
@@ -320,7 +280,7 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
       {/* Implementation Updates Section */}
       <div>
         <div className="flex items-center mb-2">
-          <Label className="text-sm font-medium">Implementation Updates</Label>
+          <Label className="text-sm font-medium text-foreground">Implementation Updates</Label>
         </div>
         
         {/* Add new update form */}
@@ -380,7 +340,7 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
                         </div>
                         
                         {/* Show edit/delete buttons on hover and for current user's updates */}
-                        {hoveredUpdateId === update.id && currentUserId === update.updated_by && (
+                        {hoveredUpdateId === update.id && user?.userId === update.updated_by && (
                           <div className="flex items-center gap-3">
                             {isEditing ? (
                               <>
@@ -443,8 +403,8 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
                           />
                         </div>
                       ) : (
-                        <div className="prose prose-sm max-w-none text-sm">
-                          <div dangerouslySetInnerHTML={{ __html: update.update_text }} />
+                        <div className="prose prose-sm max-w-none text-sm text-foreground">
+                          <div className="text-foreground" dangerouslySetInnerHTML={{ __html: update.update_text }} />
                         </div>
                       )}
                     </div>

@@ -1,4 +1,4 @@
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
@@ -12,7 +12,7 @@ import { useOrganization } from '@/hooks/useOrganization';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 export default function Dashboard() {
-  const { user, signOut, isAdmin } = useAuth();
+  const { user, signOut, isAdmin, isLeadership } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
   const { organization, loading: orgLoading } = useOrganization();
   const navigate = useNavigate();
@@ -56,7 +56,7 @@ export default function Dashboard() {
       color: "bg-yellow-500"
     },
     {
-      title: "Stargazer Missions",
+      title: "Stargazer Projects",
       description: "Manage objectives and track progress",
       icon: Flag,
       path: "/missions",
@@ -125,8 +125,8 @@ export default function Dashboard() {
       <main className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {menuItems.filter(item => {
-            if (item.path === "/dashboard/analytics") return isAdmin;
-            if (item.path === "/organization") return isAdmin;
+            if (item.path === "/dashboard/analytics") return isLeadership;
+            if (item.path === "/organization") return isLeadership;
             if (item.path === "/admin/organizations") return isSuperAdmin;
             return true;
           }).map((item) => {

@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle, X, Clock, Edit, Plus, Target, Swords } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/client';
 import { toast } from "@/hooks/use-toast";
 import { UnifiedActionDialog } from "./UnifiedActionDialog";
 import { createIssueAction } from "@/types/actions";
@@ -77,7 +77,6 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
           new_status: 'removed',
           changed_by: (await supabase.auth.getUser()).data.user?.id,
           notes: 'Issue removed during check-in',
-          organization_id: organizationId
         });
 
       if (historyError) throw historyError;

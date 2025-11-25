@@ -5,9 +5,9 @@ import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { X, Plus, Search, User, Undo2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/client';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { useOrganizationId } from '@/hooks/useOrganizationId';
 import { ToolCheckoutDialog } from '@/components/ToolCheckoutDialog';
 import { ToolCheckInDialog } from '@/components/ToolCheckInDialog';
@@ -358,7 +358,6 @@ export function ResourceSelector({ selectedResources, onResourcesChange, assigne
           quantity_change: -(resource.quantity || 1),
           changed_by: user.id,
           change_reason: `Used for mission - ${resource.quantity || 1} ${resource.unit || 'pieces'} of ${resource.name}`,
-          organization_id: organizationId
         });
 
       if (historyError) {

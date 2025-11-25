@@ -1,0 +1,22 @@
+{
+  "apiGateway": {
+    "id": "0720au267k",
+    "name": "cwf-api",
+    "region": "us-west-2",
+    "resources": {
+      "root": "j9ibcby8sg",
+      "api": "o6z3d4",
+      "health": "8qkspt",
+      "actions": "22y6in",
+      "organization_members": "z2a4vl",
+      "tools": "siv2gu",
+      "parts": "lmsdg8"
+    }
+  },
+  "rdsProxy": {
+    "status": "pending"
+  },
+  "lambdaLayers": {
+    "status": "pending"
+  }
+}

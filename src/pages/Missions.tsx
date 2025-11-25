@@ -1,21 +1,21 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useActionProfiles } from "@/hooks/useActionProfiles";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { offlineQueryConfig } from '@/lib/queryConfig';
 import { ArrowLeft, Rocket, Flag, Calendar, User, CheckCircle, Clock, AlertCircle, Wrench, Microscope, GraduationCap, Hammer, Lightbulb, ChevronDown, ChevronUp, Filter, Settings } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { MissionTemplates } from '@/components/MissionTemplates';
 import { SimpleMissionForm } from '@/components/SimpleMissionForm';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-
+import { apiService } from '@/lib/apiService';
 
 import { withAuth, checkUserRole as checkUserRoleAuth } from '@/lib/authUtils';
 import { hasActualContent } from '@/lib/utils';
@@ -66,37 +66,66 @@ const Missions = () => {
   const {
     toast
   } = useToast();
-  const [missions, setMissions] = useState<Mission[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+
+  const fetchMissions = async () => {
+    // Use apiService to include authentication headers
+    const { apiService, getApiData } = await import('@/lib/apiService');
+    const response = await apiService.get('/missions');
+    const data = getApiData(response);
+    return Array.isArray(data) ? data : [];
+  };
+
+  const { data: missions = [], isLoading: loading } = useQuery({
+    queryKey: ['missions'],
+    queryFn: fetchMissions,
+    ...offlineQueryConfig,
+  });
   
   // Use standardized profiles for consistent "Assigned to" dropdown
   const { profiles } = useActionProfiles();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showTemplates, setShowTemplates] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isContributorOrAdmin, setIsContributorOrAdmin] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<{
-    id: string;
-    name: string;
-    description: string;
-    icon: React.ComponentType<{ className?: string }>;
-    category: string;
-    defaultTasks: Array<{
-      title: string;
-      description: string;
-      plan?: string;
-      observations?: string;
-    }>;
-    estimatedDuration: string;
-    color: string;
-  } | null>(null);
+  const { data: organizationMembers = [] } = useQuery({
+    queryKey: ['organization_members'],
+    queryFn: async () => {
+      const result = await apiService.get('/organization_members');
+      return Array.isArray(result) ? result : (result?.data || []);
+    },
+    ...offlineQueryConfig,
+  });
+
+  const userRole = useMemo(() => {
+    if (!user) return null;
+    const member = organizationMembers.find(m => m.user_id === user.id);
+    return member?.role || null;
+  }, [user, organizationMembers]);
+
+  const isAdmin = userRole === 'admin';
+  const isContributorOrAdmin = userRole === 'admin' || userRole === 'contributor';
   const [expandedProblemStatements, setExpandedProblemStatements] = useState<Set<string>>(new Set());
   const [showCompletedMissions, setShowCompletedMissions] = useState(false);
   const [showBackloggedMissions, setShowBackloggedMissions] = useState(false);
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
 
-  // Debouncing for real-time updates
-  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const createMissionMutation = useMutation({
+    mutationFn: async (missionData: any) => {
+      return await apiService.post('/missions', missionData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['missions'] });
+      toast({
+        title: "Success",
+        description: "Mission created successfully!"
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to create mission",
+        variant: "destructive"
+      });
+    }
+  });
 
   // Icon mapping function
   const getIconComponent = (iconName: string) => {
@@ -144,98 +173,7 @@ const Missions = () => {
     }] as Task[]
   });
 
-  const checkUserRole = useCallback(async () => {
-    if (!user) return;
-    const {
-      data: member
-    } = await supabase.from('organization_members').select('role').eq('user_id', user.id).single();
-    setIsAdmin(member?.role === 'admin');
-    setIsContributorOrAdmin(member?.role === 'admin' || member?.role === 'contributor');
-  }, [user]);
 
-  // Use standardized profile hook instead of manual fetching
-  // This ensures consistent "Assigned to" dropdown across all action contexts
-  const fetchMissions = useCallback(async () => {
-    setLoading(true);
-    const {
-      data,
-      error
-    } = await supabase.from('missions').select(`
-        *,
-        actions(
-          id,
-          status, 
-          policy,
-          observations,
-          linked_issue_id,
-          issue_reference
-        )
-      `).eq('organization_id', organizationId).order('created_at', {
-      ascending: false
-    });
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load missions",
-        variant: "destructive"
-      });
-    } else {
-      // Get all unique user IDs for name lookup
-      const userIds = [...new Set([
-        ...data?.map(m => m.created_by).filter(Boolean) || [],
-        ...data?.map(m => m.qa_assigned_to).filter(Boolean) || []
-      ])];
-      
-      // Fetch names from organization_members table
-      const { data: memberData } = await supabase
-        .from('organization_members')
-        .select('user_id, full_name')
-        .eq('organization_id', organizationId)
-        .in('user_id', userIds);
-      
-      // Create a lookup map
-      const nameMap = new Map();
-      memberData?.forEach(member => {
-        nameMap.set(member.user_id, member.full_name);
-      });
-      
-      const missionsWithNames = data?.map(mission => {
-        const tasks = mission.actions || [];
-        const completedTasks = tasks.filter((task) => task.status === 'completed');
-        const tasksWithPolicies = tasks.filter((task) => hasActualContent(task.policy));
-        const tasksWithImplementation = tasks.filter((task) => hasActualContent(task.observations));
-        return {
-          ...mission,
-          creator_name: nameMap.get(mission.created_by) || 'Unknown',
-          qa_name: mission.qa_assigned_to ? (nameMap.get(mission.qa_assigned_to) || 'Unassigned') : 'Unassigned',
-          task_count: tasks.length,
-          completed_task_count: completedTasks.length,
-          tasks_with_policies_count: tasksWithPolicies.length,
-          tasks_with_implementation_count: tasksWithImplementation.length
-        };
-      }) || [];
-      setMissions(missionsWithNames);
-
-      // Update mission status based on task progress
-      for (const mission of missionsWithNames) {
-        if (mission.tasks_with_implementation_count > 0 && mission.status === 'planning') {
-          // Auto-update mission to in_progress if any task has implementation
-          await supabase.from('missions').update({
-            status: 'in_progress'
-          }).eq('id', mission.id);
-        }
-
-        // Auto-update mission to completed if all tasks are completed
-        if (mission.task_count > 0 && mission.completed_task_count === mission.task_count && mission.status !== 'completed') {
-          await supabase.from('missions').update({
-            status: 'completed',
-            completed_at: new Date().toISOString()
-          }).eq('id', mission.id);
-        }
-      }
-    }
-    setLoading(false);
-  }, [organizationId, toast]);
 
   // Updated function to determine mission color based on task content analysis and QA feedback
   const getMissionTheme = (mission: Mission) => {
@@ -318,113 +256,7 @@ const Missions = () => {
     };
   };
 
-  // Targeted state update function for real-time changes
-  const updateMissionTaskCounts = useCallback((missionId: string, tasks: Array<{
-    id: string;
-    status: string;
-    policy?: string;
-    observations?: string;
-  }>) => {
-    setMissions(prevMissions => {
-      return prevMissions.map(mission => {
-        if (mission.id !== missionId) return mission;
-        const completedTasks = tasks.filter((task) => task.status === 'completed');
-        const tasksWithPolicies = tasks.filter((task) => task.policy && task.policy.trim());
-        const tasksWithImplementation = tasks.filter((task) => task.observations && task.observations.trim());
-        return {
-          ...mission,
-          task_count: tasks.length,
-          completed_task_count: completedTasks.length,
-          tasks_with_policies_count: tasksWithPolicies.length,
-          tasks_with_implementation_count: tasksWithImplementation.length
-        };
-      });
-    });
-  }, []);
 
-  // Debounced mission refresh for structural changes
-  const debouncedMissionRefresh = useCallback((delay: number = 500) => {
-    if (updateTimeoutRef.current) {
-      clearTimeout(updateTimeoutRef.current);
-    }
-    updateTimeoutRef.current = setTimeout(() => {
-      fetchMissions();
-    }, delay);
-  }, [fetchMissions]);
-  useEffect(() => {
-    fetchMissions();
-    checkUserRole();
-
-    // Subscribe to real-time changes in mission_tasks table with targeted updates
-    const channel = supabase.channel('mission-tasks-changes').on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'actions'
-    }, async payload => {
-      console.log('Task update received:', payload);
-
-      // For INSERT and DELETE events, we need to refresh to get accurate counts
-      if (payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
-        debouncedMissionRefresh();
-        return;
-      }
-
-      // For UPDATE events, we can do targeted updates to prevent focus loss
-      if (payload.eventType === 'UPDATE' && payload.new) {
-        const taskData = payload.new;
-        const missionId = taskData.mission_id;
-        if (missionId) {
-          // Fetch updated tasks for just this mission
-          const {
-            data: updatedTasks
-          } = await supabase.from('actions').select('id, status, policy, observations').eq('mission_id', missionId);
-          if (updatedTasks) {
-            updateMissionTaskCounts(missionId, updatedTasks);
-          }
-        }
-      }
-    }).subscribe();
-    return () => {
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-      }
-      supabase.removeChannel(channel);
-    };
-  }, [fetchMissions, checkUserRole, debouncedMissionRefresh, updateMissionTaskCounts]);
-  const handleTemplateSelect = (template: {
-    id: string;
-    name: string;
-    description: string;
-    icon: React.ComponentType<{ className?: string }>;
-    category: string;
-    defaultTasks: Array<{
-      title: string;
-      description: string;
-      plan?: string;
-      observations?: string;
-    }>;
-    estimatedDuration: string;
-    color: string;
-  }) => {
-    setSelectedTemplate(template);
-    setShowTemplates(false);
-
-    // Reset form with template data and default QA to current user
-    setFormData({
-      title: '',
-      problem_statement: '',
-      qa_assigned_to: user?.id || (() => {
-        throw new Error('User must be authenticated to create missions');
-      })(),
-      // Default to current user
-      actions: template.defaultTasks.length > 0 ? template.defaultTasks.map((task) => ({
-        title: task.title,
-        policy: task.plan || '',
-        observations: task.observations || '',
-        assigned_to: null
-      })) : []
-    });
-  };
   const handleCreateMission = async () => {
     if (!user || !formData.title.trim() || !formData.problem_statement.trim() || !formData.qa_assigned_to) {
       toast({
@@ -458,22 +290,13 @@ const Missions = () => {
       // Use withAuth wrapper for the mission creation
       const result = await withAuth(async session => {
         // Create the mission
-        const {
-          data: missionData,
-          error: missionError
-        } = await supabase.from('missions').insert({
+        const missionResult = await apiService.post('/missions', {
           title: formData.title,
           problem_statement: formData.problem_statement,
           created_by: session.user.id,
           qa_assigned_to: formData.qa_assigned_to || null,
-          template_id: selectedTemplate?.id || null,
-          template_name: selectedTemplate?.name || null,
-          template_color: selectedTemplate?.color || null,
-          template_icon: selectedTemplate?.icon ? getIconName(selectedTemplate.icon) : null,
-          organization_id: organizationId
-          // mission_number will be auto-generated by the trigger
-        }).select().single();
-        if (missionError) throw missionError;
+        });
+        const missionData = missionResult.data || missionResult;
 
         // Handle both new tasks from form and existing orphaned tasks
         const tasksToCreate = formData.actions.filter(task => task.title.trim() && !task.id);
@@ -483,21 +306,16 @@ const Missions = () => {
         
         // Create new tasks
         if (tasksToCreate.length > 0) {
-          const { data: tasksData, error: tasksError } = await supabase
-            .from('actions')
-            .insert(tasksToCreate.map(task => ({
-              mission_id: missionData.id,
-              title: task.title,
-              description: task.description || null,
-              policy: task.policy || null,
-              observations: task.observations || null,
-              assigned_to: task.assigned_to || null,
-              plan_commitment: task.plan_commitment || false,
-              organization_id: organizationId
-            })))
-            .select();
-          
-          if (tasksError) throw tasksError;
+          const tasksResult = await apiService.post('/actions', tasksToCreate.map(task => ({
+            mission_id: missionData.id,
+            title: task.title,
+            description: task.description || null,
+            policy: task.policy || null,
+            observations: task.observations || null,
+            assigned_to: task.assigned_to || null,
+            plan_commitment: task.plan_commitment || false,
+          })));
+          const tasksData = Array.isArray(tasksResult) ? tasksResult : (tasksResult?.data || []);
           
           // Create task ID mapping from temp IDs to real IDs
           tasksToCreate.forEach((task, index) => {
@@ -512,15 +330,10 @@ const Missions = () => {
 
         // Update existing orphaned tasks with the mission ID
         if (existingTasksToUpdate.length > 0) {
-          const { data: updatedTasks, error: updateError } = await supabase
-            .from('actions')
-            .update({ mission_id: missionData.id })
-            .in('id', existingTasksToUpdate.map(task => task.id))
-            .select();
-          
-          if (updateError) throw updateError;
-          
-          createdTasks.push(...(updatedTasks || []));
+          for (const task of existingTasksToUpdate) {
+            const updatedTask = await apiService.put(`/actions/${task.id}`, { mission_id: missionData.id });
+            createdTasks.push(updatedTask.data || updatedTask);
+          }
         }
 
         return { 
@@ -545,8 +358,6 @@ const Missions = () => {
           </div>
       });
       setShowCreateDialog(false);
-      setShowTemplates(true);
-      setSelectedTemplate(null);
       resetFormData();
       fetchMissions();
       
@@ -586,8 +397,6 @@ const Missions = () => {
   };
   const resetDialog = () => {
     setShowCreateDialog(false);
-    setShowTemplates(true);
-    setSelectedTemplate(null);
     resetFormData();
   };
   const toggleProblemStatement = (missionId: string) => {
@@ -646,17 +455,34 @@ const Missions = () => {
     return Math.round((mission.completed_task_count || 0) / mission.task_count * 100);
   };
   const getDialogTitle = () => {
-    if (showTemplates) {
-      return "Create New Mission";
-    }
-    if (selectedTemplate) {
-      return `Create ${selectedTemplate.name} Mission`;
-    }
-    return "Create New Mission";
+    return "Create New Project";
   };
 
+  const processedMissions = useMemo(() => {
+    const nameMap = new Map();
+    organizationMembers.forEach(member => {
+      nameMap.set(member.user_id, member.full_name);
+    });
+    
+    return missions.map(mission => {
+      const tasks = mission.actions || [];
+      const completedTasks = tasks.filter((task) => task.status === 'completed');
+      const tasksWithPolicies = tasks.filter((task) => hasActualContent(task.policy));
+      const tasksWithImplementation = tasks.filter((task) => hasActualContent(task.observations));
+      return {
+        ...mission,
+        creator_name: nameMap.get(mission.created_by) || 'Unknown',
+        qa_name: mission.qa_assigned_to ? (nameMap.get(mission.qa_assigned_to) || 'Unassigned') : 'Unassigned',
+        task_count: tasks.length,
+        completed_task_count: completedTasks.length,
+        tasks_with_policies_count: tasksWithPolicies.length,
+        tasks_with_implementation_count: tasksWithImplementation.length
+      };
+    });
+  }, [missions, organizationMembers]);
+
   // Filter missions based on status and user preferences
-  const filteredMissions = missions.filter(mission => {
+  const filteredMissions = processedMissions.filter(mission => {
     // Always show active missions (planning, in_progress, qa_review)
     if (['planning', 'in_progress', 'qa_review'].includes(mission.status)) {
       return true;
@@ -691,44 +517,34 @@ const Missions = () => {
               Back to Dashboard
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">Stargazer Missions</h1>
+              <h1 className="text-2xl font-bold">Stargazer Projects</h1>
               <p className="text-muted-foreground">Manage objectives and track progress</p>
             </div>
           </div>
           
-          {isAdmin && <Dialog open={showCreateDialog} onOpenChange={open => {
-          setShowCreateDialog(open);
-          if (open) {
-            // Always start with template selection when opening
-            setShowTemplates(true);
-            setSelectedTemplate(null);
-          }
-        }}>
+          {isAdmin && <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
               <DialogTrigger asChild>
                 <Button>
                   <Rocket className="h-4 w-4 mr-2" />
-                  Create Mission
+                  Create Project
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{getDialogTitle()}</DialogTitle>
                   <DialogDescription>
-                    {showTemplates ? "Choose a template to get started quickly" : "Define your mission details"}
+                    Define your project details
                   </DialogDescription>
                 </DialogHeader>
                 
-                {showTemplates ? <MissionTemplates onSelectTemplate={handleTemplateSelect} onClose={resetDialog} /> : <SimpleMissionForm formData={formData} setFormData={setFormData} profiles={profiles} onSubmit={handleCreateMission} onCancel={resetDialog} defaultTasks={selectedTemplate?.defaultTasks?.map(task => ({
-                  title: task.title,
-                  policy: task.plan || '',
-                  observations: task.observations || '',
-                  assigned_to: null
-                })) || []} selectedTemplate={selectedTemplate ? {
-                  id: selectedTemplate.id,
-                  name: selectedTemplate.name,
-                  color: selectedTemplate.color,
-                  icon: selectedTemplate.icon
-                } : undefined} />}
+                <SimpleMissionForm 
+                  formData={formData} 
+                  setFormData={setFormData} 
+                  profiles={profiles} 
+                  onSubmit={handleCreateMission} 
+                  onCancel={resetDialog} 
+                  defaultTasks={[]}
+                />
               </DialogContent>
             </Dialog>}
 
@@ -743,7 +559,7 @@ const Missions = () => {
               <Button variant="ghost" className="h-auto p-2 hover:bg-muted/50">
                 <div className="flex items-center gap-2">
                   <Filter className="h-4 w-4" />
-                  <span className="text-sm font-medium">Mission Filters</span>
+                  <span className="text-sm font-medium">Project Filters</span>
                   {(showCompletedMissions || showBackloggedMissions) && (
                     <div className="flex items-center gap-1">
                       <div className="w-2 h-2 bg-primary rounded-full" />
@@ -823,19 +639,19 @@ const Missions = () => {
 
       <main className="p-6">
         <div className="max-w-7xl mx-auto">
-          {loading ? <div className="text-center py-8">Loading missions...</div> : missions.length === 0 ? <div className="text-center py-8">
+          {loading ? <div className="text-center py-8">Loading projects...</div> : missions.length === 0 ? <div className="text-center py-8">
               <Flag className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No missions yet</h3>
+              <h3 className="text-lg font-semibold mb-2">No projects yet</h3>
               <p className="text-muted-foreground">
-                {isAdmin ? "Create your first mission to get started." : "No missions have been created yet."}
+                {isAdmin ? "Create your first project to get started." : "No projects have been created yet."}
               </p>
             </div> : <div className="space-y-8">
-              {/* Active Missions */}
+              {/* Active Projects */}
               {groupedMissions.active.length > 0 && (
                 <div>
                   <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                     <AlertCircle className="h-5 w-5" />
-                    Active Missions ({groupedMissions.active.length})
+                    Active Projects ({groupedMissions.active.length})
                   </h2>
                   <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     {groupedMissions.active.map(mission => {
@@ -845,7 +661,7 @@ const Missions = () => {
                       <div className="flex items-start justify-between">
                          <CardTitle className="flex items-center gap-2">
                            {getStatusIcon(mission.status)}
-                           MISSION-{String(mission.mission_number).padStart(3, '0')}: {mission.title}
+                           PROJECT-{String(mission.mission_number).padStart(3, '0')}: {mission.title}
                          </CardTitle>
                       </div>
                       <Collapsible open={expandedProblemStatements.has(mission.id)} onOpenChange={() => toggleProblemStatement(mission.id)}>
@@ -898,14 +714,14 @@ const Missions = () => {
                 </div>
               )}
 
-              {/* Completed Missions */}
+              {/* Completed Projects */}
               {groupedMissions.completed.length > 0 && (
                 <Collapsible open={showCompletedMissions} onOpenChange={setShowCompletedMissions}>
                   <CollapsibleTrigger asChild>
                     <Button variant="ghost" className="h-auto p-0 text-left justify-start hover:bg-transparent">
                       <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                         <CheckCircle className="h-5 w-5" />
-                        Completed Missions ({groupedMissions.completed.length})
+                        Completed Projects ({groupedMissions.completed.length})
                         {showCompletedMissions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </h2>
                     </Button>
@@ -973,14 +789,14 @@ const Missions = () => {
                 </Collapsible>
               )}
 
-              {/* Backlogged Missions */}
+              {/* Backlogged Projects */}
               {groupedMissions.backlogged.length > 0 && (
                 <Collapsible open={showBackloggedMissions} onOpenChange={setShowBackloggedMissions}>
                   <CollapsibleTrigger asChild>
                     <Button variant="ghost" className="h-auto p-0 text-left justify-start hover:bg-transparent">
                       <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                         <Clock className="h-5 w-5" />
-                        Backlogged Missions ({groupedMissions.backlogged.length})
+                        Backlogged Projects ({groupedMissions.backlogged.length})
                         {showBackloggedMissions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </h2>
                     </Button>

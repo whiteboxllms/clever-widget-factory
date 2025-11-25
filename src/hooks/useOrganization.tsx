@@ -1,6 +1,7 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from './useAuth';
+import { createContext, useContext } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/useCognitoAuth';
+import { useProfile } from '@/hooks/useProfile';
 
 interface Organization {
   id: string;
@@ -31,69 +32,39 @@ interface OrganizationContextType {
 const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
 
 export function OrganizationProvider({ children }: { children: React.ReactNode }) {
-  const { user, loading: authLoading } = useAuth();
-  const [organization, setOrganization] = useState<Organization | null>(null);
-  const [organizationMember, setOrganizationMember] = useState<OrganizationMember | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const isAdmin = organizationMember?.role === 'admin';
-
-  const fetchOrganizationData = async () => {
-    if (!user) {
-      setOrganization(null);
-      setOrganizationMember(null);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      // Get user's organization membership (take the first one if multiple exist)
-      const { data: memberData, error: memberError } = await supabase
-        .from('organization_members')
-        .select(`
-          *,
-          organization:organizations(*)
-        `)
-        .eq('user_id', user.id)
-        .limit(1)
-        .single();
-
-      if (memberError) {
-        console.error('Error fetching organization membership:', memberError);
-        setOrganization(null);
-        setOrganizationMember(null);
-        setLoading(false);
-        return;
-      }
-
-      setOrganizationMember(memberData);
-      setOrganization(memberData.organization as Organization);
-    } catch (error) {
-      console.error('Error in fetchOrganizationData:', error);
-      setOrganization(null);
-      setOrganizationMember(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  
+  // Use useProfile to get real organization data instead of mock data
+  const {
+    organization,
+    organizationMember,
+    isAdmin,
+    isLoading
+  } = useProfile();
 
   const refreshOrganization = async () => {
-    setLoading(true);
-    await fetchOrganizationData();
-  };
-
-  useEffect(() => {
-    if (!authLoading) {
-      fetchOrganizationData();
+    // Invalidate queries to force refetch
+    if (user?.userId) {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['profile', user.userId] }),
+        queryClient.invalidateQueries({ queryKey: ['organization_memberships', user.userId] }),
+      ]);
     }
-  }, [user, authLoading]);
+  };
 
   return (
     <OrganizationContext.Provider value={{
       organization,
-      organizationMember,
+      organizationMember: organizationMember ? {
+        id: organizationMember.id,
+        organization_id: organizationMember.organization_id,
+        user_id: organizationMember.user_id,
+        role: organizationMember.role,
+        invited_by: null
+      } : null,
       isAdmin,
-      loading,
+      loading: isLoading,
       refreshOrganization,
     }}>
       {children}

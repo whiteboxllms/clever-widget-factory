@@ -1,106 +1,86 @@
 # Clever Widget Factory
 
-A comprehensive asset management and accountability system built with React, TypeScript, and Supabase.
+A comprehensive asset management and accountability system built with React, TypeScript, and AWS.
 
-## Project info
+## Current Architecture (Post-Migration)
 
-**URL**: https://lovable.dev/projects/79911e5f-8077-4490-a4d5-cbe8b4da048d
+**⚠️ IMPORTANT: We are NO LONGER using Supabase. The application has been migrated to AWS infrastructure.**
+
+### Technology Stack
+- **Frontend**: React + TypeScript + Vite (runs on port 8080)
+- **Backend API**: AWS API Gateway + Lambda
+- **Database**: AWS RDS PostgreSQL
+- **Authentication**: AWS Cognito
+- **File Storage**: AWS S3
+- **Infrastructure**: Fully AWS-based
 
 ## Local Development Setup
 
 ### Prerequisites
-
 - Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-- Supabase CLI installed - [install Supabase CLI](https://supabase.com/docs/guides/cli/getting-started)
 
-### Database Setup
+### Development Setup
 
-This project uses Supabase as the database backend. To set up your local development environment with the latest database schema and data:
+1. **Clone and install**:
+   ```bash
+   git clone <YOUR_GIT_URL>
+   cd clever-widget-factory
+   npm i
+   ```
 
-#### Quick Setup (Recommended)
+2. **Start the frontend**:
+   ```bash
+   npm run dev
+   ```
+   This starts the Vite dev server on http://localhost:8080
 
-Use the automated restoration script:
+### API Endpoints
+The AWS API Gateway provides these endpoints:
+- `GET /health` - Health check
+- `GET /api/actions` - Get all actions
+- `GET /api/organization_members` - Get organization members
+- `GET /api/tools` - Get tools
+- `GET /api/parts` - Get parts
+- `POST /api/query` - Execute custom SQL queries
 
-```sh
-# For local development (default)
-./scripts/restore-and-migrate.sh
+#### `/api/tools` response
+Tools are served by the `cwf-core-lambda` function which queries the AWS RDS instance. Each tool row now includes checkout metadata resolved server-side (no extra checkout request required):
+- `is_checked_out` (boolean)
+- `checked_out_user_id`
+- `checked_out_to`
+- `checked_out_date`
+- `expected_return_date`
+- `checkout_intended_usage`
+- `checkout_notes`
 
-# For production (requires PROD_DATABASE_URL environment variable)
-export PROD_DATABASE_URL="postgresql://user:password@host:port/database"
-./scripts/restore-and-migrate.sh --prod
+When a tool has an active checkout (`is_returned = false` in `checkouts`), `status` is automatically overridden to `checked_out`.
+
+### Database Connection
+- **All environments**: AWS RDS PostgreSQL instance
+
+### Database Migrations
+Run database migrations using the Lambda function:
+```bash
+aws lambda invoke --function-name cwf-db-migration --payload '{"sql":"YOUR_SQL_HERE"}' response.json --region us-west-2 --cli-binary-format raw-in-base64-out
 ```
 
-#### Manual Setup
+### Migration Status
+✅ **COMPLETED**: Migrated from Supabase to AWS infrastructure
+- Frontend updated to use API service instead of Supabase client
+- Database migrated to PostgreSQL
+- Authentication moved to AWS Cognito
+- File storage moved to AWS S3
+- Policy agreement system implemented (actions now use `policy_agreed_at`/`policy_agreed_by` fields)
 
-1. **Start Supabase locally:**
-   ```sh
-   supabase start
-   ```
+### User ID Migration Reference
+During Cognito migration, user IDs were updated. Reference for any remaining migrations:
 
-2. **Restore the database from backup:**
-   ```sh
-   # Stop the local Supabase instance
-   supabase stop
-   
-   # Restore from the backup file
-   supabase db reset --db-url "postgresql://postgres:postgres@localhost:54322/postgres" --file backups/db_cluster-10-10-2025@17-03-17.backup
-   
-   # Start Supabase again
-   supabase start
-   ```
-
-3. **Verify the database is running:**
-   ```sh
-   supabase status
-   ```
-
-### Application Setup
-
-Follow these steps to get the application running:
-
-```sh
-# Step 1: Clone the repository
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory
-cd clever-widget-factory
-
-# Step 3: Install the necessary dependencies
-npm i
-
-# Step 4: Start the development server
-npm run dev
-```
-
-The application will be available at `http://localhost:8080` (or the port shown in your terminal).
-
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/79911e5f-8077-4490-a4d5-cbe8b4da048d) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+| User | Old UUID | New Cognito UUID |
+|------|----------|------------------|
+| Malone | `4d7124f9-c0f2-490d-a765-3a3f8d1dbad8` | `989163e0-7011-70ee-6d93-853674acd43c` |
+| Lester Paniel | `7dd4187f-ff2a-4367-9e7b-0c8741f25495` | `68d173b0-60f1-70ea-6084-338e74051fcc` |
+| Mae Dela Torre | `48155769-4d22-4d36-9982-095ac9ad6b2c` | `1891f310-c071-705a-2c72-0d0a33c92bf0` |
+| Stefan Hamilton | `b8006f2b-0ec7-4107-b05a-b4c6b49541fd` | `08617390-b001-708d-f61e-07a1698282ec` |
 
 ## What technologies are used for this project?
 
@@ -108,8 +88,8 @@ This project is built with:
 
 - **Frontend**: React 18, TypeScript, Vite
 - **UI Components**: shadcn-ui, Radix UI, Tailwind CSS
-- **Database**: Supabase (PostgreSQL)
-- **Authentication**: Supabase Auth
+- **Database**: AWS RDS PostgreSQL
+- **Authentication**: AWS Cognito
 - **State Management**: React Query (TanStack Query)
 - **Forms**: React Hook Form with Zod validation
 - **Rich Text**: Tiptap editor
@@ -117,36 +97,32 @@ This project is built with:
 - **Date Handling**: date-fns
 - **Icons**: Lucide React
 
-## Database Management
+## Testing
 
-### Backup and Restore
-
-The project includes database backup files for easy setup:
-
-- `backups/db_cluster-10-10-2025@17-03-17.backup` - Latest database backup
-- `db_cluster-05-10-2025@17-08-06.backup` - Previous backup
-
-### Creating New Backups
-
-To create a new backup of your local database:
-
-```sh
-# Create a backup
-supabase db dump --file "db_cluster-$(date +%d-%m-%Y@%H-%M-%S).backup"
+Run the test suite:
+```bash
+npm test                    # Run all tests
+npm run test:watch          # Watch mode
+npm run test:ui             # UI mode
+npm run test:coverage       # With coverage
 ```
 
-### Database Migrations
+### Legacy Files (To Be Removed)
+The following files are legacy from the Supabase era and should be ignored:
+- `supabase/` directory
+- Any files referencing `@supabase/supabase-js`
+- `SUPABASE_TO_AWS_MIGRATION_PLAN.md` (migration is complete)
 
-Database schema changes are managed through Supabase migrations located in the `supabase/migrations/` directory. To apply migrations:
+### TODO / Known Issues
 
-```sh
-supabase db push
-```
-
-## Development Workflow
-
-1. **Database Changes**: Make schema changes through Supabase migrations
-2. **Local Development**: Use the local Supabase instance with the backup data
-3. **Testing**: Test changes locally before deploying
-4. **Deployment**: Deploy through Lovable or your preferred method
-
+#### Database Functions & Triggers
+- **`get_user_organization_id()` function error**: When creating parts history, error `{error: 'function get_user_organization_id() does not exist'}` occurs. 
+  - **Status**: Partially fixed - stub function created but may need verification
+  - **Root Cause**: Database triggers on `parts_history` table (or other tables) may be calling this Supabase-era function
+  - **Temporary Fix**: Created stub function that returns default org ID (`00000000-0000-0000-0000-000000000001`)
+  - **Proper Fix Needed**: 
+    1. Find all triggers using `get_user_organization_id()` (see `find-triggers-using-org-id.sql`)
+    2. Remove triggers or update them to not use this function
+    3. Ensure all Lambda INSERT statements explicitly include `organization_id` from request body
+    4. Remove stub function once triggers are cleaned up
+  - **Files**: `fix-get-user-org-id.sql`, `find-triggers-using-org-id.sql`

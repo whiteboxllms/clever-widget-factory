@@ -4,8 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Search, Plus, X, Package } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/client';
 import { useToast } from "@/hooks/use-toast";
+import { apiService } from '@/lib/apiService';
 
 interface StockItem {
   id: string;
@@ -41,14 +42,11 @@ export function StockSelector({ selectedStock, onStockChange }: StockSelectorPro
   const fetchStockItems = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('parts')
-        .select('id, name, category, unit, current_quantity')
-        .gt('current_quantity', 0)
-        .order('name');
-
-      if (error) throw error;
-      setStockItems(data || []);
+      const result = await apiService.get('/parts');
+      
+      // Filter parts with current_quantity > 0
+      const stockItems = (result.data || []).filter((part: any) => part.current_quantity > 0);
+      setStockItems(stockItems);
     } catch (error) {
       console.error('Error fetching stock items:', error);
       toast({

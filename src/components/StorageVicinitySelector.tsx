@@ -8,9 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/client';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { useOrganizationId } from '@/hooks/useOrganizationId';
 
 interface StorageVicinity {
@@ -86,7 +86,6 @@ export function StorageVicinitySelector({ value, onValueChange, placeholder = "S
           name: newVicinity.name.trim(),
           description: newVicinity.description.trim() || null,
           created_by: user.id,
-          organization_id: organizationId
         })
         .select()
         .single();

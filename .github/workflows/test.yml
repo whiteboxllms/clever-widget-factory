@@ -1,0 +1,100 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, 'feature/**', 'stefhamilton/**' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Debug workspace paths
+      run: |
+        echo "::group::Workspace info"
+        echo "Current directory: $(pwd)"
+        echo "Workspace env: ${GITHUB_WORKSPACE}"
+        echo "Listing workspace root:"
+        ls -al
+        echo "Listing .github contents:"
+        ls -al .github || true
+        echo "Listing .github/workflows contents:"
+        ls -al .github/workflows || true
+        echo "::endgroup::"
+    
+    - name: Debug environment summary
+      run: |
+        echo "::group::Environment summary"
+        for key in GITHUB_WORKSPACE GITHUB_JOB GITHUB_REF GITHUB_SHA RUNNER_OS RUNNER_USER RUNNER_TEMP RUNNER_TOOL_CACHE CI NODE_VERSION npm_config_cache npm_execpath; do
+          echo "$key=${!key}"
+        done
+        echo "node version: $(node -v)"
+        echo "npm version:  $(npm -v)"
+        echo "::endgroup::"
+    
+    - name: Check .env presence and permissions
+      run: |
+        if [ -f .env ]; then
+          echo ".env found"
+          ls -l .env
+          stat .env || true
+        else
+          echo ".env missing from workspace"
+        fi
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run tests with coverage
+      run: npm run test:run -- --coverage
+      env:
+        CI: true
+        SUPPRESS_JSDOM_URL_ERRORS: "false"
+    
+    - name: Publish Test Results
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      if: always()
+      with:
+        files: |
+          test-results.xml
+        check_name: 'Test Results'
+        comment_mode: 'always'
+        report_individual_runs: true
+        deduplicate_classes_by_file_name: true
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: |
+          test-results.xml
+          test-results.html
+          test-results.json
+          coverage/
+        retention-days: 30
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      if: always()
+      with:
+        file: ./coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+

@@ -1,0 +1,20 @@
+{
+  "name": "cwf-authorizer",
+  "version": "1.0.0",
+  "description": "Lambda Authorizer for Clever Widget Factory API Gateway",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test index.test.js"
+  },
+  "dependencies": {
+    "pg": "^8.11.3",
+    "jsonwebtoken": "^9.0.2",
+    "jwks-rsa": "^3.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0"
+  },
+  "author": "",
+  "license": "ISC"
+}
+

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, Circle, Clock, User, Upload, Image, ChevronDown, ChevronRight, Save, X, Link, Target, Copy } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { supabase } from "@/integrations/supabase/client";
+import { uploadToS3, getS3Url } from '@/lib/s3Service';
+import { apiService } from '@/lib/apiService';
+
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
@@ -23,6 +25,8 @@ import { hasActualContent, sanitizeRichText, getActionBorderStyle, processStockC
 import { BaseAction } from '@/types/actions';
 import { autoCheckinToolsForAction } from '@/lib/autoToolCheckout';
 import { generateActionUrl, copyToClipboard } from '@/lib/urlUtils';
+import { useProfile } from '@/hooks/useProfile';
+import { useAuth } from '@/hooks/useCognitoAuth';
 
 interface Profile {
   id: string;
@@ -50,11 +54,21 @@ interface ActionCardProps {
   onToggleComplete?: (action: any) => void;
 }
 
+interface ImplementationUpdate {
+  id: string;
+  action_id: string;
+  updated_by: string;
+  update_text: string;
+  created_at: string;
+}
+
 export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSave, onCancel, onEdit, tempPhotoStorage, compact = false, onToggleComplete }: ActionCardProps) {
   const { toast } = useToast();
   const organizationId = useOrganizationId();
   const enhancedToast = useEnhancedToast();
   const { getScoreForAction } = useAssetScores();
+  const { favoriteColor } = useProfile();
+  const { user } = useAuth();
   const planTextareaRef = useRef<HTMLTextAreaElement>(null);
   const implementationTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [isExpanded, setIsExpanded] = useState(true);
@@ -125,7 +139,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     return () => clearTimeout(timeoutId);
   }, [editData.policy, hasUnsavedPolicy, isSavingPolicy]);
 
-  // Load photos and scores for actions when component mounts
+  // Load photos and scores when component mounts
   useEffect(() => {
     if (action.id && !action.id.startsWith('temp-')) {
       loadPhotos();
@@ -146,23 +160,20 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     
     // Only load real photos for saved actions
     if (!action.id.startsWith('temp-')) {
-      // Get action with attachments field
-      const { data, error } = await supabase
-        .from('actions')
-        .select('attachments')
-        .eq('id', action.id)
-        .single();
-
-      if (error) {
+      try {
+        const data = await apiService.get(`/api/actions/${action.id}`);
+        
+        if (data) {
+          // Convert attachment URLs to photo format
+          const attachmentPhotos = (data?.attachments || []).map((url: string, index: number) => ({
+            id: `attachment-${index}`,
+            file_url: url,
+            file_name: `Attachment ${index + 1}`
+          }));
+          setPhotos(attachmentPhotos);
+        }
+      } catch (error) {
         console.error('Error loading action attachments:', error);
-      } else {
-        // Convert attachment URLs to photo format
-        const attachmentPhotos = (data?.attachments || []).map((url: string, index: number) => ({
-          id: `attachment-${index}`,
-          file_url: url,
-          file_name: `Attachment ${index + 1}`
-        }));
-        setPhotos(attachmentPhotos);
       }
     }
   };
@@ -189,20 +200,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
       const normalizedPolicy = sanitizeRichText(editData.policy);
       const updateData: { policy: string | null; assigned_to?: string } = { policy: normalizedPolicy };
       
-      // If action is unassigned, assign it to the current user
-      if (!action.assigned_to) {
-        const { data: user } = await supabase.auth.getUser();
-        if (user.user) {
-          updateData.assigned_to = user.user.id;
-        }
-      }
-
-      const { error } = await supabase
-        .from('actions')
-        .update(updateData)
-        .eq('id', action.id);
-
-      if (error) throw error;
+      await apiService.put(`/api/actions/${action.id}`, updateData);
       
       setHasUnsavedPolicy(false);
       // Don't call onUpdate() here to prevent disruptive refreshes
@@ -266,7 +264,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
         
         toast({
           title: "Photos Added",
-          description: `${files.length} photo${files.length > 1 ? 's' : ''} will be saved when you create the mission`,
+          description: `${files.length} photo${files.length > 1 ? 's' : ''} will be saved when you create the project`,
         });
       } catch (error) {
         console.error('Failed to add temporary photos:', error);
@@ -308,39 +306,24 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
           enhancedToast.showCompressionComplete(compressionResult);
           enhancedToast.dismiss(compressionToast.id);
 
-          // Upload to Supabase
+          // Upload to S3
           const uploadToast = enhancedToast.showUploadStart(file.name, compressionResult.compressedSize);
           
           const fileName = `${Date.now()}-${file.name}`;
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('mission-evidence')
-            .upload(fileName, compressionResult.file);
+          const uploadResult = await uploadToS3('mission-evidence', fileName, compressionResult.file);
 
-          if (uploadError) throw uploadError;
+          if (!uploadResult.success) throw new Error(uploadResult.error);
 
-          // Get the full URL for the uploaded file
-          const { data: { publicUrl } } = supabase.storage
-            .from('mission-evidence')
-            .getPublicUrl(uploadData.path);
+          // Get the relative path for database storage
+          const relativePath = `mission-evidence/${fileName}`;
 
           // Add to action's attachments array
-          const { data: currentAction, error: fetchError } = await supabase
-            .from('actions')
-            .select('attachments')
-            .eq('id', action.id)
-            .single();
-
-          if (fetchError) throw fetchError;
+          const currentAction = await apiService.get(`/api/actions/${action.id}`);
 
           const currentAttachments = currentAction?.attachments || [];
-          const updatedAttachments = [...currentAttachments, publicUrl];
+          const updatedAttachments = [...currentAttachments, relativePath];
 
-          const { error: updateError } = await supabase
-            .from('actions')
-            .update({ attachments: updatedAttachments })
-            .eq('id', action.id);
-
-          if (updateError) throw updateError;
+          await apiService.put(`/api/actions/${action.id}`, { attachments: updatedAttachments });
 
           enhancedToast.showUploadSuccess(file.name);
           enhancedToast.dismiss(uploadToast.id);
@@ -348,7 +331,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
           // Add to photos list
           setPhotos(prev => [...prev, {
             id: `attachment-${Date.now()}`,
-            file_url: publicUrl,
+            file_url: relativePath,
             file_name: file.name
           }]);
 
@@ -418,34 +401,25 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     }
 
     // Check if there are any implementation updates
-    const { data: updates, error: updatesError } = await supabase
-      .from('action_implementation_updates')
-      .select('id')
-      .eq('action_id', action.id)
-      .limit(1);
-
-    if (updatesError) {
-      console.error('Error checking updates:', updatesError);
-    }
-
-    if (!updates || updates.length === 0) {
-      toast({
-        title: "Implementation Required",
-        description: "Please add at least one implementation update before completing",
-        variant: "destructive",
-      });
-      return;
+    try {
+      const result = await apiService.get(`/api/action_implementation_updates?action_id=${action.id}&limit=1`);
+      const updates = result.data || [];
+      
+      if (!updates || updates.length === 0) {
+        toast({
+          title: "Implementation Required",
+          description: "Please add at least one implementation update before completing",
+          variant: "destructive",
+        });
+        return;
+      }
+    } catch (error) {
+      console.error('Error checking updates:', error);
     }
 
     setIsCompleting(true);
     
     try {
-      // Get the current user for inventory logging
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (!currentUser?.id) {
-        throw new Error('User must be authenticated to complete actions');
-      }
-
       // Process required stock consumption if any
       const requiredStock = action.required_stock || [];
       if (requiredStock.length > 0) {
@@ -454,7 +428,6 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
           action.id, 
           currentUser.id, 
           action.title, 
-          organizationId,
           action.mission_id
         );
       }
@@ -473,23 +446,12 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
         completed_at: new Date().toISOString()
       };
       
-      // If action is unassigned, assign it to the current user
-      if (!action.assigned_to) {
-        updateData.assigned_to = currentUser.id;
-      }
-
-      const { error } = await supabase
-        .from('actions')
-        .update(updateData)
-        .eq('id', action.id);
-
-      if (error) throw error;
+      await apiService.put(`/api/actions/${action.id}`, updateData);
 
       // Auto-checkin tools
       try {
         await autoCheckinToolsForAction({
           actionId: action.id,
-          organizationId: organizationId,
           checkinReason: 'Action completed',
           notes: 'Auto-checked in when action was completed'
         });
@@ -554,10 +516,6 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     }
   };
 
-  const getActionTheme = () => {
-    return getActionBorderStyle(action);
-  };
-
   const getStatusIcon = () => {
     if (action.status === 'completed') {
       return <CheckCircle className="w-4 h-4 text-emerald-600" />;
@@ -596,7 +554,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     return <Badge variant="outline">Not Started</Badge>;
   };
 
-  const theme = getActionTheme();
+  const theme = getActionBorderStyle(action);
 
   if (isEditing) {
     // Check if action should default to implementation updates based on border color logic
@@ -815,12 +773,32 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
               </div>
             </CardTitle>
             <div className="space-y-1">
-              {action.assigned_to && (
+              {action.assigned_to ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <User className="w-3 h-3" />
                   <span>
-                    {profiles.find(p => p.user_id === action.assigned_to)?.full_name || 'Unknown User'}
+                    {(() => {
+                      const assignedProfile = profiles.find(p => p.user_id === action.assigned_to);
+                      console.log('Action assigned_to:', action.assigned_to, 'Found profile:', assignedProfile);
+                      if (assignedProfile) {
+                        const isCurrentUser = user?.userId === action.assigned_to;
+                        const nameColor = isCurrentUser ? favoriteColor : '#6B7280';
+                        
+                        return (
+                          <span style={{ color: nameColor }}>
+                            {assignedProfile.full_name}
+                          </span>
+                        );
+                      }
+                      // Fallback: show "Assigned" if we have an assigned_to but no profile match
+                      return 'Assigned (Loading...)';
+                    })()}
                   </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <User className="w-3 h-3" />
+                  <span>Unassigned</span>
                 </div>
               )}
               {action.participants_details && action.participants_details.length > 0 && (
@@ -902,7 +880,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                   {photos.map((photo) => {
                     const photoUrl = photo.file_url.startsWith('http') 
                       ? photo.file_url 
-                      : supabase.storage.from('mission-evidence').getPublicUrl(photo.file_url).data.publicUrl;
+                      : getS3Url(photo.file_url);
                     
                     return (
                       <div key={photo.id} className="relative group">
@@ -913,7 +891,8 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                           onClick={() => window.open(photoUrl, '_blank')}
                           onError={(e) => {
                             if (!photo.file_url.startsWith('http')) {
-                              const fallbackUrl = supabase.storage.from('mission-attachments').getPublicUrl(photo.file_url).data.publicUrl;
+                              // Try mission-attachments path as fallback
+                              const fallbackUrl = getS3Url(`mission-attachments/${photo.file_url.split('/').pop()}`);
                               (e.currentTarget as HTMLImageElement).src = fallbackUrl;
                             }
                           }}

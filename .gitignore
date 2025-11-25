@@ -23,15 +23,53 @@ dist-ssr
 *.sln
 *.sw?
 
-# Database backups (use Git LFS for versioned backups)
-*.backup
-!backups/*.backup
+# Environment files with secrets
+.env
+.env.local
+.env.production.local
+.env.development.local
+.env.*.local
 
-# Supabase temporary files
-supabase/.temp/
+# AWS credentials
+aws-credentials.json
+*.pem
+*.key
+
+# Database backups
+*.backup
+*.sql
+backups/
+latest_backup.sql
+
+# Lambda deployment packages
+*.zip
+lambda/**/*.zip
+
+# Supabase temp files
 supabase/.branches/
+supabase/.temp/
 supabase/config.toml
 
-# Environment files (keep .env in version control for public defaults, ignore local overrides)
-.env.local
-.env.*.local
+# Migration docs
+API_GATEWAY_MIGRATION_PLAN.md
+LAMBDA_MIGRATION_PLAN.md
+
+# Temporary files
+tmp.html
+*.tmp
+tmp/
+
+# Unused directories
+*-UNUSED/
+*_UNUSED/
+
+# Test results and coverage
+test-results.*
+coverage/
+
+# Shell scripts (temporary migration scripts)
+run-*.sh
+check-db.sh
+
+# Prototype/one-time scripts
+prototype/

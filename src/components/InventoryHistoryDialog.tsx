@@ -5,9 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { History, TrendingUp, TrendingDown, Edit, Plus, ExternalLink } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { apiService } from '@/lib/apiService';
 
 interface HistoryEntry {
   id: string;
@@ -23,6 +23,9 @@ interface HistoryEntry {
   mission_number?: number;
   mission_title?: string;
   usage_description?: string;
+  action_id?: string | null;
+  action_title?: string | null;
+  action_status?: string | null;
 }
 
 interface InventoryHistoryDialogProps {
@@ -42,53 +45,26 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
     
     setLoading(true);
     try {
-      // Fetch from parts_history table
-      const { data: partsHistory, error: partsError } = await supabase
-        .from('parts_history')
-        .select('*')
-        .eq('part_id', partId)
-        .order('changed_at', { ascending: false });
+      // Fetch from AWS API Gateway endpoint using apiService (automatically adds Authorization header)
+      const result = await apiService.get<{ data: HistoryEntry[] }>(
+        `/parts_history?part_id=${partId}&limit=100`
+      );
+      
+      const partsHistory: HistoryEntry[] = result.data || [];
 
-      if (partsError) throw partsError;
-
-      // Note: inventory_usage table doesn't exist - all usage is tracked in parts_history
-
-      // Get unique user IDs from parts history
-      const userIds = new Set<string>();
-      partsHistory?.forEach(entry => {
-        if (entry.changed_by) userIds.add(entry.changed_by);
+      // Deduplicate records by id - keep the most recent one if duplicates exist
+      const historyMap = new Map<string, HistoryEntry>();
+      partsHistory.forEach((entry) => {
+        const existing = historyMap.get(entry.id);
+        if (!existing || new Date(entry.changed_at) > new Date(existing.changed_at)) {
+          historyMap.set(entry.id, entry);
+        }
       });
 
-      // Fetch user names from organization_members (same approach as other components)
-      const userMap: Record<string, string> = {};
-      if (userIds.size > 0) {
-        try {
-          const { data: members, error: membersError } = await supabase
-            .from('organization_members')
-            .select('user_id, full_name')
-            .in('user_id', Array.from(userIds))
-            .eq('is_active', true);
-          
-          if (membersError) {
-            console.error('Error fetching organization members:', membersError);
-          } else {
-            (members || []).forEach(member => {
-              userMap[member.user_id] = member.full_name || 'Unknown User';
-            });
-          }
-        } catch (error) {
-          console.error('Error fetching user names:', error);
-        }
-      }
-
-      // Add user names to parts history entries
-      const partsHistoryWithNames: HistoryEntry[] = (partsHistory || []).map(entry => ({
-        ...entry,
-        changed_by_name: userMap[entry.changed_by] || 'Unknown User'
-      }));
-
-      // Sort all history entries by date
-      const allHistory = partsHistoryWithNames.sort((a, b) => new Date(b.changed_at).getTime() - new Date(a.changed_at).getTime());
+      // Convert back to array and sort by date (most recent first)
+      const allHistory = Array.from(historyMap.values()).sort(
+        (a, b) => new Date(b.changed_at).getTime() - new Date(a.changed_at).getTime()
+      );
 
       setHistory(allHistory);
     } catch (error) {
@@ -231,13 +207,26 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
                                       className="h-8 text-xs"
                                     >
                                       <ExternalLink className="h-3 w-3 mr-1" />
-                                      Mission #{entry.mission_number}: {entry.mission_title}
+                                      Project #{entry.mission_number}: {entry.mission_title}
                                     </Button>
                                   </div>
                                 )}
                                 {entry.usage_description && (
                                   <div className="text-sm text-muted-foreground mt-1 italic">
                                     "{entry.usage_description}"
+                                  </div>
+                                )}
+                                {entry.action_id && entry.action_title && (
+                                  <div className="mt-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => window.open(`/actions#${entry.action_id}`, '_blank')}
+                                      className="h-8 text-xs"
+                                    >
+                                      <ExternalLink className="h-3 w-3 mr-1" />
+                                      View Action: {entry.action_title}
+                                    </Button>
                                   </div>
                                 )}
                               </div>
@@ -288,6 +277,19 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
                                     ) : (
                                       <div>Reason: {entry.change_reason}</div>
                                     )}
+                                  </div>
+                                )}
+                                {entry.action_id && entry.action_title && (
+                                  <div className="mt-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => window.open(`/actions#${entry.action_id}`, '_blank')}
+                                      className="h-8 text-xs"
+                                    >
+                                      <ExternalLink className="h-3 w-3 mr-1" />
+                                      View Action: {entry.action_title}
+                                    </Button>
                                   </div>
                                 )}
                               </div>

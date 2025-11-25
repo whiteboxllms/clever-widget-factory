@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { compressImageDetailed } from '@/lib/enhancedImageUtils';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { s3Client, S3_BUCKET, BUCKET_PREFIXES, BucketPrefix } from '@/lib/s3Client';
+import { compressImageSimple } from '@/lib/simpleImageCompression';
 import { useEnhancedToast } from './useEnhancedToast';
 
 export interface ImageUploadOptions {
-  bucket: string;
+  bucket: BucketPrefix;
   maxSizeMB?: number;
   maxWidthOrHeight?: number;
   generateFileName?: (file: File, index?: number) => string;
@@ -55,40 +56,50 @@ export const useImageUpload = () => {
       // Show compression start toast
       const compressionToast = enhancedToast.showCompressionStart(file.name, file.size);
 
-      // Compress the image with detailed progress
-      const compressionResult = await compressImageDetailed(
+      // Compress the image with simple compression
+      const compressionResult = await compressImageSimple(
         file,
-        { maxSizeMB, maxWidthOrHeight },
-        onProgress || enhancedToast.showCompressionProgress
+        { maxSizeMB, maxWidthOrHeight }
       );
 
       // Show compression complete toast
-      enhancedToast.showCompressionComplete(compressionResult);
+      enhancedToast.showCompressionComplete({
+        ...compressionResult,
+        compressionRatio: compressionResult.compressionRatio,
+        timings: { total: 0 },
+        stages: [],
+        originalFormat: file.type.split('/')[1] || 'unknown',
+        finalFormat: 'jpeg',
+        algorithm: 'Canvas compression'
+      });
 
       const compressedFile = compressionResult.file;
 
-      // Generate filename
+      // Generate filename with prefix
       const fileName = generateFileName 
         ? generateFileName(compressedFile)
         : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${compressedFile.name}`;
+      
+      const key = `${BUCKET_PREFIXES[bucket]}${fileName}`;
 
       // Show upload start toast
       const uploadToast = enhancedToast.showUploadStart(fileName, compressionResult.compressedSize);
 
-      // Upload to storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(fileName, compressedFile);
+      // Convert File to ArrayBuffer for AWS SDK compatibility
+      const fileBuffer = await compressedFile.arrayBuffer();
+      
+      // Upload to S3
+      const command = new PutObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: key,
+        Body: fileBuffer,
+        ContentType: compressedFile.type,
+      });
 
-      if (uploadError) {
-        enhancedToast.showUploadError(uploadError.message, fileName);
-        throw uploadError;
-      }
+      const result = await s3Client.send(command);
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(fileName);
+      // Generate public URL
+      const publicUrl = `https://${S3_BUCKET}.s3.us-west-2.amazonaws.com/${key}`;
 
       // Show upload success
       enhancedToast.showUploadSuccess(fileName, publicUrl);

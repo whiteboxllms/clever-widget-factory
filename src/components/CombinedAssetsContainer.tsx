@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
+import { apiService } from '@/lib/apiService';
 import { ArrowLeft, Plus, BarChart3 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -22,14 +23,15 @@ import { StockDetails } from "./StockDetails";
 import { OrderDialog } from "./OrderDialog";
 import { ReceivingDialog } from "./ReceivingDialog";
 import { useCombinedAssets, CombinedAsset } from "@/hooks/useCombinedAssets";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useToolHistory } from "@/hooks/tools/useToolHistory";
 import { useToolIssues } from "@/hooks/useGenericIssues";
 import { useInventoryIssues } from "@/hooks/useGenericIssues";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useImageUpload } from "@/hooks/useImageUpload";
-import { supabase } from "@/integrations/supabase/client";
+import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
+
 
 export const CombinedAssetsContainer = () => {
   const navigate = useNavigate();
@@ -83,6 +85,19 @@ export const CombinedAssetsContainer = () => {
     searchDescriptions,
     showLowStock
   });
+  const { members: organizationMembers } = useOrganizationMembers();
+  const checkoutDisplayNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    organizationMembers.forEach(member => {
+      if (member.user_id) {
+        map.set(member.user_id, member.full_name);
+      }
+      if (member.id && !map.has(member.id)) {
+        map.set(member.id, member.full_name);
+      }
+    });
+    return map;
+  }, [organizationMembers]);
 
 
   useEffect(() => {
@@ -106,17 +121,14 @@ export const CombinedAssetsContainer = () => {
   useEffect(() => {
     const fetchPendingOrders = async () => {
       try {
-        const { data: orders, error } = await supabase
-          .from('parts_orders')
-          .select('*')
-          .in('status', ['pending', 'partially_received'])
-          .order('ordered_at', { ascending: false });
+        const result = await apiService.get('/parts_orders');
 
-        if (error) throw error;
+        // Ensure orders is an array
+        const orders = Array.isArray(result) ? result : (result?.data || []);
 
         // Group orders by part_id
         const ordersByPart: Record<string, any[]> = {};
-        (orders || []).forEach(order => {
+        orders.forEach(order => {
           if (!ordersByPart[order.part_id]) {
             ordersByPart[order.part_id] = [];
           }
@@ -140,7 +152,10 @@ export const CombinedAssetsContainer = () => {
       if (term !== searchRef.current) {
         searchRef.current = term;
       }
-      setPage(0);
+      // Reset to page 0 when filters change
+      if (page !== 0) {
+        setPage(0);
+      }
       fetchAssets({
         search: searchRef.current,
         page: 0,
@@ -157,33 +172,41 @@ export const CombinedAssetsContainer = () => {
 
   // Filter assets based on current filters
   const filteredAssets = useMemo(() => {
-    const lower = searchTerm.toLowerCase();
+    // Skip filtering during loading to prevent flicker
+    if (loading && assets.length === 0) return [];
+    
+    if (showMyCheckedOut) {
+      console.log('=== MY CHECKED OUT FILTER (Combined Assets) ===');
+      console.log('User ID:', user?.id);
+      console.log('Total assets:', assets.length);
+      console.log('Assets (not stock):', assets.filter(a => a.type === 'asset').length);
+      console.log('Checked out assets:', assets.filter(a => a.type === 'asset' && a.is_checked_out).map(a => ({
+        name: a.name,
+        is_checked_out: a.is_checked_out,
+        checked_out_user_id: a.checked_out_user_id,
+        matches: a.checked_out_user_id === user?.id
+      })));
+    }
+    
     return assets.filter(asset => {
-      // If server-side search is active, skip client text search to avoid double filtering
-      const matchesSearch = lower
-        ? true
-        : (
-          asset.name.toLowerCase().includes(lower) ||
-          (asset.serial_number && asset.serial_number.toLowerCase().includes(lower)) ||
-          (asset.description && asset.description.toLowerCase().includes(lower)) ||
-          (asset.storage_location && asset.storage_location.toLowerCase().includes(lower))
-        );
-
       // Type filters
       if (showOnlyAssets && asset.type !== 'asset') return false;
       if (showOnlyStock && asset.type !== 'stock') return false;
 
-      // My checked out filter
-      if (showMyCheckedOut && (!asset.is_checked_out || asset.checked_out_user_id !== user?.id)) return false;
+      // My checked out filter - only applies to assets
+      if (showMyCheckedOut) {
+        if (asset.type !== 'asset') return false;
+        if (!asset.is_checked_out || asset.checked_out_user_id !== user?.id) return false;
+      }
 
       // Issues filter
       if (showWithIssues && !asset.has_issues) return false;
 
-      // Note: Low stock filter is now handled server-side in useCombinedAssets hook
+      // Note: Search and low stock filters are handled in useCombinedAssets hook
 
-      return matchesSearch;
+      return true;
     });
-  }, [assets, searchTerm, showOnlyAssets, showOnlyStock, showMyCheckedOut, showWithIssues, user?.email]);
+  }, [assets, showOnlyAssets, showOnlyStock, showMyCheckedOut, showWithIssues, user?.id, loading]);
 
   const handleCreateAsset = async (assetData: any, isAsset: boolean) => {
     const result = await createAsset(assetData, isAsset);
@@ -294,45 +317,22 @@ export const CombinedAssetsContainer = () => {
       }
 
       // Update the parts table
-      const { error } = await supabase
-        .from('parts')
-        .update({ current_quantity: newQuantity })
-        .eq('id', selectedAsset.id);
-
-      if (error) throw error;
+      await apiService.put(`/parts/${selectedAsset.id}`, { current_quantity: newQuantity });
 
       // Log the change to history
       try {
-        // Get the current authenticated user ID from the session
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        
-        if (!currentUser?.id) {
-          console.error('No authenticated user found for history logging');
-          throw new Error('User must be authenticated to modify stock quantities');
-        }
-        
-        console.log('Creating history entry with user ID:', currentUser.id);
-        
-        const { error: historyError } = await supabase
-          .from('parts_history')
-          .insert([{
-            part_id: selectedAsset.id,
-            change_type: quantityOperation === 'add' ? 'quantity_add' : 'quantity_remove',
-            old_quantity: currentQty,
-            new_quantity: newQuantity,
-            quantity_change: quantityOperation === 'add' ? change : -change,
-            changed_by: currentUser.id,
-            change_reason: quantityChange.reason || `Quantity ${quantityOperation}ed`,
-            supplier_name: quantityChange.supplierName || null,
-            supplier_url: quantityChange.supplierUrl || null,
-            organization_id: organizationId
-          }]);
-
-        if (historyError) {
-          console.error('Error logging history:', historyError);
-        } else {
-          console.log('History entry created successfully');
-        }
+        // Log the change to history via API
+        await apiService.post('/parts_history', {
+          part_id: selectedAsset.id,
+          change_type: quantityOperation === 'add' ? 'quantity_add' : 'quantity_remove',
+          old_quantity: currentQty,
+          new_quantity: newQuantity,
+          quantity_change: quantityOperation === 'add' ? change : -change,
+          change_reason: quantityChange.reason || `Quantity ${quantityOperation}ed`,
+          supplier_name: quantityChange.supplierName || null,
+          supplier_url: quantityChange.supplierUrl || null
+        });
+        console.log('History entry created successfully');
       } catch (historyError) {
         console.error('History logging failed:', historyError);
       }
@@ -364,20 +364,10 @@ export const CombinedAssetsContainer = () => {
     try {
       if (selectedAsset.type === 'asset') {
         // For assets, set status to 'removed'
-        const { error } = await supabase
-          .from('tools')
-          .update({ status: 'removed' })
-          .eq('id', selectedAsset.id);
-
-        if (error) throw error;
+        await apiService.put(`/tools/${selectedAsset.id}`, { status: 'removed' });
       } else {
         // For stock items, delete the record like the inventory page
-        const { error } = await supabase
-          .from('parts')
-          .delete()
-          .eq('id', selectedAsset.id);
-
-        if (error) throw error;
+        await apiService.delete(`/parts/${selectedAsset.id}`);
       }
 
       await refetch();
@@ -561,6 +551,7 @@ export const CombinedAssetsContainer = () => {
         isAdmin={isAdmin}
         currentUserId={user?.id}
         currentUserEmail={user?.email}
+        userNameMap={checkoutDisplayNameMap}
             onView={handleShowAssetDetails}
             onEdit={handleEdit}
             onRemove={handleRemove}
@@ -575,11 +566,13 @@ export const CombinedAssetsContainer = () => {
         pendingOrders={pendingOrders}
         // Infinite scroll props
         onLoadMore={() => {
-          const nextPage = page + 1;
-          setPage(nextPage);
-          fetchAssets({ page: nextPage, limit, search: searchRef.current, append: true });
+          if (!loading) {
+            const nextPage = page + 1;
+            setPage(nextPage);
+            fetchAssets({ page: nextPage, limit, search: searchRef.current, append: true, searchDescriptions, showLowStock });
+          }
         }}
-        hasMore={!loading && assets.length > 0}
+        hasMore={!loading && assets.length >= (page + 1) * limit}
         loading={loading}
       />
 

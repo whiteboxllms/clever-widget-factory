@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, forwardRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { History, Edit, Plus, AlertTriangle, Clock, LogOut, LogIn } from "lucide-react";
+import { History, Edit, Plus, AlertTriangle, Clock, LogOut, LogIn, Loader2, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useToolHistory, HistoryEntry, AssetHistoryEntry, CheckoutHistory, IssueHistoryEntry } from "@/hooks/tools/useToolHistory";
+import { Link } from "react-router-dom";
 
 // Type guard functions
 const isAssetHistory = (entry: HistoryEntry): entry is AssetHistoryEntry => {
@@ -27,10 +28,11 @@ interface AssetHistoryDialogProps {
   children: React.ReactNode;
 }
 
-export function AssetHistoryDialog({ assetId, assetName, children }: AssetHistoryDialogProps) {
+export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogProps>(
+  ({ assetId, assetName, children }, ref) => {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
-  const { toolHistory, fetchToolHistory } = useToolHistory();
+  const { toolHistory, loading, fetchToolHistory } = useToolHistory();
 
   useEffect(() => {
     if (open) {
@@ -116,7 +118,14 @@ export function AssetHistoryDialog({ assetId, assetName, children }: AssetHistor
         </DialogHeader>
         
         <ScrollArea className="h-96 pr-4">
-          {toolHistory.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Loading history...</p>
+              </div>
+            </div>
+          ) : toolHistory.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               No history records found for this asset.
             </div>
@@ -144,6 +153,46 @@ export function AssetHistoryDialog({ assetId, assetName, children }: AssetHistor
                       <p className="text-sm text-muted-foreground mb-2">
                         {getChangeDescription(entry)}
                       </p>
+                      
+                      {/* Checkout context: Action link or intended usage */}
+                      {isCheckoutHistory(entry) && (
+                        <>
+                          {/* Show action link if action_id exists */}
+                          {entry.action_id && entry.action_title && (
+                            <div className="text-sm bg-blue-50 border border-blue-200 p-2 rounded mt-2 mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-blue-900">Action:</span>
+                                <Link
+                                  to={`/actions?action=${entry.action_id}`}
+                                  className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {entry.action_title}
+                                  <ExternalLink className="h-3 w-3" />
+                                </Link>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Show intended usage if no action_id but intended_usage exists */}
+                          {!entry.action_id && entry.intended_usage && (
+                            <div className="text-sm bg-gray-50 border border-gray-200 p-2 rounded mt-2 mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-gray-900">Intended Usage:</span>
+                                <span className="text-gray-700">{entry.intended_usage}</span>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Show notes if present */}
+                          {entry.notes && (
+                            <div className="text-sm bg-muted p-2 rounded mt-2 mb-2">
+                              <span className="font-medium">Notes:</span>{' '}
+                              <span className="text-muted-foreground">{entry.notes}</span>
+                            </div>
+                          )}
+                        </>
+                      )}
                       
                       {isAssetHistory(entry) && entry.field_changed && entry.old_value !== undefined && entry.new_value !== undefined && (
                         <div className="text-sm bg-muted p-2 rounded">
@@ -181,4 +230,6 @@ export function AssetHistoryDialog({ assetId, assetName, children }: AssetHistor
       </DialogContent>
     </Dialog>
   );
-}
+});
+
+AssetHistoryDialog.displayName = "AssetHistoryDialog";

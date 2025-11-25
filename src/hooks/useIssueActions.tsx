@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { apiService } from '@/lib/apiService';
+import { getCurrentUser } from 'aws-amplify/auth';
 import { toast } from '@/hooks/use-toast';
 import { BaseAction } from '@/types/actions';
 import { processStockConsumption } from '@/lib/utils';
@@ -13,14 +14,10 @@ export const useIssueActions = () => {
   const getActionsForIssue = useCallback(async (issueId: string): Promise<BaseAction[]> => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('actions')
-        .select('*')
-        .eq('linked_issue_id', issueId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return (data || []).map(action => ({
+      const response = await apiService.get<{ data: any[] }>(`/actions?linked_issue_id=${issueId}`);
+      const data = response.data || [];
+      
+      return data.map(action => ({
         ...action,
         required_stock: Array.isArray(action.required_stock) ? action.required_stock : []
       })) as unknown as BaseAction[];
@@ -40,8 +37,8 @@ export const useIssueActions = () => {
   const markActionComplete = useCallback(async (action: BaseAction): Promise<boolean> => {
     try {
       // Get the current user for inventory logging
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (!currentUser?.id) {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.userId) {
         throw new Error('User must be authenticated to complete actions');
       }
 
@@ -51,28 +48,22 @@ export const useIssueActions = () => {
         await processStockConsumption(
           requiredStock, 
           action.id, 
-          currentUser.id, 
+          currentUser.userId, 
           action.title, 
-          organizationId,
           action.mission_id
         );
       }
 
-      const { error } = await supabase
-        .from('actions')
-        .update({
-          status: 'completed',
-          completed_at: new Date().toISOString()
-        })
-        .eq('id', action.id);
-
-      if (error) throw error;
+      // Update action status to completed
+      await apiService.put(`/actions/${action.id}`, {
+        status: 'completed',
+        completed_at: new Date().toISOString()
+      });
 
       // Auto-checkin tools
       try {
         await autoCheckinToolsForAction({
           actionId: action.id,
-          organizationId: organizationId,
           checkinReason: 'Action completed',
           notes: 'Auto-checked in when action was completed'
         });
@@ -98,15 +89,10 @@ export const useIssueActions = () => {
 
   const markActionIncomplete = useCallback(async (actionId: string): Promise<boolean> => {
     try {
-      const { error } = await supabase
-        .from('actions')
-        .update({
-          status: 'in_progress',
-          completed_at: null
-        })
-        .eq('id', actionId);
-
-      if (error) throw error;
+      await apiService.put(`/actions/${actionId}`, {
+        status: 'in_progress',
+        completed_at: null
+      });
 
       toast({
         title: 'Success',

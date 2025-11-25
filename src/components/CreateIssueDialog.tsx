@@ -24,7 +24,7 @@ import { AlertTriangle, Upload, X, ImagePlus } from "lucide-react";
 import { useGenericIssues } from "@/hooks/useGenericIssues";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { ContextType, getOrderIssueTypeLabel } from "@/types/issues";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/client';
 
 interface CreateIssueDialogProps {
   open: boolean;
@@ -152,7 +152,7 @@ export function CreateIssueDialog({
       let photoUrls: string[] = [];
       if (selectedImages.length > 0) {
         const uploadResults = await uploadImages(selectedImages, { 
-          bucket: 'tool-resolution-photos',
+          bucket: 'tool-resolution-photos' as const,
           generateFileName: (file, index) => `issue-${contextType}-${contextId}-${Date.now()}-${index || 1}-${file.name}`
         });
         photoUrls = Array.isArray(uploadResults) 

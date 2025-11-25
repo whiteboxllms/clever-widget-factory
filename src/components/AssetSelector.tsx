@@ -4,10 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Search, Plus, X, Wrench } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-// Planned checkout logic removed in favor of immediate checkout upon selection
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useCognitoAuth";
+import { useToolsData } from "@/hooks/tools/useToolsData";
+import { apiService } from '@/lib/apiService';
 
 interface Asset {
   id: string;
@@ -24,154 +24,91 @@ interface AssetSelectorProps {
   actionId?: string;
   organizationId?: string;
   isInImplementationMode?: boolean;
+  formData?: any; // Form data for new actions (before saving)
+  setFormData?: (data: any) => void; // Setter for form data
 }
 
-export function AssetSelector({ selectedAssets, onAssetsChange, actionId, organizationId, isInImplementationMode }: AssetSelectorProps) {
-  const [assets, setAssets] = useState<Asset[]>([]);
+export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused2, actionId, organizationId, isInImplementationMode, formData, setFormData }: AssetSelectorProps) {
+  const [selectedAssets, setSelectedAssets] = useState<string[]>([]);
   const [selectedAssetDetails, setSelectedAssetDetails] = useState<Asset[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showSearch, setShowSearch] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [checkoutInfoByToolId, setCheckoutInfoByToolId] = useState<Record<string, { user_name: string; checkout_date: string | null }>>({});
   const { toast } = useToast();
   const { user } = useAuth();
+  const { tools: assets, loading, activeCheckouts } = useToolsData();
 
-  useEffect(() => {
-    fetchAssets();
-  }, []);
+
 
   useEffect(() => {
     fetchSelectedAssetDetails();
   }, [selectedAssets, assets]);
 
-  // Initialize selectedAssets from checkouts when actionId changes
+  // Initialize selectedAssets from required_tools when actionId or formData changes
   useEffect(() => {
-    if (actionId) {
-      fetchCurrentCheckouts();
-    }
-  }, [actionId]);
+    fetchCurrentCheckouts();
+  }, [actionId, formData?.required_tools, assets]);
 
-  const fetchAssets = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('tools')
-        .select('id, name, status, legacy_storage_vicinity, serial_number, storage_location')
-        .neq('status', 'removed')
-        .order('name');
 
-      if (error) throw error;
-      setAssets(data || []);
-
-      // Fetch current active checkouts to show who has a tool
-      const { data: co, error: coErr } = await supabase
-        .from('checkouts')
-        .select('tool_id, user_name, checkout_date')
-        .eq('is_returned', false);
-      if (!coErr && co) {
-        const map: Record<string, { user_name: string; checkout_date: string | null }> = {};
-        co.forEach((row: any) => {
-          if (row.tool_id) map[row.tool_id] = { user_name: row.user_name, checkout_date: row.checkout_date };
-        });
-        setCheckoutInfoByToolId(map);
-      }
-    } catch (error) {
-      console.error('Error fetching assets:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch assets",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchCurrentCheckouts = async () => {
+    // If no actionId but we have formData, use formData.required_tools
+    if (!actionId && formData?.required_tools) {
+      const toolIds = Array.isArray(formData.required_tools) ? formData.required_tools : [];
+      const serials = toolIds
+        .map((toolId: string) => {
+          const tool = assets.find(a => a.id === toolId);
+          return tool?.serial_number;
+        })
+        .filter(Boolean) as string[];
+      setSelectedAssets(serials);
+      return;
+    }
+    
     if (!actionId) return;
-
+    
     try {
-      const { data: checkoutData, error } = await supabase
-        .from('checkouts')
-        .select(`
-          tool_id,
-          tools!inner(
-            serial_number
-          )
-        `)
-        .eq('action_id', actionId)
-        .eq('is_returned', false);
-
-      if (error) throw error;
-
-      const serialNumbers = checkoutData?.map(c => c.tools.serial_number).filter(Boolean) || [];
-      onAssetsChange(serialNumbers);
+      // Get action to read required_tools (like required_stock)
+      const actionResult = await apiService.get(`/actions?id=${actionId}`);
+      const actionData = Array.isArray(actionResult.data) ? actionResult.data[0] : actionResult.data;
+      
+      if (actionData?.required_tools && Array.isArray(actionData.required_tools)) {
+        // Map tool IDs to serial numbers
+        const toolIds = actionData.required_tools;
+        const serials = toolIds
+          .map((toolId: string) => {
+            const tool = assets.find(a => a.id === toolId);
+            return tool?.serial_number;
+          })
+          .filter(Boolean) as string[];
+        setSelectedAssets(serials);
+      }
     } catch (error) {
-      console.error('Error fetching current checkouts:', error);
+      console.error('Error fetching action tools:', error);
     }
   };
 
   const fetchSelectedAssetDetails = async () => {
-    // If there is no action yet, show local buffered selections from available assets
-    if (!actionId) {
-      if (selectedAssets.length === 0) {
-        setSelectedAssetDetails([]);
-        return;
-      }
-      const localDetails = selectedAssets
-        .map(serialNumber => assets.find(asset => asset.serial_number === serialNumber))
-        .filter((asset): asset is Asset => asset !== undefined);
-      setSelectedAssetDetails(localDetails);
-      return;
-    }
-
     if (selectedAssets.length === 0) {
       setSelectedAssetDetails([]);
       return;
     }
-
-    // Fetch selected assets from checkouts for this action
-    try {
-      const { data: checkoutData, error } = await supabase
-        .from('checkouts')
-        .select(`
-          tool_id,
-          tools!inner(
-            id,
-            name,
-            status,
-            legacy_storage_vicinity,
-            serial_number,
-            storage_location
-          )
-        `)
-        .eq('action_id', actionId)
-        .eq('is_returned', false)
-        .in('tool_id', selectedAssets.map(serial => 
-          assets.find(a => a.serial_number === serial)?.id
-        ).filter(Boolean));
-
-      if (error) throw error;
-
-      const details = checkoutData?.map(c => c.tools) || [];
-      setSelectedAssetDetails(details);
-    } catch (error) {
-      console.error('Error fetching selected asset details:', error);
-      // Fallback to local lookup
-      const details = selectedAssets
-        .map(serialNumber => assets.find(asset => asset.serial_number === serialNumber))
-        .filter((asset): asset is Asset => asset !== undefined);
-      setSelectedAssetDetails(details);
-    }
+    const details = selectedAssets
+      .map(serialNumber => assets.find(asset => asset.serial_number === serialNumber))
+      .filter((asset): asset is Asset => asset !== undefined);
+    setSelectedAssetDetails(details);
   };
 
-  const filteredAssets = assets.filter(asset =>
+  // Deduplicate assets by id to prevent duplicates from multiple checkouts
+  const uniqueAssets = Array.from(
+    new Map(assets.map(asset => [asset.id, asset])).values()
+  );
+  
+  const filteredAssets = uniqueAssets.filter(asset =>
     asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (asset.serial_number && asset.serial_number.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const addAsset = async (asset: Asset) => {
-    // Only add tools that have serial numbers
     if (!asset.serial_number) {
       toast({
         title: "Cannot Add Tool",
@@ -181,150 +118,232 @@ export function AssetSelector({ selectedAssets, onAssetsChange, actionId, organi
       return;
     }
 
-    if (!selectedAssets.includes(asset.serial_number)) {
-      const newAssets = [...selectedAssets, asset.serial_number];
-      onAssetsChange(newAssets);
-      setShowSearch(false);
-      setSearchTerm("");
+    if (selectedAssets.includes(asset.serial_number)) return;
 
-      // Immediately check out when assigned (for existing actions)
-      if (actionId && organizationId && user) {
-        try {
-          // Get action details (for intended usage)
-          const { data: action, error: actionError } = await supabase
-            .from('actions')
-            .select('id, title, policy')
-            .eq('id', actionId)
-            .single();
+    // If no actionId yet (creating new action), store in formData
+    if (!actionId && formData && setFormData) {
+      const currentRequiredTools = Array.isArray(formData.required_tools) 
+        ? formData.required_tools 
+        : [];
+      
+      // Check if tool is already in the list
+      if (currentRequiredTools.includes(asset.id)) {
+        toast({ 
+          title: "Tool Already Added", 
+          description: "This tool is already associated with this action",
+          variant: "default"
+        });
+        return;
+      }
 
-          if (actionError) throw actionError;
-
-          // If tool is already checked out, warn but allow additional checkout (per request)
-          if (asset.status && asset.status !== 'available') {
-            const co = checkoutInfoByToolId[asset.id];
-            toast({
-              title: "Tool is already checked out",
-              description: co?.user_name ? `Currently checked out to ${co.user_name}. Proceeding with your checkout.` : `Proceeding with your checkout.`,
-            });
-          }
-
-          // Create actual checkout
-          const { error: coErr } = await supabase
-            .from('checkouts')
-            .insert({
-              tool_id: asset.id,
-              user_id: user.id,
-              user_name: user.user_metadata?.full_name || 'Unknown User',
-              intended_usage: action?.title || null,
-              notes: null,
-              checkout_date: new Date().toISOString(),
-              is_returned: false,
-              action_id: actionId,
-              organization_id: organizationId
-            } as any);
-          if (coErr) throw coErr;
-
-          // Update tool status to checked_out for visibility
-          await supabase.from('tools').
-            update({ status: 'checked_out' }).
-            eq('id', asset.id);
-
-          toast({
-            title: "Tool Checked Out",
-            description: `${asset.name} (${asset.serial_number}) has been checked out for this action.`,
-          });
-
-          // Refresh the current checkouts to update the display
-          await fetchCurrentCheckouts();
-          await fetchAssets();
-        } catch (error) {
-          console.error('Failed to create planned checkout:', error);
-          toast({
-            title: "Checkout Failed",
-            description: "Tool was added but checkout failed. Please try again.",
+      // Add tool ID to required_tools array in formData
+      setFormData({
+        ...formData,
+        required_tools: [...currentRequiredTools, asset.id]
+      });
+    } else if (actionId && user) {
+      try {
+        // Get current action to update required_tools field (like required_stock)
+        const actionResult = await apiService.get(`/actions?id=${actionId}`);
+        const actionData = Array.isArray(actionResult.data) ? actionResult.data[0] : actionResult.data;
+        
+        if (!actionData) {
+          toast({ 
+            title: "Error", 
+            description: "Action not found",
             variant: "destructive"
           });
+          return;
         }
+
+        // Get current required_tools array or initialize empty array
+        const currentRequiredTools = Array.isArray(actionData.required_tools) 
+          ? actionData.required_tools 
+          : [];
+        
+        // Check if tool is already in the list
+        if (currentRequiredTools.includes(asset.id)) {
+          toast({ 
+            title: "Tool Already Added", 
+            description: "This tool is already associated with this action",
+            variant: "default"
+          });
+          return;
+        }
+
+        // Add tool ID to required_tools array (like stock in required_stock)
+        const updatedRequiredTools = [...currentRequiredTools, asset.id];
+        
+        // Update action with new required_tools array
+        await apiService.put(`/actions/${actionId}`, {
+          required_tools: updatedRequiredTools
+        });
+
+        // Only create checkout if action is in progress (plan_commitment = true)
+        if (actionData.plan_commitment === true) {
+          // Resolve user full name
+          let userFullName = 'Unknown User';
+          try {
+            const userMetadata = (user as any)?.user_metadata;
+            if (userMetadata?.full_name) {
+              userFullName = userMetadata.full_name;
+            } else if ((user as any)?.name) {
+              userFullName = (user as any).name;
+            } else {
+              // Try to fetch from organization_members
+              const memberResult = await apiService.get('/organization_members');
+              const member = Array.isArray(memberResult?.data) ? memberResult.data.find((m: any) => m.cognito_user_id === user.id) : memberResult?.data;
+              if (member?.full_name) {
+                userFullName = member.full_name;
+              }
+            }
+          } catch (error) {
+            console.warn('Could not resolve user full name:', error);
+          }
+
+          // Create active checkout since action is in progress
+          try {
+            await apiService.post('/checkouts', {
+              tool_id: asset.id,
+              user_id: user.id,
+              user_name: userFullName,
+              action_id: actionId,
+              is_returned: false,
+              checkout_date: new Date().toISOString()
+            });
+            // Update tool status to checked_out
+            await apiService.put(`/tools/${asset.id}`, { status: 'checked_out' });
+          } catch (error: any) {
+            // Handle duplicate key constraint violation
+            if (error.message?.includes('duplicate key') || 
+                error.message?.includes('idx_unique_active_checkout_per_tool') ||
+                (error.error && error.error.includes('active checkout'))) {
+              // Don't show error - tool is already checked out, which is fine
+              console.log('Tool already has active checkout, skipping checkout creation');
+            } else {
+              console.error('Error creating checkout:', error);
+            }
+          }
+        }
+        // If action is not in progress, we just store in required_tools (no checkout yet)
+        // Checkout will be created when action starts (plan_commitment becomes true)
+
+      } catch (error) {
+        console.error('Error adding asset to action:', error);
+        toast({ 
+          title: "Error", 
+          description: "Failed to add asset to action",
+          variant: "destructive"
+        });
+        return;
       }
     }
+
+    setSelectedAssets([...selectedAssets, asset.serial_number]);
+    setShowSearch(false);
+    setSearchTerm("");
   };
 
   const removeAsset = async (serialNumber: string) => {
-    // Remove from local state
-    onAssetsChange(selectedAssets.filter(serial => serial !== serialNumber));
-    
-    // On removal: perform a check-in if actionId exists
-    if (actionId && organizationId && user) {
+    // First, find the asset by serial number to get its tool_id
+    const asset = assets.find(a => a.serial_number === serialNumber);
+    if (!asset) {
+      console.error('Asset not found for serial number:', serialNumber);
+      toast({
+        title: "Error",
+        description: "Could not find asset to remove",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // If no actionId yet (creating new action), update formData
+    if (!actionId && formData && setFormData) {
+      const currentRequiredTools = Array.isArray(formData.required_tools) 
+        ? formData.required_tools 
+        : [];
+      const updatedRequiredTools = currentRequiredTools.filter((toolId: string) => toolId !== asset.id);
+      
+      setFormData({
+        ...formData,
+        required_tools: updatedRequiredTools
+      });
+    } else if (actionId && user) {
       try {
-        const asset = assets.find(a => a.serial_number === serialNumber);
-        if (asset) {
-          // Find the active checkout for this action/tool
-          const { data: existing, error: findErr } = await supabase
-            .from('checkouts')
-            .select('id, checkout_date')
-            .eq('action_id', actionId)
-            .eq('tool_id', asset.id)
-            .eq('is_returned', false)
-            .order('checkout_date', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          if (findErr) throw findErr;
-
-          if (existing) {
-            // Get action policy for notes
-            const { data: action, error: actionError } = await supabase
-              .from('actions')
-              .select('id, policy')
-              .eq('id', actionId)
-              .single();
-            if (actionError) throw actionError;
-
-            // Create checkin record (mirror of auto-checkin utility)
-            await supabase
-              .from('checkins')
-              .insert({
-                checkout_id: existing.id,
-                tool_id: asset.id,
-                user_name: user.user_metadata?.full_name || 'Unknown User',
+        // Get current tool IDs from selectedAssetDetails (no need to fetch action)
+        const currentToolIds = selectedAssetDetails
+          .map(a => a.id)
+          .filter((id): id is string => id !== undefined && id !== asset.id);
+        
+        // Run PUT and checkout check in parallel for better performance
+        const [checkoutResult] = await Promise.all([
+          apiService.get(`/checkouts?action_id=${actionId}&is_returned=false`).catch(() => ({ data: [] })),
+          apiService.put(`/actions/${actionId}`, {
+            required_tools: currentToolIds
+          })
+        ]);
+        
+        const checkout = checkoutResult.data?.find((c: any) => c.tool_id === asset.id);
+        
+        if (checkout) {
+          // Check if this is an active checkout (has checkout_date)
+          const isActiveCheckout = checkout.checkout_date != null;
+          
+          // Resolve user full name (try from user object first, avoid API call if possible)
+          let userFullName = 'Unknown User';
+          const userMetadata = (user as any)?.user_metadata;
+          if (userMetadata?.full_name) {
+            userFullName = userMetadata.full_name;
+          } else if ((user as any)?.name) {
+            userFullName = (user as any).name;
+          } else {
+            // Only fetch from API if not available in user object
+            try {
+              const memberResult = await apiService.get('/organization_members');
+              const member = Array.isArray(memberResult?.data) 
+                ? memberResult.data.find((m: any) => m.cognito_user_id === user.id) 
+                : memberResult?.data;
+              if (member?.full_name) {
+                userFullName = member.full_name;
+              }
+            } catch (error) {
+              console.warn('Could not resolve user full name:', error);
+            }
+          }
+          
+          if (isActiveCheckout) {
+            // For active checkouts, batch operations in parallel where possible
+            await Promise.all([
+              apiService.post('/checkins', {
+                checkout_id: checkout.id,
+                tool_id: checkout.tool_id,
+                user_name: userFullName,
                 problems_reported: '',
-                notes: '',
+                notes: 'Tool removed from action',
                 sop_best_practices: '',
                 what_did_you_do: '',
-                checkin_reason: 'Removed from action',
+                checkin_reason: 'Tool removed from in-progress action',
                 after_image_urls: [],
-                organization_id: organizationId
-              } as any);
-
-            // Mark checkout returned
-            await supabase
-              .from('checkouts')
-              .update({ is_returned: true })
-              .eq('id', existing.id);
-
-            // Update tool status
-            await supabase
-              .from('tools')
-              .update({ status: 'available' })
-              .eq('id', asset.id);
+              }),
+              apiService.put(`/checkouts/${checkout.id}`, { is_returned: true }),
+              apiService.put(`/tools/${checkout.tool_id}`, { status: 'available' })
+            ]);
+          } else {
+            // For planned checkouts, just delete the checkout record
+            await apiService.delete(`/checkouts/${checkout.id}`);
           }
-
-          toast({
-            title: "Tool Checked In",
-            description: `${asset.name} (${asset.serial_number}) has been checked in and removed from this action.`,
-          });
-
-          await fetchCurrentCheckouts();
-          await fetchAssets();
         }
       } catch (error) {
-        console.error('Failed to remove checkout:', error);
+        console.error('Error removing asset from action:', error);
         toast({
-          title: "Removal Failed",
-          description: "Tool was removed from the list but check-in may have failed. Please refresh the page.",
+          title: "Error",
+          description: "Failed to remove asset from action",
           variant: "destructive"
         });
+        return;
       }
     }
+    setSelectedAssets(selectedAssets.filter(serial => serial !== serialNumber));
   };
 
   return (
@@ -428,8 +447,8 @@ export function AssetSelector({ selectedAssets, onAssetsChange, actionId, organi
                           {asset.storage_location && (
                             <span>• {asset.storage_location}</span>
                           )}
-                    {asset.status && asset.status !== 'available' && (
-                      <span>• Checked out{checkoutInfoByToolId[asset.id]?.user_name ? ` to ${checkoutInfoByToolId[asset.id].user_name}` : ''}</span>
+                    {activeCheckouts[asset.id] && (
+                      <span>• Checked out to {activeCheckouts[asset.id].user_name}</span>
                     )}
                         </div>
                       </div>

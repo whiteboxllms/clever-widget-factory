@@ -1,14 +1,14 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { toast } from '@/hooks/use-toast';
-import { useActionProfiles } from '@/hooks/useActionProfiles';
+import { useOrganizationMembers } from '@/hooks/useOrganizationMembers';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
 import { Bolt, Plus, Filter, Search, CheckCircle, User, AlertTriangle, Wrench, ArrowLeft, Target, X } from 'lucide-react';
 import { UnifiedActionDialog } from '@/components/UnifiedActionDialog';
@@ -18,6 +18,7 @@ import { useActionScores, ActionScore } from '@/hooks/useActionScores';
 import { BaseAction, Profile } from '@/types/actions';
 import { cn, hasActualContent, getActionBorderStyle } from '@/lib/utils';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { apiService } from '@/lib/apiService';
 
 // Using unified BaseAction interface from types/actions.ts
 
@@ -26,9 +27,7 @@ export default function Actions() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { actionId } = useParams<{ actionId?: string }>();
-  const [actions, setActions] = useState<BaseAction[]>([]);
-  const [filteredActions, setFilteredActions] = useState<BaseAction[]>([]);
-  const [loading, setLoading] = useState(true);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('me');
@@ -37,8 +36,8 @@ export default function Actions() {
   const [isCreating, setIsCreating] = useState(false);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
   
-  // Use standardized profiles for consistent "Assigned to" dropdown
-  const { profiles } = useActionProfiles();
+  // Use organization members for consistent "Assigned to" dropdown
+  const { members: profiles } = useOrganizationMembers();
   const organizationId = useOrganizationId();
   const [scoringAction, setScoringAction] = useState<BaseAction | null>(null);
 
@@ -48,32 +47,32 @@ export default function Actions() {
     return profile?.favorite_color || '#6B7280'; // Default gray if no color set
   };
   const [existingScore, setExistingScore] = useState<ActionScore | null>(null);
+  const processedUrlRef = useRef<string | null>(null);
 
   const { getScoreForAction } = useActionScores();
+
+  const fetchActions = async () => {
+    const result = await apiService.get('/actions');
+    return result.data || [];
+  };
+
+  const { data: actions = [], isLoading: loading } = useQuery({
+    queryKey: ['actions'],
+    queryFn: fetchActions,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
 
   const fetchSpecificAction = useCallback(async (id: string) => {
     if (!organizationId) return;
     
     try {
-      const { data, error } = await supabase
-        .from('actions')
-        .select(`
-          *,
-          assignee:organization_members(id, user_id, full_name, role),
-          mission:missions(id, title, mission_number, status)
-        `)
-        .eq('id', id)
-        .eq('organization_id', organizationId)
-        .single();
+      const action = actions.find((a: any) => a.id === id);
+      
+      if (!action) {
+        throw new Error('Action not found');
+      }
 
-      if (error) throw error;
-
-      // Process the action data to match BaseAction interface
-      const processedAction: BaseAction = {
-        ...data,
-        required_stock: Array.isArray(data.required_stock) ? data.required_stock as { part_id: string; quantity: number; part_name: string; }[] : []
-      };
-      setEditingAction(processedAction);
+      setEditingAction(action);
       setIsEditDialogOpen(true);
       setIsCreating(false);
     } catch (error) {
@@ -87,177 +86,18 @@ export default function Actions() {
     }
   }, [organizationId, navigate]);
 
-  const fetchActions = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('actions')
-        .select(`
-          *,
-          assignee:organization_members(id, user_id, full_name, role),
-          mission:missions(id, title, mission_number, status)
-        `)
-        .order('updated_at', { ascending: false });
-
-      if (error) throw error;
-
-      // Fetch tool info for actions with asset_id
-      const assetActions = data?.filter(action => action.asset_id) || [];
-      let toolsData = [];
-      if (assetActions.length > 0) {
-        const { data: tools } = await supabase
-          .from('tools')
-          .select('id, name, category')
-          .in('id', assetActions.map(a => a.asset_id));
-        toolsData = tools || [];
-      }
-
-      // Fetch tool info for actions with linked_issue_id
-      const issueActions = data?.filter(action => action.linked_issue_id) || [];
-      let issueToolsData = [];
-      let issueToolsInfo = [];
-      if (issueActions.length > 0) {
-        const { data: issueTools } = await supabase
-          .from('issues')
-          .select(`
-            id,
-            context_id,
-            context_type
-          `)
-          .eq('context_type', 'tool')
-          .in('id', issueActions.map(a => a.linked_issue_id));
-        issueToolsData = issueTools || [];
-        
-        // Fetch the actual tool information for issue tools
-        if (issueToolsData.length > 0) {
-          const { data: tools } = await supabase
-            .from('tools')
-            .select('id, name, category')
-            .in('id', issueToolsData.map(issue => issue.context_id));
-          issueToolsInfo = tools || [];
-        }
-      }
-
-      // Fetch participant details for actions that have participants
-      const actionsWithParticipants = data?.filter(action => action.participants && action.participants.length > 0) || [];
-      let participantsData = [];
-      if (actionsWithParticipants.length > 0) {
-        const allParticipantIds = actionsWithParticipants.flatMap(action => action.participants || []);
-        const uniqueParticipantIds = [...new Set(allParticipantIds)];
-        
-        if (uniqueParticipantIds.length > 0) {
-          try {
-            // Use direct table access to organization_members instead of broken RPC
-            const { data: participants, error: participantsError } = await supabase
-              .from('organization_members')
-              .select('user_id, full_name, role')
-              .in('user_id', uniqueParticipantIds)
-              .eq('is_active', true);
-            
-            if (participantsError) {
-              console.error('Error fetching participants:', participantsError);
-              // Continue without participant data rather than failing the entire request
-            } else {
-              // Map the data to the expected format
-              participantsData = (participants || []).map(p => ({
-                id: p.user_id,
-                user_id: p.user_id,
-                full_name: p.full_name || 'Unknown',
-                role: p.role || ''
-              }));
-            }
-          } catch (error) {
-            console.error('Error in participant fetching:', error);
-            // Continue without participant data
-          }
-        }
-      }
-
-      const actions = data?.map(item => ({
-        ...item,
-        required_stock: Array.isArray(item.required_stock) ? item.required_stock : [],
-        participants_details: item.participants?.map(participantId => 
-          participantsData.find(p => p.user_id === participantId)
-        ).filter((p): p is NonNullable<typeof p> => Boolean(p)) || [],
-        asset: toolsData.find(tool => tool.id === item.asset_id) || null,
-        assignee: item.assignee && typeof item.assignee === 'object' && !Array.isArray(item.assignee) && !('error' in item.assignee) 
-          ? {
-              id: (item.assignee as { id: string })?.id || '',
-              user_id: (item.assignee as { user_id: string })?.user_id || '',
-              full_name: (item.assignee as { full_name: string })?.full_name || '',
-              role: (item.assignee as { role: string })?.role || ''
-            }
-          : null,
-        mission: item.mission && typeof item.mission === 'object' && !('error' in item.mission) 
-          ? {
-              id: item.mission.id || '',
-              title: item.mission.title || '',
-              mission_number: item.mission.mission_number || 0,
-              status: item.mission.status || ''
-            }
-          : null,
-        issue_tool: issueToolsData.find(issue => issue.id === item.linked_issue_id) ? 
-          issueToolsInfo.find(tool => tool.id === issueToolsData.find(issue => issue.id === item.linked_issue_id)?.context_id) || null : null
-      })) as unknown as BaseAction[] || [];
-
-      // Fetch implementation update counts for all actions
-      const actionsWithCounts = await Promise.all(
-        actions.map(async (action) => {
-          const { count } = await supabase
-            .from('action_implementation_updates')
-            .select('*', { count: 'exact', head: true })
-            .eq('action_id', action.id);
-          
-          return { ...action, implementation_update_count: count || 0 };
-        })
-      );
-
-      setActions(actionsWithCounts);
-    } catch (error) {
-      console.error('Error fetching actions:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch actions',
-        variant: 'destructive'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Profiles are now handled by useActionProfiles hook for consistency
 
   const handleEditAction = async (action: BaseAction) => {
-    
-    // Fetch the latest action data to ensure we have the most up-to-date attachments
-    try {
-      const { data: latestAction, error } = await supabase
-        .from('actions')
-        .select('*')
-        .eq('id', action.id)
-        .single();
-      
-      if (error) throw error;
-      
-      // Calculate implementation_update_count like in fetchActions
-      const { count } = await supabase
-        .from('action_implementation_updates')
-        .select('*', { count: 'exact', head: true })
-        .eq('action_id', action.id);
-      
-      const actionWithCount = { ...latestAction, implementation_update_count: count || 0 };
-      setEditingAction(actionWithCount as unknown as BaseAction);
-    } catch (error) {
-      console.error('Error fetching latest action data:', error);
-      // Fallback to the action data we have
-      setEditingAction(action);
-    }
-    
+    setEditingAction(action);
     setIsCreating(false);
     setIsEditDialogOpen(true);
   };
 
+  const queryClient = useQueryClient();
+  
   const handleSaveAction = async () => {
-    await fetchActions();
+    queryClient.invalidateQueries({ queryKey: ['actions'] });
     setIsEditDialogOpen(false);
     setEditingAction(null);
     setIsCreating(false);
@@ -277,11 +117,13 @@ export default function Actions() {
 
   const handleScoreAction = async (action: BaseAction, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card click
+    console.log('Setting scoring action:', action.id, action.title); // Debug log
     setScoringAction(action);
     
     // Load existing score if any
     if (action.id) {
       const score = await getScoreForAction(action.id);
+      console.log('Existing score for action:', score); // Debug log
       setExistingScore(score);
     }
     
@@ -292,39 +134,57 @@ export default function Actions() {
     setShowScoreDialog(false);
     setScoringAction(null);
     setExistingScore(null);
-    fetchActions(); // Refresh to show updated scores
   };
 
-  useEffect(() => {
-    fetchActions();
-  }, []);
+  const handleScoreDialogClose = (open: boolean) => {
+    if (!open) {
+      setScoringAction(null);
+      setExistingScore(null);
+    }
+    setShowScoreDialog(open);
+  };
+
+
 
   // Handle URL parameters for direct action links (both search params and path params)
   useEffect(() => {
     const searchActionId = searchParams.get('action');
     const urlActionId = actionId;
+    const currentId = searchActionId || urlActionId;
+    
+    // Skip if we've already processed this ID or no actions loaded yet
+    if (!currentId || processedUrlRef.current === currentId || actions.length === 0) {
+      return;
+    }
     
     if (searchActionId && actions.length > 0) {
       const action = actions.find(a => a.id === searchActionId);
       if (action) {
         handleEditAction(action);
+        processedUrlRef.current = searchActionId;
         // Clear the URL parameter after opening the action
         setSearchParams({});
       }
-    } else if (urlActionId && organizationId) {
+    } else if (urlActionId && organizationId && actions.length > 0) {
       // Find the action in the current actions list
       const action = actions.find(a => a.id === urlActionId);
       if (action) {
         setEditingAction(action);
         setIsEditDialogOpen(true);
         setIsCreating(false);
-      } else if (actions.length > 0) {
-        // If action not found in current list and we have actions loaded, try to fetch it specifically
-        fetchSpecificAction(urlActionId);
+        processedUrlRef.current = urlActionId;
+      } else {
+        // If action not found in current list, show error
+        toast({
+          title: "Error",
+          description: "Action not found",
+          variant: "destructive",
+        });
+        navigate('/actions');
+        processedUrlRef.current = urlActionId;
       }
-      // If actions are still loading, wait for them to load first
     }
-  }, [actions, searchParams, setSearchParams, actionId, organizationId, fetchSpecificAction]);
+  }, [actions.length, actionId, organizationId, searchParams]);
 
   // Reset assignee filter if the selected assignee is not in active profiles
   useEffect(() => {
@@ -341,7 +201,7 @@ export default function Actions() {
     }
   }, [profiles, assigneeFilter]);
 
-  useEffect(() => {
+  const filteredActions = useMemo(() => {
     let filtered = actions;
 
     // Search filter
@@ -377,14 +237,21 @@ export default function Actions() {
       if (assigneeFilter === 'unassigned') {
         filtered = filtered.filter(action => !action.assigned_to);
       } else if (assigneeFilter === 'me' && user) {
-        filtered = filtered.filter(action => action.assigned_to === user.id);
+        // Find the user's database user_id based on their Cognito user ID
+        const currentUserProfile = profiles.find(p => p.cognito_user_id === user.userId);
+        if (currentUserProfile) {
+          filtered = filtered.filter(action => action.assigned_to === currentUserProfile.user_id);
+        } else {
+          // Fallback: check if Cognito user ID matches user_id directly (like Stefan's case)
+          filtered = filtered.filter(action => action.assigned_to === user.userId);
+        }
       } else {
         filtered = filtered.filter(action => action.assigned_to === assigneeFilter);
       }
     }
 
-    setFilteredActions(filtered);
-  }, [actions, searchTerm, statusFilter, assigneeFilter, user]);
+    return filtered;
+  }, [actions, searchTerm, statusFilter, assigneeFilter, user?.userId, profiles.length]);
 
 
   const getStatusColor = (status: string, action?: BaseAction) => {
@@ -644,21 +511,22 @@ export default function Actions() {
                           <div className="flex flex-wrap gap-2 overflow-hidden">
                             {action.mission && (
                               <Badge variant="outline" className="bg-indigo-100 text-indigo-800 max-w-full overflow-hidden">
-                                <span className="truncate">Mission #{action.mission.mission_number}: {action.mission.title.length > 15 ? `${action.mission.title.substring(0, 15)}...` : action.mission.title}</span>
+                                <span className="truncate">Project #{action.mission.mission_number}: {action.mission.title.length > 15 ? `${action.mission.title.substring(0, 15)}...` : action.mission.title}</span>
                               </Badge>
                             )}
                             
-                            {action.assignee ? (
+                            {action.assigned_to ? (
                               <Badge 
                                 variant="outline" 
                                 className="flex items-center gap-1 max-w-full overflow-hidden"
-                                style={{ 
-                                  borderColor: getUserColor(action.assignee.user_id),
-                                  color: getUserColor(action.assignee.user_id)
-                                }}
                               >
                                 <User className="h-3 w-3 flex-shrink-0" />
-                                <span className="truncate max-w-[80px]">{action.assignee.full_name}</span>
+                                <span 
+                                  className="truncate max-w-[80px]"
+                                  style={{ color: action.assigned_to_color || getUserColor(action.assigned_to) }}
+                                >
+                                  {action.assigned_to_name || profiles.find(p => p.user_id === action.assigned_to)?.full_name || 'Unknown User'}
+                                </span>
                               </Badge>
                             ) : (
                               <Badge variant="outline" className="text-orange-600">
@@ -673,8 +541,8 @@ export default function Actions() {
                                   variant="secondary" 
                                   className="flex items-center gap-1 max-w-full overflow-hidden"
                                   style={{ 
-                                    borderColor: getUserColor(participant.user_id),
-                                    color: getUserColor(participant.user_id)
+                                    borderColor: participant.favorite_color || getUserColor(participant.user_id),
+                                    color: participant.favorite_color || getUserColor(participant.user_id)
                                   }}
                                 >
                                   <User className="h-3 w-3 flex-shrink-0" />
@@ -759,14 +627,19 @@ export default function Actions() {
                           <div className="flex flex-wrap gap-2 overflow-hidden">
                             {action.mission && (
                             <Badge variant="outline" className="bg-indigo-100 text-indigo-800 max-w-full overflow-hidden">
-                              <span className="truncate">Mission #{action.mission.mission_number}: {action.mission.title.length > 15 ? `${action.mission.title.substring(0, 15)}...` : action.mission.title}</span>
+                              <span className="truncate">Project #{action.mission.mission_number}: {action.mission.title.length > 15 ? `${action.mission.title.substring(0, 15)}...` : action.mission.title}</span>
                             </Badge>
                             )}
                             
-                             {action.assignee ? (
+                             {action.assigned_to ? (
                                <Badge variant="outline" className="flex items-center gap-1 max-w-full overflow-hidden">
                                  <User className="h-3 w-3 flex-shrink-0" />
-                                 <span className="truncate max-w-[80px]">{action.assignee.full_name}</span>
+                                 <span 
+                                   className="truncate max-w-[80px]"
+                                   style={{ color: action.assigned_to_color || getUserColor(action.assigned_to) }}
+                                 >
+                                   {action.assigned_to_name || profiles.find(p => p.user_id === action.assigned_to)?.full_name || 'Unknown User'}
+                                 </span>
                                </Badge>
                              ) : (
                                <Badge variant="outline" className="text-orange-600">
@@ -808,13 +681,14 @@ export default function Actions() {
           action={editingAction || undefined}
           onActionSaved={handleSaveAction}
           profiles={profiles}
+          isCreating={isCreating}
        />
 
        {/* Score Dialog */}
        {scoringAction && (
          <ActionScoreDialog
            open={showScoreDialog}
-           onOpenChange={setShowScoreDialog}
+           onOpenChange={handleScoreDialogClose}
            action={scoringAction}
            existingScore={existingScore}
            onScoreUpdated={handleScoreUpdated}

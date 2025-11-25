@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, Brain, CheckCircle2, MessageSquare, Lightbulb, X } from 'lucide-react';
 import { getSession, type FiveWhysSession } from '@/services/fiveWhysService';
 import { format } from 'date-fns';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/client';
 import { isLightColor } from '@/lib/utils';
 
 interface FiveWhysSessionViewerProps {

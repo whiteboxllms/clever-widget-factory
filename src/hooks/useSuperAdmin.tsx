@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from './useAuth';
+import { useAuth } from "@/hooks/useCognitoAuth";
 
 export function useSuperAdmin() {
   const { user } = useAuth();
@@ -16,18 +15,10 @@ export function useSuperAdmin() {
       }
 
       try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('super_admin')
-          .eq('user_id', user.id)
-          .single();
-
-        if (error) {
-          console.error('Error checking super admin status:', error);
-          setIsSuperAdmin(false);
-        } else {
-          setIsSuperAdmin(data?.super_admin || false);
-        }
+        // TODO: Replace with actual database query after migration
+        // For now, set super admin for testing user
+        const isTestSuperAdmin = user.email === 'stefan@stargazer-farm.com';
+        setIsSuperAdmin(isTestSuperAdmin);
       } catch (error) {
         console.error('Error in checkSuperAdminStatus:', error);
         setIsSuperAdmin(false);

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { ActionCard } from '@/components/ActionCard';
 import { Button } from "@/components/ui/button";
 import { Plus } from 'lucide-react';
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/client';
 import { useToast } from "@/hooks/use-toast";
 import { UnifiedActionDialog } from './UnifiedActionDialog';
 import { BaseAction, Profile, createMissionAction } from '@/types/actions';
@@ -135,9 +135,9 @@ export function MissionActionList({ missionId, profiles, canEdit = false, missio
 
       {actions.length === 0 && !isAddingAction ? (
         <div className="text-center py-8 text-muted-foreground">
-          <p>No actions defined for this mission.</p>
+          <p>No actions defined for this project.</p>
           {canEdit && (
-            <p className="text-sm mt-2">Add actions to break down the mission into manageable steps.</p>
+            <p className="text-sm mt-2">Add actions to break down the project into manageable steps.</p>
           )}
         </div>
       ) : (

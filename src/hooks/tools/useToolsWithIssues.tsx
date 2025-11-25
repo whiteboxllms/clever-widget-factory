@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/client';
 
 export const useToolsWithIssues = () => {
   const [toolsWithIssues, setToolsWithIssues] = useState<Set<string>>(new Set());

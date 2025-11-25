@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CalendarDays, Users, Filter, ChevronRight } from 'lucide-react';
 import { AttributeAnalytics } from '@/hooks/useStrategicAttributes';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/client';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
 
 interface AttributeFiltersProps {

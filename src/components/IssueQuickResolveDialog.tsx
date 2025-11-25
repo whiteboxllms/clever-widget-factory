@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/client';
 import { useToast } from '@/hooks/use-toast';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
 import { useImageUpload } from '@/hooks/useImageUpload';
@@ -41,7 +41,7 @@ export function IssueQuickResolveDialog({
     try {
       const fileArray = Array.from(files);
       const uploadResults = await uploadImages(fileArray, {
-        bucket: 'tool-issue-photos'
+        bucket: 'tool-issue-photos' as const
       });
       
       const resultsArray = Array.isArray(uploadResults) ? uploadResults : [uploadResults];
@@ -105,7 +105,6 @@ export function IssueQuickResolveDialog({
           new_status: 'resolved',
           field_changed: 'status',
           notes: `Issue resolved. Root cause: ${formData.rootCause}. Resolution: ${formData.resolutionNotes}`,
-          organization_id: organizationId
         });
 
       if (historyError) throw historyError;

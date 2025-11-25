@@ -14,8 +14,8 @@ import { useFiveWhysAgent, parseWhyQuestion } from '@/hooks/useFiveWhysAgent';
 import { toast } from '@/hooks/use-toast';
 import { BaseIssue } from '@/types/issues';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from "@/hooks/useCognitoAuth";
+import { supabase } from '@/lib/client';
 import { isLightColor } from '@/lib/utils';
 
 interface FiveWhysDialogProps {

@@ -3,13 +3,15 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppVersion } from "@/components/AppVersion";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { offlineQueryConfig, offlineMutationConfig } from "@/lib/queryConfig";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/hooks/useAuth";
+import { AuthProvider } from "@/hooks/useCognitoAuth";
 import { OrganizationProvider } from "@/hooks/useOrganization";
 import { AppSettingsProvider } from "@/hooks/useAppSettings";
 import { useSessionMonitor } from "@/hooks/useSessionMonitor";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminRoute from "@/components/AdminRoute";
+import LeadershipRoute from "@/components/LeadershipRoute";
 import SuperAdminRoute from "@/components/SuperAdminRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -33,7 +35,30 @@ import AnalyticsDashboard from "./pages/AnalyticsDashboard";
 import AcceptInvite from "./pages/AcceptInvite";
 import SettingsPage from "./pages/Settings";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      ...offlineQueryConfig,
+      retry: (failureCount, error) => {
+        // Don't retry on 4xx errors, but retry on network errors
+        if (error instanceof Error && error.message.includes('fetch')) {
+          return failureCount < 3;
+        }
+        return false;
+      },
+    },
+    mutations: {
+      ...offlineMutationConfig,
+      retry: (failureCount, error) => {
+        // Retry mutations on network errors only
+        if (error instanceof Error && error.message.includes('fetch')) {
+          return failureCount < 3;
+        }
+        return false;
+      },
+    },
+  },
+});
 
 function AppContent() {
   useSessionMonitor(); // Add session monitoring
@@ -123,9 +148,9 @@ function AppContent() {
         </ProtectedRoute>
       } />
       <Route path="/dashboard/analytics" element={
-        <AdminRoute>
+        <LeadershipRoute>
           <AnalyticsDashboard />
-        </AdminRoute>
+        </LeadershipRoute>
       } />
       <Route path="/settings" element={
         <ProtectedRoute>
@@ -133,14 +158,14 @@ function AppContent() {
         </ProtectedRoute>
       } />
       <Route path="/organization" element={
-        <ProtectedRoute>
+        <LeadershipRoute>
           <Organization />
-        </ProtectedRoute>
+        </LeadershipRoute>
       } />
       <Route path="/organization/:organizationId" element={
-        <ProtectedRoute>
+        <LeadershipRoute>
           <Organization />
-        </ProtectedRoute>
+        </LeadershipRoute>
       } />
       <Route path="/admin/organizations" element={
         <SuperAdminRoute>
@@ -162,7 +187,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <AppVersion />
-            <BrowserRouter>
+            <BrowserRouter basename={import.meta.env.VITE_BASE_PATH || "/"}>
               <AppContent />
             </BrowserRouter>
           </TooltipProvider>

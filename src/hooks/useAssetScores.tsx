@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { apiService } from '@/lib/apiService';
 import { useToast } from '@/hooks/use-toast';
 
 export interface AssetScore {
@@ -28,17 +28,11 @@ export const useAssetScores = (assetId?: string) => {
     
     try {
       setIsLoading(true);
-      let query = supabase
-        .from('action_scores')
-        .select('*')
-        .eq('asset_context_id', targetAssetId || assetId)
-        .order('created_at', { ascending: false });
-
-      const { data, error } = await query;
-
-      if (error) throw error;
+      const assetContextId = targetAssetId || assetId;
+      const response = await apiService.get<{ data: any[] }>(`/action_scores?asset_context_id=${assetContextId}`);
+      const data = response.data || [];
       
-      setScores((data || []).map(item => ({
+      setScores(data.map((item: any) => ({
         id: item.id,
         asset_id: item.asset_context_id || '',
         asset_name: item.asset_context_name || 'Unknown Asset',
@@ -83,60 +77,48 @@ export const useAssetScores = (assetId?: string) => {
       // If this is an issue-based score, we need to create a placeholder action first
       if (scoreData.source_type === 'issue') {
         // Check if an action already exists for this issue
-        const { data: existingAction, error: actionCheckError } = await supabase
-          .from('actions')
-          .select('id')
-          .eq('linked_issue_id', scoreData.source_id)
-          .maybeSingle();
-
-        if (actionCheckError) {
-          console.error('Error checking for existing action:', actionCheckError);
-        }
+        const checkResponse = await apiService.get<{ data: any[] }>(`/actions?linked_issue_id=${scoreData.source_id}`);
+        const existingAction = checkResponse.data?.[0];
 
         if (existingAction) {
           actionId = existingAction.id;
         } else {
           // Create a placeholder action for this issue
-          const { data: newAction, error: createActionError } = await supabase
-            .from('actions')
-            .insert({
-              title: `Score tracking for issue`,
-              description: `Automatically created action for issue score tracking`,
-              status: 'not_started',
-              linked_issue_id: scoreData.source_id,
-              asset_id: scoreData.asset_id
-            })
-            .select('id')
-            .single();
-
-          if (createActionError) {
-            console.error('Error creating placeholder action:', createActionError);
-            throw createActionError;
+          const newAction = await apiService.post('/actions', {
+            title: 'Score tracking for issue',
+            description: 'Automatically created action for issue score tracking',
+            status: 'not_started',
+            linked_issue_id: scoreData.source_id,
+            asset_id: scoreData.asset_id
+          });
+          
+          if (!newAction?.data?.id) {
+            throw new Error('Failed to create placeholder action');
           }
 
-          actionId = newAction.id;
+          actionId = newAction.data.id;
         }
       }
 
-      const { data, error } = await supabase
-        .from('action_scores')
-        .insert({
-          action_id: actionId,
-          asset_context_id: scoreData.asset_id,
-          asset_context_name: scoreData.asset_name,
-          source_type: scoreData.source_type,
-          source_id: scoreData.source_id,
-          prompt_id: scoreData.prompt_id,
-          prompt_text: scoreData.prompt_text,
-          scores: scoreData.scores,
-          ai_response: scoreData.ai_response,
-          likely_root_causes: scoreData.likely_root_causes || [],
-          score_attribution_type: scoreData.score_attribution_type || 'action'
-        })
-        .select()
-        .single();
+      // Insert the action score
+      const response = await apiService.post('/action_scores', {
+        action_id: actionId,
+        asset_context_id: scoreData.asset_id,
+        asset_context_name: scoreData.asset_name,
+        source_type: scoreData.source_type,
+        source_id: scoreData.source_id,
+        prompt_id: scoreData.prompt_id,
+        prompt_text: scoreData.prompt_text,
+        scores: scoreData.scores,
+        ai_response: scoreData.ai_response,
+        likely_root_causes: scoreData.likely_root_causes,
+        score_attribution_type: scoreData.score_attribution_type || 'action'
+      });
+      const data = response.data;
 
-      if (error) throw error;
+      if (!data) {
+        throw new Error('Failed to create action score');
+      }
 
       await fetchScores(scoreData.asset_id);
       toast({
@@ -157,16 +139,7 @@ export const useAssetScores = (assetId?: string) => {
 
   const updateScore = async (id: string, updates: Partial<AssetScore>) => {
     try {
-      const { error } = await supabase
-        .from('action_scores')
-        .update({
-          scores: updates.scores,
-          ai_response: updates.ai_response,
-          likely_root_causes: updates.likely_root_causes
-        })
-        .eq('id', id);
-
-      if (error) throw error;
+      await apiService.put(`/action_scores/${id}`, updates);
 
       await fetchScores();
       toast({
@@ -186,14 +159,8 @@ export const useAssetScores = (assetId?: string) => {
 
   const getScoreForIssue = async (issueId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('action_scores')
-        .select('*')
-        .eq('source_id', issueId)
-        .eq('source_type', 'issue')
-        .maybeSingle();
-
-      if (error) throw error;
+      const response = await apiService.get<{ data: any[] }>(`/action_scores?source_id=${issueId}&source_type=issue`);
+      const data = response.data?.[0];
       
       if (!data) return null;
       
@@ -219,14 +186,8 @@ export const useAssetScores = (assetId?: string) => {
 
   const getScoreForAction = async (actionId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('action_scores')
-        .select('*')
-        .eq('source_id', actionId)
-        .eq('source_type', 'action')
-        .maybeSingle();
-
-      if (error) throw error;
+      const response = await apiService.get<{ data: any[] }>(`/action_scores?source_id=${actionId}&source_type=action`);
+      const data = response.data?.[0];
       
       if (!data) return null;
       

@@ -13,7 +13,7 @@ import { useScoringPrompts } from "@/hooks/useScoringPrompts";
 import { useActionScores, ActionScore } from "@/hooks/useActionScores";
 import { ScoreEntryForm } from "./ScoreEntryForm";
 import { ScoreDisplayCard } from "./ScoreDisplayCard";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/client';
 import { BaseAction } from "@/types/actions";
 
 // Utility function to strip HTML tags and decode entities
@@ -44,6 +44,7 @@ export function ActionScoreDialog({
   const [parsedScores, setParsedScores] = useState<Record<string, { score: number; reason: string }> | null>(null);
   const [rootCauses, setRootCauses] = useState<string[]>([]);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [showScoreForm, setShowScoreForm] = useState(false); // New state to control form visibility
   const [asset, setAsset] = useState<any>(null);
   const [assetName, setAssetName] = useState<string>("");
   const [linkedIssue, setLinkedIssue] = useState<any>(null);
@@ -132,15 +133,22 @@ export function ActionScoreDialog({
       if (existingScore) {
         setIsEditMode(true);
         setSelectedPromptId(existingScore.prompt_id);
-        setAiResponse(JSON.stringify(existingScore.ai_response || {}, null, 2));
-        setParsedScores(existingScore.scores);
-        setRootCauses(existingScore.likely_root_causes || []);
+        // Only set AI response if it exists and has content
+        const aiResponseContent = existingScore.ai_response && Object.keys(existingScore.ai_response).length > 0 
+          ? JSON.stringify(existingScore.ai_response, null, 2)
+          : "";
+        setAiResponse(aiResponseContent);
+        // Don't auto-populate parsed scores - user must manually parse
+        setParsedScores(null);
+        setRootCauses([]);
+        setShowScoreForm(false);
       } else {
         setIsEditMode(false);
         setSelectedPromptId("");
-        setAiResponse("");
+        setAiResponse(""); // Explicitly empty
         setParsedScores(null);
         setRootCauses([]);
+        setShowScoreForm(false);
       }
     }
   }, [open, existingScore]);
@@ -208,6 +216,7 @@ export function ActionScoreDialog({
       
       setParsedScores(parsed.scores || {});
       setRootCauses(parsed.likely_root_causes || []);
+      setShowScoreForm(true); // Show the form after parsing
       
       console.log('State should be updated - parsedScores:', parsed.scores || {});
       
@@ -312,6 +321,7 @@ export function ActionScoreDialog({
     setParsedScores(null);
     setRootCauses([]);
     setIsEditMode(false);
+    setShowScoreForm(false);
     onOpenChange(false);
   };
 
@@ -539,7 +549,7 @@ export function ActionScoreDialog({
           </div>
 
           {/* Score Entry Form */}
-          {parsedScores && (
+          {showScoreForm && parsedScores && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Review & Save Scores</CardTitle>

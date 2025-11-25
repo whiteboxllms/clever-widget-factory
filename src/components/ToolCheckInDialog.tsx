@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { apiService } from '@/lib/apiService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,10 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { APP_VERSION, getBrowserInfo } from '@/lib/version';
-import { Tables, Database } from '@/integrations/supabase/types';
 import { ExternalLink, Info, AlertTriangle, Plus, Camera, X } from 'lucide-react';
 import { TOOL_CONDITION_OPTIONS } from '@/lib/constants';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -18,23 +17,27 @@ import { useToolIssues } from '@/hooks/useGenericIssues';
 import { IssueCard } from '@/components/IssueCard';
 import { IssueResolutionDialog } from '@/components/IssueResolutionDialog';
 import { useImageUpload } from '@/hooks/useImageUpload';
+import type { Tool } from '@/hooks/tools/useToolsData';
+
+const DEFAULT_ORGANIZATION_ID = '00000000-0000-0000-0000-000000000001';
 
 
-type Tool = Tables<'tools'>;
-
-type CheckoutWithTool = {
+type CheckoutRecord = {
   id: string;
   tool_id: string;
   user_id: string;
   user_name: string;
   checkout_date: string;
-  tools: Tool;
+  is_returned: boolean;
+  expected_return_date?: string | null;
+  intended_usage?: string | null;
+  notes?: string | null;
+  action_id?: string | null;
 };
 
 type CheckInForm = {
   tool_issues: string;
   notes: string;
-  returned_to_correct_location: boolean;
   reflection: string;
   hours_used: string;
   checkin_reason: string;
@@ -53,11 +56,10 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
   const { user } = useAuth();
   const { uploadImages, isUploading: isUploadingImages } = useImageUpload();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [checkout, setCheckout] = useState<CheckoutWithTool | null>(null);
+  const [checkout, setCheckout] = useState<CheckoutRecord | null>(null);
   const [form, setForm] = useState<CheckInForm>({
     tool_issues: '',
     notes: '',
-    returned_to_correct_location: true,
     reflection: '',
     hours_used: '',
     checkin_reason: ''
@@ -80,7 +82,6 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
       setForm({
         tool_issues: '',
         notes: '',
-        returned_to_correct_location: true,
         reflection: '',
         hours_used: '',
         checkin_reason: ''
@@ -96,18 +97,9 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
     if (!tool) return;
 
     try {
-      const { data, error } = await supabase
-        .from('checkouts')
-        .select(`
-          *,
-          tools(*)
-        `)
-        .eq('tool_id', tool.id)
-        .eq('is_returned', false)
-        .single();
-
-      if (error) throw error;
-      setCheckout(data);
+      const result = await apiService.get(`/checkouts?tool_id=${tool.id}&is_returned=false&limit=1`);
+      const checkoutData = Array.isArray(result?.data) ? result.data[0] : null;
+      setCheckout(checkoutData || null);
     } catch (error) {
       console.error('Error fetching checkout:', error);
       toast({
@@ -126,7 +118,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
     
     try {
       const uploadResults = await uploadImages(files, {
-        bucket: 'checkin-photos',
+        bucket: 'checkin-photos' as const,
         maxSizeMB: 0.8,
         maxWidthOrHeight: 1920,
         generateFileName: (file, index) => {
@@ -165,16 +157,22 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!checkout || !tool) return;
+    if (!checkout || !tool) {
+      console.error('Cannot check in: missing checkout or tool', { checkout: !!checkout, tool: !!tool });
+      toast({
+        title: "Error",
+        description: checkout ? "Tool information is missing" : "No active checkout found for this tool",
+        variant: "destructive",
+      });
+      return;
+    }
 
     // Get debugging information
     const browserInfo = getBrowserInfo();
     const debugInfo = {
       appVersion: APP_VERSION,
       userId: user?.id,
-      userName: user?.user_metadata?.full_name || (() => {
-        throw new Error('User full name is required for check-in');
-      })(),
+      userName: user?.user_metadata?.full_name || user?.username || user?.email || 'Unknown User',
       toolId: tool.id,
       toolName: tool.name,
       checkoutId: checkout.id,
@@ -188,15 +186,13 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
     // Show validation errors
     setShowValidation(true);
     
-    // Check required fields
-    const isCheckingInForSomeoneElse = user?.id !== checkout?.user_id;
-    if (!form.reflection || (isCheckingInForSomeoneElse && !form.checkin_reason)) {
+    const missingReflection = !form.reflection;
+    if (missingReflection) {
       const validationError = {
         ...debugInfo,
         error: 'Missing required fields',
         missingFields: {
-          reflection: !form.reflection,
-          checkin_reason: isCheckingInForSomeoneElse ? !form.checkin_reason : false
+          reflection: true
         }
       };
       console.error('=== CHECK-IN VALIDATION ERROR ===', validationError);
@@ -215,7 +211,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
       const checkinData: any = {
         checkout_id: checkout.id,
         tool_id: checkout.tool_id,
-        user_name: user?.user_metadata?.full_name || 'Unknown User',
+        user_name: user?.user_metadata?.full_name || user?.username || user?.email || 'Unknown User',
         problems_reported: form.tool_issues || null,
         notes: form.notes || null,
         sop_best_practices: form.reflection,
@@ -235,51 +231,38 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         checkinData.after_image_urls = uploadedPhotoUrls;
       }
 
-      const { error: checkinError } = await supabase
-        .from('checkins')
-        .insert(checkinData);
+      await apiService.post('/checkins', checkinData);
 
-      if (checkinError) throw checkinError;
+      await apiService.put(`/checkouts/${checkout.id}`, { is_returned: true });
 
-      // Update checkout as returned
-      const { error: updateError } = await supabase
-        .from('checkouts')
-        .update({ is_returned: true })
-        .eq('id', checkout.id);
-
-      if (updateError) throw updateError;
-
-      // Create issues from new issues text using default type
       if (form.tool_issues.trim()) {
-        const { error: issueError } = await supabase
-          .from('issues')
-          .insert({
+        try {
+          await apiService.post('/issues', {
             context_type: 'tool',
             context_id: tool.id,
-            reported_by: user?.id,
+            reported_by: user?.id || 'unknown-user',
             description: form.tool_issues.trim(),
             issue_type: 'general',
             status: 'active',
             related_checkout_id: checkout.id,
-            report_photo_urls: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : []
-          } as any);
-
-        if (issueError) {
+            report_photo_urls: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : [],
+            workflow_status: 'reported'
+          });
+        } catch (issueError) {
           console.error('Error creating issue from check-in:', issueError);
-          // Don't fail the checkout if issue creation fails
         }
       }
 
-      // Update tool status to available and location
-      const { error: toolError } = await supabase
-        .from('tools')
-        .update({ 
-          status: 'available',
-          actual_location: tool.legacy_storage_vicinity + (tool.storage_location ? ` - ${tool.storage_location}` : '')
-        })
-        .eq('id', tool.id);
+      const locationLabel = tool.legacy_storage_vicinity
+        ? tool.storage_location
+          ? `${tool.legacy_storage_vicinity} - ${tool.storage_location}`
+          : tool.legacy_storage_vicinity
+        : tool.storage_location || null;
 
-      if (toolError) throw toolError;
+      await apiService.put(`/tools/${tool.id}`, {
+        status: 'available',
+        ...(locationLabel ? { actual_location: locationLabel } : {})
+      });
 
       toast({
         title: "Tool checked in successfully",
@@ -353,34 +336,30 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
           <DialogTitle>Check In Tool: {tool.name}</DialogTitle>
         </DialogHeader>
 
-        {checkout && (
-          <div className="mb-4 p-3 bg-muted rounded-lg">
+        {checkout ? (
+          <div className="mb-4 p-3 bg-muted rounded-lg space-y-1">
             <p className="text-sm"><strong>Checked out to:</strong> {checkout.user_name}</p>
-            <p className="text-sm"><strong>Checkout date:</strong> {new Date(checkout.checkout_date).toLocaleDateString()}</p>
+            <p className="text-sm">
+              <strong>Checkout date:</strong>{" "}
+              {checkout.checkout_date ? new Date(checkout.checkout_date).toLocaleString() : "N/A"}
+            </p>
+            <p className="text-sm">
+              <strong>Storage location:</strong>{" "}
+              {tool.storage_location
+                ? `${tool.storage_location}${tool.legacy_storage_vicinity ? ` (${tool.legacy_storage_vicinity})` : ''}`
+                : tool.legacy_storage_vicinity || 'Not specified'}
+            </p>
+          </div>
+        ) : (
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-800">
+              <strong>Warning:</strong> No active checkout found for this tool. It may already be checked in.
+            </p>
           </div>
         )}
 
         <TooltipProvider>
-          <div className="space-y-4">
-            {/* Check-in Reason - Only show when checking in for someone else */}
-            {user?.id !== checkout?.user_id && (
-              <div>
-                <Label htmlFor="checkin_reason">Reason for checking in this tool *</Label>
-                <Select value={form.checkin_reason} onValueChange={(value) => setForm(prev => ({ ...prev, checkin_reason: value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select reason" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="finished_action">Finished action</SelectItem>
-                    <SelectItem value="cleanup">Cleanup</SelectItem>
-                    <SelectItem value={`requested_by_${checkout?.user_name}`}>Requested by {checkout?.user_name}</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-
+          <form onSubmit={handleSubmit} className="space-y-4">
             {/* Current Active Issues */}
             {issues.length > 0 && (
               <div>
@@ -567,19 +546,6 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
               />
             </div>
 
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="returned_to_correct_location"
-                checked={form.returned_to_correct_location}
-                onChange={(e) => setForm(prev => ({ ...prev, returned_to_correct_location: e.target.checked }))}
-                className="rounded border-gray-300"
-              />
-              <Label htmlFor="returned_to_correct_location">
-                Tool was returned to its correct storage location: {tool.legacy_storage_vicinity}{tool.storage_location ? ` - ${tool.storage_location}` : ''}
-              </Label>
-            </div>
-
             {/* Photo Upload Section */}
             <div>
               <div className="flex items-center gap-2 mb-2">
@@ -660,14 +626,14 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
 
             <div className="flex gap-2 pt-4">
               <Button
-                onClick={handleSubmit}
-                disabled={isSubmitting || isUploadingImages}
+                type="submit"
+                disabled={isSubmitting || isUploadingImages || !checkout}
                 className="flex-1"
               >
                 {isSubmitting ? "Checking In..." : "Complete Check In"}
               </Button>
             </div>
-          </div>
+          </form>
         </TooltipProvider>
       </DialogContent>
       

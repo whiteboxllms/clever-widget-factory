@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { apiService } from '@/lib/apiService';
 
 export interface CheckoutHistory {
   id: string;
@@ -13,6 +13,7 @@ export interface CheckoutHistory {
   notes?: string;
   is_returned: boolean;
   action_id?: string | null;
+  action_title?: string | null;
   checkin?: {
     id: string;
     checkin_date: string;
@@ -64,161 +65,31 @@ export type HistoryEntry = CheckoutHistory | IssueHistoryEntry | AssetHistoryEnt
 export const useToolHistory = () => {
   const [toolHistory, setToolHistory] = useState<HistoryEntry[]>([]);
   const [currentCheckout, setCurrentCheckout] = useState<{user_name: string} | null>(null);
+  const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  const fetchToolHistory = async (toolId: string) => {
+  const fetchToolHistory = useCallback(async (toolId: string) => {
+    setLoading(true);
+    setToolHistory([]); // Clear previous history while loading
     try {
       // Fetch all checkouts (both returned and not returned)
-      const { data: checkoutsData, error: checkoutsError } = await supabase
-        .from('checkouts')
-        .select(`
-          *,
-          checkins(
-            id,
-            checkin_date,
-            problems_reported,
-            notes,
-            user_name,
-            hours_used,
-            after_image_urls,
-            sop_best_practices,
-            what_did_you_do,
-            checkin_reason
-          )
-        `)
-        .eq('tool_id', toolId)
-        .order('created_at', { ascending: false }); // Order by created_at to show planned checkouts properly
+      const checkoutsResult = await apiService.get(`/checkouts?tool_id=${toolId}`);
+      const checkoutsData = checkoutsResult.data || [];
 
-      if (checkoutsError) throw checkoutsError;
-
-      // Fetch standalone check-ins (not linked to any checkout)
-      const { data: standaloneCheckins, error: checkinsError } = await supabase
-        .from('checkins')
-        .select('*')
-        .eq('tool_id', toolId)
-        .is('checkout_id', null)
-        .order('checkin_date', { ascending: false });
-
-      if (checkinsError) throw checkinsError;
-
-      // Fetch asset history
-      const { data: assetHistoryData, error: assetHistoryError } = await supabase
-        .from('asset_history')
-        .select('*')
-        .eq('asset_id', toolId)
-        .order('changed_at', { ascending: false });
-
-      if (assetHistoryError) throw assetHistoryError;
-
-      // Fetch issue history with issue details
-      const { data: issueHistoryData, error: issueHistoryError } = await supabase
-        .from('issue_history')
-        .select(`
-          id,
-          issue_id,
-          changed_by,
-          changed_at,
-          old_status,
-          new_status,
-          field_changed,
-          old_value,
-          new_value,
-          notes
-        `)
-        .order('changed_at', { ascending: false });
-
-      if (issueHistoryError) throw issueHistoryError;
-
-      // Filter issue history for this tool by fetching related issues
-      let issueHistoryWithNames: IssueHistoryEntry[] = [];
-      if (issueHistoryData && issueHistoryData.length > 0) {
-        // Get all issues for this tool
-        const { data: toolIssues } = await supabase
-          .from('issues')
-          .select('id, description, issue_type')
-          .eq('context_type', 'tool')
-          .eq('context_id', toolId);
-
-        const toolIssueIds = new Set(toolIssues?.map(issue => issue.id) || []);
-        
-        // Filter history to only include entries for this tool's issues
-        const relevantHistory = issueHistoryData.filter(item => 
-          toolIssueIds.has(item.issue_id)
-        );
-
-        if (relevantHistory.length > 0) {
-          const { data: userDisplayNames } = await supabase.rpc('get_user_display_names');
-          const userNameMap = new Map(
-            userDisplayNames?.map(user => [user.user_id, user.full_name]) || []
-          );
-
-          const issueMap = new Map(
-            toolIssues?.map(issue => [issue.id, issue]) || []
-          );
-
-          issueHistoryWithNames = relevantHistory.map(historyItem => {
-            const issueInfo = issueMap.get(historyItem.issue_id);
-            return {
-              id: historyItem.id,
-              type: 'issue_change' as const,
-              issue_id: historyItem.issue_id,
-              issue_description: issueInfo?.description,
-              issue_type: issueInfo?.issue_type,
-              change_type: historyItem.old_status === null ? 'created' : 
-                          historyItem.new_status === 'resolved' ? 'resolved' :
-                          historyItem.new_status === 'removed' ? 'removed' : 'updated',
-              changed_at: historyItem.changed_at,
-              changed_by: historyItem.changed_by,
-              user_name: userNameMap.get(historyItem.changed_by) || 'Unknown User',
-              field_changed: historyItem.field_changed,
-              old_value: historyItem.old_value,
-              new_value: historyItem.new_value,
-              old_status: historyItem.old_status,
-              new_status: historyItem.new_status,
-              notes: historyItem.notes
-            };
-          });
-        }
-      }
-
-      // Process asset history
-      let assetHistoryWithNames: AssetHistoryEntry[] = [];
-      if (assetHistoryData && assetHistoryData.length > 0) {
-        // Get user names for asset history
-        const assetUserIds = new Set(assetHistoryData.map(entry => entry.changed_by));
-        const { data: assetUserDisplayNames } = await supabase
-          .from('organization_members')
-          .select('user_id, full_name')
-          .in('user_id', Array.from(assetUserIds))
-          .eq('is_active', true);
-        
-        const assetUserNameMap = new Map(
-          assetUserDisplayNames?.map(user => [user.user_id, user.full_name]) || []
-        );
-
-        assetHistoryWithNames = assetHistoryData.map(entry => ({
-          id: entry.id,
-          type: 'asset_change' as const,
-          asset_id: entry.asset_id,
-          change_type: entry.change_type as 'created' | 'updated' | 'removed' | 'status_change',
-          changed_at: entry.changed_at,
-          changed_by: entry.changed_by,
-          user_name: assetUserNameMap.get(entry.changed_by) || 'Unknown User',
-          field_changed: entry.field_changed,
-          old_value: entry.old_value,
-          new_value: entry.new_value,
-          notes: entry.notes
-        }));
-      }
+      // Simplified: Only fetch checkouts for now
+      // TODO: Add checkins, asset_history, issue_history endpoints to AWS API
+      const standaloneCheckins: any[] = [];
+      const issueHistoryWithNames: IssueHistoryEntry[] = [];
+      const assetHistoryWithNames: AssetHistoryEntry[] = [];
       
       // Find current checkout (not returned)
-      const activeCheckout = checkoutsData?.find(checkout => !checkout.is_returned);
+      const activeCheckout = checkoutsData?.find((checkout: any) => !checkout.is_returned);
       setCurrentCheckout(activeCheckout ? { user_name: activeCheckout.user_name } : null);
       
       // Combine checkouts and standalone check-ins into history
-      const processedCheckouts = (checkoutsData || []).map(checkout => ({
+      const processedCheckouts = (checkoutsData || []).map((checkout: any) => ({
         ...checkout,
-        checkin: checkout.checkins && checkout.checkins.length > 0 ? checkout.checkins[0] : null
+        checkin: null // TODO: Fetch checkins separately
       }));
       
       const allHistory: HistoryEntry[] = [
@@ -248,12 +119,15 @@ export const useToolHistory = () => {
         description: "Failed to load tool history",
         variant: "destructive"
       });
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [toast]);
 
   return {
     toolHistory,
     currentCheckout,
+    loading,
     fetchToolHistory,
     setCurrentCheckout
   };

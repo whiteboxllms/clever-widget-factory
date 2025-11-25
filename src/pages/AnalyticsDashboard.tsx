@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, TrendingUp, Users, BarChart3 } from 'lucide-react';
 import { AttributeRadarChart } from '@/components/AttributeRadarChart';
 import { AttributeFilters } from '@/components/AttributeFilters';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/client';
 import { ScoredActionsList } from '@/components/ScoredActionsList';
 import { ProactiveVsReactiveChart } from '@/components/ProactiveVsReactiveChart';
 import InventoryTrackingChart from '@/components/InventoryTrackingChart';

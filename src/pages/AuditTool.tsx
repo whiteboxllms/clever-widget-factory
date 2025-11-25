@@ -8,9 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, Camera, AlertTriangle, Edit, Flag } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/client';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { useImageUpload } from '@/hooks/useImageUpload';
 import { showErrorToast } from '@/components/ErrorToast';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
@@ -108,7 +108,7 @@ const AuditTool = () => {
       let uploadedUrls: string[] = [];
       if (selectedFiles.length > 0) {
         try {
-          const results = await uploadImages(selectedFiles, { bucket: 'audit-photos' });
+          const results = await uploadImages(selectedFiles, { bucket: 'audit-photos' as const });
           uploadedUrls = Array.isArray(results) ? results.map(r => r.url) : [results.url];
         } catch (uploadError) {
           console.error('Error uploading photos:', uploadError);
@@ -133,7 +133,6 @@ const AuditTool = () => {
         .from('tool_audits')
         .insert({
           ...auditData,
-          organization_id: organizationId
         });
 
       if (auditError) throw auditError;

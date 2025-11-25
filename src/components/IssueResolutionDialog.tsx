@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useImageUpload } from "@/hooks/useImageUpload";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/client';
 import { toast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { Loader2, X } from "lucide-react";
@@ -110,7 +110,7 @@ export function IssueResolutionDialog({
       let photoUrls: string[] = [];
       if (form.resolution_photos.length > 0) {
         const uploadResults = await uploadImages(form.resolution_photos, {
-          bucket: 'tool-resolution-photos',
+          bucket: 'tool-resolution-photos' as const,
           generateFileName: (file) => `resolution-${issue.id}-${Date.now()}-${file.name}`,
           maxSizeMB: 2,
           maxWidthOrHeight: 1920
@@ -145,7 +145,6 @@ export function IssueResolutionDialog({
           new_status: 'resolved',
           changed_by: (await supabase.auth.getUser()).data.user?.id,
           notes: `Resolved: ${form.resolution_notes}`,
-          organization_id: organizationId
         });
 
       if (historyError) throw historyError;

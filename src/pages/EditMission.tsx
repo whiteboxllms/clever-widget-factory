@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Trash2, Archive } from 'lucide-react';
+import { ArrowLeft, Trash2, Archive } from 'lucide-react';
 import { Button } from "@/components/ui/button";
-import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator, BreadcrumbPage } from "@/components/ui/breadcrumb";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SimpleMissionForm } from '@/components/SimpleMissionForm';
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { apiService } from '@/lib/apiService';
+
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useActionProfiles } from "@/hooks/useActionProfiles";
 
@@ -80,18 +80,15 @@ export default function EditMission() {
 
   const fetchMissionData = async () => {
     try {
-      const { data: missionData, error: missionError } = await supabase
-        .from('missions')
-        .select('*')
-        .eq('id', missionId)
-        .single();
-
-      if (missionError) throw missionError;
+      // Fetch mission data
+      const missionResult = await apiService.get('/missions');
+      const missions = Array.isArray(missionResult) ? missionResult : (missionResult?.data || []);
+      const missionData = missions.find(m => m.id === missionId);
       
       if (!missionData) {
         toast({
           title: "Error",
-          description: "Mission not found",
+          description: "Project not found",
           variant: "destructive"
         });
         navigate('/missions');
@@ -101,13 +98,9 @@ export default function EditMission() {
       setMission(missionData);
 
       // Fetch mission tasks
-      const { data: tasksData, error: tasksError } = await supabase
-        .from('actions')
-        .select('*')
-        .eq('mission_id', missionId)
-        .order('updated_at', { ascending: false });
-
-      if (tasksError) throw tasksError;
+      const tasksResult = await apiService.get('/actions');
+      const allTasks = Array.isArray(tasksResult) ? tasksResult : (tasksResult?.data || []);
+      const tasksData = allTasks.filter(task => task.mission_id === missionId);
 
       // Create template object from stored mission data
       let missionTemplate = null;
@@ -146,7 +139,7 @@ export default function EditMission() {
       console.error('Error fetching mission:', error);
       toast({
         title: "Error",
-        description: "Failed to load mission data",
+        description: "Failed to load project data",
         variant: "destructive"
       });
       navigate('/missions');
@@ -158,11 +151,9 @@ export default function EditMission() {
   const checkUserPermissions = async () => {
     if (!user) return;
     
-    const { data: userMember } = await supabase
-      .from('organization_members')
-      .select('role')
-      .eq('user_id', user.id)
-      .single();
+    const result = await apiService.get('/organization_members');
+    const members = Array.isArray(result) ? result : (result?.data || []);
+    const userMember = members.find(m => m.user_id === user.id);
 
     const contributorOrAdmin = userMember?.role === 'contributor' || userMember?.role === 'admin';
     setIsContributorOrAdmin(contributorOrAdmin);
@@ -182,22 +173,17 @@ export default function EditMission() {
     
     try {
       console.log('Saving mission data:', data);
-      const { error } = await supabase
-        .from('missions')
-        .update({
-          title: data.title,
-          problem_statement: data.problem_statement,
-          qa_assigned_to: data.qa_assigned_to || null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', mission.id);
-
-      if (error) throw error;
+      await apiService.put(`/missions/${mission.id}`, {
+        title: data.title,
+        problem_statement: data.problem_statement,
+        qa_assigned_to: data.qa_assigned_to || null,
+        updated_at: new Date().toISOString()
+      });
       console.log('Mission save successful');
       
       toast({
-        title: "Mission Updated",
-        description: "Mission details have been saved successfully."
+        title: "Project Updated",
+        description: "Project details have been saved successfully."
       });
       
       // Navigate back to missions list after successful save
@@ -206,7 +192,7 @@ export default function EditMission() {
       console.error('Mission save failed:', error);
       toast({
         title: "Save Failed",
-        description: error.message || "Failed to save mission. Please try again.",
+        description: error.message || "Failed to save project. Please try again.",
         variant: "destructive"
       });
       throw error;
@@ -232,23 +218,15 @@ export default function EditMission() {
     });
     
     try {
-      const { error } = await supabase
-        .from('missions')
-        .update({
-          status: 'cancelled',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', mission.id);
-
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
+      await apiService.put(`/missions/${mission.id}`, {
+        status: 'cancelled',
+        updated_at: new Date().toISOString()
+      });
 
       console.log('Mission successfully removed');
       toast({
-        title: "Mission Removed",
-        description: `Mission MISSION-${String(mission.mission_number).padStart(3, '0')} has been removed.`,
+        title: "Project Removed",
+        description: `Project PROJECT-${String(mission.mission_number).padStart(3, '0')} has been removed.`,
       });
 
       // Navigate back to missions
@@ -257,7 +235,7 @@ export default function EditMission() {
       console.error('Error removing mission:', error);
       toast({
         title: "Remove Failed",
-        description: `Failed to remove mission: ${error.message || 'Unknown error'}`,
+        description: `Failed to remove project: ${error.message || 'Unknown error'}`,
         variant: "destructive"
       });
     }
@@ -278,23 +256,15 @@ export default function EditMission() {
     });
     
     try {
-      const { error } = await supabase
-        .from('missions')
-        .update({
-          status: 'cancelled',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', mission.id);
-
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
+      await apiService.put(`/missions/${mission.id}`, {
+        status: 'cancelled',
+        updated_at: new Date().toISOString()
+      });
 
       console.log('Mission successfully moved to backlog');
       toast({
-        title: "Mission Moved to Backlog",
-        description: `Mission MISSION-${String(mission.mission_number).padStart(3, '0')} has been moved to the backlog.`,
+        title: "Project Moved to Backlog",
+        description: `Project PROJECT-${String(mission.mission_number).padStart(3, '0')} has been moved to the backlog.`,
       });
 
       // Navigate back to missions
@@ -303,7 +273,7 @@ export default function EditMission() {
       console.error('Error moving mission to backlog:', error);
       toast({
         title: "Move to Backlog Failed",
-        description: `Failed to move mission to backlog: ${error.message || 'Unknown error'}`,
+        description: `Failed to move project to backlog: ${error.message || 'Unknown error'}`,
         variant: "destructive"
       });
     }
@@ -312,7 +282,7 @@ export default function EditMission() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <div className="text-center py-8">Loading mission...</div>
+        <div className="text-center py-8">Loading project...</div>
       </div>
     );
   }
@@ -320,7 +290,7 @@ export default function EditMission() {
   if (!mission) {
     return (
       <div className="min-h-screen bg-background">
-        <div className="text-center py-8">Mission not found</div>
+        <div className="text-center py-8">Project not found</div>
       </div>
     );
   }
@@ -345,21 +315,20 @@ export default function EditMission() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="max-w-7xl mx-auto px-6 py-4">
-          
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbPage>Missions</BreadcrumbPage>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Edit Mission</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-          
-          <h1 className="text-2xl font-bold mt-2">Edit Mission</h1>
-          <p className="text-muted-foreground">Update the mission details</p>
+          <div className="flex items-center gap-4">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate('/missions')}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Missions
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold">Edit Mission</h1>
+              <p className="text-muted-foreground">Update the mission details</p>
+            </div>
+          </div>
         </div>
       </header>
 

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { saveSession as saveSessionService, completeSession as completeSessionService, getSession, chatFiveWhys } from '@/services/fiveWhysService';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from "@/hooks/useCognitoAuth";
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';

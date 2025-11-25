@@ -13,8 +13,8 @@ import {
   User,
   Target
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/client';
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { BaseIssue } from '@/types/issues';
 import { IssueWorkflowDialog } from '@/components/IssueWorkflowDialog';
 import { useWorkerAttributes, WorkerAttribute, IssueRequirement, AttributeType } from '@/hooks/useWorkerAttributes';

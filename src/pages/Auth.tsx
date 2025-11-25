@@ -6,19 +6,22 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { useInvitations } from '@/hooks/useInvitations';
 import { useToast } from '@/hooks/use-toast';
 
 const Auth = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, signIn, signUp, signInWithGoogle, resetPassword, updatePassword } = useAuth();
+  const { user, signIn, signUp, confirmSignIn, resetPassword, confirmResetPassword, updatePassword } = useAuth();
   const { sendInvitation } = useInvitations();
   const { toast } = useToast();
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [needsPasswordChange, setNeedsPasswordChange] = useState(false);
+  const [resetStep, setResetStep] = useState<'request' | 'confirm'>('request');
+  const [resetEmail, setResetEmail] = useState('');
   
   // Helper function to detect recovery parameters from both query and hash
   const getRecoveryFlagFromUrl = () => {
@@ -70,12 +73,40 @@ const Auth = () => {
     const { error } = await signIn(email, password);
     
     if (error) {
-      setError(error.message);
+      if (error.code === 'NEW_PASSWORD_REQUIRED') {
+        setNeedsPasswordChange(true);
+      } else {
+        setError(error.message);
+      }
     } else {
       toast({
         title: "Welcome back!",
         description: "You have successfully signed in.",
       });
+    }
+    
+    setLoading(false);
+  };
+
+  const handleConfirmSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    
+    const newPassword = formData.get('newPassword') as string;
+    
+    setLoading(true);
+    setError('');
+    
+    const { error } = await confirmSignIn(newPassword);
+    
+    if (error) {
+      setError(error.message);
+    } else {
+      toast({
+        title: "Password updated successfully",
+        description: "You have successfully signed in.",
+      });
+      setNeedsPasswordChange(false);
     }
     
     setLoading(false);
@@ -97,11 +128,45 @@ const Auth = () => {
     if (error) {
       setError(error.message);
     } else {
+      setResetEmail(email);
+      setResetStep('confirm');
       toast({
-        title: "Password reset email sent",
-        description: "Check your email for password reset instructions.",
+        title: "Reset code sent",
+        description: "Check your email for the verification code.",
+      });
+    }
+    
+    setLoading(false);
+  };
+
+  const handleConfirmResetPassword = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    
+    const code = formData.get('code') as string;
+    const newPassword = formData.get('newPassword') as string;
+    const confirmPassword = formData.get('confirmPassword') as string;
+    
+    if (newPassword !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+    
+    setLoading(true);
+    setError('');
+    
+    const { error } = await confirmResetPassword(resetEmail, code, newPassword);
+    
+    if (error) {
+      setError(error.message);
+    } else {
+      toast({
+        title: "Password reset successful",
+        description: "You can now sign in with your new password.",
       });
       setShowResetForm(false);
+      setResetStep('request');
+      setResetEmail('');
     }
     
     setLoading(false);
@@ -159,7 +224,36 @@ const Auth = () => {
           <p className="text-muted-foreground">Manage your assets and stock efficiently</p>
         </CardHeader>
         <CardContent className="space-y-4">
-          {isPasswordReset ? (
+          {needsPasswordChange ? (
+            <div className="space-y-4">
+              <div className="text-center">
+                <h3 className="text-lg font-semibold">Set New Password</h3>
+                <p className="text-sm text-muted-foreground">You must set a new password to continue</p>
+              </div>
+              
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              <form onSubmit={handleConfirmSignIn} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword">New Password</Label>
+                  <Input
+                    id="newPassword"
+                    name="newPassword"
+                    type="password"
+                    required
+                    disabled={loading}
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? 'Setting Password...' : 'Set Password'}
+                </Button>
+              </form>
+            </div>
+          ) : isPasswordReset ? (
             <div className="space-y-4">
               <div className="text-center">
                 <h3 className="text-lg font-semibold">Set New Password</h3>
@@ -200,41 +294,107 @@ const Auth = () => {
             </div>
           ) : showResetForm ? (
             <div className="space-y-4">
-              <div className="text-center">
-                <h3 className="text-lg font-semibold">Reset Password</h3>
-                <p className="text-sm text-muted-foreground">Enter your email to receive password reset instructions</p>
-              </div>
-              
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
+              {resetStep === 'request' ? (
+                <>
+                  <div className="text-center">
+                    <h3 className="text-lg font-semibold">Reset Password</h3>
+                    <p className="text-sm text-muted-foreground">Enter your email to receive a verification code</p>
+                  </div>
+                  
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
 
-              <form onSubmit={handleResetPassword} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    required
-                    disabled={loading}
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? 'Sending...' : 'Send Reset Email'}
-                </Button>
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  className="w-full" 
-                  onClick={() => setShowResetForm(false)}
-                  disabled={loading}
-                >
-                  Back to Sign In
-                </Button>
-              </form>
+                  <form onSubmit={handleResetPassword} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        name="email"
+                        type="email"
+                        required
+                        disabled={loading}
+                      />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={loading}>
+                      {loading ? 'Sending...' : 'Send Reset Code'}
+                    </Button>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      className="w-full" 
+                      onClick={() => setShowResetForm(false)}
+                      disabled={loading}
+                    >
+                      Back to Sign In
+                    </Button>
+                  </form>
+                </>
+              ) : (
+                <>
+                  <div className="text-center">
+                    <h3 className="text-lg font-semibold">Enter Reset Code</h3>
+                    <p className="text-sm text-muted-foreground">Enter the code sent to {resetEmail}</p>
+                  </div>
+                  
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <form onSubmit={handleConfirmResetPassword} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="code">Verification Code</Label>
+                      <Input
+                        id="code"
+                        name="code"
+                        type="text"
+                        required
+                        disabled={loading}
+                        placeholder="Enter 6-digit code"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="newPassword">New Password</Label>
+                      <Input
+                        id="newPassword"
+                        name="newPassword"
+                        type="password"
+                        required
+                        disabled={loading}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="confirmPassword">Confirm Password</Label>
+                      <Input
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        type="password"
+                        required
+                        disabled={loading}
+                      />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={loading}>
+                      {loading ? 'Resetting...' : 'Reset Password'}
+                    </Button>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      className="w-full" 
+                      onClick={() => {
+                        setResetStep('request');
+                        setError('');
+                      }}
+                      disabled={loading}
+                    >
+                      Back to Email
+                    </Button>
+                  </form>
+                </>
+              )}
             </div>
           ) : (
             <Tabs defaultValue="signin" className="w-full">

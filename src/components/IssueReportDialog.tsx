@@ -19,7 +19,7 @@ import { IssueQuickResolveDialog } from "./IssueQuickResolveDialog";
 import { CreateIssueDialog } from "./CreateIssueDialog";
 
 
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/lib/client';
 import { toast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 
@@ -77,7 +77,7 @@ export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: Issu
       if (selectedImages.length > 0) {
         try {
           const uploadResults = await uploadImages(selectedImages, {
-            bucket: 'tool-resolution-photos',
+            bucket: 'tool-resolution-photos' as const,
             generateFileName: (file, index) => `issue-report-${asset.id}-${Date.now()}-${index || 1}-${file.name}`
           });
           
@@ -161,7 +161,6 @@ export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: Issu
           new_status: 'removed',
           changed_by: (await supabase.auth.getUser()).data.user?.id,
           notes: 'Issue removed by contributor',
-          organization_id: organizationId
         });
 
       if (historyError) throw historyError;
@@ -224,7 +223,7 @@ export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: Issu
               {isLoading ? (
                 <p className="text-sm text-muted-foreground">Loading existing issues...</p>
               ) : (() => {
-                const activeIssues = issues.filter(issue => issue.status !== 'resolved');
+                const activeIssues = Array.isArray(issues) ? issues.filter(issue => issue.status !== 'resolved') : [];
                 return activeIssues.length > 0 ? (
                   <div className="space-y-3">
                      {activeIssues.map((issue) => (
@@ -252,7 +251,7 @@ export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: Issu
 
           {/* Resolved Issues */}
           {(() => {
-            const resolvedIssues = issues.filter(issue => issue.status === 'resolved');
+            const resolvedIssues = Array.isArray(issues) ? issues.filter(issue => issue.status === 'resolved') : [];
             return resolvedIssues.length > 0 ? (
               <Card>
                 <CardHeader>

@@ -5,7 +5,7 @@ import { Info } from 'lucide-react';
 import { EnhancedAttributeAnalytics } from '@/hooks/useEnhancedStrategicAttributes';
 import { useOrganizationValues } from '@/hooks/useOrganizationValues';
 import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/client';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Legend } from 'recharts';
 
 // High contrast color palette for white backgrounds

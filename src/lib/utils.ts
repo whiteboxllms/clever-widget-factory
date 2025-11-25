@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { supabase } from "@/integrations/supabase/client"
+import { supabase } from '@/lib/client';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -77,16 +77,16 @@ export function getActionBorderStyle(action: {
   title?: string;
   policy?: string | null;
   assigned_to?: string | null;
-  plan_commitment?: boolean | null;
+  policy_agreed_at?: string | null;
+  policy_agreed_by?: string | null;
+  plan_commitment?: boolean;
   implementation_update_count?: number;
 }): ActionBorderStyle {
   const hasPolicy = hasActualContent(action.policy);
-  const hasImplementationUpdates = action.implementation_update_count && action.implementation_update_count > 0;
+  const hasImplementationUpdates = (action.implementation_update_count ?? 0) > 0;
   const isAssigned = Boolean(action.assigned_to);
-  const hasPlanCommitment = action.plan_commitment === true;
+  const hasPolicyAgreement = Boolean(action.policy_agreed_at || action.plan_commitment);
 
-
-  
   // Green border for completed actions
   if (action.status === 'completed') {
     return {
@@ -96,9 +96,9 @@ export function getActionBorderStyle(action: {
     };
   }
   
-  // Yellow border when there are implementation updates AND there was first a plan
+  // Yellow border when there are implementation updates AND there was first a policy agreement
   // This ensures proper progression: Gray → Blue → Yellow → Green
-  if (hasImplementationUpdates && hasPolicy && hasPlanCommitment) {
+  if (hasImplementationUpdates && hasPolicy && hasPolicyAgreement) {
     return {
       bgColor: 'bg-background',
       borderColor: 'border-yellow-500 border-2 shadow-yellow-200 shadow-lg dark:border-yellow-600 dark:shadow-yellow-900',
@@ -107,7 +107,7 @@ export function getActionBorderStyle(action: {
   }
   
   // Blue border when there's a policy AND plan commitment (ready to work)
-  if (hasPolicy && hasPlanCommitment) {
+  if (hasPolicy && hasPolicyAgreement) {
     return {
       bgColor: '',
       borderColor: 'border-blue-500 border-2 shadow-blue-200 shadow-lg dark:border-blue-600 dark:shadow-blue-900',
@@ -132,52 +132,50 @@ export async function processStockConsumption(
   actionId: string,
   userId: string,
   actionTitle: string,
-  organizationId: string,
   missionId?: string
 ): Promise<void> {
   if (!requiredStock || requiredStock.length === 0) {
     return; // No stock to process
   }
 
+  // Import apiService dynamically to avoid circular dependencies
+  const { apiService } = await import('./apiService');
+
   for (const stockItem of requiredStock) {
     try {
-      // Get current quantity and update parts table
-      const { data: partData, error: fetchError } = await supabase
-        .from('parts')
-        .select('current_quantity')
-        .eq('id', stockItem.part_id)
-        .single();
-
-      if (fetchError) {
-        console.error(`Failed to fetch part ${stockItem.part_id}:`, fetchError);
-        throw new Error(`Part with ID ${stockItem.part_id} not found or access denied`);
+      // Get current quantity using apiService (includes auth token)
+      const fetchResult = await apiService.get('/parts');
+      const parts = fetchResult.data || [];
+      const partData = parts.find((p: any) => p.id === stockItem.part_id);
+      
+      if (!partData) {
+        console.error(`Part ${stockItem.part_id} not found`);
+        throw new Error(`Part with ID ${stockItem.part_id} not found`);
       }
 
-      const newQuantity = Math.max(0, (partData?.current_quantity || 0) - stockItem.quantity);
+      const oldQuantity = partData.current_quantity || 0;
+      const newQuantity = Math.max(0, oldQuantity - stockItem.quantity);
       
-      const { error: updateError } = await supabase
-        .from('parts')
-        .update({ current_quantity: newQuantity })
-        .eq('id', stockItem.part_id);
+      // Update part quantity using apiService (includes auth token)
+      await apiService.put(`/parts/${stockItem.part_id}`, {
+        current_quantity: newQuantity
+      });
 
-      if (updateError) throw updateError;
-
-      // Log to parts_history table
-      const { error: historyError } = await supabase
-        .from('parts_history')
-        .insert({
+      // Log to parts_history table using apiService (includes auth token)
+      try {
+        await apiService.post('/parts_history', {
           part_id: stockItem.part_id,
           change_type: 'quantity_remove',
-          old_quantity: partData?.current_quantity || 0,
+          old_quantity: oldQuantity,
           new_quantity: newQuantity,
           quantity_change: -stockItem.quantity,
           changed_by: userId,
           change_reason: `Used for action: ${actionTitle} - ${stockItem.quantity} ${stockItem.part_name}`,
-          organization_id: organizationId
+          action_id: actionId, // Link to the action for auditability
         });
-
-      if (historyError) {
+      } catch (historyError) {
         console.error('Error creating parts history:', historyError);
+        // Don't throw - the main operation succeeded
       }
     } catch (error) {
       console.error(`Error processing stock item ${stockItem.part_id}:`, error);

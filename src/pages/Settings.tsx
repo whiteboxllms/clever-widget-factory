@@ -7,16 +7,17 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from "@/hooks/useCognitoAuth";
+import { apiService } from '@/lib/apiService';
 import { useToast } from '@/hooks/use-toast';
 import { useProfile } from '@/hooks/useProfile';
-import { supabase } from '@/integrations/supabase/client';
+
 
 export default function SettingsPage() {
   const { user, updatePassword, resetPassword } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { fullName, updateFullName } = useProfile();
+  const { fullName, favoriteColor: currentFavoriteColor, updateFullName } = useProfile();
 
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -28,39 +29,22 @@ export default function SettingsPage() {
 
   useEffect(() => {
     document.title = 'Account Settings | Asset Tracker';
-    fetchFavoriteColor();
     setDisplayName(fullName);
-  }, [fullName]);
+    setFavoriteColor(currentFavoriteColor);
+  }, [fullName, currentFavoriteColor]);
 
-  const fetchFavoriteColor = async () => {
-    if (!user) return;
-    
-    try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('favorite_color')
-        .eq('user_id', user.id)
-        .single();
-      
-      if (data?.favorite_color) {
-        setFavoriteColor(data.favorite_color);
-      }
-    } catch (error) {
-      console.error('Error fetching favorite color:', error);
-    }
-  };
+
 
   const updateFavoriteColor = async (color: string) => {
     if (!user) return;
     
     setColorLoading(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ favorite_color: color })
-        .eq('user_id', user.id);
-
-      if (error) throw error;
+      await apiService.post('/profiles', {
+        user_id: user.userId,
+        full_name: fullName, // Preserve existing name
+        favorite_color: color
+      });
 
       setFavoriteColor(color);
       toast({

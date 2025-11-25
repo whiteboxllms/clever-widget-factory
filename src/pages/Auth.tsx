@@ -220,8 +220,11 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold">Asset Tracker</CardTitle>
-          <p className="text-muted-foreground">Manage your assets and stock efficiently</p>
+          <div className="flex justify-center mb-4">
+            <img src="/logo-only.svg" alt="Stargazer Farm" className="h-20 w-20" />
+          </div>
+          <CardTitle className="text-3xl font-bold mb-2">Stargazer Farm</CardTitle>
+          <p className="text-lg font-medium">AI-Assisted Project & Inventory Management</p>
         </CardHeader>
         <CardContent className="space-y-4">
           {needsPasswordChange ? (
@@ -447,6 +450,19 @@ const Auth = () => {
               </TabsContent>
             </Tabs>
           )}
+          
+          <div className="text-center text-sm text-muted-foreground pt-4 border-t">
+            Building policies, tracking progress, growing together.
+          </div>
+          
+          <div className="flex gap-2 justify-center pb-2">
+            <Button 
+              variant="outline" 
+              onClick={() => window.open('https://www.facebook.com/stargazerfarminc/', '_blank')}
+            >
+              Contact Us
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

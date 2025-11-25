@@ -73,3 +73,6 @@ check-db.sh
 
 # Prototype/one-time scripts
 prototype/
+
+# Lovable tagger metadata
+html.meta.json.gz

@@ -81,6 +81,8 @@ exports.handler = async (event) => {
   
   // Normalize path - strip /api prefix if present (API Gateway may include it)
   const path = rawPath.startsWith('/api/') ? rawPath.substring(4) : rawPath;
+  console.log('🔍 Path received:', path);
+  console.log('🔍 HTTP Method:', httpMethod);
   
   // Extract authorizer context (organization_id, permissions, etc.)
   const authContext = getAuthorizerContext(event);
@@ -715,6 +717,197 @@ exports.handler = async (event) => {
           statusCode: 200,
           headers,
           body: JSON.stringify({ data: result })
+        };
+      }
+    }
+
+    // Organizations endpoint
+    if (path.endsWith('/organizations')) {
+      if (httpMethod === 'GET') {
+        console.log('✅ Organizations GET endpoint matched');
+        const sql = `SELECT json_agg(row_to_json(t)) FROM (
+          SELECT * FROM organizations
+        ) t;`;
+        
+        console.log('Executing SQL:', sql);
+        const result = await queryJSON(sql);
+        console.log('Query result:', JSON.stringify(result, null, 2));
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
+        };
+      }
+    }
+    
+    // Organizations by ID endpoint
+    if (path.match(/\/organizations\/[^/]+$/)) {
+      const orgId = path.split('/').pop();
+      
+      if (httpMethod === 'PUT') {
+        const body = JSON.parse(event.body || '{}');
+        const { strategic_attributes } = body;
+        
+        if (!strategic_attributes) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'strategic_attributes required' })
+          };
+        }
+        
+        // Get current settings and merge
+        const getSql = `SELECT settings FROM organizations WHERE id = '${orgId}';`;
+        const current = await queryJSON(getSql);
+        const currentSettings = current[0]?.settings || {};
+        const updatedSettings = { ...currentSettings, strategic_attributes };
+        
+        const sql = `
+          UPDATE organizations 
+          SET settings = '${JSON.stringify(updatedSettings)}'::jsonb
+          WHERE id = '${orgId}'
+          RETURNING *;
+        `;
+        
+        const result = await queryJSON(sql);
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ data: result[0] })
+        };
+      }
+    }
+
+    // Worker strategic attributes endpoint
+    if (path.endsWith('/worker_strategic_attributes')) {
+      if (httpMethod === 'GET') {
+        const sql = `SELECT json_agg(row_to_json(t)) FROM (
+          SELECT * FROM worker_strategic_attributes ORDER BY created_at DESC
+        ) t;`;
+        
+        const result = await queryJSON(sql);
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
+        };
+      }
+    }
+
+    // Action scores endpoint
+    if (path.endsWith('/action_scores')) {
+      if (httpMethod === 'GET') {
+        const { start_date, end_date, user_id } = event.queryStringParameters || {};
+        let whereConditions = [];
+        
+        if (start_date) {
+          whereConditions.push(`s.created_at >= '${start_date}'`);
+        }
+        if (end_date) {
+          whereConditions.push(`s.created_at <= '${end_date}'`);
+        }
+        if (user_id) {
+          whereConditions.push(`a.assigned_to = '${user_id}'`);
+        }
+        
+        const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+        
+        const sql = `SELECT json_agg(row_to_json(t)) FROM (
+          SELECT s.* FROM action_scores s
+          LEFT JOIN actions a ON a.id = s.action_id
+          ${whereClause}
+          ORDER BY s.created_at DESC
+        ) t;`;
+        
+        const result = await queryJSON(sql);
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
+        };
+      }
+      
+      if (httpMethod === 'POST') {
+        const body = JSON.parse(event.body || '{}');
+        const { action_id, source_type, source_id, prompt_id, prompt_text, scores, ai_response, likely_root_causes, asset_context_id, asset_context_name } = body;
+        
+        if (!action_id || !prompt_id || !scores) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'action_id, prompt_id, and scores are required' })
+          };
+        }
+        
+        const sql = `
+          INSERT INTO action_scores (
+            action_id, source_type, source_id, prompt_id, prompt_text, scores, 
+            ai_response, likely_root_causes, asset_context_id, asset_context_name, created_at, updated_at
+          )
+          VALUES (
+            '${action_id}',
+            '${source_type || 'action'}',
+            '${source_id || action_id}',
+            '${prompt_id}',
+            ${prompt_text ? `'${escapeLiteral(prompt_text)}'` : 'NULL'},
+            '${JSON.stringify(scores)}'::jsonb,
+            ${ai_response ? `'${JSON.stringify(ai_response)}'::jsonb` : 'NULL'},
+            ${likely_root_causes ? `'${JSON.stringify(likely_root_causes)}'::jsonb` : 'NULL'},
+            ${asset_context_id ? `'${asset_context_id}'` : 'NULL'},
+            ${asset_context_name ? `'${escapeLiteral(asset_context_name)}'` : 'NULL'},
+            NOW(),
+            NOW()
+          )
+          RETURNING *;
+        `;
+        
+        const result = await queryJSON(sql);
+        return {
+          statusCode: 201,
+          headers,
+          body: JSON.stringify({ data: result[0] })
+        };
+      }
+    }
+    
+    // Action scores by ID endpoint
+    if (path.match(/\/action_scores\/[^/]+$/)) {
+      const scoreId = path.split('/').pop();
+      
+      if (httpMethod === 'PUT') {
+        const body = JSON.parse(event.body || '{}');
+        const updates = [];
+        
+        if (body.prompt_id) updates.push(`prompt_id = '${body.prompt_id}'`);
+        if (body.prompt_text) updates.push(`prompt_text = '${escapeLiteral(body.prompt_text)}'`);
+        if (body.scores) updates.push(`scores = '${JSON.stringify(body.scores)}'::jsonb`);
+        if (body.ai_response) updates.push(`ai_response = '${JSON.stringify(body.ai_response)}'::jsonb`);
+        if (body.likely_root_causes) updates.push(`likely_root_causes = '${JSON.stringify(body.likely_root_causes)}'::jsonb`);
+        if (body.asset_context_id) updates.push(`asset_context_id = '${body.asset_context_id}'`);
+        if (body.asset_context_name) updates.push(`asset_context_name = '${escapeLiteral(body.asset_context_name)}'`);
+        
+        updates.push(`updated_at = NOW()`);
+        
+        if (updates.length === 0) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'No valid fields to update' })
+          };
+        }
+        
+        const sql = `
+          UPDATE action_scores
+          SET ${updates.join(', ')}
+          WHERE id = '${scoreId}'
+          RETURNING *;
+        `;
+        
+        const result = await queryJSON(sql);
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ data: result[0] })
         };
       }
     }
@@ -1583,15 +1776,24 @@ exports.handler = async (event) => {
       }
       
       if (httpMethod === 'GET') {
-        const { action_id, limit = 50 } = event.queryStringParameters || {};
+        const { action_id, start_date, end_date, user_ids, limit = 50 } = event.queryStringParameters || {};
         
-        if (!action_id) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'action_id parameter required' })
-          };
+        let whereConditions = [];
+        if (action_id) {
+          whereConditions.push(`aiu.action_id = '${action_id}'`);
         }
+        if (start_date) {
+          whereConditions.push(`aiu.created_at >= '${start_date}'`);
+        }
+        if (end_date) {
+          whereConditions.push(`aiu.created_at <= '${end_date}'`);
+        }
+        if (user_ids) {
+          const ids = user_ids.split(',').map(id => `'${id}'`).join(',');
+          whereConditions.push(`aiu.updated_by IN (${ids})`);
+        }
+        
+        const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
         
         const sql = `SELECT json_agg(row_to_json(t)) FROM (
           SELECT 
@@ -1600,7 +1802,7 @@ exports.handler = async (event) => {
             om.favorite_color as updated_by_color
           FROM action_implementation_updates aiu
           LEFT JOIN profiles om ON aiu.updated_by = om.user_id
-          WHERE aiu.action_id = '${action_id}' 
+          ${whereClause}
           ORDER BY aiu.created_at DESC 
           LIMIT ${limit}
         ) t;`;

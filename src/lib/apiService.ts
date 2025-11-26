@@ -9,6 +9,16 @@ import { fetchAuthSession } from 'aws-amplify/auth';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
+// Validate API_BASE_URL configuration
+if (API_BASE_URL.endsWith('/api')) {
+  console.error(
+    '❌ CONFIGURATION ERROR: VITE_API_BASE_URL should NOT end with "/api"\n' +
+    `   Current value: ${API_BASE_URL}\n` +
+    `   Should be: ${API_BASE_URL.replace(/\/api$/, '')}\n` +
+    '   The apiService automatically adds /api prefix to endpoints.'
+  );
+}
+
 export interface ApiError {
   message: string;
   status: number;
@@ -65,6 +75,7 @@ async function apiRequest<T = any>(
     }
     
     url = `${baseUrl}${normalizedEndpoint}`;
+    console.log('🔗 API Request:', { baseUrl, endpoint, normalizedEndpoint, url });
   }
 
   // Get ID token for Authorization header

@@ -34,6 +34,14 @@ A comprehensive asset management and accountability system built with React, Typ
    ```
    This starts the Vite dev server on http://localhost:8080
 
+### API Configuration
+
+**IMPORTANT**: The `VITE_API_BASE_URL` should NOT include the `/api` suffix:
+- ✅ Correct: `https://xxx.execute-api.us-west-2.amazonaws.com/prod`
+- ❌ Wrong: `https://xxx.execute-api.us-west-2.amazonaws.com/prod/api`
+
+The apiService automatically adds `/api` to all endpoints.
+
 ### API Endpoints
 The AWS API Gateway provides these endpoints:
 - `GET /health` - Health check

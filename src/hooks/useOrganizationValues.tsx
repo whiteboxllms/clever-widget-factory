@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '@/lib/client';
 import { useToast } from '@/hooks/use-toast';
-import { useOrganizationId } from '@/hooks/useOrganizationId';
+import { useOrganization } from '@/hooks/useOrganization';
+import { apiService, getApiData } from '@/lib/apiService';
 
 export interface OrganizationValues {
   strategic_attributes: string[];
@@ -10,22 +10,17 @@ export interface OrganizationValues {
 export function useOrganizationValues() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  const organizationId = useOrganizationId();
+  const { organization } = useOrganization();
 
   const getOrganizationValues = useCallback(async (): Promise<string[]> => {
-    if (!organizationId) return [];
+    if (!organization?.id) return [];
 
     try {
-      const { data, error } = await supabase
-        .from('organizations')
-        .select('settings')
-        .eq('id', organizationId)
-        .single();
-
-      if (error) throw error;
-
-      const settings = data?.settings as any;
-      const values = settings?.strategic_attributes || [];
+      const response = await apiService.get('/organizations');
+      const orgs = getApiData(response) || [];
+      const currentOrg = orgs.find((o: any) => o.id === organization.id);
+      
+      const values = currentOrg?.settings?.strategic_attributes || [];
       
       // If no values exist, return defaults
       if (values.length === 0) {
@@ -45,34 +40,16 @@ export function useOrganizationValues() {
         "Teamwork and Transparent Communication"
       ];
     }
-  }, [organizationId]);
+  }, [organization?.id]);
 
   const updateOrganizationValues = useCallback(async (selectedAttributes: string[]): Promise<boolean> => {
-    if (!organizationId) return false;
+    if (!organization?.id) return false;
 
     setIsLoading(true);
     try {
-      // Get current settings
-      const { data: currentData, error: fetchError } = await supabase
-        .from('organizations')
-        .select('settings')
-        .eq('id', organizationId)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      const currentSettings = currentData?.settings || {};
-      const updatedSettings = {
-        ...(currentSettings as Record<string, any>),
+      await apiService.put(`/organizations/${organization.id}`, {
         strategic_attributes: selectedAttributes
-      };
-
-      const { error: updateError } = await supabase
-        .from('organizations')
-        .update({ settings: updatedSettings })
-        .eq('id', organizationId);
-
-      if (updateError) throw updateError;
+      });
 
       toast({
         title: "Success",
@@ -91,7 +68,7 @@ export function useOrganizationValues() {
     } finally {
       setIsLoading(false);
     }
-  }, [organizationId, toast]);
+  }, [organization?.id, toast]);
 
   return {
     getOrganizationValues,

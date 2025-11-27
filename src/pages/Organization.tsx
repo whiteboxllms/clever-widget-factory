@@ -231,20 +231,7 @@ const Organization = () => {
     if (!isAdmin) return;
 
     try {
-      const { error } = await supabase
-        .from('organization_members')
-        .delete()
-        .eq('id', memberId);
-
-      if (error) {
-        console.error('Error revoking pending membership:', error);
-        toast({
-          title: "Error",
-          description: "Failed to revoke invitation",
-          variant: "destructive",
-        });
-        return;
-      }
+      await apiService.delete(`/organization_members?id=${memberId}`);
 
       toast({
         title: "Success",
@@ -265,26 +252,16 @@ const Organization = () => {
 
   const toggleMemberStatus = async (memberId: string, currentStatus: boolean) => {
     try {
-      const { error } = await supabase
-        .from('organization_members')
-        .update({ is_active: !currentStatus })
-        .eq('id', memberId);
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to update member status",
-          variant: "destructive",
-        });
-        return;
-      }
+      await apiService.put('/organization_members', {
+        id: memberId,
+        is_active: !currentStatus
+      });
 
       toast({
         title: "Success",
         description: `Member ${!currentStatus ? 'activated' : 'deactivated'} successfully`,
       });
 
-      // Reload members to show updated status
       loadMembers(targetOrganization?.id);
     } catch (error) {
       console.error('Error toggling member status:', error);
@@ -299,59 +276,23 @@ const Organization = () => {
   const handleRemoveMember = async (memberId: string, memberName: string) => {
     if (!isAdmin) return;
 
-    const confirmed = window.confirm(`Are you sure you want to completely delete ${memberName}? This will permanently remove them from all systems and cannot be undone.`);
+    const confirmed = window.confirm(`Are you sure you want to remove ${memberName}? This will deactivate their account.`);
     if (!confirmed) return;
 
     try {
-      // First, get the user_id from the organization member record
-      const { data: memberData, error: memberError } = await supabase
-        .from('organization_members')
-        .select('user_id')
-        .eq('id', memberId)
-        .single();
-
-      if (memberError || !memberData) {
-        console.error('Error fetching member data:', memberError);
-        toast({
-          title: "Error",
-          description: "Failed to find member record",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const userId = memberData.user_id;
-
-      // Delete the user's profile first (to handle any FK constraints)
-      await supabase
-        .from('profiles')
-        .delete()
-        .eq('user_id', userId);
-
-      // Delete the user from auth.users (this should cascade to organization_members)
-      const { error: deleteError } = await supabase.auth.admin.deleteUser(userId);
-
-      if (deleteError) {
-        console.error('Error deleting user:', deleteError);
-        toast({
-          title: "Error",
-          description: "Failed to completely delete user",
-          variant: "destructive",
-        });
-        return;
-      }
+      await apiService.delete(`/organization_members?id=${memberId}`);
 
       toast({
         title: "Success",
-        description: `${memberName} has been completely deleted from all systems`,
+        description: `${memberName} has been removed`,
       });
       
       loadMembers(targetOrganization?.id);
     } catch (error) {
-      console.error('Error completely deleting user:', error);
+      console.error('Error removing member:', error);
       toast({
         title: "Error",
-        description: "Failed to completely delete user",
+        description: "Failed to remove member",
         variant: "destructive",
       });
     }
@@ -361,20 +302,10 @@ const Organization = () => {
     if (!isAdmin) return;
 
     try {
-      const { error } = await supabase
-        .from('organization_members')
-        .update({ role: newRole })
-        .eq('id', memberId);
-
-      if (error) {
-        console.error('Error updating member role:', error);
-        toast({
-          title: "Error",
-          description: "Failed to update member role",
-          variant: "destructive",
-        });
-        return;
-      }
+      await apiService.put('/organization_members', {
+        id: memberId,
+        role: newRole
+      });
 
       toast({
         title: "Success",

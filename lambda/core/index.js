@@ -676,6 +676,58 @@ exports.handler = async (event) => {
 
     // Organization members endpoint
     if (path.endsWith('/organization_members')) {
+      if (httpMethod === 'DELETE') {
+        const { id } = event.queryStringParameters || {};
+        if (!id) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'id parameter required' })
+          };
+        }
+        
+        const sql = `DELETE FROM organization_members WHERE id = '${escapeLiteral(id)}' RETURNING *`;
+        const result = await queryJSON(sql);
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ data: result[0] })
+        };
+      }
+      
+      if (httpMethod === 'PUT') {
+        const body = JSON.parse(event.body || '{}');
+        const { id, role, is_active } = body;
+        
+        if (!id) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'id required' })
+          };
+        }
+        
+        const updates = [];
+        if (role !== undefined) updates.push(`role = '${escapeLiteral(role)}'`);
+        if (is_active !== undefined) updates.push(`is_active = ${is_active}`);
+        
+        if (updates.length === 0) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'No fields to update' })
+          };
+        }
+        
+        const sql = `UPDATE organization_members SET ${updates.join(', ')} WHERE id = '${escapeLiteral(id)}' RETURNING *`;
+        const result = await queryJSON(sql);
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ data: result[0] })
+        };
+      }
+      
       if (httpMethod === 'GET') {
         const { cognito_user_id } = event.queryStringParameters || {};
         const whereClauses = [];

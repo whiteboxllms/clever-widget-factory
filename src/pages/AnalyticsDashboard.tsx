@@ -77,19 +77,11 @@ export default function AnalyticsDashboard() {
       console.log('getActionAnalytics returned:', allAnalytics);
       setAllUserAnalytics(allAnalytics);
 
-      // Auto-select only active org members so the radar chart shows immediately
+      // Auto-select all org members so the radar chart shows immediately
       if (allAnalytics.length > 0) {
         const allIds = allAnalytics.map(u => u.userId);
-        // Resolve which of these are active members
-        const { data: members } = await supabase
-          .from('organization_members')
-          .select('user_id, is_active')
-          .in('user_id', allIds);
-        const activeIds = (members || [])
-          .filter((m: any) => m?.is_active)
-          .map((m: any) => m.user_id);
-        console.log('Auto-selecting ACTIVE user IDs:', activeIds);
-        setSelectedUsers(activeIds);
+        console.log('Auto-selecting all user IDs:', allIds);
+        setSelectedUsers(allIds);
         // Precompute selected action analytics immediately for first render
         const initialSelected = await getActionAnalytics(activeIds);
         console.log('Selected analytics:', initialSelected);

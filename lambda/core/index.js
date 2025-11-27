@@ -678,10 +678,20 @@ exports.handler = async (event) => {
     if (path.endsWith('/organization_members')) {
       if (httpMethod === 'GET') {
         const { cognito_user_id } = event.queryStringParameters || {};
-        let whereClause = cognito_user_id ? `WHERE cognito_user_id = '${cognito_user_id}'` : '';
+        const whereClauses = [];
+
+        const membersOrgFilter = buildOrganizationFilter(authContext, 'organization_members');
+        if (membersOrgFilter.condition) {
+          whereClauses.push(membersOrgFilter.condition);
+        }
+
+        if (cognito_user_id) {
+          whereClauses.push(`organization_members.cognito_user_id = '${escapeLiteral(cognito_user_id)}'`);
+        }
         
+        const whereClause = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
         const sql = `SELECT json_agg(row_to_json(t)) FROM (
-          SELECT * FROM organization_members ${whereClause}
+          SELECT * FROM organization_members ${whereClause} ORDER BY created_at ASC
         ) t;`;
         
         const result = await queryJSON(sql);
@@ -722,11 +732,20 @@ exports.handler = async (event) => {
     }
 
     // Organizations endpoint
+    console.log('Checking organizations endpoint:', { path, httpMethod, endsWith: path.endsWith('/organizations') });
     if (path.endsWith('/organizations')) {
       if (httpMethod === 'GET') {
         console.log('✅ Organizations GET endpoint matched');
+
+        // Build WHERE clause manually since organizations table uses 'id' not 'organization_id'
+        let whereClause = '';
+        if (!hasDataReadAll) {
+          const orgIdsList = accessibleOrgIds.map(id => `'${id.replace(/'/g, "''")}'`).join(',');
+          whereClause = accessibleOrgIds.length > 0 ? `WHERE id IN (${orgIdsList})` : 'WHERE 1=0';
+        }
+
         const sql = `SELECT json_agg(row_to_json(t)) FROM (
-          SELECT * FROM organizations
+          SELECT * FROM organizations ${whereClause}
         ) t;`;
         
         console.log('Executing SQL:', sql);
@@ -745,6 +764,14 @@ exports.handler = async (event) => {
       const orgId = path.split('/').pop();
       
       if (httpMethod === 'PUT') {
+        if (!canAccessOrganization(authContext, orgId)) {
+          return {
+            statusCode: 403,
+            headers,
+            body: JSON.stringify({ error: 'Forbidden' })
+          };
+        }
+
         const body = JSON.parse(event.body || '{}');
         const { strategic_attributes } = body;
         

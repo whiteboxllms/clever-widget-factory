@@ -72,6 +72,24 @@ Run database migrations using the Lambda function:
 aws lambda invoke --function-name cwf-db-migration --payload '{"sql":"YOUR_SQL_HERE"}' response.json --region us-west-2 --cli-binary-format raw-in-base64-out
 ```
 
+### API Gateway Management
+
+**Adding new endpoints:**
+```bash
+# Add endpoint with authorizer
+./scripts/add-api-endpoint.sh /api/your-endpoint GET
+
+# Deploy changes
+aws apigateway create-deployment --rest-api-id 0720au267k --stage-name prod --region us-west-2
+```
+
+**Verify all endpoints have authorizers:**
+```bash
+./scripts/verify-api-authorizers.sh
+```
+
+**Important:** All API endpoints (except `/api/health` and `/api/schema`) MUST have the authorizer configured. The verification script runs weekly via GitHub Actions.
+
 ### Migration Status
 ✅ **COMPLETED**: Migrated from Supabase to AWS infrastructure
 - Frontend updated to use API service instead of Supabase client

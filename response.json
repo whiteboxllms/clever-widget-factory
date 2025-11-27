@@ -1,1 +1,1 @@
-{"statusCode":200,"body":"{\"success\":true,\"rowCount\":0,\"command\":\"SELECT\"}"}
+{"statusCode":200,"body":"{\"success\":true,\"rowCount\":1,\"command\":\"DELETE\"}"}

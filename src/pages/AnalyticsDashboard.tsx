@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, TrendingUp, Users, BarChart3 } from 'lucide-react';
 import { AttributeRadarChart } from '@/components/AttributeRadarChart';
 import { AttributeFilters } from '@/components/AttributeFilters';
-import { supabase } from '@/lib/client';
+import { apiService, getApiData } from '@/lib/apiService';
 import { ScoredActionsList } from '@/components/ScoredActionsList';
 import { ProactiveVsReactiveChart } from '@/components/ProactiveVsReactiveChart';
 import InventoryTrackingChart from '@/components/InventoryTrackingChart';
@@ -53,6 +53,7 @@ export default function AnalyticsDashboard() {
   const [allUserAnalytics, setAllUserAnalytics] = useState<any[]>([]);
   const [selectedActionAnalytics, setSelectedActionAnalytics] = useState<any[]>([]);
   const [selectedIssueAnalytics, setSelectedIssueAnalytics] = useState<any[]>([]);
+  const [totalOrgMembers, setTotalOrgMembers] = useState(0);
 
   // Debug logging to see what's happening with the data
   console.log('All user analytics:', allUserAnalytics);
@@ -73,6 +74,17 @@ export default function AnalyticsDashboard() {
   useEffect(() => {
     const loadInitialData = async () => {
       console.log('Starting to load analytics data...');
+      
+      // Fetch organization members count
+      try {
+        const response = await apiService.get('/organization_members');
+        const members = getApiData(response) || [];
+        const activeMembers = members.filter((m: any) => m.is_active !== false);
+        setTotalOrgMembers(activeMembers.length);
+      } catch (error) {
+        console.error('Error fetching org members:', error);
+      }
+      
       const allAnalytics = await getActionAnalytics(); // Get all users for selection
       console.log('getActionAnalytics returned:', allAnalytics);
       setAllUserAnalytics(allAnalytics);
@@ -235,7 +247,7 @@ export default function AnalyticsDashboard() {
                 <Users className="h-8 w-8 text-blue-500" />
                 <div>
                   <p className="text-sm text-muted-foreground">Total Users</p>
-                  <p className="text-2xl font-bold">{allUserAnalytics.length}</p>
+                  <p className="text-2xl font-bold">{totalOrgMembers}</p>
                 </div>
               </div>
             </CardContent>

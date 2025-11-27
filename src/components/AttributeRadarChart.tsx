@@ -5,7 +5,7 @@ import { Info } from 'lucide-react';
 import { EnhancedAttributeAnalytics } from '@/hooks/useEnhancedStrategicAttributes';
 import { useOrganizationValues } from '@/hooks/useOrganizationValues';
 import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '@/lib/client';
+import { apiService, getApiData } from '@/lib/apiService';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Legend } from 'recharts';
 
 // High contrast color palette for white backgrounds
@@ -75,27 +75,15 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
       }
       const map = new Map<string, string>();
       try {
-        const { data: members } = await supabase
-          .from('organization_members')
-          .select('user_id, full_name, is_active')
-          .in('user_id', userIds);
-        (members || []).forEach((m: any) => {
-          if (m?.user_id && m?.full_name) map.set(m.user_id, String(m.full_name).trim());
-        });
-        // Fallback via RPC for any missing
-        const missing = userIds.filter(id => !map.get(id));
-        for (const uid of missing) {
-          try {
-            const { data: displayName } = await supabase.rpc('get_user_display_name', { target_user_id: uid });
-            if (displayName && typeof displayName === 'string') {
-              map.set(uid, displayName.trim());
-            }
-          } catch {
-            // ignore
+        const response = await apiService.get('/organization_members');
+        const members = getApiData(response) || [];
+        members.forEach((m: any) => {
+          if (m?.user_id && m?.full_name && userIds.includes(m.user_id)) {
+            map.set(m.user_id, String(m.full_name).trim());
           }
-        }
-      } catch {
-        // ignore
+        });
+      } catch (error) {
+        console.error('Error fetching member names:', error);
       }
       setLabelMap(map);
     };

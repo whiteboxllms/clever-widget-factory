@@ -7,13 +7,22 @@ export interface OrganizationValues {
   strategic_attributes: string[];
 }
 
-export function useOrganizationValues() {
+export function useOrganizationValues(org?: any) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  const { organization } = useOrganization();
+  const { organization: contextOrg } = useOrganization();
+  const organization = org || contextOrg;
 
   const getOrganizationValues = useCallback(async (): Promise<string[]> => {
-    if (!organization?.id) return [];
+    if (!organization?.id) {
+      console.log('[useOrganizationValues] No organization ID');
+      return [];
+    }
+
+    // If organization already has settings, use them directly
+    if (organization.settings?.strategic_attributes) {
+      return organization.settings.strategic_attributes;
+    }
 
     try {
       const response = await apiService.get('/organizations');
@@ -40,7 +49,7 @@ export function useOrganizationValues() {
         "Teamwork and Transparent Communication"
       ];
     }
-  }, [organization?.id]);
+  }, [organization?.id, organization?.settings]);
 
   const updateOrganizationValues = useCallback(async (selectedAttributes: string[]): Promise<boolean> => {
     if (!organization?.id) return false;

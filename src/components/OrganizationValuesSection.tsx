@@ -9,10 +9,11 @@ import { useOrganizationValues } from '@/hooks/useOrganizationValues';
 
 interface OrganizationValuesSectionProps {
   canEdit: boolean;
+  organization?: any;
 }
 
-export function OrganizationValuesSection({ canEdit }: OrganizationValuesSectionProps) {
-  const { getOrganizationValues, updateOrganizationValues, isLoading } = useOrganizationValues();
+export function OrganizationValuesSection({ canEdit, organization }: OrganizationValuesSectionProps) {
+  const { getOrganizationValues, updateOrganizationValues, isLoading } = useOrganizationValues(organization);
   const [values, setValues] = useState<string[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
   const [initialValues, setInitialValues] = useState<string[]>([]);

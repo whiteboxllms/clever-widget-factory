@@ -375,7 +375,7 @@ const Organization = () => {
       </Card>
 
       {/* Organization Values */}
-      <OrganizationValuesSection canEdit={isAdmin} />
+      <OrganizationValuesSection canEdit={isAdmin} organization={targetOrganization} />
 
       {/* Roles & Permissions */}
       <Collapsible defaultOpen={false}>

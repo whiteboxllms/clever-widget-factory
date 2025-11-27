@@ -797,7 +797,8 @@ exports.handler = async (event) => {
         }
 
         const sql = `SELECT json_agg(row_to_json(t)) FROM (
-          SELECT * FROM organizations ${whereClause}
+          SELECT id, name, subdomain, settings, is_active, created_at, updated_at 
+          FROM organizations ${whereClause}
         ) t;`;
         
         console.log('Executing SQL:', sql);

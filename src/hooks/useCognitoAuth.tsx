@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Use profiles endpoint instead of organization_members
           // Profiles is the correct source for user display names
           const response = await fetch(
-            `${import.meta.env.VITE_API_BASE_URL}/profiles?user_id=${currentUser.userId}`,
+            `${import.meta.env.VITE_API_BASE_URL}/api/profiles?user_id=${currentUser.userId}`,
             { headers }
           );
           if (response.ok) {
@@ -171,7 +171,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Use profiles endpoint instead of organization_members
           // Profiles is the correct source for user display names
           const response = await fetch(
-            `${import.meta.env.VITE_API_BASE_URL}/profiles?user_id=${currentUser.userId}`,
+            `${import.meta.env.VITE_API_BASE_URL}/api/profiles?user_id=${currentUser.userId}`,
             { headers }
           );
           if (response.ok) {

@@ -60,7 +60,27 @@ async function queryJSON(sql) {
 exports.handler = async (event) => {
   console.log('Event:', JSON.stringify(event, null, 2));
   
-  const { httpMethod, path } = event;
+  const { httpMethod, path: rawPath } = event;
+  
+  // CORS headers (define early for all responses including OPTIONS)
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+  };
+  
+  // Handle preflight OPTIONS requests immediately - no authorization needed
+  if (httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers,
+      body: ''
+    };
+  }
+  
+  // Normalize path - strip /api prefix if present (API Gateway may include it)
+  const path = rawPath.startsWith('/api/') ? rawPath.substring(4) : rawPath;
   
   // Extract authorizer context (organization_id, permissions, etc.)
   const authContext = getAuthorizerContext(event);
@@ -75,14 +95,6 @@ exports.handler = async (event) => {
     console.error('   Event requestContext:', JSON.stringify(event.requestContext, null, 2));
   }
   
-  // CORS headers (define early for error responses)
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
-  };
-  
   // Set accessibleOrgIds from authContext (may be empty for some endpoints like profiles)
   const accessibleOrgIds = authContext.accessible_organization_ids || [];
   
@@ -95,16 +107,6 @@ exports.handler = async (event) => {
   });
   
   try {
-    // CORS headers already defined above
-
-    // Handle preflight requests
-    if (httpMethod === 'OPTIONS') {
-      return {
-        statusCode: 200,
-        headers,
-        body: ''
-      };
-    }
 
     // Health check endpoint
     if (httpMethod === 'GET' && path.endsWith('/health')) {
@@ -171,7 +173,41 @@ exports.handler = async (event) => {
       }
       
       if (httpMethod === 'GET') {
-        const { limit = 50, offset = 0 } = event.queryStringParameters || {};
+        const { limit = 50, offset = 0, category, status } = event.queryStringParameters || {};
+        
+        // Build WHERE clauses for filtering
+        const whereClauses = [];
+        
+        // Add organization filter
+        const orgFilter = buildOrganizationFilter(authContext, 'tools');
+        if (orgFilter.condition) {
+          whereClauses.push(orgFilter.condition);
+        }
+        
+        // Handle category filter (supports comma-separated values like "Infrastructure,Container")
+        if (category) {
+          const categories = category.split(',').map(c => c.trim()).filter(c => c.length > 0);
+          if (categories.length === 1) {
+            whereClauses.push(`tools.category = ${formatSqlValue(categories[0])}`);
+          } else if (categories.length > 1) {
+            const categoryValues = categories.map(c => formatSqlValue(c)).join(', ');
+            whereClauses.push(`tools.category IN (${categoryValues})`);
+          }
+        }
+        
+        // Handle status filter (supports "!removed" or "!=removed" syntax)
+        if (status) {
+          if (status === '!removed' || status === '!=removed') {
+            whereClauses.push(`tools.status != 'removed'`);
+          } else {
+            whereClauses.push(`tools.status = ${formatSqlValue(status)}`);
+          }
+        }
+        
+        const whereClause = whereClauses.length > 0 
+          ? `WHERE ${whereClauses.join(' AND ')}`
+          : '';
+        
         const sql = `SELECT json_agg(row_to_json(result)) FROM (
           SELECT DISTINCT ON (tools.id)
             tools.*,
@@ -202,9 +238,14 @@ exports.handler = async (event) => {
             ORDER BY checkouts.checkout_date DESC NULLS LAST, checkouts.created_at DESC
             LIMIT 1
           ) active_checkouts ON true
+          ${whereClause}
           ORDER BY tools.id, tools.name 
           LIMIT ${limit} OFFSET ${offset}
         ) result;`;
+        
+        console.log('🔍 Tools GET SQL Query:');
+        console.log('WHERE clause:', whereClause);
+        console.log('SQL:', sql.substring(0, 500) + '...');
         
         const result = await queryJSON(sql);
         return {

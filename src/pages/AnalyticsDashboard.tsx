@@ -75,32 +75,33 @@ export default function AnalyticsDashboard() {
     const loadInitialData = async () => {
       console.log('Starting to load analytics data...');
       
-      // Fetch organization members count
+      // Fetch organization members for filters
       try {
         const response = await apiService.get('/organization_members');
         const members = getApiData(response) || [];
         const activeMembers = members.filter((m: any) => m.is_active !== false);
         setTotalOrgMembers(activeMembers.length);
+        
+        // Create analytics objects from members for the filters
+        const memberAnalytics = activeMembers.map((m: any) => ({
+          userId: m.user_id,
+          userName: m.full_name || 'Unknown User',
+          userRole: m.role || 'user',
+          totalActions: 0,
+          attributes: {}
+        }));
+        setAllUserAnalytics(memberAnalytics);
+        
+        // Auto-select all members
+        const allIds = memberAnalytics.map(u => u.userId);
+        setSelectedUsers(allIds);
       } catch (error) {
         console.error('Error fetching org members:', error);
       }
       
-      const allAnalytics = await getActionAnalytics(); // Get all users for selection
+      // Fetch action analytics
+      const allAnalytics = await getActionAnalytics();
       console.log('getActionAnalytics returned:', allAnalytics);
-      setAllUserAnalytics(allAnalytics);
-
-      // Auto-select all org members so the radar chart shows immediately
-      if (allAnalytics.length > 0) {
-        const allIds = allAnalytics.map(u => u.userId);
-        console.log('Auto-selecting all user IDs:', allIds);
-        setSelectedUsers(allIds);
-        // Precompute selected action analytics immediately for first render
-        const initialSelected = await getActionAnalytics(activeIds);
-        console.log('Selected analytics:', initialSelected);
-        setSelectedActionAnalytics(initialSelected);
-      } else {
-        console.log('No analytics data returned, checking if we need to fetch action scores...');
-      }
 
       // Fetch initial scored actions for all users (no filter)
       console.log('Fetching scored actions...');
@@ -111,17 +112,15 @@ export default function AnalyticsDashboard() {
     loadInitialData();
   }, []); // Only run once on mount
 
-  // Update selected user analytics when selection changes
+  // Update analytics when filters change or data loads
   useEffect(() => {
-    const updateSelectedAnalytics = async () => {
-      if (selectedUsers.length > 0) {
-        const actionAnalytics = await getActionAnalytics(selectedUsers); // Filter by org values for display
-        setSelectedActionAnalytics(actionAnalytics);
-      }
-    };
-    
-    updateSelectedAnalytics();
-  }, [selectedUsers]);
+    if (selectedUsers.length > 0) {
+      const actionAnalytics = getActionAnalytics(selectedUsers);
+      const issueAnalytics = getIssueAnalytics(selectedUsers, startDate, endDate);
+      setSelectedActionAnalytics(actionAnalytics);
+      setSelectedIssueAnalytics(issueAnalytics);
+    }
+  }, [selectedUsers, startDate, endDate, attributesLoading]);
 
   // Auto-apply filters once when we have dates and an initial active selection
   useEffect(() => {
@@ -138,18 +137,12 @@ export default function AnalyticsDashboard() {
     setIsLoadingProactiveData(true);
     setIsLoadingInventoryTracking(true);
     
-    // Always fetch ALL data, not filtered by selectedUsers - we want all users available for selection
     await fetchAllData(undefined, startDate, endDate);
     await fetchScoredActions(selectedUsers, startDate, endDate);
     
-    // Fetch issue analytics for selected users
-    const issueAnalytics = await getIssueAnalytics(selectedUsers, startDate, endDate);
-    setSelectedIssueAnalytics(issueAnalytics);
-    
-    // Fetch proactive vs reactive data
-    const proactiveData = await getProactiveVsReactiveData(startDate, endDate);
+    const proactiveData = getProactiveVsReactiveData(startDate, endDate);
     setProactiveVsReactiveData(proactiveData);
-    // Fetch inventory tracking (distinct per item per day) filtered by selected users
+    
     const [inventoryData, heatmap] = await Promise.all([
       getInventoryTrackingData(selectedUsers, startDate, endDate),
       getInventoryUsageHeatmapData(selectedUsers, startDate, endDate)
@@ -288,11 +281,19 @@ export default function AnalyticsDashboard() {
           <div className="lg:col-span-3 space-y-6">
             {/* Radar Chart */}
             {selectedUsers.length > 0 ? (
-              <AttributeRadarChart
-                actionAnalytics={selectedActionAnalytics}
-                issueAnalytics={selectedIssueAnalytics}
-                selectedUsers={selectedUsers}
-              />
+              <>
+                {console.log('Rendering radar chart with:', { 
+                  selectedActionAnalytics, 
+                  allUserAnalytics,
+                  selectedIssueAnalytics, 
+                  selectedUsers 
+                })}
+                <AttributeRadarChart
+                  actionAnalytics={selectedActionAnalytics.length > 0 ? selectedActionAnalytics : allUserAnalytics}
+                  issueAnalytics={selectedIssueAnalytics}
+                  selectedUsers={selectedUsers}
+                />
+              </>
             ) : (
               <Card>
                 <CardContent className="p-8 text-center">

@@ -6,8 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CalendarDays, Users, Filter, ChevronRight } from 'lucide-react';
 import { AttributeAnalytics } from '@/hooks/useStrategicAttributes';
-import { supabase } from '@/lib/client';
-import { useOrganizationId } from '@/hooks/useOrganizationId';
+import { apiService, getApiData } from '@/lib/apiService';
 
 interface AttributeFiltersProps {
   userAnalytics: AttributeAnalytics[];
@@ -38,7 +37,6 @@ export function AttributeFilters({
 
   // Build a name map from organization_members to replace any 'Unknown User' entries
   const [nameMap, setNameMap] = useState<Record<string, string>>({});
-  const organizationId = useOrganizationId();
 
   useEffect(() => {
     const loadNames = async () => {
@@ -49,25 +47,20 @@ export function AttributeFilters({
       }
       const map: Record<string, string> = {};
       try {
-        const query = supabase
-          .from('organization_members')
-          .select('user_id, full_name, is_active, organization_id')
-          .in('user_id', ids)
-          .eq('is_active', true);
-
-        // RLS will scope to current organization; no explicit org filter
-        const { data: members } = await query;
-        (members || []).forEach((m: any) => {
-          if (m?.user_id && m?.full_name) map[m.user_id] = String(m.full_name).trim();
-        });
-        // Do not fallback to RPC here; list should only show active org members
+        const response = await apiService.get('/organization_members');
+        const members = getApiData(response) || [];
+        members
+          .filter((m: any) => m.is_active !== false && ids.includes(m.user_id))
+          .forEach((m: any) => {
+            if (m?.user_id && m?.full_name) map[m.user_id] = String(m.full_name).trim();
+          });
       } catch {
         // ignore fetch errors; we'll fall back to provided names
       }
       setNameMap(map);
     };
     loadNames();
-  }, [userAnalytics, organizationId]);
+  }, [userAnalytics]);
 
   const usersWithDisplayNames = useMemo(() => {
     // Only include users that resolved via active org membership

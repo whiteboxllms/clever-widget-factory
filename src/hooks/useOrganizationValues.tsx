@@ -14,25 +14,32 @@ export function useOrganizationValues(org?: any) {
   const organization = org || contextOrg;
 
   const getOrganizationValues = useCallback(async (): Promise<string[]> => {
-    if (!organization?.id) {
-      console.log('[useOrganizationValues] No organization ID');
-      return [];
-    }
-
+    console.log('[useOrganizationValues] getOrganizationValues called', { organization });
+    
     // If organization already has settings, use them directly
-    if (organization.settings?.strategic_attributes) {
+    if (organization?.settings?.strategic_attributes) {
+      console.log('[useOrganizationValues] Using org settings directly:', organization.settings.strategic_attributes);
       return organization.settings.strategic_attributes;
     }
 
     try {
+      console.log('[useOrganizationValues] Fetching from API...');
       const response = await apiService.get('/organizations');
       const orgs = getApiData(response) || [];
-      const currentOrg = orgs.find((o: any) => o.id === organization.id);
+      console.log('[useOrganizationValues] API returned orgs:', orgs);
+      
+      // Use first org if no specific org ID
+      const currentOrg = organization?.id 
+        ? orgs.find((o: any) => o.id === organization.id)
+        : orgs[0];
+      console.log('[useOrganizationValues] Current org:', currentOrg);
       
       const values = currentOrg?.settings?.strategic_attributes || [];
+      console.log('[useOrganizationValues] Values:', values);
       
       // If no values exist, return defaults
       if (values.length === 0) {
+        console.log('[useOrganizationValues] Returning defaults');
         return [
           "Growth Mindset", 
           "Quality",

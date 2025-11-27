@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/client';
+import { apiService, getApiData } from '@/lib/apiService';
 import { useToast } from '@/hooks/use-toast';
 
 export interface ScoredAction {
@@ -39,48 +39,31 @@ export function useScoredActions() {
     try {
       setIsLoading(true);
       
-      // First get the action scores
-      let query = supabase
-        .from('action_scores')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Fetch action scores
+      const scoresResponse = await apiService.get('/action_scores', {
+        params: { start_date: startDate, end_date: endDate }
+      });
+      const scoresData = getApiData(scoresResponse) || [];
 
-      if (startDate) {
-        query = query.gte('created_at', startDate);
-      }
-
-      if (endDate) {
-        query = query.lte('created_at', endDate);
-      }
-
-      const { data: scoresData, error: scoresError } = await query;
-      if (scoresError) throw scoresError;
-
-      // Get unique action IDs and assigned user IDs
-      const actionIds = [...new Set(scoresData?.map(score => score.action_id).filter(Boolean))];
+      // Get unique action IDs
+      const actionIds = [...new Set(scoresData.map((score: any) => score.action_id).filter(Boolean))];
       
-      // Fetch actions separately
-      const { data: actionsData, error: actionsError } = await supabase
-        .from('actions')
-        .select('id, title, description, status, assigned_to')
-        .in('id', actionIds);
-
-      if (actionsError) throw actionsError;
+      // Fetch actions
+      const actionsResponse = await apiService.get('/actions');
+      const allActions = getApiData(actionsResponse) || [];
+      const actionsData = allActions.filter((a: any) => actionIds.includes(a.id));
 
       // Get unique assigned user IDs
-      const assignedUserIds = [...new Set(actionsData?.map(action => action.assigned_to).filter(Boolean))];
+      const assignedUserIds = [...new Set(actionsData.map((action: any) => action.assigned_to).filter(Boolean))];
       
-      // Fetch organization members for assignees
-      const { data: membersData, error: membersError } = await supabase
-        .from('organization_members')
-        .select('user_id, full_name, role')
-        .in('user_id', assignedUserIds);
-
-      if (membersError) throw membersError;
+      // Fetch organization members
+      const membersResponse = await apiService.get('/organization_members');
+      const allMembers = getApiData(membersResponse) || [];
+      const membersData = allMembers.filter((m: any) => assignedUserIds.includes(m.user_id));
 
       // Create lookup maps
-      const actionsMap = new Map(actionsData?.map(action => [action.id, action]) || []);
-      const membersMap = new Map(membersData?.map(member => [member.user_id, member]) || []);
+      const actionsMap = new Map(actionsData.map((action: any) => [action.id, action]));
+      const membersMap = new Map(membersData.map((member: any) => [member.user_id, member]));
 
       // Filter by assigned users if specified
       let filteredData = scoresData || [];

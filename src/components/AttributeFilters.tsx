@@ -4,9 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { CalendarDays, Users, Filter, ChevronRight } from 'lucide-react';
+import { CalendarDays, Users, ChevronRight } from 'lucide-react';
 import { AttributeAnalytics } from '@/hooks/useStrategicAttributes';
-import { apiService, getApiData } from '@/lib/apiService';
+import type { OrganizationMemberSummary } from '@/types/organization';
 
 interface AttributeFiltersProps {
   userAnalytics: AttributeAnalytics[];
@@ -19,6 +19,7 @@ interface AttributeFiltersProps {
   onApplyFilters: () => void;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  organizationMembers?: OrganizationMemberSummary[];
 }
 
 export function AttributeFilters({
@@ -31,7 +32,8 @@ export function AttributeFilters({
   onEndDateChange,
   onApplyFilters,
   collapsed = false,
-  onToggleCollapsed
+  onToggleCollapsed,
+  organizationMembers = []
 }: AttributeFiltersProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -39,28 +41,21 @@ export function AttributeFilters({
   const [nameMap, setNameMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    const loadNames = async () => {
-      const ids = Array.from(new Set(userAnalytics.map(u => u.userId)));
-      if (ids.length === 0) {
-        setNameMap({});
-        return;
-      }
-      const map: Record<string, string> = {};
-      try {
-        const response = await apiService.get('/organization_members');
-        const members = getApiData(response) || [];
-        members
-          .filter((m: any) => m.is_active !== false && ids.includes(m.user_id))
-          .forEach((m: any) => {
-            if (m?.user_id && m?.full_name) map[m.user_id] = String(m.full_name).trim();
-          });
-      } catch {
-        // ignore fetch errors; we'll fall back to provided names
-      }
-      setNameMap(map);
-    };
-    loadNames();
-  }, [userAnalytics]);
+    const ids = new Set(userAnalytics.map(u => u.userId));
+    if (!ids.size) {
+      setNameMap({});
+      return;
+    }
+
+    const map: Record<string, string> = {};
+    organizationMembers
+      .filter(member => member.is_active !== false && member.user_id && ids.has(member.user_id))
+      .forEach(member => {
+        map[member.user_id] = String(member.full_name || 'Unknown User').trim();
+      });
+
+    setNameMap(map);
+  }, [organizationMembers, userAnalytics]);
 
   const usersWithDisplayNames = useMemo(() => {
     // Only include users that resolved via active org membership

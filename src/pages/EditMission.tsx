@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SimpleMissionForm } from '@/components/SimpleMissionForm';
 import { apiService } from '@/lib/apiService';
+import { useOrganizationMembers } from '@/hooks/useOrganizationMembers';
 
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -66,6 +67,7 @@ export default function EditMission() {
     qa_assigned_to: '',
     actions: [] as Task[]
   });
+  const { members: organizationMembers = [] } = useOrganizationMembers();
 
   // Fetch mission data and profiles
   useEffect(() => {
@@ -75,8 +77,14 @@ export default function EditMission() {
     }
     
     fetchMissionData();
-    checkUserPermissions();
   }, [missionId, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const userMember = organizationMembers.find(member => member.user_id === user.id);
+    const contributorOrAdmin = userMember?.role === 'contributor' || userMember?.role === 'admin';
+    setIsContributorOrAdmin(Boolean(contributorOrAdmin));
+  }, [organizationMembers, user]);
 
   const fetchMissionData = async () => {
     try {
@@ -147,17 +155,6 @@ export default function EditMission() {
   };
 
   // Profiles are now handled by useActionProfiles hook for consistency
-
-  const checkUserPermissions = async () => {
-    if (!user) return;
-    
-    const result = await apiService.get('/organization_members');
-    const members = Array.isArray(result) ? result : (result?.data || []);
-    const userMember = members.find(m => m.user_id === user.id);
-
-    const contributorOrAdmin = userMember?.role === 'contributor' || userMember?.role === 'admin';
-    setIsContributorOrAdmin(contributorOrAdmin);
-  };
 
   // Save mission data explicitly
   const handleSaveMission = async (data: any) => {

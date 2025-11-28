@@ -165,7 +165,11 @@ exports.handler = async (event) => {
           if (key === 'participants') {
             updates.push(`${key} = ARRAY[${val.map(v => `'${v}'`).join(',')}]::uuid[]`);
           } else if (key === 'required_tools' || key === 'attachments') {
-            updates.push(`${key} = ARRAY[${val.map(v => `'${v.replace(/'/g, "''")}'`).join(',')}]::text[]`);
+            if (val.length === 0) {
+              updates.push(`${key} = ARRAY[]::text[]`);
+            } else {
+              updates.push(`${key} = ARRAY[${val.map(v => `'${v.replace(/'/g, "''")}'`).join(',')}]::text[]`);
+            }
           } else {
             updates.push(`${key} = '${JSON.stringify(val).replace(/'/g, "''")}'::jsonb`);
           }
@@ -240,7 +244,11 @@ exports.handler = async (event) => {
             if (key === 'participants') {
               values.push(`ARRAY[${val.map(v => `'${v}'`).join(',')}]::uuid[]`);
             } else if (key === 'required_tools' || key === 'attachments') {
-              values.push(`ARRAY[${val.map(v => `'${v.replace(/'/g, "''")}'`).join(',')}]::text[]`);
+              if (val.length === 0) {
+                values.push(`ARRAY[]::text[]`);
+              } else {
+                values.push(`ARRAY[${val.map(v => `'${v.replace(/'/g, "''")}'`).join(',')}]::text[]`);
+              }
             } else {
               values.push(`'${JSON.stringify(val).replace(/'/g, "''")}'::jsonb`);
             }

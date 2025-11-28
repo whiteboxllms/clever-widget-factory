@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { apiService, getApiData } from '@/lib/apiService';
 import { Info } from 'lucide-react';
+import { useOrganizationMembers } from '@/hooks/useOrganizationMembers';
 
 interface ActionUpdatesChartProps {
   startDate: string;
@@ -32,6 +33,17 @@ export function ActionUpdatesChart({ startDate, endDate, selectedUsers }: Action
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<RawUpdateRow[]>([]);
   const [nameMap, setNameMap] = useState<Record<string, string>>({});
+  const { members: organizationMembers } = useOrganizationMembers();
+
+  const organizationNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    organizationMembers.forEach(member => {
+      if (member.user_id) {
+        map[member.user_id] = String(member.full_name || 'Unknown User').trim();
+      }
+    });
+    return map;
+  }, [organizationMembers]);
 
   // Format a Date (in local timezone) to YYYY-MM-DD
   const formatLocalYMD = (d: Date) => {
@@ -53,7 +65,6 @@ export function ActionUpdatesChart({ startDate, endDate, selectedUsers }: Action
       if (!startDate || !endDate) return;
       setLoading(true);
       try {
-        console.log('🟡 ActionUpdatesChart fetching data:', { startDate, endDate, selectedUsers });
         const { startISO, endISO } = toLocalDayRangeISO(startDate, endDate);
         
         // Try to fetch with start_date and end_date params
@@ -64,30 +75,21 @@ export function ActionUpdatesChart({ startDate, endDate, selectedUsers }: Action
           params.append('user_ids', selectedUsers.join(','));
         }
         
-        console.log('🟡 Fetching with URL:', `/analytics/action_updates?${params.toString()}`);
         const response = await apiService.get(`/analytics/action_updates?${params.toString()}`);
-        console.log('🟡 Raw response:', response);
-        let data = getApiData(response) || [];
+        const data = getApiData(response) || [];
         
-        console.log('🟡 Total updates fetched:', data.length);
-        console.log('🟡 Sample update:', data[0]);
         const mapped: RawUpdateRow[] = data.map((r: any) => ({
           created_date: formatLocalYMD(new Date(r.created_at)),
           updated_by: r.updated_by as string,
         }));
         setRows(mapped);
-        console.log('🟡 Mapped rows:', mapped.length);
 
         // Build name map from org members
         const uniqueIds = Array.from(new Set(mapped.map(r => r.updated_by)));
         if (uniqueIds.length > 0) {
-          const membersResponse = await apiService.get('/organization_members');
-          const members = getApiData(membersResponse) || [];
           const nm: Record<string, string> = {};
-          members.forEach((m: any) => {
-            if (m?.user_id && uniqueIds.includes(m.user_id)) {
-              nm[m.user_id] = String(m.full_name || 'Unknown User').trim();
-            }
+          uniqueIds.forEach(id => {
+            nm[id] = organizationNameMap[id] || 'Unknown User';
           });
           setNameMap(nm);
         } else {
@@ -101,7 +103,7 @@ export function ActionUpdatesChart({ startDate, endDate, selectedUsers }: Action
       }
     };
     fetchData();
-  }, [startDate, endDate, selectedUsers]);
+  }, [startDate, endDate, selectedUsers, organizationNameMap]);
 
   const chartData = useMemo(() => {
     // Group by date, then count per user

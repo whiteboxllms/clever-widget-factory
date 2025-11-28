@@ -145,11 +145,8 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
   // Process and paginate data
   const processedAssets = useMemo(() => {
     if (loading) {
-      console.log('🔄 Still loading data...');
       return [];
     }
-    
-    console.log('🔄 Raw data:', { toolsData: toolsData?.length, partsData: partsData?.length });
     
     // Process data directly from TanStack Query
     let filteredToolsData = toolsData || [];
@@ -158,7 +155,6 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
     }
     
     let filteredPartsData = partsData || [];
-    console.log('🔄 After initial filtering:', { tools: filteredToolsData.length, parts: filteredPartsData.length });
     
     // Apply low stock filter
     if (options?.showLowStock) {

@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { SimpleMissionForm } from '@/components/SimpleMissionForm';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { apiService } from '@/lib/apiService';
+import { useOrganizationMembers } from '@/hooks/useOrganizationMembers';
 
 import { withAuth, checkUserRole as checkUserRoleAuth } from '@/lib/authUtils';
 import { hasActualContent } from '@/lib/utils';
@@ -85,14 +86,7 @@ const Missions = () => {
   // Use standardized profiles for consistent "Assigned to" dropdown
   const { profiles } = useActionProfiles();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const { data: organizationMembers = [] } = useQuery({
-    queryKey: ['organization_members'],
-    queryFn: async () => {
-      const result = await apiService.get('/organization_members');
-      return Array.isArray(result) ? result : (result?.data || []);
-    },
-    ...offlineQueryConfig,
-  });
+  const { members: organizationMembers = [] } = useOrganizationMembers();
 
   const userRole = useMemo(() => {
     if (!user) return null;

@@ -25,6 +25,7 @@ import { supabase } from '@/lib/client';
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { apiService } from '@/lib/apiService';
+import { useOrganizationMembers } from '@/hooks/useOrganizationMembers';
 import { 
   Paperclip, 
   Calendar as CalendarIcon, 
@@ -73,6 +74,7 @@ export function UnifiedActionDialog({
   const { toast } = useToast();
   const { isLeadership, user } = useAuth();
   const organizationId = useOrganizationId();
+  const { members: organizationMembers = [] } = useOrganizationMembers();
   const [formData, setFormData] = useState<Partial<BaseAction>>({});
   const [missionData, setMissionData] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -85,6 +87,27 @@ export function UnifiedActionDialog({
   const [activeTab, setActiveTab] = useState<string>('');
   const [isInImplementationMode, setIsInImplementationMode] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+
+  const preferName = (value?: string | null) => {
+    if (!value) return null;
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.includes('@')) return null;
+    return trimmed;
+  };
+
+  const resolveUserFullName = () => {
+    if (!user) return 'Unknown User';
+    const metadataName = preferName((user as any)?.user_metadata?.full_name);
+    if (metadataName) return metadataName;
+    const cognitoName = preferName((user as any)?.name);
+    if (cognitoName) return cognitoName;
+    const member = organizationMembers.find(
+      (m) => m.cognito_user_id === user.id || m.user_id === user.id
+    );
+    const memberName = preferName(member?.full_name);
+    if (memberName) return memberName;
+    return user.email || (user as any)?.username || 'Unknown User';
+  };
   
   // Compute the default tab based on action state
   const getDefaultTab = () => {
@@ -766,23 +789,7 @@ export function UnifiedActionDialog({
                         try {
                           // Get current user info
                           const userId = user?.id || '00000000-0000-0000-0000-000000000000';
-                          let userFullName = 'Unknown User';
-                          try {
-                            const userMetadata = (user as any)?.user_metadata;
-                            if (userMetadata?.full_name) {
-                              userFullName = userMetadata.full_name;
-                            } else if ((user as any)?.name) {
-                              userFullName = (user as any).name;
-                            } else {
-                              const memberResult = await apiService.get('/organization_members');
-                              const member = Array.isArray(memberResult?.data) ? memberResult.data.find((m: any) => m.cognito_user_id === userId) : memberResult?.data;
-                              if (member?.full_name) {
-                                userFullName = member.full_name;
-                              }
-                            }
-                          } catch (error) {
-                            console.warn('Could not resolve user full name:', error);
-                          }
+                          const userFullName = resolveUserFullName();
 
                           // Create active checkouts for all tools in required_tools
                           for (const toolId of formData.required_tools) {

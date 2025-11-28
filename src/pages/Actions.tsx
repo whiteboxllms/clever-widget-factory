@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useCognitoAuth";
 import { toast } from '@/hooks/use-toast';
 import { useOrganizationMembers } from '@/hooks/useOrganizationMembers';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
+import { offlineQueryConfig } from '@/lib/queryConfig';
 import { Bolt, Plus, Filter, Search, CheckCircle, User, AlertTriangle, Wrench, ArrowLeft, Target, X } from 'lucide-react';
 import { UnifiedActionDialog } from '@/components/UnifiedActionDialog';
 import { ActionScoreDialog } from '@/components/ActionScoreDialog';
@@ -59,7 +60,8 @@ export default function Actions() {
   const { data: actions = [], isLoading: loading } = useQuery({
     queryKey: ['actions'],
     queryFn: fetchActions,
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    ...offlineQueryConfig,
+    staleTime: 2 * 60 * 1000, // Override with 2 minutes for actions page
   });
 
   const fetchSpecificAction = useCallback(async (id: string) => {

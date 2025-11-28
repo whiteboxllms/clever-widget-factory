@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +21,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { OrganizationValuesSection } from '@/components/OrganizationValuesSection';
 import { supabase } from '@/lib/client';
 import { apiService, getApiData } from '@/lib/apiService';
+import { useQueryClient } from '@tanstack/react-query';
 
 
 interface OrganizationMember {
@@ -47,6 +48,7 @@ const Organization = () => {
   const { isSuperAdmin, loading: superAdminLoading } = useSuperAdmin();
   const { allMemberships, isLoading: profileLoading } = useProfile();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   // Use the organization from URL param or fallback to current user's org
   const targetOrgId = organizationId || currentOrg?.id;
@@ -65,13 +67,6 @@ const Organization = () => {
   }, [allMemberships, resolvedOrgId]);
 
   useEffect(() => {
-    console.log('[Organization] useEffect trigger', {
-      targetOrgId,
-      superAdminLoading,
-      profileLoading,
-      isSuperAdmin,
-      hasTargetMembership: !!targetMembership,
-    });
     if (!superAdminLoading && !profileLoading) {
       loadOrganizationData();
     }
@@ -83,14 +78,11 @@ const Organization = () => {
     }
   }, [isAdmin, targetOrganization?.id]);
 
+  const invalidateOrgMembersCache = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['organization_members'] });
+  }, [queryClient]);
+
   const loadOrganizationData = async () => {
-    console.log('[Organization] loadOrganizationData start', {
-      targetOrgId,
-      resolvedOrgId,
-      superAdminLoading,
-      profileLoading,
-      isSuperAdmin,
-    });
     if (superAdminLoading || profileLoading) return;
 
     try {
@@ -98,7 +90,6 @@ const Organization = () => {
       const organizations = getApiData(response) || [];
 
       if (!organizations.length) {
-        console.warn('[Organization] No accessible organizations returned from API');
         setTargetOrganization(null);
         setIsAdmin(isSuperAdmin);
         return;
@@ -110,16 +101,6 @@ const Organization = () => {
 
       if (!selectedOrganization) {
         selectedOrganization = organizations[0];
-        if (!targetOrgId) {
-          console.log('[Organization] No targetOrgId provided, using first accessible organization', {
-            fallbackOrgId: selectedOrganization.id,
-          });
-        } else {
-          console.warn('[Organization] Target organization not found in accessible list, using fallback', {
-            targetOrgId,
-            fallbackOrgId: selectedOrganization.id,
-          });
-        }
       }
 
       setTargetOrganization(selectedOrganization);
@@ -129,15 +110,9 @@ const Organization = () => {
       );
 
       if (isSuperAdmin) {
-        console.log('[Organization] Super admin detected, granting admin access');
         setIsAdmin(true);
       } else {
         const isOrgAdmin = membershipForOrg?.role === 'admin';
-        console.log('[Organization] Admin check result', {
-          organizationId: selectedOrganization.id,
-          isOrgAdmin,
-          membershipForOrg,
-        });
         setIsAdmin(!!isOrgAdmin);
       }
     } catch (error) {
@@ -161,19 +136,13 @@ const Organization = () => {
         });
 
         if (!error && response?.members) {
-          console.log('[Organization] Supabase function returned members', {
-            count: response.members.length,
-          });
           membersWithAuth = response.members;
-        } else if (error) {
-          console.warn('Supabase function failed, falling back to API:', error.message || error);
         }
       } catch (functionError) {
-        console.warn('Supabase function threw, falling back to API:', functionError);
+        // Fall through to API fallback
       }
 
       if (membersWithAuth.length === 0) {
-        console.log('[Organization] Falling back to /organization_members API');
         const fallbackResponse = await apiService.get('/organization_members');
         const fallbackData = getApiData(fallbackResponse) || [];
         membersWithAuth = fallbackData
@@ -206,10 +175,6 @@ const Organization = () => {
       
       setMembers(sortedSignedInMembers);
       setPendingMembers(pendingSignIn);
-      console.log('[Organization] Members loaded', {
-        activeCount: sortedSignedInMembers.length,
-        pendingCount: pendingSignIn.length,
-      });
     } catch (error) {
       console.error('Error in loadMembers:', error);
     }
@@ -223,6 +188,7 @@ const Organization = () => {
       setNewInviteEmail('');
       setNewInviteRole('user');
       loadMembers(targetOrganization?.id); // Refresh to show new pending invitation
+      invalidateOrgMembersCache();
     }
   };
 
@@ -239,6 +205,7 @@ const Organization = () => {
       });
       
       loadMembers(targetOrganization?.id);
+      invalidateOrgMembersCache();
     } catch (error) {
       console.error('Error revoking pending membership:', error);
       toast({
@@ -263,6 +230,7 @@ const Organization = () => {
       });
 
       loadMembers(targetOrganization?.id);
+      invalidateOrgMembersCache();
     } catch (error) {
       console.error('Error toggling member status:', error);
       toast({
@@ -288,6 +256,7 @@ const Organization = () => {
       });
       
       loadMembers(targetOrganization?.id);
+      invalidateOrgMembersCache();
     } catch (error) {
       console.error('Error removing member:', error);
       toast({
@@ -313,6 +282,7 @@ const Organization = () => {
       });
       
       loadMembers(targetOrganization?.id);
+      invalidateOrgMembersCache();
     } catch (error) {
       console.error('Error updating member role:', error);
       toast({

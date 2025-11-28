@@ -212,16 +212,31 @@ export default function Inventory() {
   }, [parts, searchTerm, showLowInventoryOnly]);
 
   const fetchParts = async () => {
+    console.log('=== FETCHING PARTS ===');
     try {
       // Use API service with automatic Authorization header
       const { apiService, getApiData } = await import('@/lib/apiService');
       const response = await apiService.get<{ data: Part[] }>('/parts');
       const partsData = getApiData(response) || [];
       
+      console.log('Fetched parts count:', partsData.length);
+      
+      // Find Anaa part for debugging
+      const anaaPart = partsData.find((p: Part) => p.name.includes('Anaa'));
+      if (anaaPart) {
+        console.log('Anaa part from API:', {
+          id: anaaPart.id,
+          name: anaaPart.name,
+          unit: anaaPart.unit,
+          updated_at: anaaPart.updated_at
+        });
+      }
+      
       // Sort by name
       partsData.sort((a: Part, b: Part) => (a.name || '').localeCompare(b.name || ''));
       
       setParts(partsData);
+      console.log('Parts state updated');
     } catch (error: any) {
       console.error('Error fetching parts:', error);
       toast({
@@ -547,14 +562,24 @@ export default function Inventory() {
   };
 
   const updatePart = async (formData: any, useMinimumQuantity: boolean) => {
-    if (!editingPart) return;
+    if (!editingPart) {
+      console.error('No editing part found');
+      return;
+    }
+
+    console.log('=== UPDATE PART START ===');
+    console.log('editingPart:', editingPart);
+    console.log('formData received:', formData);
+    console.log('useMinimumQuantity:', useMinimumQuantity);
 
     try {
       setUploadingImage(true);
       
       let imageUrl = editingPart.image_url;
       if (editSelectedImage) {
+        console.log('Uploading new image...');
         imageUrl = await uploadImage(editSelectedImage, editingPart.id);
+        console.log('Image uploaded:', imageUrl);
       }
 
       const updateData = {
@@ -564,19 +589,40 @@ export default function Inventory() {
         minimum_quantity: useMinimumQuantity ? formData.minimum_quantity : null,
         cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
         unit: formData.unit,
-        // supplier_id removed - tracking moved to stock additions
         parent_structure_id: formData.parent_structure_id,
         storage_location: formData.storage_location,
         accountable_person_id: formData.accountable_person_id === "none" ? null : formData.accountable_person_id,
-        image_url: imageUrl
+        image_url: imageUrl,
+        updated_at: new Date().toISOString()
       };
 
-      const { error } = await supabase
+      console.log('=== SENDING UPDATE TO DATABASE ===');
+      console.log('Part ID:', editingPart.id);
+      console.log('Update data:', JSON.stringify(updateData, null, 2));
+
+      const { data: updatedData, error } = await supabase
         .from('parts')
         .update(updateData)
-        .eq('id', editingPart.id);
+        .eq('id', editingPart.id)
+        .select();
 
-      if (error) throw error;
+      console.log('=== DATABASE RESPONSE ===');
+      console.log('Error:', error);
+      console.log('Updated data:', updatedData);
+
+      if (error) {
+        console.error('=== UPDATE FAILED ===');
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        throw error;
+      }
+      
+      if (!updatedData || updatedData.length === 0) {
+        console.error('=== NO DATA RETURNED ===');
+        throw new Error('Update succeeded but no data returned');
+      }
+
+      console.log('=== UPDATE SUCCESSFUL ===');
+      console.log('Returned unit value:', updatedData[0]?.unit);
 
       // Log the update to history - including quantity changes
       try {
@@ -686,18 +732,25 @@ export default function Inventory() {
         description: "Part updated successfully",
       });
 
+      console.log('=== CLOSING DIALOG AND REFRESHING ===');
       setShowEditDialog(false);
       setEditingPart(null);
       setEditSelectedImage(null);
-      fetchParts();
+      
+      console.log('Fetching updated parts list...');
+      await fetchParts();
+      console.log('Parts list refreshed');
     } catch (error) {
-      console.error('Error updating part:', error);
+      console.error('=== ERROR UPDATING PART ===');
+      console.error('Error object:', error);
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
       toast({
         title: "Error",
-        description: "Failed to update part",
+        description: error instanceof Error ? error.message : "Failed to update part",
         variant: "destructive",
       });
     } finally {
+      console.log('=== UPDATE PART END ===');
       setUploadingImage(false);
     }
   };

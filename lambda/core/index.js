@@ -280,8 +280,20 @@ exports.handler = async (event) => {
       if (body.minimum_quantity !== undefined) {
         updates.push(`minimum_quantity = ${body.minimum_quantity}`);
       }
+      if (body.unit !== undefined) {
+        updates.push(`unit = ${formatSqlValue(body.unit)}`);
+      }
+      if (body.cost_per_unit !== undefined) {
+        updates.push(`cost_per_unit = ${body.cost_per_unit}`);
+      }
+      if (body.parent_structure_id !== undefined) {
+        updates.push(`parent_structure_id = ${formatSqlValue(body.parent_structure_id)}`);
+      }
       if (body.storage_location !== undefined) {
         updates.push(`storage_location = ${formatSqlValue(body.storage_location)}`);
+      }
+      if (body.accountable_person_id !== undefined) {
+        updates.push(`accountable_person_id = ${formatSqlValue(body.accountable_person_id)}`);
       }
       if (body.image_url !== undefined) {
         updates.push(`image_url = ${formatSqlValue(body.image_url)}`);

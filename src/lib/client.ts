@@ -1,25 +1,21 @@
-// Minimal client for legacy compatibility
-// Most functionality has been migrated to TanStack Query and API calls
+import { createClient } from '@supabase/supabase-js';
+import type { Database } from '@/integrations/supabase/types';
 
-export const supabase = {
-  from: (table: string) => ({
-    select: () => Promise.resolve({ data: [], error: null }),
-    insert: () => Promise.resolve({ data: null, error: null }),
-    update: () => Promise.resolve({ data: null, error: null }),
-    delete: () => Promise.resolve({ data: null, error: null })
-  }),
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://oskwnlhuuxjfuwnjuavn.supabase.co';
+const SUPABASE_ANON_KEY =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9za3dubGh1dXhqZnV3bmp1YXZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI2MjMzNTgsImV4cCI6MjA2ODE5OTM1OH0.nWbYYTMu7BOQt8pSRVGBr8Iy3nvLfe40H1W_qpiVXAQ';
+
+const storage =
+  typeof window !== 'undefined' && window.localStorage ? window.localStorage : undefined;
+
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    getUser: () => Promise.resolve({ data: { user: null }, error: null }),
-    getSession: () => Promise.resolve({ 
-      data: { 
-        session: { 
-          access_token: 'mock-access-token',
-          refresh_token: 'mock-refresh-token'
-        } 
-      }, 
-      error: null 
-    })
-  }
-};
+    storage,
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
 
 export { supabase as client };

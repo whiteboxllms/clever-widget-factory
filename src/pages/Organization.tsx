@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,8 +17,11 @@ import { useOrganization } from '@/hooks/useOrganization';
 import { useInvitations } from '@/hooks/useInvitations';
 import { useToast } from '@/hooks/use-toast';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
+import { useProfile } from '@/hooks/useProfile';
 import { OrganizationValuesSection } from '@/components/OrganizationValuesSection';
 import { supabase } from '@/lib/client';
+import { apiService, getApiData } from '@/lib/apiService';
+import { useQueryClient } from '@tanstack/react-query';
 
 
 interface OrganizationMember {
@@ -39,11 +42,13 @@ const Organization = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { organizationId } = useParams();
-  const { organization: currentOrg, isAdmin: isCurrentOrgAdmin } = useOrganization();
+  const { organization: currentOrg } = useOrganization();
   const { sendInvitation, loading } = useInvitations();
   const { updateOrganization } = useOrganizations();
   const { isSuperAdmin, loading: superAdminLoading } = useSuperAdmin();
+  const { allMemberships, isLoading: profileLoading } = useProfile();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   // Use the organization from URL param or fallback to current user's org
   const targetOrgId = organizationId || currentOrg?.id;
@@ -55,98 +60,116 @@ const Organization = () => {
   const [newInviteEmail, setNewInviteEmail] = useState('');
   const [newInviteRole, setNewInviteRole] = useState('user');
 
+  const resolvedOrgId = targetOrganization?.id || targetOrgId;
+  const targetMembership = useMemo(() => {
+    if (!resolvedOrgId) return null;
+    return allMemberships?.find((membership) => membership.organization_id === resolvedOrgId) || null;
+  }, [allMemberships, resolvedOrgId]);
+
   useEffect(() => {
-    if (targetOrgId && !superAdminLoading) {
+    if (!superAdminLoading && !profileLoading) {
       loadOrganizationData();
     }
-  }, [targetOrgId, isSuperAdmin, superAdminLoading]);
+  }, [targetOrgId, isSuperAdmin, superAdminLoading, profileLoading]);
 
   useEffect(() => {
-    if (isAdmin && targetOrgId) {
-      loadMembers();
+    if (isAdmin && targetOrganization?.id) {
+      loadMembers(targetOrganization.id);
     }
-  }, [isAdmin, targetOrgId]);
+  }, [isAdmin, targetOrganization?.id]);
+
+  const invalidateOrgMembersCache = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['organization_members'] });
+  }, [queryClient]);
 
   const loadOrganizationData = async () => {
-    if (!targetOrgId || superAdminLoading) return;
+    if (superAdminLoading || profileLoading) return;
 
-    // If viewing current user's org, use existing data
-    if (targetOrgId === currentOrg?.id) {
-      setTargetOrganization(currentOrg);
-      setIsAdmin(isCurrentOrgAdmin || isSuperAdmin);
-      return;
-    }
-
-    // Otherwise, fetch the specific organization
     try {
-      const { data: orgData, error: orgError } = await supabase
-        .from('organizations')
-        .select('*')
-        .eq('id', targetOrgId)
-        .single();
+      const response = await apiService.get('/organizations');
+      const organizations = getApiData(response) || [];
 
-      if (orgError) {
-        console.error('Error loading organization:', orgError);
+      if (!organizations.length) {
+        setTargetOrganization(null);
+        setIsAdmin(isSuperAdmin);
         return;
       }
 
-      setTargetOrganization(orgData);
+      let selectedOrganization = targetOrgId
+        ? organizations.find((org: any) => org.id === targetOrgId)
+        : null;
 
-      // Super admins have admin access to all organizations
+      if (!selectedOrganization) {
+        selectedOrganization = organizations[0];
+      }
+
+      setTargetOrganization(selectedOrganization);
+
+      const membershipForOrg = allMemberships?.find(
+        (membership) => membership.organization_id === selectedOrganization.id
+      );
+
       if (isSuperAdmin) {
         setIsAdmin(true);
-        return;
+      } else {
+        const isOrgAdmin = membershipForOrg?.role === 'admin';
+        setIsAdmin(!!isOrgAdmin);
       }
-
-      // Check if current user is admin of this specific organization
-      const { data: memberData, error: memberError } = await supabase
-        .from('organization_members')
-        .select('role')
-        .eq('organization_id', targetOrgId)
-        .eq('user_id', user?.id)
-        .maybeSingle();
-
-      if (memberError) {
-        console.error('Error fetching member data:', memberError);
-        setIsAdmin(false);
-        return;
-      }
-
-      const isOrgAdmin = memberData?.role === 'admin';
-      setIsAdmin(isOrgAdmin);
     } catch (error) {
       console.error('Error in loadOrganizationData:', error);
-      setIsAdmin(false);
+      setIsAdmin(isSuperAdmin);
     }
   };
 
 
-  const loadMembers = async () => {
-    if (!targetOrgId) return;
+  const loadMembers = async (orgId?: string) => {
+    const effectiveOrgId = orgId || targetOrganization?.id || targetOrgId;
+    console.log('[Organization] loadMembers start', { effectiveOrgId });
+    if (!effectiveOrgId) return;
     
     try {
-      // Call the new edge function to get members with auth data
-      const { data: response, error } = await supabase.functions.invoke('get-organization-members-with-auth', {
-        body: { organizationId: targetOrgId }
-      });
+      let membersWithAuth: OrganizationMember[] = [];
 
-      if (error) {
-        console.error('Error loading members:', error);
-        return;
+      try {
+        const { data: response, error } = await supabase.functions.invoke('get-organization-members-with-auth', {
+          body: { organizationId: effectiveOrgId }
+        });
+
+        if (!error && response?.members) {
+          membersWithAuth = response.members;
+        }
+      } catch (functionError) {
+        // Fall through to API fallback
       }
 
-      const membersWithAuth = response.members || [];
+      if (membersWithAuth.length === 0) {
+        const fallbackResponse = await apiService.get('/organization_members');
+        const fallbackData = getApiData(fallbackResponse) || [];
+        membersWithAuth = fallbackData
+          .filter((member: any) => member.organization_id === effectiveOrgId)
+          .map((member: any) => ({
+            id: member.id || member.user_id,
+            user_id: member.user_id,
+            role: member.role,
+            is_active: member.is_active !== false,
+            organization_id: member.organization_id,
+            full_name: member.full_name || member.user_id,
+            auth_data: {
+              email: member.cognito_user_id || member.user_id || 'Unknown',
+              last_sign_in_at: member.last_sign_in_at || null,
+              created_at: member.created_at || member.updated_at || new Date().toISOString()
+            }
+          }));
+      }
       
       // Split members: those who have signed in vs those who haven't
-      const signedInMembers = membersWithAuth.filter((m: any) => m.auth_data.last_sign_in_at !== null);
-      const pendingSignIn = membersWithAuth.filter((m: any) => m.auth_data.last_sign_in_at === null);
+      const signedInMembers = membersWithAuth.filter((m: any) => m.auth_data?.last_sign_in_at !== null);
+      const pendingSignIn = membersWithAuth.filter((m: any) => m.auth_data?.last_sign_in_at === null);
       
       // Sort signed-in members: active members first, then inactive
       const sortedSignedInMembers = signedInMembers.sort((a: any, b: any) => {
-        // Active members first
         if (a.is_active && !b.is_active) return -1;
         if (!a.is_active && b.is_active) return 1;
-        // Then sort by name
         return (a.full_name || '').localeCompare(b.full_name || '');
       });
       
@@ -164,7 +187,8 @@ const Organization = () => {
     if (result) {
       setNewInviteEmail('');
       setNewInviteRole('user');
-      loadMembers(); // Refresh to show new pending invitation
+      loadMembers(targetOrganization?.id); // Refresh to show new pending invitation
+      invalidateOrgMembersCache();
     }
   };
 
@@ -173,27 +197,15 @@ const Organization = () => {
     if (!isAdmin) return;
 
     try {
-      const { error } = await supabase
-        .from('organization_members')
-        .delete()
-        .eq('id', memberId);
-
-      if (error) {
-        console.error('Error revoking pending membership:', error);
-        toast({
-          title: "Error",
-          description: "Failed to revoke invitation",
-          variant: "destructive",
-        });
-        return;
-      }
+      await apiService.delete(`/organization_members?id=${memberId}`);
 
       toast({
         title: "Success",
         description: "Pending invitation revoked",
       });
       
-      loadMembers();
+      loadMembers(targetOrganization?.id);
+      invalidateOrgMembersCache();
     } catch (error) {
       console.error('Error revoking pending membership:', error);
       toast({
@@ -207,27 +219,18 @@ const Organization = () => {
 
   const toggleMemberStatus = async (memberId: string, currentStatus: boolean) => {
     try {
-      const { error } = await supabase
-        .from('organization_members')
-        .update({ is_active: !currentStatus })
-        .eq('id', memberId);
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to update member status",
-          variant: "destructive",
-        });
-        return;
-      }
+      await apiService.put('/organization_members', {
+        id: memberId,
+        is_active: !currentStatus
+      });
 
       toast({
         title: "Success",
         description: `Member ${!currentStatus ? 'activated' : 'deactivated'} successfully`,
       });
 
-      // Reload members to show updated status
-      loadMembers();
+      loadMembers(targetOrganization?.id);
+      invalidateOrgMembersCache();
     } catch (error) {
       console.error('Error toggling member status:', error);
       toast({
@@ -241,59 +244,24 @@ const Organization = () => {
   const handleRemoveMember = async (memberId: string, memberName: string) => {
     if (!isAdmin) return;
 
-    const confirmed = window.confirm(`Are you sure you want to completely delete ${memberName}? This will permanently remove them from all systems and cannot be undone.`);
+    const confirmed = window.confirm(`Are you sure you want to remove ${memberName}? This will deactivate their account.`);
     if (!confirmed) return;
 
     try {
-      // First, get the user_id from the organization member record
-      const { data: memberData, error: memberError } = await supabase
-        .from('organization_members')
-        .select('user_id')
-        .eq('id', memberId)
-        .single();
-
-      if (memberError || !memberData) {
-        console.error('Error fetching member data:', memberError);
-        toast({
-          title: "Error",
-          description: "Failed to find member record",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const userId = memberData.user_id;
-
-      // Delete the user's profile first (to handle any FK constraints)
-      await supabase
-        .from('profiles')
-        .delete()
-        .eq('user_id', userId);
-
-      // Delete the user from auth.users (this should cascade to organization_members)
-      const { error: deleteError } = await supabase.auth.admin.deleteUser(userId);
-
-      if (deleteError) {
-        console.error('Error deleting user:', deleteError);
-        toast({
-          title: "Error",
-          description: "Failed to completely delete user",
-          variant: "destructive",
-        });
-        return;
-      }
+      await apiService.delete(`/organization_members?id=${memberId}`);
 
       toast({
         title: "Success",
-        description: `${memberName} has been completely deleted from all systems`,
+        description: `${memberName} has been removed`,
       });
       
-      loadMembers();
+      loadMembers(targetOrganization?.id);
+      invalidateOrgMembersCache();
     } catch (error) {
-      console.error('Error completely deleting user:', error);
+      console.error('Error removing member:', error);
       toast({
         title: "Error",
-        description: "Failed to completely delete user",
+        description: "Failed to remove member",
         variant: "destructive",
       });
     }
@@ -303,27 +271,18 @@ const Organization = () => {
     if (!isAdmin) return;
 
     try {
-      const { error } = await supabase
-        .from('organization_members')
-        .update({ role: newRole })
-        .eq('id', memberId);
-
-      if (error) {
-        console.error('Error updating member role:', error);
-        toast({
-          title: "Error",
-          description: "Failed to update member role",
-          variant: "destructive",
-        });
-        return;
-      }
+      await apiService.put('/organization_members', {
+        id: memberId,
+        role: newRole
+      });
 
       toast({
         title: "Success",
         description: `${memberName}'s role has been updated to ${newRole}`,
       });
       
-      loadMembers();
+      loadMembers(targetOrganization?.id);
+      invalidateOrgMembersCache();
     } catch (error) {
       console.error('Error updating member role:', error);
       toast({
@@ -386,7 +345,7 @@ const Organization = () => {
       </Card>
 
       {/* Organization Values */}
-      <OrganizationValuesSection canEdit={isAdmin} />
+      <OrganizationValuesSection canEdit={isAdmin} organization={targetOrganization} />
 
       {/* Roles & Permissions */}
       <Collapsible defaultOpen={false}>

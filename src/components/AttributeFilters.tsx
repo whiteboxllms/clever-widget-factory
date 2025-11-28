@@ -4,10 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { CalendarDays, Users, Filter, ChevronRight } from 'lucide-react';
+import { CalendarDays, Users, ChevronRight } from 'lucide-react';
 import { AttributeAnalytics } from '@/hooks/useStrategicAttributes';
-import { supabase } from '@/lib/client';
-import { useOrganizationId } from '@/hooks/useOrganizationId';
+import type { OrganizationMemberSummary } from '@/types/organization';
 
 interface AttributeFiltersProps {
   userAnalytics: AttributeAnalytics[];
@@ -20,6 +19,7 @@ interface AttributeFiltersProps {
   onApplyFilters: () => void;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  organizationMembers?: OrganizationMemberSummary[];
 }
 
 export function AttributeFilters({
@@ -32,42 +32,30 @@ export function AttributeFilters({
   onEndDateChange,
   onApplyFilters,
   collapsed = false,
-  onToggleCollapsed
+  onToggleCollapsed,
+  organizationMembers = []
 }: AttributeFiltersProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
   // Build a name map from organization_members to replace any 'Unknown User' entries
   const [nameMap, setNameMap] = useState<Record<string, string>>({});
-  const organizationId = useOrganizationId();
 
   useEffect(() => {
-    const loadNames = async () => {
-      const ids = Array.from(new Set(userAnalytics.map(u => u.userId)));
-      if (ids.length === 0) {
-        setNameMap({});
-        return;
-      }
-      const map: Record<string, string> = {};
-      try {
-        const query = supabase
-          .from('organization_members')
-          .select('user_id, full_name, is_active, organization_id')
-          .in('user_id', ids)
-          .eq('is_active', true);
+    const ids = new Set(userAnalytics.map(u => u.userId));
+    if (!ids.size) {
+      setNameMap({});
+      return;
+    }
 
-        // RLS will scope to current organization; no explicit org filter
-        const { data: members } = await query;
-        (members || []).forEach((m: any) => {
-          if (m?.user_id && m?.full_name) map[m.user_id] = String(m.full_name).trim();
-        });
-        // Do not fallback to RPC here; list should only show active org members
-      } catch {
-        // ignore fetch errors; we'll fall back to provided names
-      }
-      setNameMap(map);
-    };
-    loadNames();
-  }, [userAnalytics, organizationId]);
+    const map: Record<string, string> = {};
+    organizationMembers
+      .filter(member => member.is_active !== false && member.user_id && ids.has(member.user_id))
+      .forEach(member => {
+        map[member.user_id] = String(member.full_name || 'Unknown User').trim();
+      });
+
+    setNameMap(map);
+  }, [organizationMembers, userAnalytics]);
 
   const usersWithDisplayNames = useMemo(() => {
     // Only include users that resolved via active org membership

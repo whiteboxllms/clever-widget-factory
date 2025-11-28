@@ -1,0 +1,9 @@
+{
+  "name": "cwf-analytics-lambda",
+  "version": "1.0.0",
+  "description": "Analytics and reporting Lambda for CWF",
+  "main": "index.js",
+  "dependencies": {
+    "pg": "^8.11.3"
+  }
+}

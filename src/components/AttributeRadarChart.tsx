@@ -5,8 +5,8 @@ import { Info } from 'lucide-react';
 import { EnhancedAttributeAnalytics } from '@/hooks/useEnhancedStrategicAttributes';
 import { useOrganizationValues } from '@/hooks/useOrganizationValues';
 import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '@/lib/client';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Legend } from 'recharts';
+import type { OrganizationMemberSummary } from '@/types/organization';
 
 // High contrast color palette for white backgrounds
 const USER_COLORS = [
@@ -26,6 +26,7 @@ interface AttributeRadarChartProps {
   actionAnalytics: EnhancedAttributeAnalytics[];
   issueAnalytics: EnhancedAttributeAnalytics[];
   selectedUsers: string[];
+  organizationMembers?: OrganizationMemberSummary[];
 }
 
 // Function to convert display names to attribute keys
@@ -58,49 +59,33 @@ const mapOrgValueToAttributeKey = (orgValue: string): string => {
   return mapping[orgValue] || convertToAttributeKey(orgValue);
 };
 
-export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedUsers }: AttributeRadarChartProps) {
+type RadarSeriesPoint = Record<string, number | string>;
+
+export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedUsers, organizationMembers = [] }: AttributeRadarChartProps) {
   const [orgValues, setOrgValues] = useState<string[]>([]);
   const [showImpact, setShowImpact] = useState(false);
   const { getOrganizationValues } = useOrganizationValues();
 
-  // Build a deterministic label map from userId -> trimmed display name using org members (with RPC fallback)
-  const [labelMap, setLabelMap] = useState<Map<string, string>>(new Map());
+  // Build a deterministic label map from userId -> trimmed display name using provided org members
+  const labelMap = useMemo(() => {
+    const map = new Map<string, string>();
+    const selectedSet = new Set(selectedUsers);
 
-  useEffect(() => {
-    const buildLabels = async () => {
-      const userIds = Array.from(new Set(actionAnalytics.filter(u => selectedUsers.includes(u.userId)).map(u => u.userId)));
-      if (userIds.length === 0) {
-        setLabelMap(new Map());
-        return;
+    organizationMembers
+      .filter(member => member.is_active !== false && member.user_id && selectedSet.has(member.user_id))
+      .forEach(member => {
+        map.set(member.user_id, String(member.full_name || 'Unknown User').trim());
+      });
+
+    // Fallback to names provided within analytics data if member lookup missing
+    actionAnalytics.forEach(user => {
+      if (!map.has(user.userId) && selectedSet.has(user.userId)) {
+        map.set(user.userId, (user.userName || 'Unknown User').trim());
       }
-      const map = new Map<string, string>();
-      try {
-        const { data: members } = await supabase
-          .from('organization_members')
-          .select('user_id, full_name, is_active')
-          .in('user_id', userIds);
-        (members || []).forEach((m: any) => {
-          if (m?.user_id && m?.full_name) map.set(m.user_id, String(m.full_name).trim());
-        });
-        // Fallback via RPC for any missing
-        const missing = userIds.filter(id => !map.get(id));
-        for (const uid of missing) {
-          try {
-            const { data: displayName } = await supabase.rpc('get_user_display_name', { target_user_id: uid });
-            if (displayName && typeof displayName === 'string') {
-              map.set(uid, displayName.trim());
-            }
-          } catch {
-            // ignore
-          }
-        }
-      } catch {
-        // ignore
-      }
-      setLabelMap(map);
-    };
-    buildLabels();
-  }, [actionAnalytics, selectedUsers]);
+    });
+
+    return map;
+  }, [actionAnalytics, organizationMembers, selectedUsers]);
 
   // Load organization values
   useEffect(() => {
@@ -139,7 +124,7 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
       const data = orgValues.map(orgValue => {
         const attributeKey = mapOrgValueToAttributeKey(orgValue);
         
-        const dataPoint: any = {
+        const dataPoint: RadarSeriesPoint = {
           attribute: orgValue
         };
 
@@ -179,7 +164,7 @@ export function AttributeRadarChart({ actionAnalytics, issueAnalytics, selectedU
       const data = orgValues.map(orgValue => {
         const attributeKey = mapOrgValueToAttributeKey(orgValue);
         
-        const dataPoint: any = {
+        const dataPoint: RadarSeriesPoint = {
           attribute: orgValue,
           fullMark: 4
         };

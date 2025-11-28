@@ -23,16 +23,24 @@ interface Organization {
   updated_at: string;
 }
 
-const fetchProfile = async (userId: string) => {
+interface ProfileData {
+  user_id: string;
+  full_name?: string;
+  favorite_color?: string;
+  super_admin?: boolean;
+}
+
+const fetchProfile = async (userId: string): Promise<ProfileData | null> => {
   const response = await apiService.get(`/profiles?user_id=${userId}`);
   const data = getApiData(response);
-  return Array.isArray(data) ? data[0] : data;
+  if (!data) return null;
+  return Array.isArray(data) ? (data[0] as ProfileData) : (data as ProfileData);
 };
 
-const fetchOrganizationMemberships = async () => {
-  const response = await apiService.get('/organization_members');
+const fetchOrganizationMemberships = async (userId: string): Promise<OrganizationMember[]> => {
+  const response = await apiService.get(`/organization_members?cognito_user_id=${encodeURIComponent(userId)}`);
   const data = getApiData(response);
-  return Array.isArray(data) ? data : [];
+  return Array.isArray(data) ? (data as OrganizationMember[]) : [];
 };
 
 // Create organization object from membership
@@ -74,7 +82,7 @@ export function useProfile() {
   const queryClient = useQueryClient();
 
   // Fetch profile data
-  const { data: profile, isLoading: profileLoading } = useQuery({
+  const { data: profile, isLoading: profileLoading } = useQuery<ProfileData | null>({
     queryKey: ['profile', user?.userId],
     queryFn: () => fetchProfile(user!.userId),
     enabled: !!user,
@@ -82,15 +90,15 @@ export function useProfile() {
   });
 
   // Fetch organization memberships
-  const { data: memberships = [], isLoading: membershipsLoading } = useQuery({
-    queryKey: ['organization_memberships'],
-    queryFn: fetchOrganizationMemberships,
-    enabled: !!user,
+  const { data: memberships = [], isLoading: membershipsLoading } = useQuery<OrganizationMember[]>({
+    queryKey: ['organization_memberships', user?.userId],
+    queryFn: () => fetchOrganizationMemberships(user!.userId),
+    enabled: !!user?.userId,
     ...offlineQueryConfig,
   });
 
-  // Get primary organization (first active membership, or first one)
-  const primaryMembership = memberships.find((m: OrganizationMember) => m.is_active !== false) || memberships[0];
+  // Get primary organization (oldest membership by created_at to match backend authorizer)
+  const primaryMembership = memberships.length > 0 ? memberships[0] : null;
   const primaryOrganizationId = primaryMembership?.organization_id;
   
   // Create organization object from membership (minimal for now)
@@ -126,6 +134,7 @@ export function useProfile() {
   };
 
   const isLoading = profileLoading || membershipsLoading;
+  const isSuperAdmin = Boolean(profile?.super_admin);
 
   return {
     // Profile data
@@ -134,6 +143,7 @@ export function useProfile() {
     favoriteColor: profile?.favorite_color || '#6B7280',
     updateFullName,
     isLoading: isLoading || mutation.isPending,
+    isSuperAdmin,
     
     // Organization data (from memberships)
     organization: organization as Organization | null,

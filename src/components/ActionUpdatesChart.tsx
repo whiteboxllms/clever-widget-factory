@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { supabase } from '@/lib/client';
+import { apiService, getApiData } from '@/lib/apiService';
 import { Info } from 'lucide-react';
+import { useOrganizationMembers } from '@/hooks/useOrganizationMembers';
 
 interface ActionUpdatesChartProps {
   startDate: string;
@@ -32,6 +33,17 @@ export function ActionUpdatesChart({ startDate, endDate, selectedUsers }: Action
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<RawUpdateRow[]>([]);
   const [nameMap, setNameMap] = useState<Record<string, string>>({});
+  const { members: organizationMembers } = useOrganizationMembers();
+
+  const organizationNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    organizationMembers.forEach(member => {
+      if (member.user_id) {
+        map[member.user_id] = String(member.full_name || 'Unknown User').trim();
+      }
+    });
+    return map;
+  }, [organizationMembers]);
 
   // Format a Date (in local timezone) to YYYY-MM-DD
   const formatLocalYMD = (d: Date) => {
@@ -53,41 +65,37 @@ export function ActionUpdatesChart({ startDate, endDate, selectedUsers }: Action
       if (!startDate || !endDate) return;
       setLoading(true);
       try {
-        // Fetch updates in date range; RLS scopes org. Using a narrow select to minimize payload.
         const { startISO, endISO } = toLocalDayRangeISO(startDate, endDate);
-        let q = supabase
-          .from('action_implementation_updates')
-          .select('created_at, updated_by')
-          .gte('created_at', startISO)
-          .lte('created_at', endISO);
+        
+        // Try to fetch with start_date and end_date params
+        const params = new URLSearchParams();
+        params.append('start_date', startISO);
+        params.append('end_date', endISO);
         if (selectedUsers && selectedUsers.length > 0) {
-          q = q.in('updated_by', selectedUsers);
+          params.append('user_ids', selectedUsers.join(','));
         }
-        const { data, error } = await q;
-        if (error) throw error;
-
-        const mapped: RawUpdateRow[] = (data || []).map((r: any) => ({
-          // Normalize to local YYYY-MM-DD for bucketing
+        
+        const response = await apiService.get(`/analytics/action_updates?${params.toString()}`);
+        const data = getApiData(response) || [];
+        
+        const mapped: RawUpdateRow[] = data.map((r: any) => ({
           created_date: formatLocalYMD(new Date(r.created_at)),
           updated_by: r.updated_by as string,
         }));
         setRows(mapped);
 
-        // Build name map from org members; RLS will scope to current org
+        // Build name map from org members
         const uniqueIds = Array.from(new Set(mapped.map(r => r.updated_by)));
         if (uniqueIds.length > 0) {
-          const { data: members } = await supabase
-            .from('organization_members')
-            .select('user_id, full_name')
-            .in('user_id', uniqueIds);
           const nm: Record<string, string> = {};
-          (members || []).forEach((m: any) => { if (m?.user_id) nm[m.user_id] = String(m.full_name || 'Unknown User').trim(); });
+          uniqueIds.forEach(id => {
+            nm[id] = organizationNameMap[id] || 'Unknown User';
+          });
           setNameMap(nm);
         } else {
           setNameMap({});
         }
       } catch (e) {
-        // eslint-disable-next-line no-console
         console.error('Failed to fetch action updates', e);
         setRows([]);
       } finally {
@@ -95,7 +103,7 @@ export function ActionUpdatesChart({ startDate, endDate, selectedUsers }: Action
       }
     };
     fetchData();
-  }, [startDate, endDate, selectedUsers]);
+  }, [startDate, endDate, selectedUsers, organizationNameMap]);
 
   const chartData = useMemo(() => {
     // Group by date, then count per user

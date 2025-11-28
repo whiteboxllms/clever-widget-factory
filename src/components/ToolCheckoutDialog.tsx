@@ -16,6 +16,7 @@ import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
+import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
 
 interface Tool {
   id: string;
@@ -57,6 +58,7 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
   const [userFullName, setUserFullName] = useState<string>("");
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
+  const { members: organizationMembers = [] } = useOrganizationMembers();
 
   // Resolve user full name from Cognito metadata or organization members
   useEffect(() => {
@@ -85,16 +87,11 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
         return;
       }
 
-      try {
-        const result = await apiService.get('/organization_members');
-        const member = Array.isArray(result?.data) ? result.data.find((m: any) => m.cognito_user_id === user.id) : null;
-        const memberName = preferName(member?.full_name);
-        if (memberName && isMounted) {
-          setUserFullName(memberName);
-          return;
-        }
-      } catch (error) {
-        console.warn('Failed to resolve organization member name', error);
+      const member = organizationMembers.find(m => m.cognito_user_id === user.id || m.user_id === user.id);
+      const memberName = preferName(member?.full_name);
+      if (memberName && isMounted) {
+        setUserFullName(memberName);
+        return;
       }
 
       if (isMounted) {
@@ -106,7 +103,7 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
     return () => {
       isMounted = false;
     };
-  }, [user]);
+  }, [user, organizationMembers]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);

@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { useToolsData } from "@/hooks/tools/useToolsData";
 import { apiService } from '@/lib/apiService';
+import { useOrganizationMembers } from '@/hooks/useOrganizationMembers';
 
 interface Asset {
   id: string;
@@ -36,6 +37,28 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
   const { toast } = useToast();
   const { user } = useAuth();
   const { tools: assets, loading, activeCheckouts } = useToolsData();
+  const { members: organizationMembers = [] } = useOrganizationMembers();
+
+  const preferName = (value?: string | null) => {
+    if (!value) return null;
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.includes('@')) return null;
+    return trimmed;
+  };
+
+  const resolveUserFullName = () => {
+    if (!user) return 'Unknown User';
+    const metadataName = preferName((user as any)?.user_metadata?.full_name);
+    if (metadataName) return metadataName;
+    const cognitoName = preferName((user as any)?.name);
+    if (cognitoName) return cognitoName;
+    const member = organizationMembers.find(
+      (m) => m.cognito_user_id === user.id || m.user_id === user.id
+    );
+    const memberName = preferName(member?.full_name);
+    if (memberName) return memberName;
+    return user.email || (user as any)?.username || 'Unknown User';
+  };
 
 
 
@@ -182,24 +205,7 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
         // Only create checkout if action is in progress (plan_commitment = true)
         if (actionData.plan_commitment === true) {
           // Resolve user full name
-          let userFullName = 'Unknown User';
-          try {
-            const userMetadata = (user as any)?.user_metadata;
-            if (userMetadata?.full_name) {
-              userFullName = userMetadata.full_name;
-            } else if ((user as any)?.name) {
-              userFullName = (user as any).name;
-            } else {
-              // Try to fetch from organization_members
-              const memberResult = await apiService.get('/organization_members');
-              const member = Array.isArray(memberResult?.data) ? memberResult.data.find((m: any) => m.cognito_user_id === user.id) : memberResult?.data;
-              if (member?.full_name) {
-                userFullName = member.full_name;
-              }
-            }
-          } catch (error) {
-            console.warn('Could not resolve user full name:', error);
-          }
+          const userFullName = resolveUserFullName();
 
           // Create active checkout since action is in progress
           try {
@@ -290,26 +296,7 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
           const isActiveCheckout = checkout.checkout_date != null;
           
           // Resolve user full name (try from user object first, avoid API call if possible)
-          let userFullName = 'Unknown User';
-          const userMetadata = (user as any)?.user_metadata;
-          if (userMetadata?.full_name) {
-            userFullName = userMetadata.full_name;
-          } else if ((user as any)?.name) {
-            userFullName = (user as any).name;
-          } else {
-            // Only fetch from API if not available in user object
-            try {
-              const memberResult = await apiService.get('/organization_members');
-              const member = Array.isArray(memberResult?.data) 
-                ? memberResult.data.find((m: any) => m.cognito_user_id === user.id) 
-                : memberResult?.data;
-              if (member?.full_name) {
-                userFullName = member.full_name;
-              }
-            } catch (error) {
-              console.warn('Could not resolve user full name:', error);
-            }
-          }
+          const userFullName = resolveUserFullName();
           
           if (isActiveCheckout) {
             // For active checkouts, batch operations in parallel where possible

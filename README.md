@@ -34,6 +34,14 @@ A comprehensive asset management and accountability system built with React, Typ
    ```
    This starts the Vite dev server on http://localhost:8080
 
+### API Configuration
+
+**IMPORTANT**: The `VITE_API_BASE_URL` should NOT include the `/api` suffix:
+- ✅ Correct: `https://xxx.execute-api.us-west-2.amazonaws.com/prod`
+- ❌ Wrong: `https://xxx.execute-api.us-west-2.amazonaws.com/prod/api`
+
+The apiService automatically adds `/api` to all endpoints.
+
 ### API Endpoints
 The AWS API Gateway provides these endpoints:
 - `GET /health` - Health check
@@ -63,6 +71,24 @@ Run database migrations using the Lambda function:
 ```bash
 aws lambda invoke --function-name cwf-db-migration --payload '{"sql":"YOUR_SQL_HERE"}' response.json --region us-west-2 --cli-binary-format raw-in-base64-out
 ```
+
+### API Gateway Management
+
+**Adding new endpoints:**
+```bash
+# Add endpoint with authorizer
+./scripts/add-api-endpoint.sh /api/your-endpoint GET
+
+# Deploy changes
+aws apigateway create-deployment --rest-api-id 0720au267k --stage-name prod --region us-west-2
+```
+
+**Verify all endpoints have authorizers:**
+```bash
+./scripts/verify-api-authorizers.sh
+```
+
+**Important:** All API endpoints (except `/api/health` and `/api/schema`) MUST have the authorizer configured. The verification script runs weekly via GitHub Actions.
 
 ### Migration Status
 ✅ **COMPLETED**: Migrated from Supabase to AWS infrastructure

@@ -1,6 +1,11 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/client';
+import { useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { fetchActionScores, fetchActions, fetchOrganizationMembers } from '@/lib/queryFetchers';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useCognitoAuth';
+import { actionsQueryKey, actionScoresQueryKey } from '@/lib/queryKeys';
+import type { OrganizationMemberSummary } from '@/types/organization';
+import { offlineQueryConfig } from '@/lib/queryConfig';
 
 export interface ScoredAction {
   id: string;
@@ -11,7 +16,7 @@ export interface ScoredAction {
   asset_context_name: string;
   prompt_text: string;
   scores: Record<string, { score: number; reason: string }>;
-  ai_response: any;
+  ai_response: unknown;
   likely_root_causes: string[];
   score_attribution_type: string;
   created_at: string;
@@ -30,68 +35,110 @@ export interface ScoredAction {
   };
 }
 
-export function useScoredActions() {
-  const [scoredActions, setScoredActions] = useState<ScoredAction[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+export interface ScoredActionFilters {
+  userIds?: string[];
+  startDate?: string;
+  endDate?: string;
+}
+
+const serializeUserIds = (userIds?: string[]) =>
+  (userIds ?? []).slice().sort().join(',');
+
+const buildScoredActionsKey = (filters: ScoredActionFilters) => [
+  'scoredActions',
+  filters.startDate ?? 'all',
+  filters.endDate ?? 'all',
+  serializeUserIds(filters.userIds),
+];
+
+type RawActionScore = {
+  id: string;
+  action_id: string;
+  source_id: string;
+  source_type: string;
+  asset_context_id?: string | null;
+  asset_context_name?: string | null;
+  prompt_text: string;
+  scores: Record<string, { score: number; reason: string }>;
+  ai_response: unknown;
+  likely_root_causes?: string[];
+  score_attribution_type?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type ActionRecord = {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  assigned_to?: string | null;
+};
+
+export function useScoredActions(filters: ScoredActionFilters = {}) {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
 
-  const fetchScoredActions = async (userIds?: string[], startDate?: string, endDate?: string) => {
-    try {
-      setIsLoading(true);
+  const scoredActionsQuery = useQuery<ScoredAction[]>({
+    queryKey: buildScoredActionsKey(filters),
+    queryFn: async () => {
+      // Always check cache first - reuse data from useEnhancedStrategicAttributes if available
+      // This prevents duplicate action_scores fetches (which is a large data pull)
+      const actionScoresKey = actionScoresQueryKey(filters.startDate, filters.endDate);
+      const actionsKey = actionsQueryKey();
       
-      // First get the action scores
-      let query = supabase
-        .from('action_scores')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (startDate) {
-        query = query.gte('created_at', startDate);
-      }
-
-      if (endDate) {
-        query = query.lte('created_at', endDate);
-      }
-
-      const { data: scoresData, error: scoresError } = await query;
-      if (scoresError) throw scoresError;
-
-      // Get unique action IDs and assigned user IDs
-      const actionIds = [...new Set(scoresData?.map(score => score.action_id).filter(Boolean))];
+      // getQueryData returns cached data regardless of staleness
+      // We prefer using cached data to avoid duplicate network calls
+      let scoresData = queryClient.getQueryData<RawActionScore[]>(actionScoresKey);
+      let actionsData = queryClient.getQueryData<ActionRecord[]>(actionsKey);
       
-      // Fetch actions separately
-      const { data: actionsData, error: actionsError } = await supabase
-        .from('actions')
-        .select('id, title, description, status, assigned_to')
-        .in('id', actionIds);
-
-      if (actionsError) throw actionsError;
-
-      // Get unique assigned user IDs
-      const assignedUserIds = [...new Set(actionsData?.map(action => action.assigned_to).filter(Boolean))];
-      
-      // Fetch organization members for assignees
-      const { data: membersData, error: membersError } = await supabase
-        .from('organization_members')
-        .select('user_id, full_name, role')
-        .in('user_id', assignedUserIds);
-
-      if (membersError) throw membersError;
-
-      // Create lookup maps
-      const actionsMap = new Map(actionsData?.map(action => [action.id, action]) || []);
-      const membersMap = new Map(membersData?.map(member => [member.user_id, member]) || []);
-
-      // Filter by assigned users if specified
-      let filteredData = scoresData || [];
-      if (userIds && userIds.length > 0) {
-        filteredData = filteredData.filter(item => {
-          const action = actionsMap.get(item.action_id);
-          return action?.assigned_to && userIds.includes(action.assigned_to);
+      // Only fetch if data doesn't exist in cache at all
+      // ensureQueryData will dedupe with any in-flight queries from useEnhancedStrategicAttributes
+      if (!scoresData) {
+        scoresData = await queryClient.ensureQueryData<RawActionScore[]>({
+          queryKey: actionScoresKey,
+          queryFn: () => fetchActionScores({ startDate: filters.startDate, endDate: filters.endDate }),
+          staleTime: 60 * 1000,
         });
       }
+      
+      if (!actionsData) {
+        actionsData = await queryClient.ensureQueryData<ActionRecord[]>({
+          queryKey: actionsKey,
+          queryFn: () => fetchActions() as Promise<ActionRecord[]>,
+          staleTime: 60 * 1000,
+        });
+      }
+      
+      // Type assertions for safety
+      if (!scoresData || !actionsData) {
+        throw new Error('Failed to fetch required data');
+      }
 
-      setScoredActions(filteredData.map(item => {
+      let organizationMembers = queryClient.getQueryData<OrganizationMemberSummary[]>(['organization_members']);
+      if (!organizationMembers) {
+        organizationMembers = await fetchOrganizationMembers();
+        queryClient.setQueryData(['organization_members'], organizationMembers);
+      }
+
+      const actionIds = new Set(scoresData.map((score) => score.action_id).filter(Boolean));
+      const filteredActions = (actionsData || []).filter((action) => actionIds.has(action.id));
+
+      const actionsMap = new Map(filteredActions.map((action) => [action.id, action]));
+      const membersMap = new Map(
+        (organizationMembers || []).map((member) => [member.user_id, member])
+      );
+
+      const baseData = scoresData || [];
+      const filteredData = filters.userIds?.length
+        ? baseData.filter(item => {
+            const action = actionsMap.get(item.action_id);
+            return action?.assigned_to && filters.userIds!.includes(action.assigned_to);
+          })
+        : baseData;
+
+      return filteredData.map(item => {
         const action = actionsMap.get(item.action_id);
         const assignee = action?.assigned_to ? membersMap.get(action.assigned_to) : null;
 
@@ -121,22 +168,33 @@ export function useScoredActions() {
             } : undefined
           } : undefined
         };
-      }));
-    } catch (error) {
-      console.error('Error fetching scored actions:', error);
+      });
+    },
+    enabled: Boolean(user?.userId && filters.startDate && filters.endDate), // Only fetch when dates are available
+    ...offlineQueryConfig,
+    staleTime: 60 * 1000, // Override with shorter staleTime for scored actions
+    retry: 1,
+    onError: () => {
       toast({
         title: "Error",
         description: "Failed to fetch scored actions",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+  });
+
+  const fetchScoredActions = useCallback(async (userIds?: string[], startDate?: string, endDate?: string) => {
+    const nextFilters: ScoredActionFilters = {
+      userIds: userIds ?? filters.userIds,
+      startDate: startDate ?? filters.startDate,
+      endDate: endDate ?? filters.endDate,
+    };
+    await queryClient.invalidateQueries({ queryKey: buildScoredActionsKey(nextFilters) });
+  }, [filters.endDate, filters.startDate, filters.userIds, queryClient]);
 
   return {
-    scoredActions,
-    isLoading,
-    fetchScoredActions
+    scoredActions: scoredActionsQuery.data ?? [],
+    isLoading: scoredActionsQuery.isLoading,
+    fetchScoredActions,
   };
 }

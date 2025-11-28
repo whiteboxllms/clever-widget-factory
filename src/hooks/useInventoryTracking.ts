@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/client';
+import { apiService, getApiData } from '@/lib/apiService';
 
 export interface InventoryTrackingPoint {
   name: string;
@@ -22,25 +22,24 @@ export function useInventoryTracking() {
     endDate?: string
   ): Promise<InventoryTrackingPoint[]> => {
     try {
-      let query = supabase
-        .from('parts_history')
-        .select('part_id, change_type, changed_at, changed_by, change_reason')
-        .eq('change_type', 'quantity_remove');
+      console.log('🟠 getInventoryTrackingData called:', { selectedUsers, startDate, endDate });
+      const response = await apiService.get('/parts_history');
+      let data = getApiData(response) || [];
+      console.log('🟠 Parts history fetched:', data.length);
+
+      data = data.filter((row: any) => row.change_type === 'quantity_remove');
 
       if (startDate) {
-        // inclusive start
-        query = query.gte('changed_at', `${startDate}T00:00:00.000Z`);
+        data = data.filter((row: any) => new Date(row.changed_at) >= new Date(`${startDate}T00:00:00.000Z`));
       }
       if (endDate) {
-        // inclusive end - set end of day
-        query = query.lte('changed_at', `${endDate}T23:59:59.999Z`);
+        data = data.filter((row: any) => new Date(row.changed_at) <= new Date(`${endDate}T23:59:59.999Z`));
       }
       if (selectedUsers && selectedUsers.length > 0) {
-        query = query.in('changed_by', selectedUsers);
+        data = data.filter((row: any) => selectedUsers.includes(row.changed_by));
       }
-
-      const { data, error } = await query;
-      if (error) throw error;
+      
+      console.log('🟠 After filters:', data.length);
 
       // Bucket by day, then de-duplicate by part_id, annotating if any entry is action-attached
       const byDay: Map<string, Map<string, { hasAction: boolean }>> = new Map();
@@ -101,21 +100,21 @@ export function useInventoryTracking() {
     startDate?: string,
     endDate?: string
   ): Promise<HeatmapCell[]> => {
-    // Fetch reductions and aggregate by person/day
-    let query = supabase
-      .from('parts_history')
-      .select('part_id, change_type, changed_at, changed_by, change_reason, quantity_change')
-      .eq('change_type', 'quantity_remove');
+    try {
+      const response = await apiService.get('/parts_history');
+      let data = getApiData(response) || [];
 
-    if (startDate) query = query.gte('changed_at', `${startDate}T00:00:00.000Z`);
-    if (endDate) query = query.lte('changed_at', `${endDate}T23:59:59.999Z`);
-    if (selectedUsers && selectedUsers.length > 0) query = query.in('changed_by', selectedUsers);
+      data = data.filter((row: any) => row.change_type === 'quantity_remove');
 
-    const { data, error } = await query;
-    if (error) {
-      console.error('Error fetching heatmap base data:', error);
-      return [];
-    }
+      if (startDate) {
+        data = data.filter((row: any) => new Date(row.changed_at) >= new Date(`${startDate}T00:00:00.000Z`));
+      }
+      if (endDate) {
+        data = data.filter((row: any) => new Date(row.changed_at) <= new Date(`${endDate}T23:59:59.999Z`));
+      }
+      if (selectedUsers && selectedUsers.length > 0) {
+        data = data.filter((row: any) => selectedUsers.includes(row.changed_by));
+      }
 
     // Build map: personId -> dayKey -> { perPartId hasAction, sizeQuantity }
     const perPersonDay: Map<string, Map<string, { perItem: Map<string, { hasAction: boolean }>; sizeQuantity: number }>> = new Map();
@@ -138,16 +137,16 @@ export function useInventoryTracking() {
       bucket.sizeQuantity += qty;
     });
 
-    // Resolve person names via RPC (same approach as InventoryHistoryDialog)
+    // Resolve person names from organization members
+    const membersResponse = await apiService.get('/organization_members');
+    const members = getApiData(membersResponse) || [];
     const personNameMap: Record<string, string> = {};
-    for (const pid of personIds) {
-      try {
-        const { data: displayName } = await supabase.rpc('get_user_display_name', { target_user_id: pid });
-        personNameMap[pid] = displayName || 'Unknown User';
-      } catch (e) {
-        personNameMap[pid] = 'Unknown User';
-      }
-    }
+    members.forEach((m: any) => {
+      if (m.user_id) personNameMap[m.user_id] = m.full_name || 'Unknown User';
+    });
+    personIds.forEach(pid => {
+      if (!personNameMap[pid]) personNameMap[pid] = 'Unknown User';
+    });
 
     const cells: HeatmapCell[] = [];
     perPersonDay.forEach((days, personId) => {
@@ -179,6 +178,10 @@ export function useInventoryTracking() {
     });
 
     return cells;
+    } catch (err) {
+      console.error('Error fetching heatmap data:', err);
+      return [];
+    }
   };
 
   return { getInventoryTrackingData, getInventoryUsageHeatmapData };

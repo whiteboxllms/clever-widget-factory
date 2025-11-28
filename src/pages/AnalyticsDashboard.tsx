@@ -18,7 +18,7 @@ import { useInventoryTracking } from '@/hooks/useInventoryTracking';
 
 export default function AnalyticsDashboard() {
   const navigate = useNavigate();
-  const { getEnhancedAttributeAnalytics, getActionAnalytics, getIssueAnalytics, getProactiveVsReactiveData, getDayActions, fetchAllData, isLoading: attributesLoading } = useEnhancedStrategicAttributes();
+  const { actionAnalytics, getEnhancedAttributeAnalytics, getActionAnalytics, getIssueAnalytics, getProactiveVsReactiveData, getDayActions, fetchAllData, isLoading: attributesLoading } = useEnhancedStrategicAttributes();
   const { scoredActions, isLoading: isLoadingScoredActions, fetchScoredActions } = useScoredActions();
   const { getInventoryTrackingData, getInventoryUsageHeatmapData } = useInventoryTracking();
   
@@ -112,15 +112,16 @@ export default function AnalyticsDashboard() {
     loadInitialData();
   }, []); // Only run once on mount
 
-  // Update analytics when filters change or data loads
+  // Update analytics when hook data changes
   useEffect(() => {
-    if (selectedUsers.length > 0) {
-      const actionAnalytics = getActionAnalytics(selectedUsers);
-      const issueAnalytics = getIssueAnalytics(selectedUsers, startDate, endDate);
-      setSelectedActionAnalytics(actionAnalytics);
-      setSelectedIssueAnalytics(issueAnalytics);
+    console.log('📊 Hook actionAnalytics changed:', actionAnalytics);
+    console.log('📊 actionAnalytics length:', actionAnalytics.length);
+    if (actionAnalytics.length > 0 && selectedUsers.length > 0) {
+      const filtered = actionAnalytics.filter(a => selectedUsers.includes(a.userId));
+      console.log('📊 Filtered analytics:', filtered);
+      setSelectedActionAnalytics(filtered);
     }
-  }, [selectedUsers, startDate, endDate, attributesLoading]);
+  }, [actionAnalytics, selectedUsers]);
 
   // Auto-apply filters once when we have dates and an initial active selection
   useEffect(() => {
@@ -140,7 +141,8 @@ export default function AnalyticsDashboard() {
     await fetchAllData(undefined, startDate, endDate);
     await fetchScoredActions(selectedUsers, startDate, endDate);
     
-    const proactiveData = getProactiveVsReactiveData(startDate, endDate);
+    const proactiveData = await getProactiveVsReactiveData(startDate, endDate);
+    console.log('🔵 Proactive data from getProactiveVsReactiveData:', proactiveData);
     setProactiveVsReactiveData(proactiveData);
     
     const [inventoryData, heatmap] = await Promise.all([
@@ -166,12 +168,14 @@ export default function AnalyticsDashboard() {
       if (startDate && endDate) {
         setIsLoadingProactiveData(true);
         setIsLoadingInventoryTracking(true);
-        const [proactiveData, inventoryData, heatmap] = await Promise.all([
-          getProactiveVsReactiveData(startDate, endDate),
+        const proactiveData = await getProactiveVsReactiveData(startDate, endDate);
+        console.log('🟢 Proactive data in effect:', proactiveData);
+        setProactiveVsReactiveData(proactiveData);
+        
+        const [inventoryData, heatmap] = await Promise.all([
           getInventoryTrackingData(selectedUsers, startDate, endDate),
           getInventoryUsageHeatmapData(selectedUsers, startDate, endDate)
         ]);
-        setProactiveVsReactiveData(proactiveData);
         setInventoryTrackingData(inventoryData);
         setHeatmapData(heatmap);
         setIsLoadingProactiveData(false);
@@ -289,7 +293,7 @@ export default function AnalyticsDashboard() {
                   selectedUsers 
                 })}
                 <AttributeRadarChart
-                  actionAnalytics={selectedActionAnalytics.length > 0 ? selectedActionAnalytics : allUserAnalytics}
+                  actionAnalytics={selectedActionAnalytics}
                   issueAnalytics={selectedIssueAnalytics}
                   selectedUsers={selectedUsers}
                 />

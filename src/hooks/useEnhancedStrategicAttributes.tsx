@@ -29,6 +29,7 @@ export function useEnhancedStrategicAttributes() {
   const [actionScores, setActionScores] = useState<ActionScore[]>([]);
   const [organizationMembers, setOrganizationMembers] = useState<any[]>([]);
   const [proactiveVsReactiveData, setProactiveVsReactiveData] = useState<any[]>([]);
+  const [actionAnalytics, setActionAnalytics] = useState<EnhancedAttributeAnalytics[]>([]);
   const [dataReady, setDataReady] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -84,9 +85,9 @@ export function useEnhancedStrategicAttributes() {
     return { attributes: [] };
   };
 
-  const getActionAnalytics = (userIds?: string[]): EnhancedAttributeAnalytics[] => {
-    console.log('=== getActionAnalytics (from scored actions) ===');
-    console.log('actionScores:', actionScores);
+  const computeActionAnalytics = (userIds?: string[]): EnhancedAttributeAnalytics[] => {
+    console.log('=== computeActionAnalytics ===');
+    console.log('actionScores length:', actionScores?.length || 0);
     console.log('userIds filter:', userIds);
     
     if (!actionScores || actionScores.length === 0) {
@@ -143,7 +144,12 @@ export function useEnhancedStrategicAttributes() {
     });
 
     const result = Array.from(userMap.values());
-    console.log('Action analytics result:', result);
+    console.log('🟢 Action analytics result:', result);
+    console.log('🟢 Result length:', result.length);
+    if (result.length > 0) {
+      console.log('🟢 Sample result:', result[0]);
+      console.log('🟢 Sample attributes:', result[0].attributes);
+    }
     return result;
   };
 
@@ -170,17 +176,21 @@ export function useEnhancedStrategicAttributes() {
 
   const fetchProactiveVsReactiveData = async (startDate?: string, endDate?: string) => {
     try {
+      console.log('🔵 fetchProactiveVsReactiveData called with:', { startDate, endDate });
       const response = await apiService.get('/actions');
       let data = getApiData(response) || [];
+      console.log('🔵 Total actions fetched:', data.length);
 
       // Filter by date range
       if (startDate || endDate) {
+        const beforeFilter = data.length;
         data = data.filter((action: any) => {
           const actionDate = new Date(action.created_at);
           if (startDate && actionDate < new Date(startDate)) return false;
           if (endDate && actionDate > new Date(endDate + 'T23:59:59')) return false;
           return true;
         });
+        console.log('🔵 Actions after date filter:', data.length, 'from', beforeFilter);
       }
 
       // Group by day
@@ -218,6 +228,8 @@ export function useEnhancedStrategicAttributes() {
           };
         });
       
+      console.log('🔵 Chart data generated:', chartData.length, 'days');
+      console.log('🔵 Sample data:', chartData.slice(0, 2));
       setProactiveVsReactiveData(chartData);
       return chartData;
     } catch (error) {
@@ -226,8 +238,8 @@ export function useEnhancedStrategicAttributes() {
     }
   };
 
-  const getProactiveVsReactiveData = (startDate?: string, endDate?: string) => {
-    return proactiveVsReactiveData;
+  const getProactiveVsReactiveData = async (startDate?: string, endDate?: string) => {
+    return await fetchProactiveVsReactiveData(startDate, endDate);
   };
 
   const fetchOrganizationMembers = async () => {
@@ -293,29 +305,31 @@ export function useEnhancedStrategicAttributes() {
     }
   }, [user?.userId]);
 
-  // Test effect to see when data is ready
+  // Auto-compute analytics when actionScores changes
   useEffect(() => {
-    if (attributes.length > 0 && organizationMembers.length > 0) {
-      console.log('🚀 Data is ready! Testing getAttributeAnalytics...');
-      const result = getAttributeAnalytics();
-      console.log('🚀 Test result:', result);
+    if (actionScores.length > 0 && organizationMembers.length > 0) {
+      console.log('🚀 Computing action analytics...');
+      const analytics = computeActionAnalytics();
+      console.log('🚀 Computed analytics:', analytics);
+      setActionAnalytics(analytics);
     }
-  }, [attributes, organizationMembers]);
+  }, [actionScores, organizationMembers]);
 
   return {
     attributes,
     actionScores,
+    actionAnalytics,
     isLoading,
     dataReady,
     fetchActionScores,
     getAttributeAnalytics,
-    getActionAnalytics,
+    getActionAnalytics: (userIds?: string[]) => userIds ? computeActionAnalytics(userIds) : actionAnalytics,
     getIssueAnalytics,
     getCompanyAverage,
     getProactiveVsReactiveData,
+    fetchProactiveVsReactiveData,
     fetchAttributes,
-    fetchActionScores,
-    getDayActions: () => [], // Placeholder
+    getDayActions: () => [],
     fetchAllData: async (userIds?: string[], startDate?: string, endDate?: string) => {
       await Promise.all([
         fetchActionScores(userIds, startDate, endDate),

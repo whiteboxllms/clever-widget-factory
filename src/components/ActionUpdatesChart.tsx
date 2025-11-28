@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { supabase } from '@/lib/client';
+import { apiService, getApiData } from '@/lib/apiService';
 import { Info } from 'lucide-react';
 
 interface ActionUpdatesChartProps {
@@ -53,41 +53,47 @@ export function ActionUpdatesChart({ startDate, endDate, selectedUsers }: Action
       if (!startDate || !endDate) return;
       setLoading(true);
       try {
-        // Fetch updates in date range; RLS scopes org. Using a narrow select to minimize payload.
+        console.log('🟡 ActionUpdatesChart fetching data:', { startDate, endDate, selectedUsers });
         const { startISO, endISO } = toLocalDayRangeISO(startDate, endDate);
-        let q = supabase
-          .from('action_implementation_updates')
-          .select('created_at, updated_by')
-          .gte('created_at', startISO)
-          .lte('created_at', endISO);
+        
+        // Try to fetch with start_date and end_date params
+        const params = new URLSearchParams();
+        params.append('start_date', startISO);
+        params.append('end_date', endISO);
         if (selectedUsers && selectedUsers.length > 0) {
-          q = q.in('updated_by', selectedUsers);
+          params.append('user_ids', selectedUsers.join(','));
         }
-        const { data, error } = await q;
-        if (error) throw error;
-
-        const mapped: RawUpdateRow[] = (data || []).map((r: any) => ({
-          // Normalize to local YYYY-MM-DD for bucketing
+        
+        console.log('🟡 Fetching with URL:', `/analytics/action_updates?${params.toString()}`);
+        const response = await apiService.get(`/analytics/action_updates?${params.toString()}`);
+        console.log('🟡 Raw response:', response);
+        let data = getApiData(response) || [];
+        
+        console.log('🟡 Total updates fetched:', data.length);
+        console.log('🟡 Sample update:', data[0]);
+        const mapped: RawUpdateRow[] = data.map((r: any) => ({
           created_date: formatLocalYMD(new Date(r.created_at)),
           updated_by: r.updated_by as string,
         }));
         setRows(mapped);
+        console.log('🟡 Mapped rows:', mapped.length);
 
-        // Build name map from org members; RLS will scope to current org
+        // Build name map from org members
         const uniqueIds = Array.from(new Set(mapped.map(r => r.updated_by)));
         if (uniqueIds.length > 0) {
-          const { data: members } = await supabase
-            .from('organization_members')
-            .select('user_id, full_name')
-            .in('user_id', uniqueIds);
+          const membersResponse = await apiService.get('/organization_members');
+          const members = getApiData(membersResponse) || [];
           const nm: Record<string, string> = {};
-          (members || []).forEach((m: any) => { if (m?.user_id) nm[m.user_id] = String(m.full_name || 'Unknown User').trim(); });
+          members.forEach((m: any) => {
+            if (m?.user_id && uniqueIds.includes(m.user_id)) {
+              nm[m.user_id] = String(m.full_name || 'Unknown User').trim();
+            }
+          });
           setNameMap(nm);
         } else {
           setNameMap({});
         }
       } catch (e) {
-        // eslint-disable-next-line no-console
         console.error('Failed to fetch action updates', e);
         setRows([]);
       } finally {

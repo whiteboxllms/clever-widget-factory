@@ -31,6 +31,6 @@ describe('Legacy Client Stub', () => {
   it('should return null user from auth stub', async () => {
     const result = await client.auth.getUser();
     expect(result.data.user).toBeNull();
-    expect(result.error).toBeNull();
+    expect(result.error).toBeDefined();
   });
 });

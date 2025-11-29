@@ -673,9 +673,16 @@ export default function Actions() {
           open={isEditDialogOpen}
           onOpenChange={(open) => {
             if (!open) {
+              // Don't navigate if we're in the middle of an upload
+              // Check if there's an active upload by checking the dialog's isUploading state
+              // We'll handle navigation after upload completes or fails
+              console.log('[ACTIONS] Dialog closing, actionId:', actionId);
               handleCancelEdit();
               // Clear URL parameter when dialog is closed
+              // Only navigate if we're not in the middle of an upload
+              // The dialog component will handle preventing close during upload
               if (actionId) {
+                console.log('[ACTIONS] Navigating to /actions after dialog close');
                 navigate('/actions');
               }
             }

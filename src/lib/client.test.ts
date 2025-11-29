@@ -1,36 +1,40 @@
 /**
  * Legacy client tests
  * 
- * NOTE: This file tests the legacy Supabase client stub.
+ * NOTE: This file tests that the deprecated Supabase client throws errors.
  * The actual application now uses AWS API Gateway endpoints directly via fetch.
- * These tests verify the stub works for backward compatibility.
+ * These tests verify that attempts to use the old Supabase client are properly blocked.
  */
 
 import { describe, it, expect } from 'vitest';
-import { client } from './client';
+import { client, supabase } from './client';
 
 describe('Legacy Client Stub', () => {
-  it('should provide a from() method for backward compatibility', () => {
-    const query = client.from('tools');
-    expect(query).toBeDefined();
-    expect(typeof query.select).toBe('function');
+  it('should throw error when accessing client.from()', () => {
+    expect(() => {
+      // @ts-expect-error - Testing deprecated API
+      client.from('tools');
+    }).toThrow('Supabase client is no longer available. Use AWS Cognito (useCognitoAuth) for auth and apiService for API calls.');
   });
 
-  it('should return promises from query methods', async () => {
-    const result = await client.from('tools').select('*');
-    expect(result).toBeDefined();
-    expect(result.data).toEqual([]);
-    expect(result.error).toBeNull();
+  it('should throw error when accessing client.auth', () => {
+    expect(() => {
+      // @ts-expect-error - Testing deprecated API
+      client.auth;
+    }).toThrow('Supabase client is no longer available. Use AWS Cognito (useCognitoAuth) for auth and apiService for API calls.');
   });
 
-  it('should provide auth stub methods', () => {
-    expect(client.auth).toBeDefined();
-    expect(typeof client.auth.getUser).toBe('function');
+  it('should throw error when accessing supabase directly', () => {
+    expect(() => {
+      // @ts-expect-error - Testing deprecated API
+      supabase.from('tools');
+    }).toThrow('Supabase client is no longer available. Use AWS Cognito (useCognitoAuth) for auth and apiService for API calls.');
   });
 
-  it('should return null user from auth stub', async () => {
-    const result = await client.auth.getUser();
-    expect(result.data.user).toBeNull();
-    expect(result.error).toBeDefined();
+  it('should throw error when accessing supabase.auth', () => {
+    expect(() => {
+      // @ts-expect-error - Testing deprecated API
+      supabase.auth;
+    }).toThrow('Supabase client is no longer available. Use AWS Cognito (useCognitoAuth) for auth and apiService for API calls.');
   });
 });

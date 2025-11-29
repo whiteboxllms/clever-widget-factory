@@ -12,8 +12,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Package, Calendar, Building2, Minus, AlertTriangle } from "lucide-react";
-import { supabase } from '@/lib/client';
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useCognitoAuth";
+import { apiService } from "@/lib/apiService";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { OrderIssueReportDialog } from "./OrderIssueReportDialog";
 
@@ -54,6 +55,7 @@ export function ReceivingDialog({
 }: ReceivingDialogProps) {
   const organizationId = useOrganizationId();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { user } = useAuth();
   const [receivingNotes, setReceivingNotes] = useState("");
   const [actualQuantity, setActualQuantity] = useState<number | ''>('');
   const [showIssueDialog, setShowIssueDialog] = useState(false);
@@ -106,8 +108,7 @@ export function ReceivingDialog({
     setIsSubmitting(true);
     
     try {
-      const user = await supabase.auth.getUser();
-      if (!user.data.user) {
+      if (!user) {
         throw new Error("Must be logged in to receive orders");
       }
 
@@ -122,16 +123,11 @@ export function ReceivingDialog({
       }
 
       // Update the order status and quantity received
-      const { error: orderError } = await supabase
-        .from('parts_orders')
-        .update({
-          quantity_received: order.quantity_received + receivedQty,
-          status: finalStatus,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', order.id);
-
-      if (orderError) throw orderError;
+      await apiService.put(`/api/parts_orders/${order.id}`, {
+        quantity_received: order.quantity_received + receivedQty,
+        status: finalStatus,
+        updated_at: new Date().toISOString()
+      });
 
       // Update the part's current quantity and cost (only if quantity > 0)
       if (receivedQty > 0) {
@@ -145,29 +141,20 @@ export function ReceivingDialog({
           updateData.cost_per_unit = order.estimated_cost / receivedQty;
         }
 
-        const { error: partError } = await supabase
-          .from('parts')
-          .update(updateData)
-          .eq('id', part.id);
-
-        if (partError) throw partError;
+        await apiService.put(`/api/parts/${part.id}`, updateData);
 
         // Log the change to parts history
-        const { error: historyError } = await supabase
-          .from('parts_history')
-          .insert({
-            part_id: part.id,
-            old_quantity: part.current_quantity,
-            new_quantity: part.current_quantity + receivedQty,
-            quantity_change: receivedQty,
-            change_type: 'quantity_add',
-            change_reason: `Order received: ${order.supplier_name || 'Unknown supplier'}`,
-            changed_by: user.data.user.id,
-            order_id: order.id,
-            supplier_name: order.supplier_name,
-          });
-
-        if (historyError) throw historyError;
+        await apiService.post('/api/parts_history', {
+          part_id: part.id,
+          old_quantity: part.current_quantity,
+          new_quantity: part.current_quantity + receivedQty,
+          quantity_change: receivedQty,
+          change_type: 'quantity_add',
+          change_reason: `Order received: ${order.supplier_name || 'Unknown supplier'}`,
+          changed_by: user.userId,
+          order_id: order.id,
+          supplier_name: order.supplier_name,
+        });
       }
 
       toast({

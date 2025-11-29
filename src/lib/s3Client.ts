@@ -7,6 +7,9 @@ export const s3Client = new S3Client({
     accessKeyId: import.meta.env.VITE_AWS_ACCESS_KEY_ID || '',
     secretAccessKey: import.meta.env.VITE_AWS_SECRET_ACCESS_KEY || '',
   },
+  requestHandler: {
+    requestTimeout: 30000, // 30 second timeout
+  },
 });
 
 export const S3_BUCKET = 'cwf-dev-assets';
@@ -17,6 +20,7 @@ export const BUCKET_PREFIXES = {
   'checkin-photos': 'checkin-photos/',
   'mission-attachments': 'mission-attachments/',
   'mission-evidence': 'mission-evidence/',
+  'tool-images': 'tool-images/',
   'tool-issue-photos': 'tool-issue-photos/',
   'tool-resolution-photos': 'tool-resolution-photos/',
 } as const;

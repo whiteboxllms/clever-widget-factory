@@ -61,6 +61,7 @@
     "@types/pg": "^8.15.6",
     "aws-amplify": "^6.15.8",
     "browser-image-compression": "^2.0.2",
+    "caniuse-lite": "^1.0.30001757",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",

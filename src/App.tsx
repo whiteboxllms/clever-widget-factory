@@ -34,6 +34,8 @@ import NotFound from "./pages/NotFound";
 import AnalyticsDashboard from "./pages/AnalyticsDashboard";
 import AcceptInvite from "./pages/AcceptInvite";
 import SettingsPage from "./pages/Settings";
+import UploadDebug from "./pages/UploadDebug";
+import UploadMobileTest from "./pages/UploadMobileTest";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -171,6 +173,16 @@ function AppContent() {
         <SuperAdminRoute>
           <AdminOrganizations />
         </SuperAdminRoute>
+      } />
+      <Route path="/debug/upload" element={
+        <ProtectedRoute>
+          <UploadDebug />
+        </ProtectedRoute>
+      } />
+      <Route path="/debug/upload-mobile-test" element={
+        <ProtectedRoute>
+          <UploadMobileTest />
+        </ProtectedRoute>
       } />
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
       <Route path="*" element={<NotFound />} />

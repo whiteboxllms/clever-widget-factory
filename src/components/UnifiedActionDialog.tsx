@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import {
   Dialog,
@@ -21,7 +21,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { supabase } from '@/lib/client';
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { apiService } from '@/lib/apiService';
@@ -40,7 +39,7 @@ import {
   Target,
   Copy
 } from "lucide-react";
-import { useFileUpload } from "@/hooks/useFileUpload";
+import { useImageUpload } from "@/hooks/useImageUpload";
 import { useAuth } from "@/hooks/useCognitoAuth";
 import TiptapEditor from './TiptapEditor';
 import { ActionImplementationUpdates } from './ActionImplementationUpdates';
@@ -87,6 +86,7 @@ export function UnifiedActionDialog({
   const [activeTab, setActiveTab] = useState<string>('');
   const [isInImplementationMode, setIsInImplementationMode] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const preferName = (value?: string | null) => {
     if (!value) return null;
@@ -131,11 +131,12 @@ export function UnifiedActionDialog({
     return 'plan';
   };
   
-  const { uploadFiles, isUploading } = useFileUpload();
+  const { uploadImages, isUploading } = useImageUpload();
 
   // Initialize form data when dialog opens - preserve state for same session
   useEffect(() => {
     if (open) {
+      console.log('[DIALOG] Opening dialog:', { actionId: action?.id, isCreating, isUploading });
       const actionId = action?.id || null;
       const contextType = context?.type || null;
       
@@ -203,6 +204,7 @@ export function UnifiedActionDialog({
       }
     } else {
       // Reset tracking when dialog closes
+      console.log('[DIALOG] Closing dialog:', { actionId: action?.id, isUploading, isSubmitting });
       setIsFormInitialized(false);
       setCurrentActionId(null);
       setCurrentContextType(null);
@@ -438,17 +440,72 @@ export function UnifiedActionDialog({
 
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    // Prevent any default form submission or page reload
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    
+    // Capture files immediately before any other operations
     const files = event.target.files;
-    if (!files || files.length === 0) return;
+    
+    console.log('[UPLOAD] handleFileUpload called:', {
+      hasFiles: !!files,
+      fileCount: files?.length || 0,
+      inputValue: event.target.value,
+      inputId: event.target.id,
+      isMobile: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+    });
+    
+    if (!files || files.length === 0) {
+      console.log('[UPLOAD] No files selected - early return');
+      // Reset input even if no files to allow re-selection
+      event.target.value = '';
+      return;
+    }
+
+    // Create array copy immediately before resetting input
+    const fileArray = Array.from(files);
+    
+    console.log('[UPLOAD] File array created:', {
+      arrayLength: fileArray.length,
+      fileNames: fileArray.map(f => f.name)
+    });
+    
+    // Reset input to allow re-selecting same files
+    // Do this after capturing files but before async operations
+    event.target.value = '';
+
+    const uploadSessionId = Math.random().toString(36).substr(2, 9);
+    console.log(`[UPLOAD_SESSION-${uploadSessionId}] START:`, {
+      fileCount: fileArray.length,
+      files: fileArray.map(f => ({ name: f.name, size: f.size, type: f.type })),
+      userAgent: navigator.userAgent,
+      memory: (performance as any).memory?.usedJSHeapSize,
+      connection: (navigator as any).connection?.effectiveType
+    });
 
     try {
-      const fileArray = Array.from(files);
-      const uploadResults = await uploadFiles(fileArray, {
+      // Wrap upload in Promise to ensure proper error handling
+      const uploadPromise = uploadImages(fileArray, {
         bucket: 'mission-attachments' as const
       });
       
+      // Add timeout for mobile devices to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('Upload timeout - please try again with fewer or smaller files'));
+        }, 120000); // 2 minute timeout
+      });
+      
+      const uploadResults = await Promise.race([uploadPromise, timeoutPromise]) as any;
+      
       const resultsArray = Array.isArray(uploadResults) ? uploadResults : [uploadResults];
       const uploadedUrls = resultsArray.map(result => result.url);
+      
+      console.log(`[UPLOAD_SESSION-${uploadSessionId}] SUCCESS:`, {
+        uploadedCount: uploadedUrls.length,
+        requestedCount: fileArray.length,
+        urls: uploadedUrls
+      });
       
       setFormData(prev => ({
         ...prev,
@@ -460,12 +517,45 @@ export function UnifiedActionDialog({
         description: `${uploadedUrls.length} file(s) uploaded successfully`
       });
     } catch (error) {
-      console.error('Error uploading files:', error);
-      toast({
-        title: "Error",
-        description: "Failed to upload files",
-        variant: "destructive"
+      console.error(`[UPLOAD_SESSION-${uploadSessionId}] FAILED:`, {
+        error,
+        errorName: error instanceof Error ? error.name : 'Unknown',
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        memory: (performance as any).memory?.usedJSHeapSize,
+        isMobile: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
       });
+      
+      // Ensure we prevent any navigation or page reload
+      event.preventDefault?.();
+      event.stopPropagation?.();
+      
+      // Get user-friendly error message
+      let errorMessage = "Failed to upload files. Check console for details.";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        // Provide more helpful messages for common errors
+        if (error.message.includes('timeout')) {
+          errorMessage = "Upload timed out. Try uploading fewer files or smaller images.";
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = "Network error. Check your connection and try again.";
+        } else if (error.message.includes('CORS')) {
+          errorMessage = "Browser security error. Please refresh the page and try again.";
+        }
+      }
+      
+      // Show error toast - ensure it's displayed even on mobile
+      // Use a longer duration on mobile to ensure user sees it
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      toast({
+        title: "Upload Failed",
+        description: errorMessage,
+        variant: "destructive",
+        duration: isMobile ? 15000 : 10000 // Longer on mobile
+      });
+      
+      // Don't re-throw - we've handled the error
+      // This prevents unhandled promise rejections that could cause page reloads
     }
   };
 
@@ -594,7 +684,44 @@ export function UnifiedActionDialog({
 
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog 
+      open={open} 
+      onOpenChange={(newOpen) => {
+        /**
+         * CRITICAL: Prevent dialog from closing during file upload
+         * 
+         * This prevents a regression where closing the dialog during upload
+         * caused unwanted navigation to /actions page on mobile devices.
+         * 
+         * Problem: On mobile, when the dialog closed during upload, the
+         * onOpenChange handler in Actions.tsx would navigate to /actions,
+         * causing the page to reload and losing the upload progress.
+         * 
+         * Solution: Block dialog close when isUploading is true, showing
+         * a toast message instead. This ensures uploads complete before
+         * the dialog can be closed.
+         * 
+         * DO NOT REMOVE THIS CHECK without:
+         * 1. Understanding the mobile upload flow
+         * 2. Testing on real mobile devices
+         * 3. Ensuring navigation doesn't occur during upload
+         * 4. Updating the test in UnifiedActionDialog.upload.test.tsx
+         * 
+         * See: src/components/__tests__/UnifiedActionDialog.upload.test.tsx
+         */
+        if (!newOpen && isUploading) {
+          console.log('[DIALOG] Prevented close during upload');
+          toast({
+            title: "Upload in progress",
+            description: "Please wait for the upload to complete before closing.",
+            variant: "default",
+            duration: 3000
+          });
+          return;
+        }
+        onOpenChange(newOpen);
+      }}
+    >
       <DialogContent className={cn(
         "max-w-lg sm:max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-y-auto p-3 sm:p-6",
         borderStyle.borderColor
@@ -958,6 +1085,7 @@ export function UnifiedActionDialog({
             <Label className="text-sm font-medium break-words">Attachments (Images & PDFs)</Label>
             <div className="mt-1">
               <input
+                ref={fileInputRef}
                 type="file"
                 multiple
                 accept="image/*,.pdf"
@@ -965,11 +1093,16 @@ export function UnifiedActionDialog({
                 className="hidden"
                 id="attachmentUpload"
                 disabled={isUploading}
+                key={`file-input-${action?.id || 'new'}`}
               />
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => document.getElementById('attachmentUpload')?.click()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  fileInputRef.current?.click();
+                }}
                 disabled={isUploading}
                 className="w-full"
               >

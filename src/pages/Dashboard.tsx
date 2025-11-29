@@ -5,7 +5,6 @@ import { useNavigate } from 'react-router-dom';
 import { LogOut, Search, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, ClipboardList, BarChart3, Building2, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DebugModeToggle } from '@/components/DebugModeToggle';
-import { AuthDiagnostics } from '@/components/AuthDiagnostics';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { EditableDisplayName } from '@/components/EditableDisplayName';
 import { useOrganization } from '@/hooks/useOrganization';
@@ -154,10 +153,7 @@ export default function Dashboard() {
           })}
         </div>
 
-        {/* Diagnostics - only show for debugging */}
-        {window.location.hostname !== 'localhost' && (
-          <AuthDiagnostics />
-        )}
+
       </main>
     </div>
   );

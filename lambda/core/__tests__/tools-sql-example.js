@@ -100,3 +100,4 @@ console.log('  - Category filter: tools.category IN (\'Infrastructure\', \'Conta
 console.log('  - Status filter: tools.status != \'removed\'');
 console.log('  - This will exclude Hand Tools, Electric Tool, and other categories');
 
+

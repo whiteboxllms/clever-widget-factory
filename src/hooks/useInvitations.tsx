@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { supabase } from '@/lib/client';
 import { useToast } from '@/hooks/use-toast';
+import { apiService } from '@/lib/apiService';
 import { useOrganization } from './useOrganization';
 
 interface PendingInvitation {
@@ -32,25 +32,13 @@ export function useInvitations() {
 
     setLoading(true);
     try {
-      // Send magic link invitation using our edge function
-      const { data, error } = await supabase.functions.invoke('invite-magic-link', {
-        body: {
-          email,
-          organizationId: organization.id,
-          organizationName: organization.name,
-          role,
-        },
+      // Send invitation via API
+      const data = await apiService.post('/api/invite-user', {
+        email,
+        organizationId: organization.id,
+        organizationName: organization.name,
+        role,
       });
-
-      if (error) {
-        console.error('Error sending invitation:', error);
-        toast({
-          title: "Error",
-          description: error.message || "Failed to send invitation",
-          variant: "destructive",
-        });
-        return null;
-      }
 
       toast({
         title: "Success",
@@ -97,17 +85,7 @@ export function useInvitations() {
 
     try {
       // Delete the user to revoke the invitation
-      const { error } = await supabase.auth.admin.deleteUser(userId);
-
-      if (error) {
-        console.error('Error revoking invitation:', error);
-        toast({
-          title: "Error",
-          description: "Failed to revoke invitation",
-          variant: "destructive",
-        });
-        return false;
-      }
+      await apiService.delete(`/api/users/${userId}`);
 
       toast({
         title: "Success",

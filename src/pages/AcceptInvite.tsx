@@ -5,8 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { supabase } from '@/lib/client';
 import { useToast } from '@/hooks/use-toast';
+import { Auth } from 'aws-amplify/auth';
 import { Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 
 export default function AcceptInvite() {
@@ -33,59 +33,18 @@ export default function AcceptInvite() {
       const refreshToken = searchParams.get('refresh_token');
       const type = searchParams.get('type');
 
+      // AWS Cognito doesn't support Supabase-style magic links
+      // This entire flow needs to be redesigned - see INVITATION_FLOW_TODO.md
+      setError('User invitations are not yet implemented. Please contact your administrator.');
+      setStep('error');
+      
+      /* TODO: Implement Cognito invitation flow
       if (accessToken && refreshToken && type === 'magiclink') {
-        // Set the session from the magic link
-        const { data, error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
-
-        if (sessionError) {
-          console.error('Session error:', sessionError);
-          setError(sessionError.message);
-          setStep('error');
-          return;
-        }
-
-        if (data.user) {
-          setUserEmail(data.user.email || '');
-          const metadata = data.user.user_metadata;
-          
-          if (metadata?.organization_name) {
-            setOrganizationName(metadata.organization_name);
-          }
-
-          // Check if user needs to set password (invited users won't have email_confirmed_at initially)
-          if (!data.user.email_confirmed_at || metadata?.needs_password_setup) {
-            // User needs to set a password
-            setStep('set-password');
-          } else {
-            // User already has password, proceed to join organization
-            await joinOrganization(data.user.id, metadata);
-          }
-        }
+        // Handle magic link
       } else {
-        // Check if user is already logged in but needs to set password
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          setUserEmail(session.user.email || '');
-          const metadata = session.user.user_metadata;
-          
-          if (metadata?.organization_name) {
-            setOrganizationName(metadata.organization_name);
-          }
-
-          if (metadata?.needs_password_setup) {
-            setStep('set-password');
-          } else {
-            // Already set up, redirect to dashboard
-            navigate('/dashboard');
-          }
-        } else {
-          setError('Invalid invitation link or session expired');
-          setStep('error');
-        }
+        // Check existing session
       }
+      */
     } catch (error: any) {
       console.error('Error handling magic link:', error);
       setError(error.message);
@@ -112,24 +71,20 @@ export default function AcceptInvite() {
     setError('');
 
     try {
-      // Update user's password and remove the password setup flag
-      const { data, error: updateError } = await supabase.auth.updateUser({
-        password: password,
-        data: {
-          needs_password_setup: false
-        }
-      });
-
-      if (updateError) {
-        setError(updateError.message);
-        setLoading(false);
-        return;
+      // AWS Cognito password change
+      // This requires the user to be authenticated first
+      // For invited users, they should use the temporary password flow
+      setError('Password setup via invitation is not yet implemented for AWS Cognito. Please contact your administrator.');
+      setLoading(false);
+      return;
+      
+      /* TODO: Implement Cognito password setup for invited users
+      await Auth.changePassword(oldPassword, password);
+      const user = await Auth.currentAuthenticatedUser();
+      if (user) {
+        await joinOrganization(user.attributes.sub, user.attributes);
       }
-
-      if (data.user) {
-        // Join the organization
-        await joinOrganization(data.user.id, data.user.user_metadata);
-      }
+      */
     } catch (error: any) {
       console.error('Error setting password:', error);
       setError(error.message);

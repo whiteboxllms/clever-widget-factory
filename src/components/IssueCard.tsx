@@ -3,9 +3,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle, X, Clock, Edit, Plus, Target, Swords } from "lucide-react";
-import { supabase } from '@/lib/client';
 import { toast } from "@/hooks/use-toast";
 import { UnifiedActionDialog } from "./UnifiedActionDialog";
+import { useAuth } from "@/hooks/useCognitoAuth";
+import { apiService } from "@/lib/apiService";
 import { createIssueAction } from "@/types/actions";
 import { ManageIssueActionsDialog } from "./ManageIssueActionsDialog";
 import { IssueScoreDialog } from "./IssueScoreDialog";
@@ -41,6 +42,7 @@ interface IssueCardProps {
 export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProps) {
   const [isRemoving, setIsRemoving] = useState(false);
   const organizationId = useOrganizationId();
+  const { user } = useAuth();
   const [showCreateActionDialog, setShowCreateActionDialog] = useState(false);
   const [showManageActionsDialog, setShowManageActionsDialog] = useState(false);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
@@ -59,27 +61,18 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
     
     try {
       // Update issue status to removed
-      const { error: updateError } = await supabase
-        .from('issues')
-        .update({
-          status: 'removed'
-        })
-        .eq('id', issue.id);
-
-      if (updateError) throw updateError;
+      await apiService.put(`/api/issues/${issue.id}`, {
+        status: 'removed'
+      });
 
       // Create history record
-      const { error: historyError } = await supabase
-        .from('issue_history')
-        .insert({
-          issue_id: issue.id,
-          old_status: issue.status,
-          new_status: 'removed',
-          changed_by: (await supabase.auth.getUser()).data.user?.id,
-          notes: 'Issue removed during check-in',
-        });
-
-      if (historyError) throw historyError;
+      await apiService.post('/api/issue_history', {
+        issue_id: issue.id,
+        old_status: issue.status,
+        new_status: 'removed',
+        changed_by: user?.userId,
+        notes: 'Issue removed during check-in',
+      });
 
       toast({
         title: "Issue removed",
@@ -129,13 +122,7 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
         return;
       }
 
-      const { data: toolData, error } = await supabase
-        .from('tools')
-        .select('*')
-        .eq('id', toolId)
-        .single();
-
-      if (error) throw error;
+      const toolData = await apiService.get(`/api/tools/${toolId}`);
       
       setTool(toolData);
       setShowScoreDialog(true);

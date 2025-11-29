@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/client';
 import { useAuth } from "@/hooks/useCognitoAuth";
+import { apiService } from "@/lib/apiService";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -357,17 +357,15 @@ export default function Inventory() {
       enhancedToast.dismiss(compressionCompleteToast.id);
       const uploadToast = enhancedToast.showUploadStart(fileName, compressedFile.size);
 
-      const { error: uploadError } = await supabase.storage
-        .from('tool-images')
-        .upload(filePath, compressedFile);
-
-      if (uploadError) throw uploadError;
+      // Upload to S3 via API
+      const formData = new FormData();
+      formData.append('file', compressedFile);
+      formData.append('path', filePath);
+      
+      const uploadResult = await apiService.post('/api/upload', formData);
+      const publicUrl = uploadResult.url;
 
       enhancedToast.dismiss(uploadToast.id);
-      
-      const { data: { publicUrl } } = supabase.storage
-        .from('tool-images')
-        .getPublicUrl(filePath);
 
       enhancedToast.showUploadSuccess(fileName, publicUrl);
       return publicUrl;
@@ -466,10 +464,7 @@ export default function Inventory() {
 
       // Log the creation to history
       try {
-        // Get the current authenticated user ID from the session
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        
-        if (!currentUser?.id) {
+        if (!user?.userId) {
           console.error('No authenticated user found for history logging');
           throw new Error('User must be authenticated to create stock items');
         }
@@ -477,18 +472,16 @@ export default function Inventory() {
         console.log('Creating history entry with user ID:', currentUser.id);
         console.log('Current user object:', currentUser);
         
-        const { error: historyError } = await supabase
-          .from('parts_history')
-          .insert([{
-            part_id: data.id,
-            change_type: 'create',
-            old_quantity: null,
-            new_quantity: formData.current_quantity,
-            quantity_change: null,
-            changed_by: currentUser.id,
-            change_reason: 'Item created',
-            order_id: null,
-          }]);
+        const historyError = await apiService.post('/api/parts_history', {
+          part_id: data.id,
+          change_type: 'create',
+          old_quantity: null,
+          new_quantity: formData.current_quantity,
+          quantity_change: null,
+          changed_by: user.userId,
+          change_reason: 'Item created',
+          order_id: null,
+        }).catch(err => err);
 
         if (historyError) {
           console.error('Error logging history:', historyError);
@@ -862,28 +855,23 @@ export default function Inventory() {
 
       // Log the change to history
       try {
-        // Get the current authenticated user ID from the session
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        
-        if (!currentUser?.id) {
+        if (!user?.userId) {
           console.error('No authenticated user found for history logging');
           throw new Error('User must be authenticated to modify stock quantities');
         }
         
-        const { error: historyError } = await supabase
-          .from('parts_history')
-          .insert([{
-            part_id: quantityPart.id,
-            change_type: quantityOperation === 'add' ? 'quantity_add' : 'quantity_remove',
-            old_quantity: quantityPart.current_quantity,
-            new_quantity: newQuantity,
-            quantity_change: quantityOperation === 'add' ? amount : -amount,
-            changed_by: currentUser.id,
-            change_reason: quantityChange.reason || null,
-            order_id: fulfilledOrderId,
-            supplier_name: quantityOperation === 'add' ? (quantityChange.supplierName || null) : null,
-            supplier_url: quantityOperation === 'add' ? (quantityChange.supplierUrl || null) : null,
-          }]);
+        const historyError = await apiService.post('/api/parts_history', {
+          part_id: quantityPart.id,
+          change_type: quantityOperation === 'add' ? 'quantity_add' : 'quantity_remove',
+          old_quantity: quantityPart.current_quantity,
+          new_quantity: newQuantity,
+          quantity_change: quantityOperation === 'add' ? amount : -amount,
+          changed_by: user.userId,
+          change_reason: quantityChange.reason || null,
+          order_id: fulfilledOrderId,
+          supplier_name: quantityOperation === 'add' ? (quantityChange.supplierName || null) : null,
+          supplier_url: quantityOperation === 'add' ? (quantityChange.supplierUrl || null) : null,
+        }).catch(err => err);
 
         if (historyError) {
           console.error('Error logging history:', historyError);

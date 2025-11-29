@@ -15,7 +15,8 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminRoute from "@/components/AdminRoute";
 import LeadershipRoute from "@/components/LeadershipRoute";
 import SuperAdminRoute from "@/components/SuperAdminRoute";
-import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
+
+
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -66,18 +67,11 @@ const queryClient = new QueryClient({
 });
 
 function AppContent() {
-  useSessionMonitor(); // Add session monitoring
+  useSessionMonitor();
 
   return (
     <>
       <TokenRefreshIndicator />
-      {/* Global sync status – visible across all pages, including dashboard */}
-      <div className="fixed bottom-2 left-2 z-40 max-w-sm w-full pointer-events-none">
-        <div className="pointer-events-auto">
-          <SyncStatusIndicator />
-        </div>
-      </div>
-
       <Routes>
         <Route path="/auth" element={<Auth />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />

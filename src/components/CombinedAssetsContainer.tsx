@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { apiService } from '@/lib/apiService';
+import { useAssetMutations } from '@/hooks/useAssetMutations';
 import { ArrowLeft, Plus, BarChart3 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -37,6 +38,7 @@ export const CombinedAssetsContainer = () => {
   const navigate = useNavigate();
   const { user, canEditTools, isAdmin } = useAuth();
   const { toast } = useToast();
+  const { updatePart, updateTool, createPartsHistory, deletePart } = useAssetMutations();
   const organizationId = useOrganizationId();
   const { uploadImages, isUploading } = useImageUpload();
   const [searchTerm, setSearchTerm] = useState("");
@@ -317,12 +319,12 @@ export const CombinedAssetsContainer = () => {
       }
 
       // Update the parts table
-      await apiService.put(`/parts/${selectedAsset.id}`, { current_quantity: newQuantity });
+      await updatePart.mutateAsync({ id: selectedAsset.id, data: { current_quantity: newQuantity } });
 
       // Log the change to history
       try {
         // Log the change to history via API
-        await apiService.post('/parts_history', {
+        await createPartsHistory.mutateAsync({
           part_id: selectedAsset.id,
           change_type: quantityOperation === 'add' ? 'quantity_add' : 'quantity_remove',
           old_quantity: currentQty,
@@ -364,10 +366,10 @@ export const CombinedAssetsContainer = () => {
     try {
       if (selectedAsset.type === 'asset') {
         // For assets, set status to 'removed'
-        await apiService.put(`/tools/${selectedAsset.id}`, { status: 'removed' });
+        await updateTool.mutateAsync({ id: selectedAsset.id, data: { status: 'removed' } });
       } else {
         // For stock items, delete the record like the inventory page
-        await apiService.delete(`/parts/${selectedAsset.id}`);
+        await deletePart.mutateAsync(selectedAsset.id);
       }
 
       await refetch();

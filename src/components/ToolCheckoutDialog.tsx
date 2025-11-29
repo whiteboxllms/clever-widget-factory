@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { apiService } from "@/lib/apiService";
+import { useAssetMutations } from '@/hooks/useAssetMutations';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -57,6 +58,7 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
   const [isCheckingIssues, setIsCheckingIssues] = useState(false);
   const [userFullName, setUserFullName] = useState<string>("");
   const { toast } = useToast();
+  const { updateTool } = useAssetMutations();
   const enhancedToast = useEnhancedToast();
   const { members: organizationMembers = [] } = useOrganizationMembers();
 
@@ -170,7 +172,7 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
       });
 
       // Update tool status
-      await apiService.put(`/tools/${tool.id}`, { status: 'checked_out' });
+      await updateTool.mutateAsync({ id: tool.id, data: { status: 'checked_out' } });
 
       toast({
         title: "Success",

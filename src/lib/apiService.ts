@@ -31,7 +31,6 @@ export interface ApiError {
  */
 async function getIdToken(): Promise<string | null> {
   try {
-    // Force refresh to get a fresh token if current one is expired
     const session = await fetchAuthSession({ forceRefresh: true });
     const idToken = session.tokens?.idToken?.toString();
     return idToken || null;

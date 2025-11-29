@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { useAssetMutations } from '@/hooks/useAssetMutations';
 import { Search, Plus, Edit, Trash2, Package, AlertTriangle, TrendingDown, TrendingUp, Upload, UserPlus, Check, ChevronsUpDown, History, ArrowLeft, Info, BarChart3, ShoppingCart, X, Minus, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { InventoryHistoryDialog } from '@/components/InventoryHistoryDialog';
@@ -96,6 +97,7 @@ export default function Inventory() {
   const [receivingOrder, setReceivingOrder] = useState<PendingOrder | null>(null);
   const [receivingPart, setReceivingPart] = useState<Part | null>(null);
   const { toast } = useToast();
+  const { createPartsHistory } = useAssetMutations();
   const enhancedToast = useEnhancedToast();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -472,7 +474,7 @@ export default function Inventory() {
         console.log('Creating history entry with user ID:', currentUser.id);
         console.log('Current user object:', currentUser);
         
-        const historyError = await apiService.post('/api/parts_history', {
+        const historyError = await createPartsHistory.mutateAsync({
           part_id: data.id,
           change_type: 'create',
           old_quantity: null,
@@ -860,7 +862,7 @@ export default function Inventory() {
           throw new Error('User must be authenticated to modify stock quantities');
         }
         
-        const historyError = await apiService.post('/api/parts_history', {
+        const historyError = await createPartsHistory.mutateAsync({
           part_id: quantityPart.id,
           change_type: quantityOperation === 'add' ? 'quantity_add' : 'quantity_remove',
           old_quantity: quantityPart.current_quantity,

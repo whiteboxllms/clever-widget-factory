@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Search, Plus, X, Package } from "lucide-react";
-import { supabase } from '@/lib/client';
+
 import { useToast } from "@/hooks/use-toast";
 import { apiService } from '@/lib/apiService';
 
@@ -49,11 +49,13 @@ export function StockSelector({ selectedStock, onStockChange }: StockSelectorPro
       setStockItems(stockItems);
     } catch (error) {
       console.error('Error fetching stock items:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch stock items",
-        variant: "destructive"
-      });
+      if (navigator.onLine) {
+        toast({
+          title: "Error",
+          description: "Failed to fetch stock items",
+          variant: "destructive"
+        });
+      }
     } finally {
       setLoading(false);
     }

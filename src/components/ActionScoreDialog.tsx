@@ -13,8 +13,10 @@ import { useScoringPrompts } from "@/hooks/useScoringPrompts";
 import { useActionScores, ActionScore } from "@/hooks/useActionScores";
 import { ScoreEntryForm } from "./ScoreEntryForm";
 import { ScoreDisplayCard } from "./ScoreDisplayCard";
-import { supabase } from '@/lib/client';
+import { apiService } from '@/lib/apiService';
 import { BaseAction } from "@/types/actions";
+import { useQuery } from '@tanstack/react-query';
+import { offlineQueryConfig } from '@/lib/queryConfig';
 
 // Utility function to strip HTML tags and decode entities
 const stripHtml = (html: string | null | undefined): string => {
@@ -53,79 +55,33 @@ export function ActionScoreDialog({
   const { prompts } = useScoringPrompts();
   const { createScore, updateScore } = useActionScores();
 
-  // Determine asset context for the action
+  // Fetch linked issue if exists
+  const { data: issueData } = useQuery({
+    queryKey: ['issue', action.linked_issue_id],
+    queryFn: async () => {
+      const response = await apiService.get(`/issues/${action.linked_issue_id}`);
+      return response.data;
+    },
+    enabled: open && !!action.linked_issue_id,
+    ...offlineQueryConfig
+  });
+
+  // Set asset and linked issue when data changes
   useEffect(() => {
-    const determineAssetContext = async () => {
-      try {
-        let assetId = null;
-        let name = "";
-
-        // Priority 1: Direct asset_id
-        if (action.asset_id) {
-          const { data } = await supabase
-            .from('tools')
-            .select('*')
-            .eq('id', action.asset_id)
-            .single();
-          if (data) {
-            setAsset(data);
-            setAssetName(data.name);
-            return;
-          }
-        }
-
-        // Priority 2: Linked issue's tool
-        if (action.linked_issue_id) {
-          const { data: issueData } = await supabase
-            .from('issues')
-            .select('*')
-            .eq('id', action.linked_issue_id)
-            .single();
-          
-          if (issueData) {
-            setLinkedIssue(issueData);
-            
-            if (issueData.context_type === 'tool') {
-              const { data: toolData } = await supabase
-                .from('tools')
-                .select('*')
-                .eq('id', issueData.context_id)
-                .single();
-              if (toolData) {
-                setAsset(toolData);
-                setAssetName(toolData.name);
-                return;
-              }
-            }
-          }
-        }
-
-        // Priority 3: First required tool
-        if (action.required_tools && action.required_tools.length > 0) {
-          const { data: toolData } = await supabase
-            .from('tools')
-            .select('*')
-            .eq('id', action.required_tools[0])
-            .single();
-          if (toolData) {
-            setAsset(toolData);
-            setAssetName(toolData.name);
-            return;
-          }
-        }
-
-        // Fallback: Use action title as asset name
-        setAssetName(action.title || "Unknown Asset");
-      } catch (error) {
-        console.error('Error determining asset context:', error);
-        setAssetName(action.title || "Unknown Asset");
-      }
-    };
-
-    if (open) {
-      determineAssetContext();
+    if (action.asset) {
+      setAsset(action.asset);
+      setAssetName(action.asset.name);
+    } else {
+      // Ensure we don't leak asset context between different actions
+      // If the current action has no asset, clear any previous asset state
+      setAsset(null);
+      setAssetName("");
     }
-  }, [open, action]);
+    
+    if (issueData) {
+      setLinkedIssue(issueData);
+    }
+  }, [action.asset, issueData]);
 
   // Initialize form based on existing score or create mode
   useEffect(() => {
@@ -156,45 +112,61 @@ export function ActionScoreDialog({
   const selectedPrompt = prompts.find(p => p.id === selectedPromptId);
 
   const generatePrompt = () => {
-    if (!selectedPrompt || !assetName) return "";
+    if (!selectedPrompt) return "";
     
-    // Build comprehensive context JSON similar to IssueScoreDialog
-    const actionContext = {
+    // Build action context - asset is optional
+    const actionContext: any = {
       id: action.id,
-      asset: assetName,
-      asset_id: asset?.id || action.asset_id,
-      asset_category: asset?.category,
-      asset_location: asset?.storage_vicinity,
-      serial_number: asset?.serial_number,
-      action: {
-        title: action.title,
-        description: action.description,
-        policy: action.policy,
-        observations: action.observations,
-        status: action.status,
-        created_at: action.created_at,
-        assigned_to: action.assignee?.full_name,
-        estimated_duration: action.estimated_duration,
-        required_tools: action.required_tools,
-        required_stock: action.required_stock,
-        completed_at: action.completed_at,
-        issue_reference: action.issue_reference
-      },
-      ...(linkedIssue && {
-        linked_issue: {
-          description: linkedIssue.description,
-          type: linkedIssue.issue_type,
-          status: linkedIssue.status,
-          reported_at: linkedIssue.reported_at,
-          damage_assessment: linkedIssue.damage_assessment,
-          efficiency_loss_percentage: linkedIssue.efficiency_loss_percentage,
-          root_cause: linkedIssue.root_cause,
-          resolution_notes: linkedIssue.resolution_notes
-        }
-      })
+      title: action.title,
+      description: action.description,
+      policy: stripHtml(action.policy),
+      observations: stripHtml(action.observations),
+      status: action.status,
+      created_at: action.created_at,
+      assigned_to: action.assignee?.full_name,
+      estimated_duration: action.estimated_duration,
+      required_tools: action.required_tools,
+      required_stock: action.required_stock,
+      completed_at: action.completed_at,
+      issue_reference: action.issue_reference
     };
 
-    return `${selectedPrompt.prompt_text}\n\n${JSON.stringify(actionContext, null, 2)}`;
+    // Add asset info only if available
+    if (asset || assetName) {
+      actionContext.asset = {
+        name: assetName,
+        id: asset?.id,
+        category: asset?.category,
+        location: asset?.storage_vicinity,
+        serial_number: asset?.serial_number
+      };
+    }
+
+    // Add linked issue if available
+    if (linkedIssue) {
+      actionContext.linked_issue = {
+        description: linkedIssue.description,
+        type: linkedIssue.issue_type,
+        status: linkedIssue.status,
+        reported_at: linkedIssue.reported_at,
+        damage_assessment: linkedIssue.damage_assessment,
+        efficiency_loss_percentage: linkedIssue.efficiency_loss_percentage,
+        root_cause: linkedIssue.root_cause,
+        resolution_notes: linkedIssue.resolution_notes
+      };
+    }
+
+    // Add strict instructions to avoid defaulting or guessing assets
+    const antiLeakageAddendum = `
+
+IMPORTANT OVERRIDES (do not ignore):
+- Do NOT invent, infer, or reuse any asset from prior context or examples.
+- Only include an "asset" field in the output if actionContext.asset is present.
+- If actionContext.asset is not present, OMIT the "asset" field entirely (do not write "unspecified").
+- If present, the asset name MUST exactly match actionContext.asset.name.
+`;
+
+    return `${selectedPrompt.prompt_text}${antiLeakageAddendum}\n\n${JSON.stringify(actionContext, null, 2)}`;
   };
 
   const handleCopyPrompt = () => {
@@ -238,53 +210,8 @@ export function ActionScoreDialog({
     if (!selectedPrompt) return;
 
     try {
-      // First verify the action exists in the database, if not create it
-      const { data: actionExists, error: actionError } = await supabase
-        .from('actions')
-        .select('id')
-        .eq('id', action.id!)
-        .single();
-
-      if (actionError || !actionExists) {
-        // Action doesn't exist, create it first
-        const actionData = {
-          id: action.id,
-          title: action.title,
-          description: action.description || null,
-          policy: action.policy || null,
-          observations: action.observations || null,
-          status: action.status || 'not_started',
-          assigned_to: action.assigned_to || null,
-          mission_id: action.mission_id || null,
-          asset_id: action.asset_id || null,
-          linked_issue_id: action.linked_issue_id || null,
-          issue_reference: action.issue_reference || null,
-          estimated_duration: action.estimated_duration || null,
-          required_tools: action.required_tools || [],
-          required_stock: action.required_stock || [],
-          attachments: action.attachments || [],
-          plan_commitment: action.plan_commitment || false
-        };
-
-        const { error: createError } = await supabase
-          .from('actions')
-          .insert(actionData);
-
-        if (createError) {
-          console.error('Error creating action:', createError);
-          toast({
-            title: "Error",
-            description: "Failed to save action before scoring. Please try again.",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        toast({
-          title: "Action Saved",
-          description: "Action was automatically saved before scoring.",
-        });
-      }
+      // Action should already exist if we're scoring it (completed actions only)
+      // No need to verify/create
 
       const scoreData = {
         action_id: action.id!,
@@ -335,38 +262,40 @@ export function ActionScoreDialog({
           <DialogDescription>
             {existingScore
               ? `Review and edit existing AI scoring for action: ${action.title}`
-              : `Generate AI scoring for action performance on ${assetName}`
+              : `Generate AI scoring for action: ${action.title}`
             }
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Asset Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Asset Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm font-semibold">Asset Name</Label>
-                  <p>{assetName}</p>
+          {/* Asset Information - only show if asset exists */}
+          {asset && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Asset Information</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-semibold">Asset Name</Label>
+                    <p>{assetName}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-semibold">Category</Label>
+                    <p>{asset.category || 'Uncategorized'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-semibold">Location</Label>
+                    <p>{asset.storage_vicinity || 'Not specified'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-semibold">Serial Number</Label>
+                    <p>{asset.serial_number || 'Not specified'}</p>
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-sm font-semibold">Category</Label>
-                  <p>{asset?.category || 'Uncategorized'}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-semibold">Location</Label>
-                  <p>{asset?.storage_vicinity || 'Not specified'}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-semibold">Serial Number</Label>
-                  <p>{asset?.serial_number || 'Not specified'}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Action Information */}
           <Card>

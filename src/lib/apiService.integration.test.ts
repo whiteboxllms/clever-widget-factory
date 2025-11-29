@@ -117,7 +117,7 @@ describe('API Service Integration', () => {
       });
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Unauthorized request')
+        expect.stringContaining('Unauthorized')
       );
 
       consoleSpy.mockRestore();

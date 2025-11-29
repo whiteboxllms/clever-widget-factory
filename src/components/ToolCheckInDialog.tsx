@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { apiService } from '@/lib/apiService';
+import { useAssetMutations } from '@/hooks/useAssetMutations';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -53,6 +54,7 @@ interface ToolCheckInDialogProps {
 export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolCheckInDialogProps) {
   const organizationId = useOrganizationId();
   const { toast } = useToast();
+  const { updateTool } = useAssetMutations();
   const { user } = useAuth();
   const { uploadImages, isUploading: isUploadingImages } = useImageUpload();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -259,10 +261,10 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
           : tool.legacy_storage_vicinity
         : tool.storage_location || null;
 
-      await apiService.put(`/tools/${tool.id}`, {
+      await updateTool.mutateAsync({ id: tool.id, data: {
         status: 'available',
         ...(locationLabel ? { actual_location: locationLabel } : {})
-      });
+      }});
 
       toast({
         title: "Tool checked in successfully",

@@ -8,6 +8,11 @@ interface ScoreButtonProps {
 }
 
 export function ScoreButton({ action, onScoreAction }: ScoreButtonProps) {
+  // Only show for completed actions
+  if (action.status !== 'completed') {
+    return null;
+  }
+
   // Use the has_score field from the API
   const hasScore = (action as any).has_score === true;
 

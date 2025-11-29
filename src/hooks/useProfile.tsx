@@ -37,12 +37,6 @@ const fetchProfile = async (userId: string): Promise<ProfileData | null> => {
   return Array.isArray(data) ? (data[0] as ProfileData) : (data as ProfileData);
 };
 
-const fetchOrganizationMemberships = async (userId: string): Promise<OrganizationMember[]> => {
-  const response = await apiService.get(`/organization_members?cognito_user_id=${encodeURIComponent(userId)}`);
-  const data = getApiData(response);
-  return Array.isArray(data) ? (data as OrganizationMember[]) : [];
-};
-
 // Create organization object from membership
 // The organization_members query doesn't include org name, so we use a default
 // The organization_id is the key piece of data we need
@@ -92,7 +86,22 @@ export function useProfile() {
   // Fetch organization memberships
   const { data: memberships = [], isLoading: membershipsLoading } = useQuery<OrganizationMember[]>({
     queryKey: ['organization_memberships', user?.userId],
-    queryFn: () => fetchOrganizationMemberships(user!.userId),
+    queryFn: async () => {
+      if (!user?.userId) return [];
+
+      // Prefer existing organization_members data from cache to avoid extra network calls
+      const cachedMembers = queryClient.getQueryData<OrganizationMember[]>(['organization_members']);
+      if (cachedMembers && cachedMembers.length > 0) {
+        return cachedMembers.filter(
+          (member) => member.cognito_user_id === user.userId
+        );
+      }
+
+      // Fallback: fetch memberships directly when cache is not populated
+      const response = await apiService.get(`/organization_members?cognito_user_id=${encodeURIComponent(user.userId)}`);
+      const data = getApiData(response);
+      return Array.isArray(data) ? (data as OrganizationMember[]) : [];
+    },
     enabled: !!user?.userId,
     ...offlineQueryConfig,
   });

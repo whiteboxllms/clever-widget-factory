@@ -358,17 +358,19 @@ exports.handler = async (event) => {
     // Parts history endpoint
     if (path.endsWith('/parts_history')) {
       if (httpMethod === 'GET') {
-        const { part_id, organization_id, change_type, changed_by, limit = 100 } = event.queryStringParameters || {};
+        const { part_id, change_type, changed_by, limit = 100 } = event.queryStringParameters || {};
         let whereConditions = [];
+        
+        // Always filter by organization from authorizer context (unless user has data:read:all permission)
+        if (!hasDataReadAll && organizationId) {
+          whereConditions.push(`ph.organization_id::text = '${escapeLiteral(organizationId)}'`);
+        }
         
         if (part_id) {
           // Cast both sides to ensure type compatibility
           // If part_id column is UUID, cast the parameter. If it's TEXT, cast the column.
           // Try casting the parameter first: 'value'::uuid
           whereConditions.push(`ph.part_id::text = '${escapeLiteral(part_id)}'`);
-        }
-        if (organization_id) {
-          whereConditions.push(`ph.organization_id::text = '${escapeLiteral(organization_id)}'`);
         }
         if (change_type) {
           whereConditions.push(`ph.change_type = '${escapeLiteral(change_type)}'`);
@@ -462,6 +464,12 @@ exports.handler = async (event) => {
       if (httpMethod === 'GET') {
         const { context_type, context_id, status } = event.queryStringParameters || {};
         let whereConditions = [];
+        
+        // Always filter by organization
+        if (!hasDataReadAll && organizationId) {
+          whereConditions.push(`organization_id::text = '${escapeLiteral(organizationId)}'`);
+        }
+        
         if (context_type) whereConditions.push(`context_type = '${context_type}'`);
         if (context_id) whereConditions.push(`context_id = '${escapeLiteral(context_id)}'`);
         if (status) {
@@ -664,15 +672,23 @@ exports.handler = async (event) => {
     // Parts orders endpoint
     if (httpMethod === 'GET' && path.endsWith('/parts_orders')) {
       const { status } = event.queryStringParameters || {};
-      let whereClause = '';
+      let whereConditions = [];
+      
+      // Always filter by organization
+      if (!hasDataReadAll && organizationId) {
+        whereConditions.push(`organization_id::text = '${escapeLiteral(organizationId)}'`);
+      }
+      
       if (status) {
         if (status.includes(',')) {
           const statuses = status.split(',').map(s => `'${s}'`).join(',');
-          whereClause = `WHERE status IN (${statuses})`;
+          whereConditions.push(`status IN (${statuses})`);
         } else {
-          whereClause = `WHERE status = '${status}'`;
+          whereConditions.push(`status = '${status}'`);
         }
       }
+      
+      const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
       
       const sql = `SELECT json_agg(row_to_json(t)) FROM (
         SELECT * FROM parts_orders ${whereClause} ORDER BY ordered_at DESC
@@ -873,8 +889,13 @@ exports.handler = async (event) => {
     // Worker strategic attributes endpoint
     if (path.endsWith('/worker_strategic_attributes')) {
       if (httpMethod === 'GET') {
+        let whereClause = '';
+        if (!hasDataReadAll && organizationId) {
+          whereClause = `WHERE organization_id::text = '${escapeLiteral(organizationId)}'`;
+        }
+        
         const sql = `SELECT json_agg(row_to_json(t)) FROM (
-          SELECT * FROM worker_strategic_attributes ORDER BY created_at DESC
+          SELECT * FROM worker_strategic_attributes ${whereClause} ORDER BY created_at DESC
         ) t;`;
         
         const result = await queryJSON(sql);
@@ -886,11 +907,104 @@ exports.handler = async (event) => {
       }
     }
 
+    // Scoring prompts endpoints
+    if (path.endsWith('/scoring_prompts')) {
+      if (httpMethod === 'GET') {
+        let whereClause = '';
+        if (!hasDataReadAll && organizationId) {
+          whereClause = `WHERE organization_id::text = '${escapeLiteral(organizationId)}'`;
+        }
+        
+        const sql = `SELECT json_agg(row_to_json(t)) FROM (
+          SELECT * FROM scoring_prompts ${whereClause} ORDER BY created_at DESC
+        ) t;`;
+        const result = await queryJSON(sql);
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
+        };
+      }
+
+      if (httpMethod === 'POST') {
+        const body = JSON.parse(event.body || '{}');
+        const { name, prompt_text, is_default = false, created_by } = body;
+
+        if (!name || !prompt_text || !created_by) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'name, prompt_text, and created_by are required' })
+          };
+        }
+
+        const sql = `
+          INSERT INTO scoring_prompts (name, prompt_text, is_default, created_by, created_at, updated_at)
+          VALUES (
+            ${formatSqlValue(name)},
+            ${formatSqlValue(prompt_text)},
+            ${is_default},
+            ${formatSqlValue(created_by)},
+            NOW(),
+            NOW()
+          )
+          RETURNING *
+        `;
+        const result = await queryJSON(sql);
+        return {
+          statusCode: 201,
+          headers,
+          body: JSON.stringify({ data: result[0] })
+        };
+      }
+    }
+
+    if (path.match(/\/scoring_prompts\/[^/]+\/set-default$/)) {
+      if (httpMethod === 'PUT') {
+        const promptId = path.split('/').slice(-2, -1)[0];
+        await queryJSON('UPDATE scoring_prompts SET is_default = false');
+        await queryJSON(`UPDATE scoring_prompts SET is_default = true, updated_at = NOW() WHERE id = '${escapeLiteral(promptId)}'`);
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ success: true })
+        };
+      }
+    }
+
+    if (path.match(/\/scoring_prompts\/[^/]+$/)) {
+      const promptId = path.split('/').pop();
+      if (httpMethod === 'PUT') {
+        const body = JSON.parse(event.body || '{}');
+        const updates = buildUpdateClauses(body, ['name', 'prompt_text', 'is_default']);
+        if (updates.length === 0) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'No fields to update' })
+          };
+        }
+        updates.push('updated_at = NOW()');
+        const sql = `UPDATE scoring_prompts SET ${updates.join(', ')} WHERE id = '${escapeLiteral(promptId)}' RETURNING *`;
+        const result = await queryJSON(sql);
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ data: result[0] })
+        };
+      }
+    }
+
     // Action scores endpoint
     if (path.endsWith('/action_scores')) {
       if (httpMethod === 'GET') {
         const { start_date, end_date, user_id } = event.queryStringParameters || {};
         let whereConditions = [];
+        
+        // Always filter by organization via actions table
+        if (!hasDataReadAll && organizationId) {
+          whereConditions.push(`a.organization_id::text = '${escapeLiteral(organizationId)}'`);
+        }
         
         if (start_date) {
           whereConditions.push(`s.created_at >= '${start_date}'`);
@@ -928,6 +1042,23 @@ exports.handler = async (event) => {
             statusCode: 400,
             headers,
             body: JSON.stringify({ error: 'action_id, prompt_id, and scores are required' })
+          };
+        }
+        
+        // Validate action is completed
+        const actionCheck = await queryJSON(`SELECT status FROM actions WHERE id = '${escapeLiteral(action_id)}' LIMIT 1`);
+        if (!actionCheck || actionCheck.length === 0) {
+          return {
+            statusCode: 404,
+            headers,
+            body: JSON.stringify({ error: 'Action not found' })
+          };
+        }
+        if (actionCheck[0].status !== 'completed') {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'Only completed actions can be scored' })
           };
         }
         
@@ -1266,6 +1397,12 @@ exports.handler = async (event) => {
       if (httpMethod === 'GET') {
         const { is_returned, action_id, tool_id } = event.queryStringParameters || {};
         let whereConditions = [];
+        
+        // Always filter by organization
+        if (!hasDataReadAll && organizationId) {
+          whereConditions.push(`c.organization_id::text = '${escapeLiteral(organizationId)}'`);
+        }
+        
         if (is_returned === 'false') {
           whereConditions.push('c.is_returned = false');
         } else if (is_returned === 'true') {
@@ -1871,6 +2008,12 @@ exports.handler = async (event) => {
         const { action_id, start_date, end_date, user_ids, limit = 50 } = event.queryStringParameters || {};
         
         let whereConditions = [];
+        
+        // Always filter by organization via actions table
+        if (!hasDataReadAll && organizationId) {
+          whereConditions.push(`a.organization_id::text = '${escapeLiteral(organizationId)}'`);
+        }
+        
         if (action_id) {
           whereConditions.push(`aiu.action_id = '${action_id}'`);
         }
@@ -1893,6 +2036,7 @@ exports.handler = async (event) => {
             om.full_name as updated_by_name,
             om.favorite_color as updated_by_color
           FROM action_implementation_updates aiu
+          LEFT JOIN actions a ON aiu.action_id = a.id
           LEFT JOIN profiles om ON aiu.updated_by = om.user_id
           ${whereClause}
           ORDER BY aiu.created_at DESC 

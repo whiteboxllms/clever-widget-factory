@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft } from 'lucide-react';
+import { AppVersion } from '@/components/AppVersion';
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { apiService } from '@/lib/apiService';
 import { useToast } from '@/hooks/use-toast';
@@ -247,6 +248,20 @@ export default function SettingsPage() {
                 <Button variant="outline" onClick={handleSendResetEmail} disabled={loading || !user?.email}>
                   Send reset email
                 </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>App Version</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">
+                  Current deployed version of the Clever Widget Factory app.
+                </span>
+                <AppVersion />
               </div>
             </CardContent>
           </Card>

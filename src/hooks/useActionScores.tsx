@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/client';
+import { apiService } from '@/lib/apiService';
 import { useToast } from '@/hooks/use-toast';
-import { useOrganizationId } from '@/hooks/useOrganizationId';
 
 export interface ActionScore {
   id: string;
@@ -20,7 +19,6 @@ export interface ActionScore {
 }
 
 export const useActionScores = (actionId?: string) => {
-  const organizationId = useOrganizationId();
   const [scores, setScores] = useState<ActionScore[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -30,28 +28,29 @@ export const useActionScores = (actionId?: string) => {
     
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
-        .from('action_scores')
-        .select('*')
-        .eq('action_id', targetActionId || actionId)
-        .order('created_at', { ascending: false });
+      const sourceId = targetActionId || actionId;
+      const response = await apiService.get<{ data: any[] }>(
+        `/action_scores?source_id=${sourceId}&source_type=action`
+      );
+      const data = response.data || [];
 
-      if (error) throw error;
-      setScores((data || []).map(item => ({
-        id: item.id,
-        action_id: item.action_id,
-        source_type: 'action' as const,
-        source_id: item.source_id,
-        prompt_id: item.prompt_id,
-        prompt_text: item.prompt_text,
-        scores: item.scores as Record<string, { score: number; reason: string }>,
-        ai_response: item.ai_response as Record<string, any>,
-        likely_root_causes: item.likely_root_causes || [],
-        created_at: item.created_at,
-        updated_at: item.updated_at,
-        asset_context_id: item.asset_context_id,
-        asset_context_name: item.asset_context_name
-      })));
+      setScores(
+        data.map((item: any) => ({
+          id: item.id,
+          action_id: item.action_id,
+          source_type: 'action' as const,
+          source_id: item.source_id,
+          prompt_id: item.prompt_id,
+          prompt_text: item.prompt_text,
+          scores: item.scores as Record<string, { score: number; reason: string }>,
+          ai_response: item.ai_response as Record<string, any>,
+          likely_root_causes: item.likely_root_causes || [],
+          created_at: item.created_at,
+          updated_at: item.updated_at,
+          asset_context_id: item.asset_context_id,
+          asset_context_name: item.asset_context_name,
+        }))
+      );
     } catch (error) {
       console.error('Error fetching action scores:', error);
       toast({
@@ -75,17 +74,22 @@ export const useActionScores = (actionId?: string) => {
     asset_context_name?: string;
   }) => {
     try {
-      const { data, error } = await supabase
-        .from('action_scores')
-        .insert({
-          ...scoreData,
+      const response = await apiService.post<{ data: any }>(
+        '/action_scores',
+        {
+          action_id: scoreData.action_id,
           source_type: 'action',
-          source_id: scoreData.action_id
-        } as any)
-        .select()
-        .single();
-
-      if (error) throw error;
+          source_id: scoreData.action_id,
+          prompt_id: scoreData.prompt_id,
+          prompt_text: scoreData.prompt_text,
+          scores: scoreData.scores,
+          ai_response: scoreData.ai_response,
+          likely_root_causes: scoreData.likely_root_causes,
+          asset_context_id: scoreData.asset_context_id,
+          asset_context_name: scoreData.asset_context_name,
+        }
+      );
+      const data = response.data;
 
       await fetchScores(scoreData.action_id);
       toast({
@@ -93,11 +97,12 @@ export const useActionScores = (actionId?: string) => {
         description: "Action score created successfully",
       });
       return data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating action score:', error);
+      const errorMsg = error?.response?.data?.error || "Failed to create action score";
       toast({
         title: "Error",
-        description: "Failed to create action score",
+        description: errorMsg,
         variant: "destructive",
       });
       throw error;
@@ -106,12 +111,7 @@ export const useActionScores = (actionId?: string) => {
 
   const updateScore = async (id: string, updates: Partial<ActionScore>) => {
     try {
-      const { error } = await supabase
-        .from('action_scores')
-        .update(updates)
-        .eq('id', id);
-
-      if (error) throw error;
+      await apiService.put(`/action_scores/${id}`, updates);
 
       await fetchScores();
       toast({
@@ -131,16 +131,13 @@ export const useActionScores = (actionId?: string) => {
 
   const getScoreForAction = useCallback(async (actionId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('action_scores')
-        .select('*')
-        .eq('action_id', actionId)
-        .maybeSingle();
+      const response = await apiService.get<{ data: any[] }>(
+        `/action_scores?source_id=${actionId}&source_type=action`
+      );
+      const data = response.data?.[0];
 
-      if (error) throw error;
-      
       if (!data) return null;
-      
+
       return {
         id: data.id,
         action_id: data.action_id,

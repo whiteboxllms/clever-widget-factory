@@ -67,11 +67,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Proactively refresh token every 50 minutes (tokens expire after 60 minutes)
+  useEffect(() => {
+    if (!user) return;
+
+    const refreshInterval = setInterval(async () => {
+      try {
+        console.log('Proactively refreshing auth token...');
+        const session = await fetchAuthSession({ forceRefresh: true });
+        setSession(session);
+        setIdToken(session.tokens?.idToken?.toString() || null);
+      } catch (error) {
+        console.error('Failed to refresh token:', error);
+        await handleSignOut();
+        window.location.href = '/login';
+      }
+    }, 50 * 60 * 1000); // 50 minutes
+
+    return () => clearInterval(refreshInterval);
+  }, [user]);
+
   useEffect(() => {
     const checkAuthState = async () => {
       try {
         const currentUser = await getCurrentUser();
-        const session = await fetchAuthSession();
+        const session = await fetchAuthSession({ forceRefresh: false });
         
         // Fetch user's full name from profiles table (the correct source)
         let fullName: string | undefined = undefined;
@@ -115,6 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         setUser(userData);
         setSession(session);
+        setIdToken(session.tokens?.idToken?.toString() || null);
         await checkUserRole(currentUser.userId);
       } catch (error) {
         setUser(null);
@@ -200,6 +221,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         setUser(userData);
         setSession(session);
+        setIdToken(session.tokens?.idToken?.toString() || null);
         await checkUserRole(currentUser.userId);
       } else if (result.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
         // Return a specific error for password change requirement

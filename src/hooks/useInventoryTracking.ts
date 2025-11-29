@@ -61,8 +61,16 @@ export function useInventoryTracking(organizationMembers?: OrganizationMemberSum
     endDate?: string
   ): Promise<InventoryData> => {
     try {
-      const response = await apiService.get('/parts_history');
+      // Request more records and filter by change_type on server side
+      const params = new URLSearchParams({ 
+        change_type: 'quantity_remove',
+        limit: '1000'
+      });
+      const response = await apiService.get(`/parts_history?${params.toString()}`);
       let data = (getApiData(response) || []) as PartsHistoryRow[];
+      
+      // Filter already applied on server, but keep this for safety
+      data = data.filter((row) => row.change_type === 'quantity_remove');
 
       data = data.filter((row) => row.change_type === 'quantity_remove');
 

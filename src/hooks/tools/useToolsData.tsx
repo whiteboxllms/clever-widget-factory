@@ -60,11 +60,13 @@ export const useToolsData = (showRemovedItems: boolean = false) => {
       setActiveCheckouts(checkoutMap);
     } catch (error) {
       console.error('Error fetching tools:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load tools",
-        variant: "destructive"
-      });
+      if (navigator.onLine) {
+        toast({
+          title: "Error",
+          description: "Failed to load tools",
+          variant: "destructive"
+        });
+      }
     } finally {
       setLoading(false);
     }

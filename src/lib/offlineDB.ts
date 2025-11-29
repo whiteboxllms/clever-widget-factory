@@ -18,6 +18,9 @@ export interface SyncOperation {
   record_id: string;
   data: any;
   timestamp: number;
+  organization_id?: string | null;
+  retry_count?: number;
+  last_error?: string | null;
 }
 
 export interface SchemaInfo {
@@ -53,65 +56,24 @@ class OfflineDatabase extends Dexie {
       console.log('Migrating to schema version 2');
     });
 
-    this.open().then(() => {
-      // Delay schema check to ensure API server is ready
-      setTimeout(() => this.checkSchemaVersion(), 2000);
-    });
+    // NOTE: We no longer auto-call /schema on startup.
+    // The local fallback schema is sufficient for offline caching,
+    // and avoids noisy 403s when the endpoint is protected.
+    this.open();
   }
 
   private async checkSchemaVersion(): Promise<void> {
-    try {
-      const serverSchema = await this.fetchServerSchema();
-      const localSchema = await this.schema_info.get(1);
-
-      if (!localSchema || localSchema.version < serverSchema.version) {
-        console.log(`Schema update needed: ${localSchema?.version || 0} -> ${serverSchema.version}`);
-        await this.migrateSchema(localSchema, serverSchema);
-      }
-    } catch (error) {
-      console.warn('Schema check failed:', error);
-    }
+    // Schema version checks are currently disabled to avoid hitting
+    // the /schema endpoint. The app relies on the fallback schema
+    // defined in fetchServerSchema(). This can be re-enabled in a
+    // future iteration if we expose a safe schema endpoint.
+    return;
   }
 
   private async fetchServerSchema(): Promise<SchemaInfo> {
-    const maxRetries = 3;
-    let lastError: Error | null = null;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        // Add delay for subsequent attempts
-        if (attempt > 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-        }
-
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
-        const response = await fetch(`${apiBaseUrl}/schema`);
-        
-        if (!response.ok) {
-          throw new Error(`Schema endpoint returned ${response.status}`);
-        }
-        
-        const text = await response.text();
-        
-        // Check if response is HTML (404 page or dev server error)
-        if (text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
-          throw new Error(`Schema endpoint returned HTML instead of JSON (attempt ${attempt}/${maxRetries})`);
-        }
-        
-        return JSON.parse(text);
-      } catch (error) {
-        lastError = error as Error;
-        console.warn(`Schema fetch attempt ${attempt}/${maxRetries} failed:`, error);
-        
-        // Don't retry on JSON parse errors
-        if (error.message.includes('JSON')) {
-          break;
-        }
-      }
-    }
-
-    console.warn('All schema fetch attempts failed, using fallback schema');
-    // Fallback to current version if all attempts fail
+    // Always return the local fallback schema without any network calls.
+    // This avoids 403s from protected /schema endpoints while still
+    // allowing OfflineDB to function for caching.
     return {
       version: this.currentSchemaVersion,
       tables: {

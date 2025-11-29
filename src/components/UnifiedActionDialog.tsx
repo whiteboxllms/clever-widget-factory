@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { offlineMutationConfig } from '@/lib/queryConfig';
 import { format } from "date-fns";
 import {
   Dialog,
@@ -74,6 +76,35 @@ export function UnifiedActionDialog({
   const { isLeadership, user } = useAuth();
   const organizationId = useOrganizationId();
   const { members: organizationMembers = [] } = useOrganizationMembers();
+  const queryClient = useQueryClient();
+  
+  const saveActionMutation = useMutation({
+    mutationFn: async (actionData: any) => {
+      const result = await apiService.post('/actions', actionData);
+      return result.data;
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['actions'] });
+      const optimisticData = { ...variables, ...data, id: data?.id || action?.id };
+      toast({
+        title: "Success",
+        description: isCreating || !action?.id ? "Action created successfully" : "Action updated successfully"
+      });
+      onActionSaved(optimisticData as unknown as BaseAction);
+      onOpenChange(false);
+    },
+    onError: (error) => {
+      console.error('Error saving action:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save action",
+        variant: "destructive"
+      });
+    },
+    ...offlineMutationConfig,
+  });
+  
+
   const [formData, setFormData] = useState<Partial<BaseAction>>({});
   const [missionData, setMissionData] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -440,7 +471,6 @@ export function UnifiedActionDialog({
 
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    // Prevent any default form submission or page reload
     event.preventDefault?.();
     event.stopPropagation?.();
     
@@ -648,25 +678,9 @@ export function UnifiedActionDialog({
 
 
 
-      const result = await apiService.post('/actions', isCreating || !action?.id ? actionData : { ...actionData, id: action.id });
-      const data = result.data;
-
-      // Use optimistic update - merge saved data with what we sent
-      const optimisticData = { ...actionData, ...data, id: data?.id || action?.id };
-
-      toast({
-        title: "Success",
-        description: isCreating || !action?.id ? "Action created successfully" : "Action updated successfully"
-      });
-      onActionSaved(optimisticData as unknown as BaseAction);
-      onOpenChange(false);
+      await saveActionMutation.mutateAsync(isCreating || !action?.id ? actionData : { ...actionData, id: action.id });
     } catch (error) {
-      console.error('Error saving action:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save action",
-        variant: "destructive"
-      });
+      // Error handled by mutation onError
     } finally {
       setIsSubmitting(false);
     }

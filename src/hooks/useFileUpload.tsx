@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { s3Client, S3_BUCKET, BUCKET_PREFIXES, BucketPrefix } from '@/lib/s3Client';
-import { compressImageDetailed } from '@/lib/enhancedImageUtils';
+import { compressImageSimple } from '@/lib/simpleImageCompression';
 import { useEnhancedToast } from './useEnhancedToast';
 
 export interface FileUploadOptions {
@@ -25,7 +25,17 @@ export interface FileUploadResult {
 const IMAGE_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
 const PDF_MIME_TYPE = 'application/pdf';
 
+// Legacy export name for backwards compatibility
 export const useFileUpload = () => {
+  return useImageUploadImpl();
+};
+
+// Primary export - handles both images and PDFs
+export const useImageUpload = () => {
+  return useImageUploadImpl();
+};
+
+const useImageUploadImpl = () => {
   const [isUploading, setIsUploading] = useState(false);
   const enhancedToast = useEnhancedToast();
 
@@ -73,23 +83,27 @@ export const useFileUpload = () => {
 
       // Only compress images, skip compression for PDFs
       if (fileType === 'image') {
-        // Show compression start toast
-        const compressionToast = enhancedToast.showCompressionStart(file.name, file.size);
-
-        // Compress the image with detailed progress
-        const compressionResult = await compressImageDetailed(
+        enhancedToast.showCompressionStart(file.name, file.size);
+        
+        const compressionResult = await compressImageSimple(
           file,
-          { maxSizeMB, maxWidthOrHeight },
-          onProgress || enhancedToast.showCompressionProgress
+          { maxSizeMB, maxWidthOrHeight }
         );
-
-        // Show compression complete toast
-        enhancedToast.showCompressionComplete(compressionResult);
 
         finalFile = compressionResult.file;
         originalSize = compressionResult.originalSize;
         compressedSize = compressionResult.compressedSize;
         compressionRatio = compressionResult.compressionRatio;
+        
+        enhancedToast.showCompressionComplete({
+          ...compressionResult,
+          compressionRatio: compressionResult.compressionRatio,
+          timings: { total: 0 },
+          stages: [],
+          originalFormat: file.type.split('/')[1] || 'unknown',
+          finalFormat: 'jpeg',
+          algorithm: 'Canvas compression'
+        });
       } else {
         // For PDFs, just show upload start directly
         enhancedToast.showUploadStart(file.name, file.size);
@@ -102,10 +116,8 @@ export const useFileUpload = () => {
       
       const key = `${BUCKET_PREFIXES[bucket]}${fileName}`;
 
-      // Show upload start toast for images (already shown for PDFs above)
-      if (fileType === 'image') {
-        enhancedToast.showUploadStart(fileName, compressedSize);
-      }
+      // Show upload start toast
+      enhancedToast.showUploadStart(fileName, compressedSize);
 
       // Convert File to ArrayBuffer for AWS SDK compatibility
       const fileBuffer = await finalFile.arrayBuffer();
@@ -149,25 +161,45 @@ export const useFileUpload = () => {
     options: FileUploadOptions
   ): Promise<FileUploadResult[]> => {
     const results: FileUploadResult[] = [];
+    const errors: string[] = [];
     
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       
-      const fileOptions = {
-        ...options,
-        generateFileName: options.generateFileName 
-          ? (f: File) => options.generateFileName!(f, i + 1)
-          : undefined
-      };
-      
-      const result = await uploadSingleFile(file, fileOptions);
-      results.push(result);
+      try {
+        const fileOptions = {
+          ...options,
+          generateFileName: options.generateFileName 
+            ? (f: File) => options.generateFileName!(f, i + 1)
+            : undefined
+        };
+        
+        const result = await uploadSingleFile(file, fileOptions);
+        results.push(result);
+        
+        // Small delay between uploads to prevent mobile browser memory issues
+        if (i < files.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      } catch (error) {
+        console.error(`Failed to upload file ${i + 1}/${files.length}:`, file.name, error);
+        errors.push(file.name);
+        // Continue with next file instead of failing completely
+      }
+    }
+    
+    if (errors.length > 0 && results.length === 0) {
+      throw new Error(`All uploads failed: ${errors.join(', ')}`);
+    }
+    
+    if (errors.length > 0) {
+      console.warn(`Partial upload success: ${results.length} succeeded, ${errors.length} failed`);
     }
     
     return results;
   };
 
-  const uploadFiles = async (
+  const uploadImages = async (
     files: File | File[],
     options: FileUploadOptions
   ): Promise<FileUploadResult | FileUploadResult[]> => {
@@ -185,7 +217,8 @@ export const useFileUpload = () => {
   };
 
   return {
-    uploadFiles,
+    uploadImages,
+    uploadFiles: uploadImages, // Legacy alias
     isUploading
   };
 };

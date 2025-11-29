@@ -137,3 +137,4 @@ echo "✅ Done! CORS is now configured for /api/profiles"
 echo ""
 echo "The OPTIONS preflight request should now work correctly."
 
+

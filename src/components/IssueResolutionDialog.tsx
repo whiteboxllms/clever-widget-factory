@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useImageUpload } from "@/hooks/useImageUpload";
-import { supabase } from '@/lib/client';
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useCognitoAuth";
+import { apiService } from "@/lib/apiService";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { Loader2, X } from "lucide-react";
 
@@ -46,6 +47,7 @@ export function IssueResolutionDialog({
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
   const { uploadImages, isUploading } = useImageUpload();
   const organizationId = useOrganizationId();
+  const { user } = useAuth();
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -122,32 +124,23 @@ export function IssueResolutionDialog({
       }
 
       // Update issue as resolved
-      const { error: updateError } = await supabase
-        .from('issues')
-        .update({
-          status: 'resolved',
-          resolved_by: (await supabase.auth.getUser()).data.user?.id,
-          resolved_at: new Date().toISOString(),
-          root_cause: form.root_cause,
-          resolution_notes: form.resolution_notes,
-          resolution_photo_urls: photoUrls
-        })
-        .eq('id', issue.id);
-
-      if (updateError) throw updateError;
+      await apiService.put(`/api/issues/${issue.id}`, {
+        status: 'resolved',
+        resolved_by: user?.userId,
+        resolved_at: new Date().toISOString(),
+        root_cause: form.root_cause,
+        resolution_notes: form.resolution_notes,
+        resolution_photo_urls: photoUrls
+      });
 
       // Create history record
-      const { error: historyError } = await supabase
-        .from('issue_history')
-        .insert({
-          issue_id: issue.id,
-          old_status: 'active',
-          new_status: 'resolved',
-          changed_by: (await supabase.auth.getUser()).data.user?.id,
-          notes: `Resolved: ${form.resolution_notes}`,
-        });
-
-      if (historyError) throw historyError;
+      await apiService.post('/api/issue_history', {
+        issue_id: issue.id,
+        old_status: 'active',
+        new_status: 'resolved',
+        changed_by: user?.userId,
+        notes: `Resolved: ${form.resolution_notes}`,
+      });
 
       toast({
         title: "Issue resolved",

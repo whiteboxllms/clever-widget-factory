@@ -19,7 +19,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { useProfile } from '@/hooks/useProfile';
 import { OrganizationValuesSection } from '@/components/OrganizationValuesSection';
-import { supabase } from '@/lib/client';
 import { apiService, getApiData } from '@/lib/apiService';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -131,11 +130,11 @@ const Organization = () => {
       let membersWithAuth: OrganizationMember[] = [];
 
       try {
-        const { data: response, error } = await supabase.functions.invoke('get-organization-members-with-auth', {
-          body: { organizationId: effectiveOrgId }
+        const response = await apiService.post('/api/organization-members-with-auth', {
+          organizationId: effectiveOrgId
         });
 
-        if (!error && response?.members) {
+        if (response?.members) {
           membersWithAuth = response.members;
         }
       } catch (functionError) {

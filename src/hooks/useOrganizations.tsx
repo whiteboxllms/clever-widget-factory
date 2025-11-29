@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { supabase } from '@/lib/client';
 import { useToast } from '@/hooks/use-toast';
+import { apiService, getApiData } from '@/lib/apiService';
 
 interface Organization {
   id: string;
@@ -31,28 +31,9 @@ export function useOrganizations() {
   const getAllOrganizations = async (): Promise<Organization[]> => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('organizations')
-        .select(`
-          *,
-          organization_members(count)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching organizations:', error);
-        toast({
-          title: "Error",
-          description: "Failed to fetch organizations",
-          variant: "destructive",
-        });
-        return [];
-      }
-
-      return (data || []).map(org => ({
-        ...org,
-        member_count: org.organization_members?.[0]?.count || 0
-      }));
+      const response = await apiService.get('/api/organizations');
+      const data = getApiData(response) || [];
+      return data;
     } catch (error) {
       console.error('Error in getAllOrganizations:', error);
       return [];
@@ -63,39 +44,16 @@ export function useOrganizations() {
 
   const getOrganizationWithMembers = async (orgId: string): Promise<OrganizationWithMembers | null> => {
     try {
-      const { data: orgData, error: orgError } = await supabase
-        .from('organizations')
-        .select('*')
-        .eq('id', orgId)
-        .single();
+      const orgData = await apiService.get(`/api/organizations/${orgId}`);
+      const membersResponse = await apiService.get(`/api/organization_members?organization_id=${orgId}`);
+      const membersData = getApiData(membersResponse) || [];
 
-      if (orgError) {
-        console.error('Error fetching organization:', orgError);
-        return null;
-      }
-
-      const { data: membersData, error: membersError } = await supabase
-        .from('organization_members')
-        .select('id, user_id, role')
-        .eq('organization_id', orgId);
-
-      if (membersError) {
-        console.error('Error fetching members:', membersError);
-        return null;
-      }
-
-      // Get profile data for each member using secure function
-      const membersWithProfiles = await Promise.all(
-        (membersData || []).map(async (member) => {
-          const { data: displayName } = await supabase
-            .rpc('get_user_display_name', { target_user_id: member.user_id });
-          
-          return {
-            ...member,
-            profiles: { full_name: displayName || null }
-          };
-        })
-      );
+      const membersWithProfiles = membersData.map((member: any) => ({
+        id: member.id,
+        user_id: member.user_id,
+        role: member.role,
+        profiles: { full_name: member.full_name || null }
+      }));
 
       return {
         ...orgData,
@@ -110,20 +68,10 @@ export function useOrganizations() {
   const createOrganization = async (name: string, subdomain?: string): Promise<boolean> => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc('create_organization_with_admin', {
-        org_name: name,
-        org_subdomain: subdomain || null
+      await apiService.post('/api/organizations', {
+        name,
+        subdomain: subdomain || null
       });
-
-      if (error) {
-        console.error('Error creating organization:', error);
-        toast({
-          title: "Error",
-          description: error.message || "Failed to create organization",
-          variant: "destructive",
-        });
-        return false;
-      }
 
       toast({
         title: "Success",
@@ -149,20 +97,7 @@ export function useOrganizations() {
   ): Promise<boolean> => {
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('organizations')
-        .update(updates)
-        .eq('id', orgId);
-
-      if (error) {
-        console.error('Error updating organization:', error);
-        toast({
-          title: "Error",
-          description: "Failed to update organization",
-          variant: "destructive",
-        });
-        return false;
-      }
+      await apiService.put(`/api/organizations/${orgId}`, updates);
 
       toast({
         title: "Success",

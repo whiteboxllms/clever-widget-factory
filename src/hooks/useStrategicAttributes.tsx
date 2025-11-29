@@ -1,9 +1,6 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useCognitoAuth';
-import { useOrganizationValues } from '@/hooks/useOrganizationValues';
-import { useOrganizationId } from '@/hooks/useOrganizationId';
 
 export type StrategicAttributeType = 
   | 'growth_mindset'
@@ -64,26 +61,20 @@ export function useStrategicAttributes() {
       return;
     }
     
-    console.log('Fetching strategic attributes for organization');
+    // Strategic attributes from Supabase are no longer used.
+    // The current analytics dashboard is powered by action scores
+    // fetched via the AWS API (see useEnhancedStrategicAttributes).
+    // We keep this hook as a placeholder for a future AWS-backed
+    // implementation, but for now it simply reports no attributes.
+    console.log('Strategic attributes are deprecated; returning empty set.');
     setLoading(true);
     try {
-      // Fetch ALL strategic attributes (for analytics dashboard)
-      const { data, error } = await supabase
-        .from('worker_strategic_attributes')
-        .select('*');
-
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
-
-      console.log('Strategic attributes fetched:', data);
-      setAttributes(data || []);
+      setAttributes([]);
     } catch (error) {
-      console.error('Error fetching strategic attributes:', error);
+      console.error('Error handling strategic attributes:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch strategic attributes",
+        description: "Failed to handle strategic attributes",
         variant: "destructive",
       });
     } finally {

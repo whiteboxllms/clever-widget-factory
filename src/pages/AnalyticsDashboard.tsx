@@ -130,7 +130,12 @@ export default function AnalyticsDashboard() {
   // Use effective dates/users so query can start immediately
   const inventoryQuery = useQuery({
     queryKey: ['inventoryData', appliedUsersKey, effectiveStartDate, effectiveEndDate],
-    queryFn: () => fetchInventoryData(appliedUsers.length ? appliedUsers : selectedUsers, effectiveStartDate, effectiveEndDate),
+    queryFn: async () => {
+      console.log('🔍 Fetching inventory data:', { appliedUsers, selectedUsers, effectiveStartDate, effectiveEndDate });
+      const result = await fetchInventoryData(appliedUsers.length ? appliedUsers : selectedUsers, effectiveStartDate, effectiveEndDate);
+      console.log('📊 Inventory data result:', result);
+      return result;
+    },
     enabled: Boolean((appliedUsers.length || selectedUsers.length) && effectiveStartDate && effectiveEndDate),
     ...offlineQueryConfig,
   });

@@ -746,16 +746,18 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                   )}
                 </Button>
                 
-                {/* Score button */}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleAssignScore}
-                  className={`h-7 px-2 text-xs ${existingScore ? 'border-green-500 border-2' : ''}`}
-                  title={existingScore ? "View/Edit Score" : "Assign Score"}
-                >
-                  <Target className="h-3 w-3" />
-                </Button>
+                {/* Score button - only show for completed actions */}
+                {action.status === 'completed' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleAssignScore}
+                    className={`h-7 px-2 text-xs ${existingScore ? 'border-green-500 border-2' : ''}`}
+                    title={existingScore ? "View/Edit Score" : "Assign Score"}
+                  >
+                    <Target className="h-3 w-3" />
+                  </Button>
+                )}
                 {/* Auto-save indicators */}
                 {isSavingPolicy && (
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">

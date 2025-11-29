@@ -1,6 +1,5 @@
 import { useMemo, useCallback } from 'react';
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { apiService, getApiData } from '@/lib/apiService';
 import { useAuth } from '@/hooks/useCognitoAuth';
 import { useStrategicAttributes, CompanyAverage, StrategicAttributeType } from './useStrategicAttributes';
 import { fetchActions, fetchActionScores, fetchOrganizationMembers } from '@/lib/queryFetchers';
@@ -282,14 +281,17 @@ const mapScoredAttributeToStrategic = (orgValue: string): StrategicAttributeType
 
 const fetchProactiveVsReactiveData = async (queryClient: QueryClient, startDate?: string, endDate?: string) => {
   try {
-    const actionsData = await queryClient.fetchQuery<ActionSummary[]>({
-      queryKey: actionsQueryKey(),
-      queryFn: async () => {
-        const response = await apiService.get('/actions');
-        return (getApiData(response) || []) as ActionSummary[];
-      },
-    });
-    let data = actionsData;
+    // Prefer existing cached actions; only hit the network if absolutely necessary
+    let actionsData = queryClient.getQueryData<ActionSummary[]>(actionsQueryKey());
+    if (!actionsData) {
+      actionsData = await queryClient.ensureQueryData<ActionSummary[]>({
+        queryKey: actionsQueryKey(),
+        queryFn: async () => (await fetchActions()) as ActionSummary[],
+        staleTime: 60 * 1000,
+      });
+    }
+
+    let data = actionsData || [];
 
     if (startDate || endDate) {
       data = data.filter((action) => {

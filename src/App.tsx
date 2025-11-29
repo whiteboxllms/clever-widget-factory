@@ -1,18 +1,21 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AppVersion } from "@/components/AppVersion";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { offlineQueryConfig, offlineMutationConfig } from "@/lib/queryConfig";
+import { queryCachePersister, QUERY_CACHE_MAX_AGE } from "@/lib/queryPersistAdapter";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useCognitoAuth";
 import { OrganizationProvider } from "@/hooks/useOrganization";
 import { AppSettingsProvider } from "@/hooks/useAppSettings";
 import { useSessionMonitor } from "@/hooks/useSessionMonitor";
+import { TokenRefreshIndicator } from "@/components/TokenRefreshIndicator";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminRoute from "@/components/AdminRoute";
 import LeadershipRoute from "@/components/LeadershipRoute";
 import SuperAdminRoute from "@/components/SuperAdminRoute";
+import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -64,141 +67,225 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   useSessionMonitor(); // Add session monitoring
-  
+
   return (
-    <Routes>
-      <Route path="/auth" element={<Auth />} />
-      <Route path="/accept-invite" element={<AcceptInvite />} />
-      <Route path="/" element={
-        <ProtectedRoute>
-          <Dashboard />
-        </ProtectedRoute>
-      } />
-      <Route path="/welcome" element={
-        <ProtectedRoute>
-          <Index />
-        </ProtectedRoute>
-      } />
-      <Route path="/dashboard" element={
-        <ProtectedRoute>
-          <Dashboard />
-        </ProtectedRoute>
-      } />
-      <Route path="/tools" element={
-        <ProtectedRoute>
-          <Tools />
-        </ProtectedRoute>
-      } />
-      <Route path="/tools/:toolId/edit" element={
-        <ProtectedRoute>
-          <Tools />
-        </ProtectedRoute>
-      } />
-      <Route path="/combined-assets" element={
-        <ProtectedRoute>
-          <CombinedAssets />
-        </ProtectedRoute>
-      } />
-      <Route path="/inventory" element={
-        <ProtectedRoute>
-          <Inventory />
-        </ProtectedRoute>
-      } />
-      <Route path="/inventory/summary" element={
-        <ProtectedRoute>
-          <InventorySummary />
-        </ProtectedRoute>
-      } />
-      <Route path="/checkin" element={
-        <ProtectedRoute>
-          <CheckIn />
-        </ProtectedRoute>
-      } />
-      <Route path="/missions" element={
-        <ProtectedRoute>
-          <Missions />
-        </ProtectedRoute>
-      } />
-      <Route path="/missions/:missionId/edit" element={
-        <ProtectedRoute>
-          <EditMission />
-        </ProtectedRoute>
-      } />
-      <Route path="/actions/:actionId?" element={
-        <ProtectedRoute>
-          <Actions />
-        </ProtectedRoute>
-      } />
-      <Route path="/issues" element={
-        <ProtectedRoute>
-          <Issues />
-        </ProtectedRoute>
-      } />
-      <Route path="/audit" element={
-        <ProtectedRoute>
-          <Audit />
-        </ProtectedRoute>
-      } />
-      <Route path="/audit/tool/:toolId" element={
-        <ProtectedRoute>
-          <AuditTool />
-        </ProtectedRoute>
-      } />
-      <Route path="/prompts" element={
-        <ProtectedRoute>
-          <ScoringPrompts />
-        </ProtectedRoute>
-      } />
-      <Route path="/dashboard/analytics" element={
-        <LeadershipRoute>
-          <AnalyticsDashboard />
-        </LeadershipRoute>
-      } />
-      <Route path="/settings" element={
-        <ProtectedRoute>
-          <SettingsPage />
-        </ProtectedRoute>
-      } />
-      <Route path="/organization" element={
-        <LeadershipRoute>
-          <Organization />
-        </LeadershipRoute>
-      } />
-      <Route path="/organization/:organizationId" element={
-        <LeadershipRoute>
-          <Organization />
-        </LeadershipRoute>
-      } />
-      <Route path="/admin/organizations" element={
-        <SuperAdminRoute>
-          <AdminOrganizations />
-        </SuperAdminRoute>
-      } />
-      <Route path="/debug/upload" element={
-        <ProtectedRoute>
-          <UploadDebug />
-        </ProtectedRoute>
-      } />
-      <Route path="/debug/upload-mobile-test" element={
-        <ProtectedRoute>
-          <UploadMobileTest />
-        </ProtectedRoute>
-      } />
-      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <>
+      <TokenRefreshIndicator />
+      {/* Global sync status – visible across all pages, including dashboard */}
+      <div className="fixed bottom-2 left-2 z-40 max-w-sm w-full pointer-events-none">
+        <div className="pointer-events-auto">
+          <SyncStatusIndicator />
+        </div>
+      </div>
+
+      <Routes>
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/accept-invite" element={<AcceptInvite />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/welcome"
+          element={
+            <ProtectedRoute>
+              <Index />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tools"
+          element={
+            <ProtectedRoute>
+              <Tools />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tools/:toolId/edit"
+          element={
+            <ProtectedRoute>
+              <Tools />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/combined-assets"
+          element={
+            <ProtectedRoute>
+              <CombinedAssets />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inventory"
+          element={
+            <ProtectedRoute>
+              <Inventory />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inventory/summary"
+          element={
+            <ProtectedRoute>
+              <InventorySummary />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/checkin"
+          element={
+            <ProtectedRoute>
+              <CheckIn />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/missions"
+          element={
+            <ProtectedRoute>
+              <Missions />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/missions/:missionId/edit"
+          element={
+            <ProtectedRoute>
+              <EditMission />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/actions/:actionId?"
+          element={
+            <ProtectedRoute>
+              <Actions />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/issues"
+          element={
+            <ProtectedRoute>
+              <Issues />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/audit"
+          element={
+            <ProtectedRoute>
+              <Audit />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/audit/tool/:toolId"
+          element={
+            <ProtectedRoute>
+              <AuditTool />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/prompts"
+          element={
+            <ProtectedRoute>
+              <ScoringPrompts />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/analytics"
+          element={
+            <LeadershipRoute>
+              <AnalyticsDashboard />
+            </LeadershipRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <SettingsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/organization"
+          element={
+            <LeadershipRoute>
+              <Organization />
+            </LeadershipRoute>
+          }
+        />
+        <Route
+          path="/organization/:organizationId"
+          element={
+            <LeadershipRoute>
+              <Organization />
+            </LeadershipRoute>
+          }
+        />
+        <Route
+          path="/admin/organizations"
+          element={
+            <SuperAdminRoute>
+              <AdminOrganizations />
+            </SuperAdminRoute>
+          }
+        />
+        <Route
+          path="/debug/upload"
+          element={
+            <ProtectedRoute>
+              <UploadDebug />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/debug/upload-mobile-test"
+          element={
+            <ProtectedRoute>
+              <UploadMobileTest />
+            </ProtectedRoute>
+          }
+        />
+        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </>
   );
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
+  <PersistQueryClientProvider
+    client={queryClient}
+    persistOptions={{
+      persister: queryCachePersister,
+      maxAge: QUERY_CACHE_MAX_AGE,
+    }}
+  >
     <AuthProvider>
       <OrganizationProvider>
         <AppSettingsProvider>
           <TooltipProvider>
             <Toaster />
             <Sonner />
-            <AppVersion />
             <BrowserRouter basename={import.meta.env.VITE_BASE_PATH || "/"}>
               <AppContent />
             </BrowserRouter>
@@ -206,7 +293,7 @@ const App = () => (
         </AppSettingsProvider>
       </OrganizationProvider>
     </AuthProvider>
-  </QueryClientProvider>
+  </PersistQueryClientProvider>
 );
 
 export default App;

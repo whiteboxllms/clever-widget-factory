@@ -27,11 +27,12 @@ export interface ApiError {
 }
 
 /**
- * Get the current Cognito ID token
+ * Get the current Cognito ID token with automatic refresh
  */
 async function getIdToken(): Promise<string | null> {
   try {
-    const session = await fetchAuthSession();
+    // Force refresh to get a fresh token if current one is expired
+    const session = await fetchAuthSession({ forceRefresh: true });
     const idToken = session.tokens?.idToken?.toString();
     return idToken || null;
   } catch (error) {
@@ -117,11 +118,17 @@ async function apiRequest<T = any>(
       error: errorData,
     };
 
-    // Handle 401 Unauthorized - token may be expired
+    // Handle 401 Unauthorized - token expired, try to refresh and redirect if that fails
     if (response.status === 401) {
-      console.warn('Unauthorized request - token expired, redirecting to login');
-      window.location.href = '/login';
-      throw error;
+      console.warn('Unauthorized - attempting token refresh');
+      try {
+        await fetchAuthSession({ forceRefresh: true });
+        // If refresh succeeds, the next request will use the new token
+        // Don't redirect - let the app retry the request
+      } catch (refreshError) {
+        console.error('Token refresh failed, redirecting to login');
+        window.location.href = '/login';
+      }
     }
 
     // Handle 403 Forbidden - user doesn't have permission

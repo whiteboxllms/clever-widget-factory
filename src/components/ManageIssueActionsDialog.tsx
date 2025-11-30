@@ -10,7 +10,7 @@ import { Calendar, Zap } from "lucide-react";
 import { useIssueActions } from "@/hooks/useIssueActions";
 import { UnifiedActionDialog } from "./UnifiedActionDialog";
 import { BaseAction, createIssueAction } from "@/types/actions";
-import { ActionCard } from "./ActionCard";
+import { ActionListItemCard } from "./ActionListItemCard";
 import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
 
 import { supabase } from '@/lib/client';
@@ -185,14 +185,12 @@ export function ManageIssueActionsDialog({
               ) : (
                 <div className="space-y-3">
                   {actions.map((action) => (
-                    <ActionCard
+                    <ActionListItemCard
                       key={action.id}
                       action={action}
                       profiles={profiles}
-                      onUpdate={fetchActionsAndProfiles}
-                      compact={true}
-                      onToggleComplete={handleToggleComplete}
-                      onEdit={() => setEditingAction(action)}
+                      onClick={() => setEditingAction(action)}
+                      showScoreButton={false}
                     />
                   ))}
                 </div>

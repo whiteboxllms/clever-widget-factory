@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from "@/hooks/useCognitoAuth";
@@ -11,13 +10,12 @@ import { toast } from '@/hooks/use-toast';
 import { useOrganizationMembers } from '@/hooks/useOrganizationMembers';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
 import { offlineQueryConfig } from '@/lib/queryConfig';
-import { Bolt, Plus, Filter, Search, CheckCircle, User, AlertTriangle, Wrench, ArrowLeft, Target, X } from 'lucide-react';
+import { Bolt, Plus, Filter, Search, CheckCircle, AlertTriangle, ArrowLeft, X } from 'lucide-react';
 import { UnifiedActionDialog } from '@/components/UnifiedActionDialog';
 import { ActionScoreDialog } from '@/components/ActionScoreDialog';
-import { ScoreButton } from '@/components/ScoreButton';
+import { ActionListItemCard } from '@/components/ActionListItemCard';
 import { useActionScores, ActionScore } from '@/hooks/useActionScores';
 import { BaseAction, Profile } from '@/types/actions';
-import { cn, hasActualContent, getActionBorderStyle } from '@/lib/utils';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { apiService } from '@/lib/apiService';
 
@@ -255,32 +253,6 @@ export default function Actions() {
     return filtered;
   }, [actions, searchTerm, statusFilter, assigneeFilter, user?.userId, profiles.length]);
 
-
-  const getStatusColor = (status: string, action?: BaseAction) => {
-    if (!action) return 'bg-muted text-muted-foreground';
-    
-    if (status === 'completed') {
-      return 'bg-[hsl(var(--action-done)/0.1)] text-[hsl(var(--action-done))] border-[hsl(var(--action-done)/0.2)]';
-    }
-    
-    const hasPolicy = hasActualContent(action.policy);
-    const hasImplementationUpdates = action.implementation_update_count && action.implementation_update_count > 0;
-    const hasPlanCommitment = action.plan_commitment === true;
-    
-    
-    // Yellow: Implementation updates AND there was first a plan (matches edit dialog logic)
-    if (hasImplementationUpdates && hasPolicy && hasPlanCommitment) {
-      return 'bg-[hsl(var(--action-progress)/0.1)] text-[hsl(var(--action-progress))] border-[hsl(var(--action-progress)/0.2)]';
-    }
-    
-    // Blue: Ready to work (when BOTH plan_commitment is true AND has policy)
-    if (hasPolicy && hasPlanCommitment) {
-      return 'bg-background text-[hsl(var(--action-ready))] border-[hsl(var(--action-ready)/0.2)]';
-    }
-    
-    return 'bg-muted text-muted-foreground';
-  };
-
   // Sort actions: in-progress first, then by updated_at (most recent first)
   const sortedFilteredActions = [...filteredActions].sort((a, b) => {
     // First priority: in-progress status
@@ -440,125 +412,17 @@ export default function Actions() {
             </Card>
           ) : (
             <div className="grid gap-4">
-              {unresolved.map(action => {
-                const hasImplementation = hasActualContent(action.observations);
-                const hasPolicy = hasActualContent(action.policy);
-                
-                const borderStyle = getActionBorderStyle(action);
-                
-                 return (
-                   <Card 
-                     key={action.id} 
-                     className={cn(
-                       "hover:shadow-md transition-shadow cursor-pointer overflow-hidden",
-                       borderStyle.borderColor,
-                       borderStyle.bgColor,
-                       borderStyle.textColor
-                     )}
-                     onClick={() => handleEditAction(action)}
-                   >
-                     <CardContent className="p-3 sm:p-4 md:p-6">
-                      <div className="space-y-3">
-                        <div className="space-y-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <h3 className="text-lg font-semibold break-words leading-tight break-all">{action.title}</h3>
-                              <div className="text-xs text-muted-foreground mt-1">
-                                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-x-4 gap-y-1">
-                                  <span>Updated: {new Date(action.updated_at).toLocaleDateString('en-US', { 
-                                    year: '2-digit', 
-                                    month: 'numeric', 
-                                    day: 'numeric' 
-                                  }) + ' ' + new Date(action.updated_at).toLocaleTimeString('en-US', {
-                                    hour: 'numeric',
-                                    minute: '2-digit',
-                                    hour12: true
-                                  })}</span>
-                                  {action.estimated_completion_date && (
-                                    <span>Expected: {new Date(action.estimated_completion_date).toLocaleDateString('en-US', { 
-                                      year: '2-digit', 
-                                      month: 'numeric', 
-                                      day: 'numeric' 
-                                    }) + ' ' + new Date(action.estimated_completion_date).toLocaleTimeString('en-US', {
-                                      hour: 'numeric',
-                                      minute: '2-digit',
-                                      hour12: true
-                                    })}</span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex-shrink-0">
-                              <ScoreButton action={action} onScoreAction={handleScoreAction} />
-                            </div>
-                          </div>
-                          
-                          {action.description && (
-                            <p className="text-muted-foreground break-words break-all">{action.description}</p>
-                          )}
-                          
-                          <div className="flex flex-wrap gap-2 overflow-hidden">
-                            {/* Action Type Indicator */}
-                             {action.asset ? (
-                               <Badge variant="outline" className="bg-blue-100 text-blue-600 border-blue-300 max-w-full overflow-hidden">
-                                 <span className="truncate">Asset: {action.asset.name.length > 10 ? `${action.asset.name.substring(0, 10)}...` : action.asset.name}</span>
-                               </Badge>
-                            ) : action.issue_tool ? (
-                              <Badge variant="outline" className="bg-orange-100 text-orange-800 max-w-full overflow-hidden">
-                                <span className="truncate">Issue Tool: {action.issue_tool.name.length > 10 ? `${action.issue_tool.name.substring(0, 10)}...` : action.issue_tool.name}</span>
-                              </Badge>
-                            ) : null}
-                          </div>
-                          
-                          <div className="flex flex-wrap gap-2 overflow-hidden">
-                            {action.mission && (
-                              <Badge variant="outline" className="bg-indigo-100 text-indigo-800 max-w-full overflow-hidden">
-                                <span className="truncate">Project #{action.mission.mission_number}: {action.mission.title.length > 15 ? `${action.mission.title.substring(0, 15)}...` : action.mission.title}</span>
-                              </Badge>
-                            )}
-                            
-                            {action.assigned_to ? (
-                              <Badge 
-                                variant="outline" 
-                                className="flex items-center gap-1 max-w-full overflow-hidden"
-                              >
-                                <User className="h-3 w-3 flex-shrink-0" />
-                                <span 
-                                  className="truncate max-w-[80px]"
-                                  style={{ color: action.assigned_to_color || getUserColor(action.assigned_to) }}
-                                >
-                                  {action.assigned_to_name || profiles.find(p => p.user_id === action.assigned_to)?.full_name || 'Unknown User'}
-                                </span>
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-orange-600">
-                                Unassigned
-                              </Badge>
-                            )}
-                            
-                            {action.participants_details && action.participants_details.length > 0 && (
-                              action.participants_details.map(participant => (
-                                <Badge 
-                                  key={participant.user_id} 
-                                  variant="secondary" 
-                                  className="flex items-center gap-1 max-w-full overflow-hidden"
-                                  style={{ 
-                                    borderColor: participant.favorite_color || getUserColor(participant.user_id),
-                                    color: participant.favorite_color || getUserColor(participant.user_id)
-                                  }}
-                                >
-                                  <User className="h-3 w-3 flex-shrink-0" />
-                                  <span className="truncate max-w-[80px]">{participant.full_name}</span>
-                                </Badge>
-                              ))
-                            )}
-                          </div>
-                        </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                 );
-              })}
+              {unresolved.map(action => (
+                <ActionListItemCard
+                  key={action.id}
+                  action={action}
+                  profiles={profiles}
+                  onClick={handleEditAction}
+                  onScoreAction={handleScoreAction}
+                  getUserColor={getUserColor}
+                  showScoreButton={true}
+                />
+              ))}
             </div>
           )}
         </TabsContent>
@@ -574,97 +438,19 @@ export default function Actions() {
             </Card>
           ) : (
             <div className="grid gap-4">
-               {completed.map(action => (
-                 <Card 
-                   key={action.id} 
-                   className="hover:shadow-md transition-shadow cursor-pointer border-2 border-[hsl(var(--action-done-border))] overflow-hidden"
-                   onClick={() => handleEditAction(action)}
-                 >
-                   <CardContent className="p-3 sm:p-4 md:p-6">
-                      <div className="space-y-3">
-                        <div className="space-y-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <h3 className="text-lg font-semibold break-words leading-tight break-all">{action.title}</h3>
-                              <div className="text-xs text-muted-foreground mt-1">
-                                 <div className="flex flex-col sm:flex-row sm:flex-wrap gap-x-4 gap-y-1">
-                                   <span>Updated: {new Date(action.updated_at).toLocaleDateString('en-US', { 
-                                     year: '2-digit', 
-                                     month: 'numeric', 
-                                     day: 'numeric' 
-                                   }) + ' ' + new Date(action.updated_at).toLocaleTimeString('en-US', {
-                                     hour: 'numeric',
-                                     minute: '2-digit',
-                                     hour12: true
-                                   })}</span>
-                                 </div>
-                              </div>
-                            </div>
-                            <div className="flex-shrink-0">
-                              <ScoreButton action={action} onScoreAction={handleScoreAction} />
-                            </div>
-                          </div>
-                          
-                          {action.description && (
-                            <p className="text-muted-foreground break-words break-all">{action.description}</p>
-                          )}
-                          
-                          <div className="flex flex-wrap gap-2 overflow-hidden">
-                            <Badge variant="outline" className={getStatusColor(action.status, action)}>
-                              Done
-                            </Badge>
-                            
-                            {/* Action Type Indicator */}
-                            {action.asset ? (
-                            <Badge variant="outline" className="bg-blue-100 text-blue-800 max-w-full overflow-hidden">
-                              <span className="truncate">Asset: {action.asset.name.length > 10 ? `${action.asset.name.substring(0, 10)}...` : action.asset.name}</span>
-                            </Badge>
-                            ) : action.issue_tool ? (
-                              <Badge variant="outline" className="bg-orange-100 text-orange-800 max-w-full overflow-hidden">
-                                <span className="truncate">Issue Tool: {action.issue_tool.name.length > 10 ? `${action.issue_tool.name.substring(0, 10)}...` : action.issue_tool.name}</span>
-                              </Badge>
-                            ) : null}
-                          </div>
-                          
-                          <div className="flex flex-wrap gap-2 overflow-hidden">
-                            {action.mission && (
-                            <Badge variant="outline" className="bg-indigo-100 text-indigo-800 max-w-full overflow-hidden">
-                              <span className="truncate">Project #{action.mission.mission_number}: {action.mission.title.length > 15 ? `${action.mission.title.substring(0, 15)}...` : action.mission.title}</span>
-                            </Badge>
-                            )}
-                            
-                             {action.assigned_to ? (
-                               <Badge variant="outline" className="flex items-center gap-1 max-w-full overflow-hidden">
-                                 <User className="h-3 w-3 flex-shrink-0" />
-                                 <span 
-                                   className="truncate max-w-[80px]"
-                                   style={{ color: action.assigned_to_color || getUserColor(action.assigned_to) }}
-                                 >
-                                   {action.assigned_to_name || profiles.find(p => p.user_id === action.assigned_to)?.full_name || 'Unknown User'}
-                                 </span>
-                               </Badge>
-                             ) : (
-                               <Badge variant="outline" className="text-orange-600">
-                                 Unassigned
-                               </Badge>
-                             )}
-                             
-                             {action.participants_details && action.participants_details.length > 0 && (
-                               action.participants_details.map(participant => (
-                                 <Badge key={participant.user_id} variant="secondary" className="flex items-center gap-1 max-w-full overflow-hidden">
-                                   <User className="h-3 w-3 flex-shrink-0" />
-                                   <span className="truncate max-w-[80px]">{participant.full_name}</span>
-                                 </Badge>
-                               ))
-                             )}
-                          </div>
-                        </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                ))}
-             </div>
-           )}
+              {completed.map(action => (
+                <ActionListItemCard
+                  key={action.id}
+                  action={action}
+                  profiles={profiles}
+                  onClick={handleEditAction}
+                  onScoreAction={handleScoreAction}
+                  getUserColor={getUserColor}
+                  showScoreButton={true}
+                />
+              ))}
+            </div>
+          )}
          </TabsContent>
        </Tabs>
 

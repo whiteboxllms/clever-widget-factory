@@ -64,12 +64,33 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
 
   useEffect(() => {
     fetchSelectedAssetDetails();
-  }, [selectedAssets, assets]);
+  }, [selectedAssets, assets.length]); // Use assets.length instead of assets array
+
+  // Log all available tools when component loads (for debugging) - only once
+  useEffect(() => {
+    if (assets.length > 0 && !loading) {
+      console.log('[AssetSelector] Available tools:', {
+        total: assets.length,
+        toolNames: assets.map(a => a.name).sort(),
+        toolsWithBranch: assets.filter(a => a.name.toLowerCase().includes('branch')).map(a => ({
+          name: a.name,
+          id: a.id,
+          serial: a.serial_number,
+          category: a.category
+        }))
+      });
+    }
+  }, [assets.length, loading]); // Only log when length changes, not on every render
 
   // Initialize selectedAssets from required_tools when actionId or formData changes
+  // Wait for assets to be loaded before trying to map tool IDs to serial numbers
   useEffect(() => {
+    if (loading || assets.length === 0) {
+      return; // Wait for assets to load
+    }
     fetchCurrentCheckouts();
-  }, [actionId, formData?.required_tools, assets]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actionId, formData?.required_tools, assets.length, loading]); // Use assets.length and disable exhaustive deps for fetchCurrentCheckouts
 
 
 
@@ -77,13 +98,38 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
     // If no actionId but we have formData, use formData.required_tools
     if (!actionId && formData?.required_tools) {
       const toolIds = Array.isArray(formData.required_tools) ? formData.required_tools : [];
-      const serials = toolIds
+      
+      // Map tool IDs to identifiers first
+      const identifiers = toolIds
         .map((toolId: string) => {
           const tool = assets.find(a => a.id === toolId);
-          return tool?.serial_number;
+          if (!tool) {
+            console.warn('[AssetSelector] Tool not found in assets:', toolId);
+            return null;
+          }
+          if (!tool.serial_number) {
+            // Use tool ID as fallback for tools without serial numbers
+            return tool.id;
+          }
+          return tool.serial_number;
         })
         .filter(Boolean) as string[];
-      setSelectedAssets(serials);
+      
+      // Check if we already have these assets selected to prevent infinite loop
+      // Compare the mapped identifiers, not the raw toolIds
+      const currentIdentifiersString = JSON.stringify([...selectedAssets].sort());
+      const newIdentifiersString = JSON.stringify([...identifiers].sort());
+      
+      // Only update if the identifiers have actually changed
+      if (currentIdentifiersString === newIdentifiersString && selectedAssets.length > 0) {
+        return; // Already set, don't update again
+      }
+      
+      console.log('[AssetSelector] Auto-selecting tools from formData:', { toolIds, identifiers, assetsCount: assets.length });
+      
+      if (identifiers.length > 0) {
+        setSelectedAssets(identifiers);
+      }
       return;
     }
     
@@ -103,20 +149,35 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
             return tool?.serial_number;
           })
           .filter(Boolean) as string[];
-        setSelectedAssets(serials);
+        
+        // Only update if different to prevent infinite loop
+        const currentSerialsString = JSON.stringify(selectedAssets.sort());
+        const newSerialsString = JSON.stringify(serials.sort());
+        if (currentSerialsString !== newSerialsString) {
+          setSelectedAssets(serials);
+        }
       }
     } catch (error) {
       console.error('Error fetching action tools:', error);
     }
   };
 
-  const fetchSelectedAssetDetails = async () => {
+  const fetchSelectedAssetDetails = () => {
     if (selectedAssets.length === 0) {
       setSelectedAssetDetails([]);
       return;
     }
+    // Try to find by serial_number first, then by ID (for tools without serial numbers)
     const details = selectedAssets
-      .map(serialNumber => assets.find(asset => asset.serial_number === serialNumber))
+      .map(identifier => {
+        // First try to find by serial_number
+        let asset = assets.find(a => a.serial_number === identifier);
+        // If not found, try to find by ID (for tools without serial numbers)
+        if (!asset) {
+          asset = assets.find(a => a.id === identifier);
+        }
+        return asset;
+      })
       .filter((asset): asset is Asset => asset !== undefined);
     setSelectedAssetDetails(details);
   };
@@ -126,22 +187,69 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
     new Map(assets.map(asset => [asset.id, asset])).values()
   );
   
-  const filteredAssets = uniqueAssets.filter(asset =>
-    asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (asset.serial_number && asset.serial_number.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // Filter assets by search term - search name, serial number, category, and description
+  // Also handle word boundaries and partial matches better
+  const filteredAssets = uniqueAssets.filter(asset => {
+    if (!searchTerm) return true; // Show all when no search term
+    
+    const searchLower = searchTerm.toLowerCase().trim();
+    const assetName = (asset.name || '').toLowerCase();
+    const assetSerial = (asset.serial_number || '').toLowerCase();
+    const assetCategory = (asset.category || '').toLowerCase();
+    const assetDescription = (asset.description || '').toLowerCase();
+    
+    // Check if search term appears anywhere in name, serial, category, or description
+    return (
+      assetName.includes(searchLower) ||
+      assetSerial.includes(searchLower) ||
+      assetCategory.includes(searchLower) ||
+      assetDescription.includes(searchLower)
+    );
+  });
+  
+  // Debug logging to help diagnose search issues
+  useEffect(() => {
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      const matchingTools = uniqueAssets.filter(asset => {
+        const nameMatch = asset.name.toLowerCase().includes(searchLower);
+        const serialMatch = asset.serial_number && asset.serial_number.toLowerCase().includes(searchLower);
+        const categoryMatch = asset.category && asset.category.toLowerCase().includes(searchLower);
+        const descMatch = asset.description && asset.description.toLowerCase().includes(searchLower);
+        return nameMatch || serialMatch || categoryMatch || descMatch;
+      });
+      
+      console.log('[AssetSelector] Search Debug:', {
+        searchTerm,
+        searchLower,
+        totalAssets: uniqueAssets.length,
+        filteredCount: filteredAssets.length,
+        matchingCount: matchingTools.length,
+        sampleNames: uniqueAssets.slice(0, 10).map(a => ({
+          name: a.name,
+          category: a.category,
+          serial: a.serial_number,
+          nameIncludes: a.name.toLowerCase().includes(searchLower),
+          categoryIncludes: a.category?.toLowerCase().includes(searchLower)
+        })),
+        matchingTools: matchingTools.slice(0, 5).map(a => a.name)
+      });
+    }
+  }, [searchTerm, uniqueAssets.length, filteredAssets.length]);
 
   const addAsset = async (asset: Asset) => {
+    // Note: We allow tools without serial numbers, but they may not work with checkout system
+    // The serial_number is preferred but not strictly required for actions
     if (!asset.serial_number) {
-      toast({
-        title: "Cannot Add Tool",
-        description: "Only tools with serial numbers can be added to actions.",
-        variant: "destructive"
-      });
-      return;
+      console.warn('[AssetSelector] Tool has no serial_number:', asset.name, asset.id);
+      // Continue anyway - we'll use the tool ID as fallback
     }
 
-    if (selectedAssets.includes(asset.serial_number)) return;
+    // Check if already selected (by serial number or by ID if no serial number)
+    const isAlreadySelected = asset.serial_number 
+      ? selectedAssets.includes(asset.serial_number)
+      : selectedAssetDetails.some(a => a.id === asset.id);
+    if (isAlreadySelected) return;
 
     // If no actionId yet (creating new action), store in formData
     if (!actionId && formData && setFormData) {
@@ -245,16 +353,22 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
       }
     }
 
-    setSelectedAssets([...selectedAssets, asset.serial_number]);
+    // Use serial_number if available, otherwise use tool ID as fallback
+    const identifier = asset.serial_number || asset.id;
+    setSelectedAssets([...selectedAssets, identifier]);
     setShowSearch(false);
     setSearchTerm("");
   };
 
-  const removeAsset = async (serialNumber: string) => {
-    // First, find the asset by serial number to get its tool_id
-    const asset = assets.find(a => a.serial_number === serialNumber);
+  const removeAsset = async (serialNumberOrId: string) => {
+    // First, find the asset by serial number or ID
+    let asset = assets.find(a => a.serial_number === serialNumberOrId);
     if (!asset) {
-      console.error('Asset not found for serial number:', serialNumber);
+      // Try finding by ID (for tools without serial numbers)
+      asset = assets.find(a => a.id === serialNumberOrId);
+    }
+    if (!asset) {
+      console.error('Asset not found for identifier:', serialNumberOrId);
       toast({
         title: "Error",
         description: "Could not find asset to remove",
@@ -330,25 +444,14 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
         return;
       }
     }
-    setSelectedAssets(selectedAssets.filter(serial => serial !== serialNumber));
+    // Remove by serial number or ID
+    const identifier = asset.serial_number || asset.id;
+    setSelectedAssets(selectedAssets.filter(id => id !== identifier));
   };
 
   return (
     <div className="space-y-3">
-      {/* Add Asset Button */}
-      <div className="flex gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => setShowSearch(true)}
-          className="flex-1"
-        >
-          <Search className="w-4 h-4 mr-2" />
-          Search Assets
-        </Button>
-      </div>
-
-      {/* Selected Assets */}
+      {/* Selected Assets - Show first */}
       {selectedAssetDetails.length > 0 && (
         <div className="space-y-2">
           {selectedAssetDetails.map((asset, index) => (
@@ -366,7 +469,7 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
                 size="sm"
                 variant="ghost"
                 className="h-auto p-1"
-                onClick={() => removeAsset(asset.serial_number!)}
+                onClick={() => removeAsset(asset.serial_number || asset.id)}
               >
                 <X className="w-4 h-4" />
               </Button>
@@ -375,87 +478,96 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
         </div>
       )}
 
-      {/* Search Interface */}
-      {showSearch && (
-        <Card className="p-4">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="font-medium">Search Assets</h4>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setShowSearch(false);
-                  setSearchTerm("");
-                }}
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-            
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-               <Input
-                placeholder="Search assets by name or serial number..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+      {/* Add Asset Button or Search Input - Show below selected assets */}
+      {!showSearch ? (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setShowSearch(true)}
+          className="flex-1"
+        >
+          <Search className="w-4 h-4 mr-2" />
+          Add Asset
+        </Button>
+      ) : (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search assets by name, serial number, or category..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 pr-10"
+            autoFocus
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0"
+            onClick={() => {
+              setShowSearch(false);
+              setSearchTerm("");
+            }}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
-            {loading ? (
-              <div className="text-center py-4">Loading assets...</div>
-            ) : (
-              <div className="max-h-64 overflow-y-auto space-y-2">
-                {filteredAssets.length === 0 ? (
-                  <div className="text-center py-4 text-muted-foreground">
-                    {searchTerm ? 'No assets found matching your search' : 'No assets available'}
-                  </div>
-                ) : (
-                  filteredAssets.map((asset) => (
-                    <div
-                      key={asset.id}
-                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
-                      onClick={() => addAsset(asset)}
-                    >
-                      <div className="flex-1">
-                        <p className="font-medium">
-                          {asset.name}
-                          {asset.serial_number && (
-                            <span className="text-xs text-muted-foreground ml-2">
-                              {asset.serial_number}
-                            </span>
-                          )}
-                        </p>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          {asset.legacy_storage_vicinity && (
-                            <span>{asset.legacy_storage_vicinity}</span>
-                          )}
-                          {asset.storage_location && (
-                            <span>• {asset.storage_location}</span>
-                          )}
-                    {activeCheckouts[asset.id] && (
-                      <span>• Checked out to {activeCheckouts[asset.id].user_name}</span>
-                    )}
-                        </div>
+      {/* Search Results - Show inline when searching */}
+      {showSearch && (
+        <div className="space-y-2">
+          {loading ? (
+            <div className="text-center py-4">Loading assets...</div>
+          ) : (
+            <div className="max-h-64 overflow-y-auto space-y-2">
+              {filteredAssets.length === 0 ? (
+                <div className="text-center py-4 text-muted-foreground">
+                  {searchTerm ? 'No assets found matching your search' : 'Start typing to search...'}
+                </div>
+              ) : (
+                filteredAssets.map((asset) => (
+                  <div
+                    key={asset.id}
+                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
+                    onClick={() => addAsset(asset)}
+                  >
+                    <div className="flex-1">
+                      <p className="font-medium">
+                        {asset.name}
+                        {asset.serial_number && (
+                          <span className="text-xs text-muted-foreground ml-2">
+                            {asset.serial_number}
+                          </span>
+                        )}
+                      </p>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        {asset.legacy_storage_vicinity && (
+                          <span>{asset.legacy_storage_vicinity}</span>
+                        )}
+                        {asset.storage_location && (
+                          <span>• {asset.storage_location}</span>
+                        )}
+                        {activeCheckouts[asset.id] && (
+                          <span>• Checked out to {activeCheckouts[asset.id].user_name}</span>
+                        )}
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          addAsset(asset);
-                        }}
-                      >
-                        <Plus className="w-4 h-4" />
-                      </Button>
                     </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-        </Card>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addAsset(asset);
+                      }}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

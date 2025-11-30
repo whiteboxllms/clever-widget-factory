@@ -7,7 +7,7 @@ import { apiService } from '@/lib/apiService';
 import { toast } from "@/hooks/use-toast";
 import { BaseIssue, ContextType, getContextBadgeColor, getContextIcon, getContextLabel, OrderIssue, getOrderIssueTypeLabel } from "@/types/issues";
 import { useGenericIssues } from "@/hooks/useGenericIssues";
-import { useActionProfiles } from "@/hooks/useActionProfiles";
+import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
 import { useAssetScores } from "@/hooks/useAssetScores";
 import { useIssueActions } from "@/hooks/useIssueActions";
 import { getIssueTypeIcon, getIssueTypeColor, getContextTypeIcon } from "@/lib/issueTypeUtils";
@@ -56,12 +56,23 @@ export function GenericIssueCard({
   const [hasFiveWhysSession, setHasFiveWhysSession] = useState(false);
   const { user } = useAuth();
   const organizationId = useOrganizationId();
-  const { profiles } = useActionProfiles();
+  const { members: organizationMembers } = useOrganizationMembers();
   const { removeIssue, resolveIssue } = useGenericIssues();
+  
+  // Transform organization members to Profile format for UnifiedActionDialog
+  // Filter out members with empty/whitespace names and map to Profile interface
+  const profiles = organizationMembers
+    .filter(member => member.full_name && member.full_name.trim() !== '')
+    .map(member => ({
+      id: member.user_id,
+      user_id: member.user_id,
+      full_name: member.full_name,
+      role: member.role
+    }));
   const { getScoreForIssue } = useAssetScores();
   const { getActionsForIssue } = useIssueActions();
 
-  // Profiles now sourced from useActionProfiles (active members in current org)
+  // Profiles now sourced from useOrganizationMembers (active members in current org)
 
   // Fetch context entity information
   useEffect(() => {
@@ -442,7 +453,11 @@ export function GenericIssueCard({
             type: 'issue',
             parentId: issue.id,
             parentTitle: issue.description,
-            prefilledData: createIssueAction(issue.id, issue.description)
+          prefilledData: createIssueAction(
+            issue.id, 
+            issue.description, // Just description, no damage_assessment for generic issues
+            issue.context_type === 'tool' ? issue.context_id : undefined
+          )
           }}
           profiles={profiles}
           onActionSaved={() => {

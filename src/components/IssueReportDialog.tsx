@@ -411,6 +411,8 @@ export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: Issu
           onOpenChange={setIsCreateDialogOpen}
           contextType={contextType}
           contextId={asset?.id}
+          contextName={asset?.name}
+          contextSerialNumber={asset?.serial_number}
           onSuccess={() => {
             fetchIssues();
             setIsCreateDialogOpen(false);

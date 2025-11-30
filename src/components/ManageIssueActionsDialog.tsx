@@ -11,7 +11,7 @@ import { useIssueActions } from "@/hooks/useIssueActions";
 import { UnifiedActionDialog } from "./UnifiedActionDialog";
 import { BaseAction, createIssueAction } from "@/types/actions";
 import { ActionCard } from "./ActionCard";
-import { useActionProfiles } from "@/hooks/useActionProfiles";
+import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
 
 import { supabase } from '@/lib/client';
 import { toast } from "@/hooks/use-toast";
@@ -51,8 +51,20 @@ export function ManageIssueActionsDialog({
   const [editingAction, setEditingAction] = useState<BaseAction | null>(null);
   const { getActionsForIssue, markActionComplete, markActionIncomplete, loading } = useIssueActions();
   
-  // Use standardized profiles for consistent "Assigned to" dropdown
-  const { profiles } = useActionProfiles();
+  // Use organization_members for consistent "Assigned to" dropdown
+  // This ensures we only show active members from the current organization
+  const { members: organizationMembers } = useOrganizationMembers();
+  
+  // Transform organization members to Profile format for UnifiedActionDialog
+  // Filter out members with empty/whitespace names and map to Profile interface
+  const profiles = organizationMembers
+    .filter(member => member.full_name && member.full_name.trim() !== '')
+    .map(member => ({
+      id: member.user_id,
+      user_id: member.user_id,
+      full_name: member.full_name,
+      role: member.role
+    }));
 
   // Fetch actions and profiles when dialog opens
   useEffect(() => {
@@ -214,7 +226,12 @@ export function ManageIssueActionsDialog({
           type: 'issue',
           parentId: issue.id,
           parentTitle: issue.description,
-          prefilledData: showCreateDialog ? createIssueAction(issue.id, issue.description) : undefined
+          prefilledData: showCreateDialog ? createIssueAction(
+            issue.id, 
+            issue.description,
+            // Support both legacy tool_id and new context_id format
+            (issue as any).tool_id || ((issue as any).context_type === 'tool' ? (issue as any).context_id : undefined)
+          ) : undefined
         }}
         profiles={profiles}
         onActionSaved={() => {

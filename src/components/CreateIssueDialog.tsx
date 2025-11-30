@@ -31,6 +31,8 @@ interface CreateIssueDialogProps {
   onOpenChange: (open: boolean) => void;
   contextType?: ContextType;
   contextId?: string;
+  contextName?: string;
+  contextSerialNumber?: string;
   onSuccess?: () => void;
 }
 
@@ -47,6 +49,8 @@ export function CreateIssueDialog({
   onOpenChange,
   contextType: initialContextType,
   contextId: initialContextId,
+  contextName: initialContextName,
+  contextSerialNumber: initialContextSerialNumber,
   onSuccess
 }: CreateIssueDialogProps) {
   const [contextType, setContextType] = useState<ContextType>(initialContextType || 'tool');
@@ -232,7 +236,7 @@ export function CreateIssueDialog({
             Create New Issue
           </DialogTitle>
           <DialogDescription>
-            Report a new issue for any context
+            {initialContextName ? `${initialContextName}${initialContextSerialNumber ? ` (${initialContextSerialNumber})` : ''}` : 'Report a new issue for any context'}
           </DialogDescription>
         </DialogHeader>
 
@@ -262,52 +266,48 @@ export function CreateIssueDialog({
             </div>
           )}
 
-          {/* Entity Selection */}
-          <div>
-            <Label htmlFor="entity" className="text-sm font-medium">
-              {contextType === 'tool' && 'Select Tool *'}
-              {contextType === 'order' && 'Select Order *'}
-              {contextType === 'inventory' && 'Select Part *'}
-              {contextType === 'facility' && 'Facility Area/Location *'}
-            </Label>
-            
-            {contextType === 'facility' ? (
-              <Input
-                placeholder="Enter facility area or location"
-                value={contextId}
-                onChange={(e) => setContextId(e.target.value)}
-              />
-            ) : initialContextId ? (
-              <Input
-                value={selectedEntity ? selectedEntity.name + (selectedEntity.serial_number ? ` (${selectedEntity.serial_number})` : '') : 'Loading...'}
-                disabled
-                className="bg-muted"
-              />
-            ) : (
-              <Select value={contextId} onValueChange={handleEntitySelect}>
-                <SelectTrigger>
-                  <SelectValue placeholder={`Select ${contextType}`} />
-                </SelectTrigger>
-                <SelectContent>
-                  {contextType === 'tool' && tools.map((tool) => (
-                    <SelectItem key={tool.id} value={tool.id}>
-                      {tool.name} {tool.serial_number && `(${tool.serial_number})`}
-                    </SelectItem>
-                  ))}
-                  {contextType === 'order' && orders.map((order) => (
-                    <SelectItem key={order.id} value={order.id}>
-                      {order.supplier_name} - Order #{order.id.slice(0, 8)}
-                    </SelectItem>
-                  ))}
-                  {contextType === 'inventory' && parts.map((part) => (
-                    <SelectItem key={part.id} value={part.id}>
-                      {part.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
+          {/* Entity Selection - only show if not pre-selected */}
+          {!initialContextId && (
+            <div>
+              <Label htmlFor="entity" className="text-sm font-medium">
+                {contextType === 'tool' && 'Select Tool *'}
+                {contextType === 'order' && 'Select Order *'}
+                {contextType === 'inventory' && 'Select Part *'}
+                {contextType === 'facility' && 'Facility Area/Location *'}
+              </Label>
+              
+              {contextType === 'facility' ? (
+                <Input
+                  placeholder="Enter facility area or location"
+                  value={contextId}
+                  onChange={(e) => setContextId(e.target.value)}
+                />
+              ) : (
+                <Select value={contextId} onValueChange={handleEntitySelect}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={`Select ${contextType}`} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {contextType === 'tool' && tools.map((tool) => (
+                      <SelectItem key={tool.id} value={tool.id}>
+                        {tool.name} {tool.serial_number && `(${tool.serial_number})`}
+                      </SelectItem>
+                    ))}
+                    {contextType === 'order' && orders.map((order) => (
+                      <SelectItem key={order.id} value={order.id}>
+                        {order.supplier_name} - Order #{order.id.slice(0, 8)}
+                      </SelectItem>
+                    ))}
+                    {contextType === 'inventory' && parts.map((part) => (
+                      <SelectItem key={part.id} value={part.id}>
+                        {part.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
 
 
           {/* Quantity fields for order issues - show for all order issues now */}

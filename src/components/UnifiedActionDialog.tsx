@@ -199,6 +199,7 @@ export function UnifiedActionDialog({
           // Creating new action with context
           setFormData({
             ...context.prefilledData,
+            required_tools: context.prefilledData.required_tools || [],
             required_stock: context.prefilledData.required_stock || [],
             attachments: context.prefilledData.attachments || []
           });

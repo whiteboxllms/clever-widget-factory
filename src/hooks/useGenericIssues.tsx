@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 
 import { toast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
+import { useAuth } from "@/hooks/useCognitoAuth";
 import { BaseIssue, ContextType, ToolIssue, OrderIssue } from "@/types/issues";
 import { apiService } from "@/lib/apiService";
 
@@ -13,6 +14,7 @@ export interface GenericIssuesFilters {
 
 export function useGenericIssues(filters: GenericIssuesFilters = {}) {
   const organizationId = useOrganizationId();
+  const { user } = useAuth();
   const [issues, setIssues] = useState<BaseIssue[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -50,30 +52,43 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
   };
 
   const createIssue = async (issueData: Partial<BaseIssue>) => {
+    const insertData = {
+      context_type: issueData.context_type!,
+      context_id: issueData.context_id!,
+      description: issueData.description!,
+      issue_type: issueData.issue_type || 'other',
+      status: issueData.status || 'active',
+      workflow_status: issueData.workflow_status || 'reported',
+      issue_metadata: issueData.issue_metadata || {},
+      report_photo_urls: issueData.report_photo_urls || [],
+      damage_assessment: issueData.damage_assessment,
+      reported_by: user?.userId
+    };
+
+    // Optimistic update
+    const tempIssue = {
+      id: `temp-${Date.now()}`,
+      ...insertData,
+      reported_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    setIssues(prev => [tempIssue as BaseIssue, ...prev]);
+
     try {
-      const insertData = {
-        context_type: issueData.context_type!,
-        context_id: issueData.context_id!,
-        description: issueData.description!,
-        issue_type: issueData.issue_type || 'other',
-        status: issueData.status || 'active',
-        workflow_status: issueData.workflow_status || 'reported',
-        issue_metadata: issueData.issue_metadata || {},
-        report_photo_urls: issueData.report_photo_urls || [],
-        damage_assessment: issueData.damage_assessment
-      };
-
       const data = await apiService.post(`/issues`, insertData);
-
+      await fetchIssues();
+      
       toast({
         title: "Issue reported",
         description: "The issue has been added successfully."
       });
-
-      await fetchIssues();
+      
       return data;
-
     } catch (error) {
+      // Rollback on error
+      setIssues(prev => prev.filter(i => i.id !== tempIssue.id));
+      
       console.error('Error creating issue:', error);
       toast({
         title: "Error reporting issue",

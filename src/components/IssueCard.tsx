@@ -15,7 +15,7 @@ import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useAssetScores, AssetScore } from "@/hooks/useAssetScores";
 import { useIssueActions } from "@/hooks/useIssueActions";
 import { getIssueTypeIcon, getIssueTypeColor } from "@/lib/issueTypeUtils";
-import { useActionProfiles } from "@/hooks/useActionProfiles";
+import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
 
 interface ToolIssue {
   id: string;
@@ -50,8 +50,19 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
   const [tool, setTool] = useState<any>(null);
   const [existingScore, setExistingScore] = useState<AssetScore | null>(null);
   const [existingActions, setExistingActions] = useState<any[]>([]);
-  const { profiles } = useActionProfiles();
+  const { members: organizationMembers } = useOrganizationMembers();
   const { getScoreForIssue } = useAssetScores();
+  
+  // Transform organization members to Profile format for UnifiedActionDialog
+  // Filter out members with empty/whitespace names and map to Profile interface
+  const profiles = organizationMembers
+    .filter(member => member.full_name && member.full_name.trim() !== '')
+    .map(member => ({
+      id: member.user_id,
+      user_id: member.user_id,
+      full_name: member.full_name,
+      role: member.role
+    }));
   const { getActionsForIssue } = useIssueActions();
 
   // Issue type utilities imported from centralized location
@@ -93,7 +104,7 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
     }
   };
 
-  // Profiles now sourced from useActionProfiles (active members in current org)
+  // Profiles now sourced from useOrganizationMembers (active members in current org)
 
   // Check for existing score and actions when component mounts
   useEffect(() => {
@@ -264,7 +275,41 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
           type: 'issue',
           parentId: issue.id,
           parentTitle: issue.description,
-          prefilledData: createIssueAction(issue.id, issue.description)
+          prefilledData: (() => {
+            // Debug logging
+            console.log('[IssueCard] Creating action from issue:', {
+              issueId: issue.id,
+              description: issue.description,
+              damage_assessment: issue.damage_assessment,
+              hasDamageAssessment: !!issue.damage_assessment,
+              tool_id: issue.tool_id,
+              fullIssue: issue
+            });
+            
+            const combinedDescription = issue.damage_assessment 
+              ? `${issue.description}\n\nDamage Assessment: ${issue.damage_assessment}`
+              : issue.description;
+            
+            console.log('[IssueCard] Combined description:', {
+              original: issue.description,
+              combined: combinedDescription,
+              length: combinedDescription.length
+            });
+            
+            const prefilled = createIssueAction(
+              issue.id, 
+              combinedDescription,
+              issue.tool_id
+            );
+            
+            console.log('[IssueCard] Prefilled data:', {
+              description: prefilled.description,
+              descriptionLength: prefilled.description?.length,
+              linked_issue_id: prefilled.linked_issue_id
+            });
+            
+            return prefilled;
+          })()
         }}
         profiles={profiles}
         onActionSaved={() => {

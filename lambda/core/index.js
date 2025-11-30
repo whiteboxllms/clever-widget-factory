@@ -641,7 +641,6 @@ exports.handler = async (event) => {
         };
       }
 
-      // Always use organizationId from authorizer context (not from request body)
       if (!organizationId) {
         console.error('❌ ERROR: Cannot create issue history - organization_id is missing from authorizer context');
         return {
@@ -650,14 +649,23 @@ exports.handler = async (event) => {
           body: JSON.stringify({ error: 'Server configuration error: organization context not available' })
         };
       }
-      const orgId = organizationId;
-      const changedBy = body.changed_by ? escapeLiteral(body.changed_by) : 'system';
+      
+      const userId = authContext.cognito_user_id;
+      if (!userId) {
+        console.error('❌ ERROR: Cannot create issue history - cognito_user_id is missing from authorizer context');
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Server configuration error: user context not available' })
+        };
+      }
+      
       const oldStatus = body.old_status ? `'${escapeLiteral(body.old_status)}'` : 'NULL';
       const notes = body.notes ? `'${escapeLiteral(body.notes)}'` : 'NULL';
 
       const sql = `
         INSERT INTO issue_history (issue_id, old_status, new_status, notes, organization_id, changed_by, changed_at, created_at)
-        VALUES ('${issue_id}', ${oldStatus}, '${escapeLiteral(new_status)}', ${notes}, '${orgId}', '${changedBy}', NOW(), NOW())
+        VALUES ('${issue_id}', ${oldStatus}, '${escapeLiteral(new_status)}', ${notes}, '${organizationId}', '${userId}', NOW(), NOW())
         RETURNING *;
       `;
 
@@ -1140,16 +1148,25 @@ exports.handler = async (event) => {
       if (httpMethod === 'GET') {
         try {
           const { user_id } = event.queryStringParameters || {};
-          let whereClause = '';
+          let whereConditions = [];
+          
+          // Filter by organization and only active members
+          if (!hasDataReadAll && organizationId) {
+            whereConditions.push(`om.organization_id::text = '${escapeLiteral(organizationId)}'`);
+          }
+          whereConditions.push(`om.is_active = true`);
           
           if (user_id) {
-            // Use formatSqlValue to safely escape user_id and prevent SQL injection
-            const safeUserId = formatSqlValue(user_id);
-            whereClause = `WHERE user_id = ${safeUserId}`;
+            whereConditions.push(`p.user_id = ${formatSqlValue(user_id)}`);
           }
           
+          const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+          
           const sql = `SELECT json_agg(row_to_json(t)) FROM (
-            SELECT * FROM profiles ${whereClause}
+            SELECT p.* FROM profiles p
+            INNER JOIN organization_members om ON p.user_id = om.user_id
+            ${whereClause}
+            ORDER BY p.full_name
           ) t;`;
           
           const result = await queryJSON(sql);

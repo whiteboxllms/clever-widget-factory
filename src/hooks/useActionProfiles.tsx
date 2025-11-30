@@ -21,16 +21,16 @@ export function useActionProfiles() {
     try {
       setLoading(true);
       
-      const result = await apiService.get(`/organization_members?organization_id=${organizationId || '00000000-0000-0000-0000-000000000001'}`);
+      const result = await apiService.get('/profiles');
       const data = result.data || [];
 
       // Transform to match ActionProfile interface
-      const actionProfiles: ActionProfile[] = data.map((member: any) => ({
-        id: member.user_id,
-        user_id: member.user_id,
-        full_name: member.full_name,
-        role: member.role,
-        favorite_color: member.favorite_color
+      const actionProfiles: ActionProfile[] = data.map((profile: any) => ({
+        id: profile.user_id,
+        user_id: profile.user_id,
+        full_name: profile.full_name,
+        role: profile.role || 'member',
+        favorite_color: profile.favorite_color
       }));
 
       setProfiles(actionProfiles);
@@ -38,7 +38,7 @@ export function useActionProfiles() {
       console.error('Error in fetchProfiles:', error);
       toast({
         title: "Error",
-        description: "Failed to load organization members",
+        description: "Failed to load profiles",
         variant: "destructive",
       });
     } finally {
@@ -47,10 +47,8 @@ export function useActionProfiles() {
   };
 
   useEffect(() => {
-    if (organizationId) {
-      fetchProfiles();
-    }
-  }, [organizationId]);
+    fetchProfiles();
+  }, []);
 
   return {
     profiles,

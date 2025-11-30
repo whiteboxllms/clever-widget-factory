@@ -49,6 +49,7 @@ export function ManageIssueActionsDialog({
   issue,
   onRefresh
 }: ManageIssueActionsDialogProps) {
+  console.log('[ManageIssueActionsDialog] Rendered with:', { open, issueId: issue.id });
   const queryClient = useQueryClient();
   const [toolName, setToolName] = useState<string>("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -59,8 +60,11 @@ export function ManageIssueActionsDialog({
   const actionsQuery = useQuery({
     queryKey: issueActionsQueryKey(issue.id),
     queryFn: async () => {
+      console.log('[ManageIssueActionsDialog] Fetching actions for issue:', issue.id);
       const response = await apiService.get<{ data: any[] }>(`/actions?linked_issue_id=${issue.id}`);
+      console.log('[ManageIssueActionsDialog] API response:', response);
       const data = response.data || [];
+      console.log('[ManageIssueActionsDialog] Parsed data:', data);
       
       return data.map(action => ({
         ...action,
@@ -69,7 +73,7 @@ export function ManageIssueActionsDialog({
     },
     enabled: open && !!issue.id, // Only fetch when dialog is open
     ...offlineQueryConfig,
-    staleTime: 2 * 60 * 1000, // 2 minutes for actions
+    staleTime: 0, // Disable stale time for debugging
   });
 
   const actions = actionsQuery.data || [];
@@ -132,8 +136,9 @@ export function ManageIssueActionsDialog({
   };
 
   const handleActionCreated = () => {
-    // Invalidate the actions query to refetch
+    // Invalidate both the issue-specific and general actions queries
     queryClient.invalidateQueries({ queryKey: issueActionsQueryKey(issue.id) });
+    queryClient.invalidateQueries({ queryKey: ['actions'] });
     onRefresh();
     toast({
       title: "Success",

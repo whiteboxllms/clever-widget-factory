@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle, X, Clock, Edit, Plus, Target, Swords, Package, Wrench, Home, FileText } from "lucide-react";
 import { apiService } from '@/lib/apiService';
+import { BaseAction } from '@/types/actions';
 import { toast } from "@/hooks/use-toast";
 import { BaseIssue, ContextType, getContextBadgeColor, getContextIcon, getContextLabel, OrderIssue, getOrderIssueTypeLabel } from "@/types/issues";
 import { useGenericIssues } from "@/hooks/useGenericIssues";
@@ -88,10 +89,17 @@ export function GenericIssueCard({
 
   const actionsQuery = useQuery({
     queryKey: issueActionsQueryKey(issue.id),
-    queryFn: () => getActionsForIssue(issue.id),
+    queryFn: async () => {
+      const response = await apiService.get<{ data: any[] }>(`/actions?linked_issue_id=${issue.id}`);
+      const data = response.data || [];
+      return data.map(action => ({
+        ...action,
+        required_stock: Array.isArray(action.required_stock) ? action.required_stock : []
+      })) as unknown as BaseAction[];
+    },
     enabled: enableActions && !!issue.id,
     ...offlineQueryConfig,
-    staleTime: 2 * 60 * 1000, // 2 minutes for actions
+    staleTime: 0,
   });
 
   // Update state when queries resolve

@@ -267,23 +267,26 @@ exports.handler = async (event) => {
 
     // Actions endpoint
     if (httpMethod === 'GET' && path.endsWith('/actions')) {
-      const { limit, offset = 0, assigned_to, status, linked_issue_id } = queryStringParameters || {};
+      const { limit, offset = 0, assigned_to, status, linked_issue_id, asset_id } = queryStringParameters || {};
       
       const orgFilter = buildOrganizationFilter(authContext, 'a');
       let whereConditions = [];
       if (orgFilter.condition) whereConditions.push(orgFilter.condition);
       if (assigned_to) {
-        whereConditions.push(`a.assigned_to = '${assigned_to}'`);
+        whereConditions.push(`a.assigned_to = '${assigned_to.replace(/'/g, "''")}'`);
       }
       if (status) {
         if (status === 'unresolved') {
           whereConditions.push(`a.status IN ('not_started', 'in_progress', 'blocked')`);
         } else {
-          whereConditions.push(`a.status = '${status}'`);
+          whereConditions.push(`a.status = '${status.replace(/'/g, "''")}'`);
         }
       }
       if (linked_issue_id) {
-        whereConditions.push(`a.linked_issue_id = '${linked_issue_id}'`);
+        whereConditions.push(`a.linked_issue_id = '${linked_issue_id.replace(/'/g, "''")}'`);
+      }
+      if (asset_id) {
+        whereConditions.push(`a.asset_id = '${asset_id.replace(/'/g, "''")}'`);
       }
       
       const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
   DialogContent,
@@ -10,8 +11,11 @@ import { Calendar, Zap } from "lucide-react";
 import { useIssueActions } from "@/hooks/useIssueActions";
 import { UnifiedActionDialog } from "./UnifiedActionDialog";
 import { BaseAction, createIssueAction } from "@/types/actions";
-import { ActionCard } from "./ActionCard";
-import { useActionProfiles } from "@/hooks/useActionProfiles";
+import { ActionListItemCard } from "./ActionListItemCard";
+import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
+import { issueActionsQueryKey } from '@/lib/queryKeys';
+import { offlineQueryConfig } from '@/lib/queryConfig';
+import { apiService } from '@/lib/apiService';
 
 import { supabase } from '@/lib/client';
 import { toast } from "@/hooks/use-toast";
@@ -45,54 +49,78 @@ export function ManageIssueActionsDialog({
   issue,
   onRefresh
 }: ManageIssueActionsDialogProps) {
-  const [actions, setActions] = useState<BaseAction[]>([]);
+  console.log('[ManageIssueActionsDialog] Rendered with:', { open, issueId: issue.id });
+  const queryClient = useQueryClient();
   const [toolName, setToolName] = useState<string>("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingAction, setEditingAction] = useState<BaseAction | null>(null);
-  const { getActionsForIssue, markActionComplete, markActionIncomplete, loading } = useIssueActions();
+  const { markActionComplete, markActionIncomplete } = useIssueActions();
   
-  // Use standardized profiles for consistent "Assigned to" dropdown
-  const { profiles } = useActionProfiles();
+  // Use TanStack Query to fetch actions for this issue - shares cache with GenericIssueCard
+  const actionsQuery = useQuery({
+    queryKey: issueActionsQueryKey(issue.id),
+    queryFn: async () => {
+      console.log('[ManageIssueActionsDialog] Fetching actions for issue:', issue.id);
+      const response = await apiService.get<{ data: any[] }>(`/actions?linked_issue_id=${issue.id}`);
+      console.log('[ManageIssueActionsDialog] API response:', response);
+      const data = response.data || [];
+      console.log('[ManageIssueActionsDialog] Parsed data:', data);
+      
+      return data.map(action => ({
+        ...action,
+        required_stock: Array.isArray(action.required_stock) ? action.required_stock : []
+      })) as unknown as BaseAction[];
+    },
+    enabled: open && !!issue.id, // Only fetch when dialog is open
+    ...offlineQueryConfig,
+    staleTime: 0, // Disable stale time for debugging
+  });
 
-  // Fetch actions and profiles when dialog opens
+  const actions = actionsQuery.data || [];
+  const loading = actionsQuery.isLoading;
+  
+  // Use organization_members for consistent "Assigned to" dropdown
+  // This ensures we only show active members from the current organization
+  const { members: organizationMembers } = useOrganizationMembers();
+  
+  // Transform organization members to Profile format for UnifiedActionDialog
+  // Filter out members with empty/whitespace names and map to Profile interface
+  const profiles = organizationMembers
+    .filter(member => member.full_name && member.full_name.trim() !== '')
+    .map(member => ({
+      id: member.user_id,
+      user_id: member.user_id,
+      full_name: member.full_name,
+      role: member.role
+    }));
+
+  // Fetch tool name when dialog opens
   useEffect(() => {
-    if (open) {
-      // Clear actions immediately to prevent flashing
-      setActions([]);
-      fetchActionsAndProfiles();
-    } else {
-      // Clear actions when dialog closes to prevent next flash
-      setActions([]);
-    }
-  }, [open, issue.id]);
-
-  const fetchActionsAndProfiles = async () => {
-    // Fetch actions for this issue
-    const issueActions = await getActionsForIssue(issue.id);
-    setActions(issueActions);
-
-    // Fetch tool name if tool_id exists
-    try {
-      if (issue.tool_id) {
-        const toolResponse = await supabase
-          .from('tools')
-          .select('name')
-          .eq('id', issue.tool_id)
-          .single();
-        
-        if (toolResponse.error) {
-          console.warn('Could not fetch tool name:', toolResponse.error);
+    if (open && issue.tool_id) {
+      const fetchToolName = async () => {
+        try {
+          const toolResponse = await supabase
+            .from('tools')
+            .select('name')
+            .eq('id', issue.tool_id)
+            .single();
+          
+          if (toolResponse.error) {
+            console.warn('Could not fetch tool name:', toolResponse.error);
+            setToolName("Unknown Tool");
+          } else {
+            setToolName(toolResponse.data?.name || "Unknown Tool");
+          }
+        } catch (error) {
+          console.error('Error fetching tool name:', error);
           setToolName("Unknown Tool");
-        } else {
-          setToolName(toolResponse.data?.name || "Unknown Tool");
         }
-      } else {
-        setToolName(""); 
-      }
-    } catch (error) {
-      console.error('Error fetching tool name:', error);
+      };
+      fetchToolName();
+    } else {
+      setToolName("");
     }
-  };
+  }, [open, issue.tool_id]);
 
   const handleToggleComplete = async (action: BaseAction) => {
     const isCompleted = action.status === 'completed';
@@ -101,13 +129,16 @@ export function ManageIssueActionsDialog({
       : await markActionComplete(action);
     
     if (success) {
-      await fetchActionsAndProfiles();
+      // Invalidate the actions query to refetch
+      queryClient.invalidateQueries({ queryKey: issueActionsQueryKey(issue.id) });
       onRefresh();
     }
   };
 
   const handleActionCreated = () => {
-    fetchActionsAndProfiles();
+    // Invalidate both the issue-specific and general actions queries
+    queryClient.invalidateQueries({ queryKey: issueActionsQueryKey(issue.id) });
+    queryClient.invalidateQueries({ queryKey: ['actions'] });
     onRefresh();
     toast({
       title: "Success",
@@ -173,14 +204,12 @@ export function ManageIssueActionsDialog({
               ) : (
                 <div className="space-y-3">
                   {actions.map((action) => (
-                    <ActionCard
+                    <ActionListItemCard
                       key={action.id}
                       action={action}
                       profiles={profiles}
-                      onUpdate={fetchActionsAndProfiles}
-                      compact={true}
-                      onToggleComplete={handleToggleComplete}
-                      onEdit={() => setEditingAction(action)}
+                      onClick={() => setEditingAction(action)}
+                      showScoreButton={false}
                     />
                   ))}
                 </div>
@@ -214,7 +243,12 @@ export function ManageIssueActionsDialog({
           type: 'issue',
           parentId: issue.id,
           parentTitle: issue.description,
-          prefilledData: showCreateDialog ? createIssueAction(issue.id, issue.description) : undefined
+          prefilledData: showCreateDialog ? createIssueAction(
+            issue.id, 
+            issue.description,
+            // Support both legacy tool_id and new context_id format
+            (issue as any).tool_id || ((issue as any).context_type === 'tool' ? (issue as any).context_id : undefined)
+          ) : undefined
         }}
         profiles={profiles}
         onActionSaved={() => {

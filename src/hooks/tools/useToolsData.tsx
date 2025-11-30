@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import { apiService } from '@/lib/apiService';
+import { apiService, getApiData } from '@/lib/apiService';
+import { offlineQueryConfig } from '@/lib/queryConfig';
 
 export interface Tool {
   id: string;
@@ -34,43 +35,48 @@ export interface Tool {
   checkout_notes?: string;
 }
 
+const fetchTools = async () => {
+  const response = await apiService.get<{ data: any[] }>('/tools?limit=1000');
+  return getApiData(response) || [];
+};
+
+const fetchCheckouts = async () => {
+  const response = await apiService.get<{ data: any[] }>('/checkouts?is_returned=false');
+  return getApiData(response) || [];
+};
+
 export const useToolsData = (showRemovedItems: boolean = false) => {
-  const [tools, setTools] = useState<Tool[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeCheckouts, setActiveCheckouts] = useState<{[key: string]: {user_name: string, user_id: string}}>({});
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const fetchTools = async () => {
-    try {
-      const result = await apiService.get('/tools');
-      let toolsData = result.data || [];
-      
-      if (!showRemovedItems) {
-        toolsData = toolsData.filter((tool: Tool) => tool.status !== 'removed');
-      }
-      
-      setTools(toolsData);
+  // Use TanStack Query to share cache with other hooks (useOfflineData, useCombinedAssets)
+  const { data: toolsData = [], isLoading: toolsLoading, refetch: refetchTools } = useQuery({
+    queryKey: ['tools'],
+    queryFn: fetchTools,
+    ...offlineQueryConfig,
+  });
 
-      // Fetch active checkouts
-      const checkoutsResult = await apiService.get('/checkouts?is_returned=false');
-      const checkoutMap: {[key: string]: {user_name: string, user_id: string}} = {};
-      checkoutsResult.data?.forEach((checkout: any) => {
-        checkoutMap[checkout.tool_id] = { user_name: checkout.user_name, user_id: checkout.user_id };
-      });
-      setActiveCheckouts(checkoutMap);
-    } catch (error) {
-      console.error('Error fetching tools:', error);
-      if (navigator.onLine) {
-        toast({
-          title: "Error",
-          description: "Failed to load tools",
-          variant: "destructive"
-        });
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Fetch checkouts separately
+  const { data: checkoutsData = [], isLoading: checkoutsLoading } = useQuery({
+    queryKey: ['checkouts', 'active'],
+    queryFn: fetchCheckouts,
+    ...offlineQueryConfig,
+  });
+
+  // Filter out removed items if needed
+  let tools = toolsData;
+  if (!showRemovedItems) {
+    tools = toolsData.filter((tool: Tool) => tool.status !== 'removed');
+  }
+
+  // Build checkout map
+  const activeCheckouts: {[key: string]: {user_name: string, user_id: string}} = {};
+  checkoutsData.forEach((checkout: any) => {
+    activeCheckouts[checkout.tool_id] = { 
+      user_name: checkout.user_name, 
+      user_id: checkout.user_id 
+    };
+  });
 
   const updateTool = async (toolId: string, updates: any) => {
     // TODO: Implement tool updates via AWS API
@@ -84,17 +90,17 @@ export const useToolsData = (showRemovedItems: boolean = false) => {
     return null;
   };
 
-  useEffect(() => {
-    fetchTools();
-  }, [showRemovedItems]);
+  const invalidateTools = () => {
+    queryClient.invalidateQueries({ queryKey: ['tools'] });
+  };
 
   return {
     tools,
-    loading,
+    loading: toolsLoading || checkoutsLoading,
     activeCheckouts,
-    fetchTools,
+    fetchTools: invalidateTools, // For backward compatibility
     updateTool,
     createTool,
-    refetch: fetchTools
+    refetch: invalidateTools
   };
 };

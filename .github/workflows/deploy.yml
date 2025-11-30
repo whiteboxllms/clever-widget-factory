@@ -30,6 +30,8 @@ jobs:
         VITE_AWS_COGNITO_USER_POOL_ID: ${{ secrets.VITE_AWS_COGNITO_USER_POOL_ID }}
         VITE_AWS_COGNITO_CLIENT_ID: ${{ secrets.VITE_AWS_COGNITO_CLIENT_ID }}
         VITE_AWS_REGION: ${{ secrets.VITE_AWS_REGION }}
+        VITE_AWS_ACCESS_KEY_ID: ${{ secrets.VITE_AWS_ACCESS_KEY_ID }}
+        VITE_AWS_SECRET_ACCESS_KEY: ${{ secrets.VITE_AWS_SECRET_ACCESS_KEY }}
       run: npm run build -- --mode production
     
     - name: Setup Pages

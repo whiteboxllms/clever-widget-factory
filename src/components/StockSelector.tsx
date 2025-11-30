@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +7,8 @@ import { Card } from "@/components/ui/card";
 import { Search, Plus, X, Package } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
-import { apiService } from '@/lib/apiService';
+import { apiService, getApiData } from '@/lib/apiService';
+import { offlineQueryConfig } from '@/lib/queryConfig';
 
 interface StockItem {
   id: string;
@@ -27,44 +29,40 @@ interface StockSelectorProps {
   onStockChange: (stock: SelectedStockItem[]) => void;
 }
 
+const fetchParts = async () => {
+  const response = await apiService.get<{ data: any[] }>('/parts?limit=1000');
+  return getApiData(response) || [];
+};
+
 export function StockSelector({ selectedStock, onStockChange }: StockSelectorProps) {
-  const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showSearch, setShowSearch] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchStockItems();
-  }, []);
+  // Use TanStack Query to share cache with other hooks (useOfflineData, useCombinedAssets)
+  const { data: allParts = [], isLoading: loading } = useQuery({
+    queryKey: ['parts'],
+    queryFn: fetchParts,
+    ...offlineQueryConfig,
+  });
 
-  const fetchStockItems = async () => {
-    setLoading(true);
-    try {
-      const result = await apiService.get('/parts');
-      
-      // Filter parts with current_quantity > 0
-      const stockItems = (result.data || []).filter((part: any) => part.current_quantity > 0);
-      setStockItems(stockItems);
-    } catch (error) {
-      console.error('Error fetching stock items:', error);
-      if (navigator.onLine) {
-        toast({
-          title: "Error",
-          description: "Failed to fetch stock items",
-          variant: "destructive"
-        });
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Filter parts with current_quantity > 0
+  const stockItems: StockItem[] = allParts.filter((part: any) => part.current_quantity > 0);
 
-  const filteredStock = stockItems.filter(item =>
-    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (item.category && item.category.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // Enhanced search - search name, category, and description
+  const filteredStock = stockItems.filter(item => {
+    if (!searchTerm) return true; // Show all when no search term
+    
+    const searchLower = searchTerm.toLowerCase().trim();
+    const itemName = (item.name || '').toLowerCase();
+    const itemCategory = (item.category || '').toLowerCase();
+    
+    return (
+      itemName.includes(searchLower) ||
+      itemCategory.includes(searchLower)
+    );
+  });
 
   const addStockItem = (item: StockItem) => {
     const isAlreadySelected = selectedStock.some(selected => selected.part_id === item.id);

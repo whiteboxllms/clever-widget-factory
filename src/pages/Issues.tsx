@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { Plus, Filter, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,9 +21,19 @@ import { useGenericIssues } from "@/hooks/useGenericIssues";
 import { ContextType, BaseIssue, getContextLabel } from "@/types/issues";
 
 export default function Issues() {
+  const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [contextFilter, setContextFilter] = useState<ContextType | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<'active' | 'resolved' | 'removed' | 'all'>('active');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Check for asset-specific context from URL params
+  const assetContextType = searchParams.get('contextType') as ContextType | null;
+  const assetContextId = searchParams.get('contextId') || undefined;
+  
+  // Use asset-specific filters if provided, otherwise use filter state
+  const effectiveContextType = assetContextType || (contextFilter === 'all' ? undefined : contextFilter);
+  const effectiveContextId = assetContextId;
   
   const { 
     issues, 
@@ -30,9 +42,36 @@ export default function Issues() {
     updateIssue,
     resolveIssue
   } = useGenericIssues({
-    contextType: contextFilter === 'all' ? undefined : contextFilter,
+    contextType: effectiveContextType,
+    contextId: effectiveContextId,
     status: statusFilter === 'all' ? undefined : statusFilter
   });
+
+  // Background prefetching strategy
+  useEffect(() => {
+    // Prefetch all issues in background for instant filtering/search
+    queryClient.prefetchQuery({
+      queryKey: issuesQueryKey({}),
+      queryFn: async () => {
+        const params = new URLSearchParams();
+        params.append('status', 'active,resolved');
+        const data = await apiService.get(`/issues?${params}`);
+        return (data.data || []) as BaseIssue[];
+      },
+      ...offlineQueryConfig,
+      staleTime: 5 * 60 * 1000,
+    });
+
+    // Prefetch organization members if not already cached
+    if (!queryClient.getQueryData(['organization_members'])) {
+      queryClient.prefetchQuery({
+        queryKey: ['organization_members'],
+        queryFn: fetchOrganizationMembers,
+        ...offlineQueryConfig,
+        staleTime: Infinity,
+      });
+    }
+  }, [queryClient]);
 
   // Filter issues by search query
   const filteredIssues = issues.filter(issue => 

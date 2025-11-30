@@ -71,11 +71,6 @@ const fetchOrganizationMembers = async () => {
   return result.data || [];
 };
 
-const fetchProfiles = async () => {
-  const result = await apiService.get('/profiles');
-  return result.data || [];
-};
-
 export const useCombinedAssets = (showRemovedItems: boolean = false, options?: AssetsQueryOptions) => {
   const [currentPage, setCurrentPage] = useState(0);
   const { toast } = useToast();

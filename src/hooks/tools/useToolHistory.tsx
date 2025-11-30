@@ -44,13 +44,14 @@ export interface IssueHistoryEntry {
   old_status?: string;
   new_status?: string;
   notes?: string;
+  damage_assessment?: string;
 }
 
 export interface AssetHistoryEntry {
   id: string;
   type: 'asset_change';
   asset_id: string;
-  change_type: 'created' | 'updated' | 'removed' | 'status_change';
+  change_type: 'created' | 'updated' | 'removed' | 'status_change' | 'action_created';
   changed_at: string;
   changed_by: string;
   user_name?: string;
@@ -58,6 +59,10 @@ export interface AssetHistoryEntry {
   old_value?: string;
   new_value?: string;
   notes?: string;
+  // Action-specific fields (optional)
+  action_id?: string;
+  action_title?: string;
+  action_status?: string;
 }
 
 export type HistoryEntry = CheckoutHistory | IssueHistoryEntry | AssetHistoryEntry;
@@ -65,6 +70,7 @@ export type HistoryEntry = CheckoutHistory | IssueHistoryEntry | AssetHistoryEnt
 export const useToolHistory = () => {
   const [toolHistory, setToolHistory] = useState<HistoryEntry[]>([]);
   const [currentCheckout, setCurrentCheckout] = useState<{user_name: string} | null>(null);
+  const [assetInfo, setAssetInfo] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -72,45 +78,161 @@ export const useToolHistory = () => {
     setLoading(true);
     setToolHistory([]); // Clear previous history while loading
     try {
-      // Fetch all checkouts (both returned and not returned)
-      const checkoutsResult = await apiService.get(`/checkouts?tool_id=${toolId}`);
-      const checkoutsData = checkoutsResult.data || [];
-
-      // Simplified: Only fetch checkouts for now
-      // TODO: Add checkins, asset_history, issue_history endpoints to AWS API
-      const standaloneCheckins: any[] = [];
-      const issueHistoryWithNames: IssueHistoryEntry[] = [];
-      const assetHistoryWithNames: AssetHistoryEntry[] = [];
+      // Fetch unified history from computed endpoint
+      const historyResult = await apiService.get(`/tools/${toolId}/history`);
+      const historyResponse = historyResult.data || { asset: null, checkouts: [], issues: [], actions: [] };
       
-      // Find current checkout (not returned)
-      const activeCheckout = checkoutsData?.find((checkout: any) => !checkout.is_returned);
-      setCurrentCheckout(activeCheckout ? { user_name: activeCheckout.user_name } : null);
-      
-      // Combine checkouts and standalone check-ins into history
-      const processedCheckouts = (checkoutsData || []).map((checkout: any) => ({
+      // Combine checkouts and issues into unified history
+      const checkouts = (historyResponse.checkouts || []).map((checkout: any) => ({
         ...checkout,
-        checkin: null // TODO: Fetch checkins separately
+        type: 'checkout',
+        date: checkout.checkout_date || checkout.created_at
       }));
       
-      const allHistory: HistoryEntry[] = [
-        ...processedCheckouts,
-        ...(standaloneCheckins || []).map(checkin => ({
-          id: checkin.id,
-          type: 'checkin',
-          checkout_date: checkin.checkin_date,
-          created_at: checkin.checkin_date, // Use checkin_date as created_at for sorting
-          user_name: checkin.user_name,
-          is_returned: true,
-          checkin: checkin
-        })),
-        ...issueHistoryWithNames,
-        ...assetHistoryWithNames
-      ].sort((a, b) => {
-        const dateA = new Date('checkout_date' in a ? (a.checkout_date || a.created_at) : a.changed_at);
-        const dateB = new Date('checkout_date' in b ? (b.checkout_date || b.created_at) : b.changed_at);
-        return dateB.getTime() - dateA.getTime();
-      });
+      const issues = (historyResponse.issues || []).map((issue: any) => ({
+        ...issue,
+        type: 'issue',
+        date: issue.reported_at || issue.created_at,
+        user_name: issue.reported_by_name,
+        damage_assessment: issue.damage_assessment,
+        issue_description: issue.description // Ensure description is included
+      }));
       
+      // Add asset creation entry if asset exists
+      const assetEntries: any[] = [];
+      if (historyResponse.asset) {
+        const asset = historyResponse.asset;
+        // Add asset creation entry
+        if (asset.created_at) {
+          assetEntries.push({
+            type: 'asset_created',
+            date: asset.created_at,
+            asset_id: toolId
+          });
+        }
+        // Add asset update entry if updated_at is different from created_at
+        if (asset.updated_at && asset.updated_at !== asset.created_at) {
+          assetEntries.push({
+            type: 'asset_updated',
+            date: asset.updated_at,
+            asset_id: toolId
+          });
+        }
+      }
+      
+      // Add actions
+      const actions = (historyResponse.actions || []).map((action: any) => ({
+        ...action,
+        type: 'action',
+        date: action.created_at,
+        user_name: action.created_by_name || 'System'
+      }));
+      
+      const historyData = [...assetEntries, ...checkouts, ...issues, ...actions];
+
+      // Find current checkout (not returned)
+      const activeCheckout = checkouts.find(
+        (entry: any) => !entry.is_returned
+      );
+      setCurrentCheckout(activeCheckout ? { user_name: activeCheckout.user_name } : null);
+
+      // Transform to HistoryEntry format
+      const allHistory: HistoryEntry[] = historyData.map((entry: any) => {
+        switch (entry.type) {
+          case 'asset_created':
+            return {
+              id: `asset-created-${toolId}`,
+              type: 'asset_change',
+              asset_id: toolId,
+              change_type: 'created',
+              changed_at: entry.date,
+              changed_by: 'system',
+              user_name: 'System'
+            } as AssetHistoryEntry;
+
+          case 'asset_updated':
+            return {
+              id: `asset-updated-${toolId}-${entry.date}`,
+              type: 'asset_change',
+              asset_id: toolId,
+              change_type: 'updated',
+              changed_at: entry.date,
+              changed_by: 'system',
+              user_name: 'System'
+            } as AssetHistoryEntry;
+
+          case 'checkout':
+            return {
+              id: entry.id,
+              checkout_date: entry.date,
+              created_at: entry.date,
+              user_name: entry.user_name || 'Unknown',
+              is_returned: entry.is_returned || false,
+              intended_usage: entry.intended_usage,
+              notes: entry.notes,
+              action_id: entry.action_id,
+              action_title: entry.action_title,
+              checkin: null
+            } as CheckoutHistory;
+
+          case 'action':
+            return {
+              id: entry.id,
+              type: 'asset_change',
+              asset_id: toolId,
+              change_type: 'action_created',
+              changed_at: entry.date,
+              changed_by: entry.created_by || 'system',
+              user_name: entry.user_name || 'System',
+              notes: entry.description,
+              action_id: entry.id,
+              action_title: entry.title,
+              action_status: entry.status
+            } as AssetHistoryEntry;
+
+          case 'issue':
+            return {
+              id: entry.id,
+              type: 'issue_change',
+              issue_id: entry.id,
+              issue_description: entry.description || entry.issue_description,
+              issue_type: entry.issue_type,
+              change_type: 'created',
+              changed_at: entry.date,
+              changed_by: entry.reported_by || 'system',
+              user_name: entry.user_name || 'System',
+              old_status: null,
+              new_status: entry.status,
+              notes: entry.description,
+              damage_assessment: entry.damage_assessment
+            } as IssueHistoryEntry;
+
+          case 'issue_history':
+            return {
+              id: entry.id,
+              type: 'issue_change',
+              issue_id: entry.issue_id,
+              change_type: entry.change_type as 'created' | 'updated' | 'resolved' | 'removed',
+              changed_at: entry.date,
+              changed_by: entry.changed_by || 'system',
+              user_name: entry.user_name || 'System',
+              old_status: entry.old_status,
+              new_status: entry.new_status,
+              notes: entry.description || entry.notes
+            } as IssueHistoryEntry;
+
+          default:
+            return entry;
+        }
+      });
+
+      // Sort by date descending (most recent first)
+      allHistory.sort((a, b) => {
+        const dateA = 'checkout_date' in a ? (a.checkout_date || a.created_at) : a.changed_at;
+        const dateB = 'checkout_date' in b ? (b.checkout_date || b.created_at) : b.changed_at;
+        return new Date(dateB).getTime() - new Date(dateA).getTime();
+      });
+
       setToolHistory(allHistory);
     } catch (error) {
       console.error('Error fetching tool history:', error);
@@ -127,6 +249,7 @@ export const useToolHistory = () => {
   return {
     toolHistory,
     currentCheckout,
+    assetInfo,
     loading,
     fetchToolHistory,
     setCurrentCheckout

@@ -1,11 +1,19 @@
 import { S3Client } from '@aws-sdk/client-s3';
 
+// Validate credentials
+const accessKeyId = import.meta.env.VITE_AWS_ACCESS_KEY_ID;
+const secretAccessKey = import.meta.env.VITE_AWS_SECRET_ACCESS_KEY;
+
+if (!accessKeyId || !secretAccessKey) {
+  console.error('AWS credentials not configured. Set VITE_AWS_ACCESS_KEY_ID and VITE_AWS_SECRET_ACCESS_KEY in .env');
+}
+
 // S3 client configuration
 export const s3Client = new S3Client({
   region: 'us-west-2',
   credentials: {
-    accessKeyId: import.meta.env.VITE_AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: import.meta.env.VITE_AWS_SECRET_ACCESS_KEY || '',
+    accessKeyId: accessKeyId || '',
+    secretAccessKey: secretAccessKey || '',
   },
   requestHandler: {
     requestTimeout: 30000, // 30 second timeout

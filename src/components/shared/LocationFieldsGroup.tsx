@@ -8,6 +8,7 @@ interface ParentStructure {
   id: string;
   name: string;
   category?: string;
+  serial_number?: string;
 }
 
 interface LocationFieldsGroupProps {
@@ -70,7 +71,7 @@ export const LocationFieldsGroup: React.FC<LocationFieldsGroupProps> = ({
             <SelectItem value="none">None</SelectItem>
             {Array.isArray(parentStructures) ? parentStructures.map((structure) => (
               <SelectItem key={structure.id} value={structure.id}>
-                {structure.name} ({structure.category})
+                {structure.name}{structure.serial_number ? ` (${structure.serial_number})` : ''}
               </SelectItem>
             )) : null}
           </SelectContent>

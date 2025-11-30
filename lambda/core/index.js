@@ -140,8 +140,60 @@ exports.handler = async (event) => {
       };
     }
 
+
+
     // Tools endpoint
     if (path.endsWith('/tools') || path.match(/\/tools\/[a-f0-9-]+$/)) {
+      if (httpMethod === 'POST' && path.endsWith('/tools')) {
+        const body = JSON.parse(event.body || '{}');
+        if (!body.name) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'name is required' })
+          };
+        }
+        
+        const toolId = randomUUID();
+        const userId = authContext.cognito_user_id;
+        
+        const insertSql = `
+          INSERT INTO tools (
+            id, name, description, category, status, serial_number,
+            parent_structure_id, storage_location, legacy_storage_vicinity,
+            accountable_person_id, image_url, organization_id, created_at, updated_at
+          ) VALUES (
+            '${toolId}',
+            ${formatSqlValue(body.name)},
+            ${formatSqlValue(body.description)},
+            ${formatSqlValue(body.category)},
+            ${formatSqlValue(body.status || 'available')},
+            ${formatSqlValue(body.serial_number)},
+            ${formatSqlValue(body.parent_structure_id)},
+            ${formatSqlValue(body.storage_location)},
+            ${formatSqlValue(body.legacy_storage_vicinity)},
+            ${formatSqlValue(body.accountable_person_id)},
+            ${formatSqlValue(body.image_url)},
+            ${formatSqlValue(organizationId)},
+            NOW(),
+            NOW()
+          ) RETURNING *`;
+        
+        const result = await queryJSON(insertSql);
+        
+        // Log creation to asset_history
+        if (userId && organizationId) {
+          const historySql = `INSERT INTO asset_history (asset_id, change_type, changed_by, organization_id, changed_at) VALUES ('${toolId}', 'created', '${userId}', '${organizationId}', NOW())`;
+          await queryJSON(historySql).catch(e => console.error('History log error:', e));
+        }
+        
+        return {
+          statusCode: 201,
+          headers,
+          body: JSON.stringify({ data: result[0] })
+        };
+      }
+      
       if (httpMethod === 'PUT') {
         const toolId = path.split('/').pop();
         const body = JSON.parse(event.body || '{}');
@@ -167,6 +219,17 @@ exports.handler = async (event) => {
         updates.push('updated_at = NOW()');
         const sql = `UPDATE tools SET ${updates.join(', ')} WHERE id = '${toolId}' RETURNING *`;
         const result = await queryJSON(sql);
+        
+        // Log to asset_history
+        const userId = authContext.cognito_user_id;
+        if (userId && organizationId) {
+          const fields = Object.keys(body).filter(k => ['status','actual_location','storage_location','name','description','category','serial_number'].includes(k));
+          for (const field of fields) {
+            const historySql = `INSERT INTO asset_history (asset_id, change_type, field_changed, new_value, changed_by, organization_id, changed_at) VALUES ('${toolId}', 'updated', '${field}', ${formatSqlValue(body[field])}, '${userId}', '${organizationId}', NOW())`;
+            await queryJSON(historySql).catch(e => console.error('History log error:', e));
+          }
+        }
+        
         return {
           statusCode: 200,
           headers,
@@ -641,7 +704,6 @@ exports.handler = async (event) => {
         };
       }
 
-      // Always use organizationId from authorizer context (not from request body)
       if (!organizationId) {
         console.error('❌ ERROR: Cannot create issue history - organization_id is missing from authorizer context');
         return {
@@ -650,14 +712,23 @@ exports.handler = async (event) => {
           body: JSON.stringify({ error: 'Server configuration error: organization context not available' })
         };
       }
-      const orgId = organizationId;
-      const changedBy = body.changed_by ? escapeLiteral(body.changed_by) : 'system';
+      
+      const userId = authContext.cognito_user_id;
+      if (!userId) {
+        console.error('❌ ERROR: Cannot create issue history - cognito_user_id is missing from authorizer context');
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: 'Server configuration error: user context not available' })
+        };
+      }
+      
       const oldStatus = body.old_status ? `'${escapeLiteral(body.old_status)}'` : 'NULL';
       const notes = body.notes ? `'${escapeLiteral(body.notes)}'` : 'NULL';
 
       const sql = `
         INSERT INTO issue_history (issue_id, old_status, new_status, notes, organization_id, changed_by, changed_at, created_at)
-        VALUES ('${issue_id}', ${oldStatus}, '${escapeLiteral(new_status)}', ${notes}, '${orgId}', '${changedBy}', NOW(), NOW())
+        VALUES ('${issue_id}', ${oldStatus}, '${escapeLiteral(new_status)}', ${notes}, '${organizationId}', '${userId}', NOW(), NOW())
         RETURNING *;
       `;
 
@@ -1140,16 +1211,25 @@ exports.handler = async (event) => {
       if (httpMethod === 'GET') {
         try {
           const { user_id } = event.queryStringParameters || {};
-          let whereClause = '';
+          let whereConditions = [];
+          
+          // Filter by organization and only active members
+          if (!hasDataReadAll && organizationId) {
+            whereConditions.push(`om.organization_id::text = '${escapeLiteral(organizationId)}'`);
+          }
+          whereConditions.push(`om.is_active = true`);
           
           if (user_id) {
-            // Use formatSqlValue to safely escape user_id and prevent SQL injection
-            const safeUserId = formatSqlValue(user_id);
-            whereClause = `WHERE user_id = ${safeUserId}`;
+            whereConditions.push(`p.user_id = ${formatSqlValue(user_id)}`);
           }
           
+          const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+          
           const sql = `SELECT json_agg(row_to_json(t)) FROM (
-            SELECT * FROM profiles ${whereClause}
+            SELECT p.* FROM profiles p
+            INNER JOIN organization_members om ON p.user_id = om.user_id
+            ${whereClause}
+            ORDER BY p.full_name
           ) t;`;
           
           const result = await queryJSON(sql);
@@ -1283,6 +1363,202 @@ exports.handler = async (event) => {
             stack: error.stack
           })
         };
+      }
+    }
+
+    // Tools history endpoint
+    if (path.match(/\/tools\/[a-f0-9-]+\/history$/)) {
+      if (httpMethod === 'GET') {
+        try {
+          const toolId = path.split('/')[2];
+          
+          // Get asset info
+          const assetSql = `SELECT created_at, updated_at FROM tools WHERE id::text = '${escapeLiteral(toolId)}';`;
+          const assetResult = await queryJSON(assetSql);
+          
+          // Get checkouts - cast all UUIDs to text for consistency
+          const checkoutsSql = `SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json) as json_agg FROM (
+            SELECT 
+              c.id::text,
+              c.tool_id::text,
+              c.user_id::text,
+              c.user_name,
+              c.checkout_date,
+              c.expected_return_date,
+              c.is_returned,
+              c.intended_usage,
+              c.notes,
+              c.action_id::text,
+              c.organization_id::text,
+              c.created_at,
+              COALESCE(om.full_name, c.user_name) as user_display_name
+            FROM checkouts c
+            LEFT JOIN organization_members om ON c.user_id::text = om.cognito_user_id::text
+            WHERE c.tool_id::text = '${escapeLiteral(toolId)}'
+            ORDER BY c.checkout_date DESC
+          ) t;`;
+          const checkoutsResult = await queryJSON(checkoutsSql);
+          
+          // Get issues - cast all UUIDs to text
+          const issuesSql = `SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json) as json_agg FROM (
+            SELECT 
+              i.id::text,
+              i.context_type,
+              i.context_id::text,
+              i.description,
+              i.issue_type,
+              i.status,
+              i.workflow_status,
+              i.reported_by::text,
+              i.reported_at,
+              i.resolved_at,
+              i.resolved_by::text,
+              i.organization_id::text,
+              i.created_at,
+              i.updated_at,
+              COALESCE(om.full_name, i.reported_by::text) as reported_by_name
+            FROM issues i
+            LEFT JOIN organization_members om ON i.reported_by::text = om.cognito_user_id::text
+            WHERE i.context_type = 'tool' AND i.context_id::text = '${escapeLiteral(toolId)}'
+            ORDER BY i.reported_at DESC
+          ) t;`;
+          const issuesResult = await queryJSON(issuesSql);
+          
+          // Get actions - cast all UUIDs to text
+          const actionsSql = `SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json) as json_agg FROM (
+            SELECT 
+              a.id::text,
+              a.title,
+              a.description,
+              a.status,
+              a.assigned_to::text,
+              a.asset_id::text,
+              a.mission_id::text,
+              a.organization_id::text,
+              a.created_by::text,
+              a.created_at,
+              a.updated_at,
+              COALESCE(om.full_name, 'System') as created_by_name
+            FROM actions a
+            LEFT JOIN organization_members om ON a.created_by::text = om.cognito_user_id::text
+            WHERE a.asset_id::text = '${escapeLiteral(toolId)}'
+            ORDER BY a.created_at DESC
+          ) t;`;
+          const actionsResult = await queryJSON(actionsSql);
+          
+          // Get asset history
+          const assetHistorySql = `SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json) as json_agg FROM (
+            SELECT 
+              ah.id::text,
+              ah.change_type,
+              ah.field_changed,
+              ah.old_value,
+              ah.new_value,
+              ah.changed_at,
+              ah.notes,
+              COALESCE(om.full_name, 'System') as user_name
+            FROM asset_history ah
+            LEFT JOIN organization_members om ON ah.changed_by::text = om.cognito_user_id::text
+            WHERE ah.asset_id::text = '${escapeLiteral(toolId)}'
+            ORDER BY ah.changed_at DESC
+          ) t;`;
+          const assetHistoryResult = await queryJSON(assetHistorySql);
+          
+          // Build unified timeline
+          const asset = assetResult?.[0];
+          const checkouts = checkoutsResult?.[0]?.json_agg || [];
+          const issues = issuesResult?.[0]?.json_agg || [];
+          const actions = actionsResult?.[0]?.json_agg || [];
+          const assetHistory = assetHistoryResult?.[0]?.json_agg || [];
+          
+          const timeline = [];
+          
+          // Add asset history events
+          assetHistory.forEach(ah => {
+            const desc = ah.field_changed 
+              ? `${ah.user_name} updated ${ah.field_changed}${ah.old_value && ah.new_value ? ` (${ah.old_value} → ${ah.new_value})` : ''}`
+              : `${ah.user_name} ${ah.change_type === 'created' ? 'created asset' : 'updated asset'}`;
+            timeline.push({
+              type: 'asset_change',
+              timestamp: ah.changed_at,
+              description: desc,
+              data: ah
+            });
+          });
+          
+          // Add generic asset created event if no history
+          if (assetHistory.length === 0 && asset) {
+            timeline.push({
+              type: 'asset_created',
+              timestamp: asset.created_at,
+              description: 'Asset created'
+            });
+          }
+          
+          // Add checkout events
+          checkouts.forEach(c => {
+            timeline.push({
+              type: 'checkout',
+              timestamp: c.checkout_date || c.created_at,
+              description: `Checked out by ${c.user_display_name}`,
+              data: c
+            });
+          });
+          
+          // Add issue events
+          issues.forEach(i => {
+            timeline.push({
+              type: 'issue_reported',
+              timestamp: i.reported_at,
+              description: `Issue reported by ${i.reported_by_name}`,
+              data: i
+            });
+            if (i.resolved_at) {
+              timeline.push({
+                type: 'issue_resolved',
+                timestamp: i.resolved_at,
+                description: 'Issue resolved'
+              });
+            }
+          });
+          
+          // Add action events
+          actions.forEach(a => {
+            timeline.push({
+              type: 'action_created',
+              timestamp: a.created_at,
+              description: `Action: ${a.title}`,
+              data: a
+            });
+          });
+          
+          // Sort timeline by timestamp descending
+          timeline.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+          
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ 
+              data: {
+                asset: asset || null,
+                checkouts,
+                issues,
+                actions,
+                timeline
+              }
+            })
+          };
+        } catch (error) {
+          console.error('Error fetching tool history:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ 
+              error: 'Failed to fetch tool history',
+              message: error.message 
+            })
+          };
+        }
       }
     }
 
@@ -1437,6 +1713,8 @@ exports.handler = async (event) => {
         };
       }
     }
+
+
 
     // Missions endpoint
     if (path.endsWith('/missions')) {

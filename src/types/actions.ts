@@ -28,6 +28,8 @@ export interface BaseAction {
   score?: number | null;
   scoring_data?: any;
   plan_commitment?: boolean | null;
+  policy_agreed_at?: string | null;
+  policy_agreed_by?: string | null;
   participants?: string[];
   implementation_update_count?: number;
   
@@ -91,19 +93,23 @@ export const createMissionAction = (missionId: string): Partial<BaseAction> => (
   attachments: []
 });
 
-export const createIssueAction = (issueId: string, issueDescription?: string): Partial<BaseAction> => ({
+export const createIssueAction = (
+  issueId: string, 
+  issueDescription?: string, 
+  toolId?: string
+): Partial<BaseAction> => ({
   linked_issue_id: issueId,
   status: 'not_started',
   title: '',
-  description: '',
+  description: issueDescription || '', // Use the combined text passed in
   policy: '',
   observations: '',
   assigned_to: null,
   participants: [],
-  required_tools: [],
+  required_tools: toolId ? [toolId] : [],
   required_stock: [],
   attachments: [],
-  issue_reference: issueDescription ? `Issue: ${issueDescription}` : null
+  issue_reference: issueDescription ? `Issue: ${issueDescription.split('\n')[0]}` : null // Use first line for reference
 });
 
 export const createAssetAction = (assetId: string): Partial<BaseAction> => ({

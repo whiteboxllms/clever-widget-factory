@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { History, Edit, Plus, AlertTriangle, Clock, LogOut, LogIn, Loader2, ExternalLink } from "lucide-react";
+import { History, Edit, Plus, AlertTriangle, Clock, LogOut, LogIn, Loader2, ExternalLink, Zap, Target } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useToolHistory, HistoryEntry, AssetHistoryEntry, CheckoutHistory, IssueHistoryEntry } from "@/hooks/tools/useToolHistory";
 import { Link } from "react-router-dom";
@@ -32,7 +32,7 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
   ({ assetId, assetName, children }, ref) => {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
-  const { toolHistory, loading, fetchToolHistory } = useToolHistory();
+  const { toolHistory, assetInfo, loading, fetchToolHistory } = useToolHistory();
 
   useEffect(() => {
     if (open) {
@@ -51,6 +51,8 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
           return <AlertTriangle className="h-4 w-4 text-orange-600" />;
         case 'removed':
           return <AlertTriangle className="h-4 w-4 text-red-600" />;
+        case 'action_created':
+          return <Zap className="h-4 w-4 text-purple-600" />;
         default:
           return <History className="h-4 w-4 text-gray-600" />;
       }
@@ -73,13 +75,25 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
           return `Status changed from ${entry.old_value || 'unknown'} to ${entry.new_value || 'unknown'}`;
         case 'removed':
           return 'Asset removed';
+        case 'action_created':
+          return entry.action_title || 'Action created';
         default:
           return 'Asset modified';
       }
     } else if (isCheckoutHistory(entry)) {
       return entry.is_returned ? 'Tool returned' : 'Tool checked out';
     } else if (isIssueHistory(entry)) {
-      return `Issue ${entry.new_status}`;
+      // Show status transition for issue updates
+      if (entry.old_status && entry.new_status && entry.old_status !== entry.new_status) {
+        return `Issue ${entry.old_status} → ${entry.new_status}`;
+      }
+      // For issue creation, show description if available, otherwise show type
+      if (entry.issue_description) {
+        return entry.issue_description.length > 100 
+          ? entry.issue_description.substring(0, 100) + '...' 
+          : entry.issue_description;
+      }
+      return entry.issue_type ? `${entry.issue_type} issue reported` : 'Issue reported';
     }
     return 'Activity recorded';
   };
@@ -88,11 +102,12 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
     if (isAssetHistory(entry)) {
       return entry.change_type === 'created' ? 'Created' :
              entry.change_type === 'status_change' ? 'Status Changed' :
+             entry.change_type === 'action_created' ? 'Action' :
              entry.change_type === 'updated' ? 'Updated' : entry.change_type;
     } else if (isCheckoutHistory(entry)) {
       return entry.is_returned ? 'Returned' : 'Checked Out';
     } else if (isIssueHistory(entry)) {
-      return `Issue ${entry.new_status}`;
+      return entry.issue_type ? `Issue: ${entry.issue_type}` : `Issue: ${entry.new_status}`;
     }
     return 'Activity';
   };
@@ -220,10 +235,183 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
                           )}
                         </div>
                       )}
+
+                      {/* Action display section */}
+                      {isAssetHistory(entry) && entry.change_type === 'action_created' && (
+                        <div className="text-sm bg-purple-50 border border-purple-200 p-3 rounded mt-2">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Zap className="h-4 w-4 text-purple-600" />
+                            <span className="font-medium text-purple-900">Action Details:</span>
+                            {entry.action_status && (
+                              <Badge 
+                                variant={entry.action_status === 'completed' ? 'default' : 'outline'} 
+                                className="text-xs"
+                              >
+                                {entry.action_status}
+                              </Badge>
+                            )}
+                          </div>
+                          {entry.action_title && (
+                            <div className="text-purple-800 mb-2">
+                              <p className="font-medium mb-1">Action:</p>
+                              <p>{entry.action_title}</p>
+                            </div>
+                          )}
+                          {entry.notes && (
+                            <div className="text-sm text-purple-700">
+                              <p className="font-medium mb-1">Details:</p>
+                              <p>{entry.notes}</p>
+                            </div>
+                          )}
+                          {entry.action_id && (
+                            <Link
+                              to={`/actions?action=${entry.action_id}`}
+                              className="text-purple-600 hover:text-purple-800 underline flex items-center gap-1 mt-2 text-sm"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              View Action
+                              <ExternalLink className="h-3 w-3" />
+                            </Link>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Issue display section */}
+                      {isIssueHistory(entry) && (
+                        <div className={`text-sm border p-3 rounded mt-2 ${
+                          entry.new_status === 'resolved' 
+                            ? 'bg-green-50 border-green-200' 
+                            : entry.new_status === 'removed'
+                            ? 'bg-gray-50 border-gray-200'
+                            : 'bg-red-50 border-red-200'
+                        }`}>
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <AlertTriangle className={`h-4 w-4 ${
+                              entry.new_status === 'resolved' 
+                                ? 'text-green-600' 
+                                : entry.new_status === 'removed'
+                                ? 'text-gray-600'
+                                : 'text-red-600'
+                            }`} />
+                            <span className={`font-medium ${
+                              entry.new_status === 'resolved' 
+                                ? 'text-green-900' 
+                                : entry.new_status === 'removed'
+                                ? 'text-gray-900'
+                                : 'text-red-900'
+                            }`}>Issue Details:</span>
+                            {entry.issue_type && (
+                              <Badge variant="outline" className="text-xs">
+                                {entry.issue_type}
+                              </Badge>
+                            )}
+                            <Badge 
+                              variant={
+                                entry.new_status === 'resolved' 
+                                  ? 'default' 
+                                  : entry.new_status === 'removed'
+                                  ? 'secondary'
+                                  : 'destructive'
+                              } 
+                              className="text-xs"
+                            >
+                              {entry.new_status}
+                            </Badge>
+                          </div>
+                          {entry.issue_description && (
+                            <div className={`mb-2 ${
+                              entry.new_status === 'resolved' 
+                                ? 'text-green-800' 
+                                : entry.new_status === 'removed'
+                                ? 'text-gray-800'
+                                : 'text-red-800'
+                            }`}>
+                              <p className="font-medium mb-1">Description:</p>
+                              <p>{entry.issue_description}</p>
+                            </div>
+                          )}
+                          {/* Show damage assessment if available */}
+                          {entry.damage_assessment && (
+                            <div className={`mb-2 ${
+                              entry.new_status === 'resolved' 
+                                ? 'text-green-800' 
+                                : entry.new_status === 'removed'
+                                ? 'text-gray-800'
+                                : 'text-red-800'
+                            }`}>
+                              <p className="font-medium mb-1">Damage Assessment:</p>
+                              <p>{entry.damage_assessment}</p>
+                            </div>
+                          )}
+                          {entry.old_status && entry.new_status && entry.old_status !== entry.new_status && (
+                            <p className={`text-sm mb-1 ${
+                              entry.new_status === 'resolved' 
+                                ? 'text-green-700' 
+                                : entry.new_status === 'removed'
+                                ? 'text-gray-700'
+                                : 'text-red-700'
+                            }`}>
+                              Status changed: <span className="font-medium">{entry.old_status}</span> → <span className="font-medium">{entry.new_status}</span>
+                            </p>
+                          )}
+                          {entry.notes && (
+                            <p className={`text-sm mt-1 ${
+                              entry.new_status === 'resolved' 
+                                ? 'text-green-700' 
+                                : entry.new_status === 'removed'
+                                ? 'text-gray-700'
+                                : 'text-red-700'
+                            }`}>{entry.notes}</p>
+                          )}
+                          {entry.issue_id && (
+                            <Link
+                              to={`/issues?issue=${entry.issue_id}`}
+                              className={`underline flex items-center gap-1 mt-2 text-sm ${
+                                entry.new_status === 'resolved' 
+                                  ? 'text-green-600 hover:text-green-800' 
+                                  : entry.new_status === 'removed'
+                                  ? 'text-gray-600 hover:text-gray-800'
+                                  : 'text-red-600 hover:text-red-800'
+                              }`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              View Issue
+                              <ExternalLink className="h-3 w-3" />
+                            </Link>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </Card>
               ))}
+              
+              {/* Asset Creation Info */}
+              {assetInfo && (
+                <Card className="p-4 bg-muted/50 border-dashed">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 mt-1">
+                      <Plus className="h-4 w-4 text-green-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">System</span>
+                          <Badge variant="outline" className="text-xs">
+                            Created
+                          </Badge>
+                        </div>
+                        <span className="text-sm text-muted-foreground">
+                          {new Date(assetInfo.created_at).toLocaleDateString()} {new Date(assetInfo.created_at).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Asset created
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+              )}
             </div>
           )}
         </ScrollArea>

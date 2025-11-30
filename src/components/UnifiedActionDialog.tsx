@@ -85,6 +85,10 @@ export function UnifiedActionDialog({
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['actions'] });
+      // Also invalidate issue-specific actions cache if this action is linked to an issue
+      if (variables.linked_issue_id) {
+        queryClient.invalidateQueries({ queryKey: ['issue_actions', variables.linked_issue_id] });
+      }
       const optimisticData = { ...variables, ...data, id: data?.id || action?.id };
       toast({
         title: "Success",
@@ -199,6 +203,7 @@ export function UnifiedActionDialog({
           // Creating new action with context
           setFormData({
             ...context.prefilledData,
+            required_tools: context.prefilledData.required_tools || [],
             required_stock: context.prefilledData.required_stock || [],
             attachments: context.prefilledData.attachments || []
           });

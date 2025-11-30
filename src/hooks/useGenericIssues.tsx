@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
-
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { BaseIssue, ContextType, ToolIssue, OrderIssue } from "@/types/issues";
 import { apiService } from "@/lib/apiService";
+import { offlineQueryConfig } from '@/lib/queryConfig';
+import { issuesQueryKey, IssuesQueryFilters } from '@/lib/queryKeys';
 
 export interface GenericIssuesFilters {
   contextType?: ContextType;
@@ -15,12 +16,19 @@ export interface GenericIssuesFilters {
 export function useGenericIssues(filters: GenericIssuesFilters = {}) {
   const organizationId = useOrganizationId();
   const { user } = useAuth();
-  const [issues, setIssues] = useState<BaseIssue[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const queryClient = useQueryClient();
 
-  const fetchIssues = async () => {
-    setIsLoading(true);
-    try {
+  // Build query key based on filters
+  const queryKey = issuesQueryKey({
+    contextType: filters.contextType,
+    contextId: filters.contextId,
+    status: filters.status,
+  });
+
+  // Use TanStack Query for caching
+  const issuesQuery = useQuery({
+    queryKey,
+    queryFn: async () => {
       // Build query parameters
       const params = new URLSearchParams();
       if (filters.contextType) params.append('context_type', filters.contextType);
@@ -38,69 +46,71 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
       }
 
       const data = await apiService.get(`/issues?${params}`);
-      setIssues((data.data || []) as BaseIssue[]);
-    } catch (error) {
-      console.error('Error fetching issues:', error);
-      toast({
-        title: "Error loading issues",
-        description: "Could not load issues. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      return (data.data || []) as BaseIssue[];
+    },
+    ...offlineQueryConfig,
+    staleTime: 5 * 60 * 1000, // 5 minutes - issues don't change frequently
+  });
 
-  const createIssue = async (issueData: Partial<BaseIssue>) => {
-    const insertData = {
-      context_type: issueData.context_type!,
-      context_id: issueData.context_id!,
-      description: issueData.description!,
-      issue_type: issueData.issue_type || 'other',
-      status: issueData.status || 'active',
-      workflow_status: issueData.workflow_status || 'reported',
-      issue_metadata: issueData.issue_metadata || {},
-      report_photo_urls: issueData.report_photo_urls || [],
-      damage_assessment: issueData.damage_assessment,
-      reported_by: user?.userId
-    };
+  // Mutations for create/update/delete
+  const createMutation = useMutation({
+    mutationFn: async (issueData: Partial<BaseIssue>) => {
+      const insertData = {
+        context_type: issueData.context_type!,
+        context_id: issueData.context_id!,
+        description: issueData.description!,
+        issue_type: issueData.issue_type || 'other',
+        status: issueData.status || 'active',
+        workflow_status: issueData.workflow_status || 'reported',
+        issue_metadata: issueData.issue_metadata || {},
+        report_photo_urls: issueData.report_photo_urls || [],
+        damage_assessment: issueData.damage_assessment,
+        reported_by: user?.userId
+      };
 
-    // Optimistic update
-    const tempIssue = {
-      id: `temp-${Date.now()}`,
-      ...insertData,
-      reported_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    setIssues(prev => [tempIssue as BaseIssue, ...prev]);
+      // Optimistic update
+      const tempIssue = {
+        id: `temp-${Date.now()}`,
+        ...insertData,
+        reported_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      queryClient.setQueryData(queryKey, (prev: BaseIssue[] = []) => [tempIssue as BaseIssue, ...prev]);
 
-    try {
-      const data = await apiService.post(`/issues`, insertData);
-      await fetchIssues();
-      
-      toast({
-        title: "Issue reported",
-        description: "The issue has been added successfully."
-      });
-      
-      return data;
-    } catch (error) {
-      // Rollback on error
-      setIssues(prev => prev.filter(i => i.id !== tempIssue.id));
-      
-      console.error('Error creating issue:', error);
-      toast({
-        title: "Error reporting issue",
-        description: "Could not save the issue. Please try again.",
-        variant: "destructive"
-      });
-      return null;
-    }
-  };
+      try {
+        const data = await apiService.post(`/issues`, insertData);
+        
+        // Invalidate only the specific query that was affected
+        queryClient.invalidateQueries({ queryKey });
+        
+        toast({
+          title: "Issue reported",
+          description: "The issue has been added successfully."
+        });
+        
+        return data;
+      } catch (error) {
+        // Rollback on error
+        queryClient.setQueryData(queryKey, (prev: BaseIssue[] = []) => prev.filter(i => i.id !== tempIssue.id));
+        
+        console.error('Error creating issue:', error);
+        toast({
+          title: "Error reporting issue",
+          description: "Could not save the issue. Please try again.",
+          variant: "destructive"
+        });
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      // Invalidate related queries
+      queryClient.invalidateQueries({ queryKey });
+    },
+  });
 
-  const updateIssue = async (issueId: string, updates: Partial<BaseIssue>) => {
-    try {
+  const updateMutation = useMutation({
+    mutationFn: async ({ issueId, updates }: { issueId: string; updates: Partial<BaseIssue> }) => {
       // Get current issue data to track changes
       const currentData = await apiService.get(`/issues/${issueId}`);
       const currentIssue = currentData.data;
@@ -121,40 +131,59 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
         description: "The issue has been successfully updated."
       });
 
-      await fetchIssues();
       return true;
-
-    } catch (error) {
+    },
+    onSuccess: () => {
+      // Invalidate only the specific query that was affected
+      queryClient.invalidateQueries({ queryKey });
+    },
+    onError: (error) => {
       console.error('Error updating issue:', error);
       toast({
         title: "Error updating issue",
         description: "Could not update the issue. Please try again.",
         variant: "destructive"
       });
-      return false;
-    }
-  };
+    },
+  });
 
-  const resolveIssue = async (
-    issueId: string, 
-    resolutionData?: {
-      root_cause?: string;
-      resolution_notes?: string;
-      resolution_photo_urls?: string[];
-    }
-  ) => {
-    return updateIssue(issueId, {
-      status: 'resolved',
-      resolved_at: new Date().toISOString(),
-      ...(resolutionData || {})
-    });
-  };
+  const resolveMutation = useMutation({
+    mutationFn: async ({
+      issueId,
+      resolutionData,
+    }: {
+      issueId: string;
+      resolutionData?: {
+        root_cause?: string;
+        resolution_notes?: string;
+        resolution_photo_urls?: string[];
+      };
+    }) => {
+      return updateMutation.mutateAsync({
+        issueId,
+        updates: {
+          status: 'resolved',
+          resolved_at: new Date().toISOString(),
+          ...(resolutionData || {}),
+        },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+    },
+  });
 
-  const removeIssue = async (issueId: string) => {
-    return updateIssue(issueId, { 
-      status: 'removed' 
-    });
-  };
+  const removeMutation = useMutation({
+    mutationFn: async (issueId: string) => {
+      return updateMutation.mutateAsync({
+        issueId,
+        updates: { status: 'removed' },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+    },
+  });
 
   const createIssuesFromText = async (
     issuesText: string, 
@@ -174,7 +203,7 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
       .filter(line => line.length > 0);
 
     for (const description of issueDescriptions) {
-      await createIssue({
+      await createMutation.mutateAsync({
         context_type: filters.contextType!,
         context_id: filters.contextId,
         description,
@@ -186,19 +215,23 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
     }
   };
 
-  useEffect(() => {
-    fetchIssues();
-  }, [filters.contextType, filters.contextId, filters.status]);
-
   return {
-    issues,
-    isLoading,
-    fetchIssues,
-    createIssue,
+    issues: issuesQuery.data || [],
+    isLoading: issuesQuery.isLoading,
+    fetchIssues: () => issuesQuery.refetch(),
+    createIssue: createMutation.mutateAsync,
     createIssuesFromText,
-    updateIssue,
-    resolveIssue,
-    removeIssue
+    updateIssue: (issueId: string, updates: Partial<BaseIssue>) => 
+      updateMutation.mutateAsync({ issueId, updates }),
+    resolveIssue: (
+      issueId: string,
+      resolutionData?: {
+        root_cause?: string;
+        resolution_notes?: string;
+        resolution_photo_urls?: string[];
+      }
+    ) => resolveMutation.mutateAsync({ issueId, resolutionData }),
+    removeIssue: (issueId: string) => removeMutation.mutateAsync(issueId),
   };
 }
 

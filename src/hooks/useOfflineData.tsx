@@ -22,11 +22,6 @@ const fetchOrganizationMembers = async () => {
   return getApiData(response) || [];
 };
 
-const fetchProfiles = async () => {
-  const response = await apiService.get<{ data: any[] }>('/profiles');
-  return getApiData(response) || [];
-};
-
 const fetchCheckouts = async () => {
   const response = await apiService.get<{ data: any[] }>('/checkouts');
   return getApiData(response) || [];
@@ -62,12 +57,6 @@ export const useOfflineData = () => {
     ...offlineQueryConfig,
   });
 
-  const profiles = useQuery({
-    queryKey: ['profiles'],
-    queryFn: fetchProfiles,
-    ...offlineQueryConfig,
-  });
-
   const checkouts = useQuery({
     queryKey: ['checkouts'],
     queryFn: fetchCheckouts,
@@ -85,18 +74,17 @@ export const useOfflineData = () => {
     parts: parts.data || [],
     actions: actions.data || [],
     organizationMembers: organizationMembers.data || [],
-    profiles: profiles.data || [],
+    // profiles removed - use organizationMembers instead
     checkouts: checkouts.data || [],
     issues: issues.data || [],
     isLoading: tools.isLoading || parts.isLoading || actions.isLoading || 
-               organizationMembers.isLoading || profiles.isLoading || 
+               organizationMembers.isLoading || 
                checkouts.isLoading || issues.isLoading,
     refetchAll: () => {
       tools.refetch();
       parts.refetch();
       actions.refetch();
       organizationMembers.refetch();
-      profiles.refetch();
       checkouts.refetch();
       issues.refetch();
     }

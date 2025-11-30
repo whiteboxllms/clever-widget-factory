@@ -1,7 +1,4 @@
-import { useState, useEffect } from 'react';
-import { useOrganizationId } from '@/hooks/useOrganizationId';
-import { useToast } from '@/hooks/use-toast';
-import { apiService } from '@/lib/apiService';
+import { useOrganizationMembers } from '@/hooks/useOrganizationMembers';
 
 export interface ActionProfile {
   id: string;
@@ -11,48 +8,38 @@ export interface ActionProfile {
   favorite_color?: string | null;
 }
 
+/**
+ * useActionProfiles - Migrated to use organization_members instead of profiles
+ * 
+ * This hook now uses useOrganizationMembers which:
+ * - Uses TanStack Query with session-level caching (staleTime: Infinity)
+ * - Only fetches once per session
+ * - Returns active organization members only
+ * 
+ * The data is transformed to match the ActionProfile interface for backward compatibility.
+ */
 export function useActionProfiles() {
-  const [profiles, setProfiles] = useState<ActionProfile[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
-  const organizationId = useOrganizationId();
+  const { members, loading } = useOrganizationMembers();
 
-  const fetchProfiles = async () => {
-    try {
-      setLoading(true);
-      
-      const result = await apiService.get('/profiles');
-      const data = result.data || [];
-
-      // Transform to match ActionProfile interface
-      const actionProfiles: ActionProfile[] = data.map((profile: any) => ({
-        id: profile.user_id,
-        user_id: profile.user_id,
-        full_name: profile.full_name,
-        role: profile.role || 'member',
-        favorite_color: profile.favorite_color
-      }));
-
-      setProfiles(actionProfiles);
-    } catch (error) {
-      console.error('Error in fetchProfiles:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load profiles",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchProfiles();
-  }, []);
+  // Transform organization members to ActionProfile format
+  // Filter out members with empty/whitespace names
+  const profiles: ActionProfile[] = members
+    .filter(member => member.full_name && member.full_name.trim() !== '')
+    .map(member => ({
+      id: member.user_id,
+      user_id: member.user_id,
+      full_name: member.full_name,
+      role: member.role || 'member',
+      favorite_color: member.favorite_color || null
+    }));
 
   return {
     profiles,
     loading,
-    refetch: fetchProfiles
+    refetch: () => {
+      // Refetch is handled by useOrganizationMembers
+      // This is kept for backward compatibility but doesn't need to do anything
+      // since organization members are cached at session level
+    }
   };
 }

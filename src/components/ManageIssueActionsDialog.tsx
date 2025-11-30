@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
   DialogContent,
@@ -12,6 +13,9 @@ import { UnifiedActionDialog } from "./UnifiedActionDialog";
 import { BaseAction, createIssueAction } from "@/types/actions";
 import { ActionListItemCard } from "./ActionListItemCard";
 import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
+import { issueActionsQueryKey } from '@/lib/queryKeys';
+import { offlineQueryConfig } from '@/lib/queryConfig';
+import { apiService } from '@/lib/apiService';
 
 import { supabase } from '@/lib/client';
 import { toast } from "@/hooks/use-toast";
@@ -45,11 +49,31 @@ export function ManageIssueActionsDialog({
   issue,
   onRefresh
 }: ManageIssueActionsDialogProps) {
-  const [actions, setActions] = useState<BaseAction[]>([]);
+  const queryClient = useQueryClient();
   const [toolName, setToolName] = useState<string>("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingAction, setEditingAction] = useState<BaseAction | null>(null);
-  const { getActionsForIssue, markActionComplete, markActionIncomplete, loading } = useIssueActions();
+  const { markActionComplete, markActionIncomplete } = useIssueActions();
+  
+  // Use TanStack Query to fetch actions for this issue - shares cache with GenericIssueCard
+  const actionsQuery = useQuery({
+    queryKey: issueActionsQueryKey(issue.id),
+    queryFn: async () => {
+      const response = await apiService.get<{ data: any[] }>(`/actions?linked_issue_id=${issue.id}`);
+      const data = response.data || [];
+      
+      return data.map(action => ({
+        ...action,
+        required_stock: Array.isArray(action.required_stock) ? action.required_stock : []
+      })) as unknown as BaseAction[];
+    },
+    enabled: open && !!issue.id, // Only fetch when dialog is open
+    ...offlineQueryConfig,
+    staleTime: 2 * 60 * 1000, // 2 minutes for actions
+  });
+
+  const actions = actionsQuery.data || [];
+  const loading = actionsQuery.isLoading;
   
   // Use organization_members for consistent "Assigned to" dropdown
   // This ensures we only show active members from the current organization
@@ -66,45 +90,33 @@ export function ManageIssueActionsDialog({
       role: member.role
     }));
 
-  // Fetch actions and profiles when dialog opens
+  // Fetch tool name when dialog opens
   useEffect(() => {
-    if (open) {
-      // Clear actions immediately to prevent flashing
-      setActions([]);
-      fetchActionsAndProfiles();
-    } else {
-      // Clear actions when dialog closes to prevent next flash
-      setActions([]);
-    }
-  }, [open, issue.id]);
-
-  const fetchActionsAndProfiles = async () => {
-    // Fetch actions for this issue
-    const issueActions = await getActionsForIssue(issue.id);
-    setActions(issueActions);
-
-    // Fetch tool name if tool_id exists
-    try {
-      if (issue.tool_id) {
-        const toolResponse = await supabase
-          .from('tools')
-          .select('name')
-          .eq('id', issue.tool_id)
-          .single();
-        
-        if (toolResponse.error) {
-          console.warn('Could not fetch tool name:', toolResponse.error);
+    if (open && issue.tool_id) {
+      const fetchToolName = async () => {
+        try {
+          const toolResponse = await supabase
+            .from('tools')
+            .select('name')
+            .eq('id', issue.tool_id)
+            .single();
+          
+          if (toolResponse.error) {
+            console.warn('Could not fetch tool name:', toolResponse.error);
+            setToolName("Unknown Tool");
+          } else {
+            setToolName(toolResponse.data?.name || "Unknown Tool");
+          }
+        } catch (error) {
+          console.error('Error fetching tool name:', error);
           setToolName("Unknown Tool");
-        } else {
-          setToolName(toolResponse.data?.name || "Unknown Tool");
         }
-      } else {
-        setToolName(""); 
-      }
-    } catch (error) {
-      console.error('Error fetching tool name:', error);
+      };
+      fetchToolName();
+    } else {
+      setToolName("");
     }
-  };
+  }, [open, issue.tool_id]);
 
   const handleToggleComplete = async (action: BaseAction) => {
     const isCompleted = action.status === 'completed';
@@ -113,13 +125,15 @@ export function ManageIssueActionsDialog({
       : await markActionComplete(action);
     
     if (success) {
-      await fetchActionsAndProfiles();
+      // Invalidate the actions query to refetch
+      queryClient.invalidateQueries({ queryKey: issueActionsQueryKey(issue.id) });
       onRefresh();
     }
   };
 
   const handleActionCreated = () => {
-    fetchActionsAndProfiles();
+    // Invalidate the actions query to refetch
+    queryClient.invalidateQueries({ queryKey: issueActionsQueryKey(issue.id) });
     onRefresh();
     toast({
       title: "Success",

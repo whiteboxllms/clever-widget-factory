@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/lib/apiService';
 import { getCurrentUser } from 'aws-amplify/auth';
 import { toast } from '@/hooks/use-toast';
@@ -6,33 +7,39 @@ import { BaseAction } from '@/types/actions';
 import { processStockConsumption } from '@/lib/utils';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
 import { autoCheckinToolsForAction } from '@/lib/autoToolCheckout';
+import { offlineQueryConfig } from '@/lib/queryConfig';
+import { issueActionsQueryKey } from '@/lib/queryKeys';
 
 export const useIssueActions = () => {
-  const [loading, setLoading] = useState(false);
   const organizationId = useOrganizationId();
+  const queryClient = useQueryClient();
 
+  // Use TanStack Query for fetching actions by issue ID
   const getActionsForIssue = useCallback(async (issueId: string): Promise<BaseAction[]> => {
-    setLoading(true);
-    try {
-      const response = await apiService.get<{ data: any[] }>(`/actions?linked_issue_id=${issueId}`);
-      const data = response.data || [];
-      
-      return data.map(action => ({
-        ...action,
-        required_stock: Array.isArray(action.required_stock) ? action.required_stock : []
-      })) as unknown as BaseAction[];
-    } catch (error) {
-      console.error('Error fetching actions for issue:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch actions for this issue',
-        variant: 'destructive'
-      });
-      return [];
-    } finally {
-      setLoading(false);
+    // Check cache first
+    const cachedData = queryClient.getQueryData<BaseAction[]>(issueActionsQueryKey(issueId));
+    if (cachedData) {
+      return cachedData;
     }
-  }, []);
+
+    // If not cached, fetch and cache it
+    const queryData = await queryClient.fetchQuery({
+      queryKey: issueActionsQueryKey(issueId),
+      queryFn: async () => {
+        const response = await apiService.get<{ data: any[] }>(`/actions?linked_issue_id=${issueId}`);
+        const data = response.data || [];
+        
+        return data.map(action => ({
+          ...action,
+          required_stock: Array.isArray(action.required_stock) ? action.required_stock : []
+        })) as unknown as BaseAction[];
+      },
+      ...offlineQueryConfig,
+      staleTime: 2 * 60 * 1000, // 2 minutes for actions
+    });
+
+    return queryData;
+  }, [queryClient]);
 
   const markActionComplete = useCallback(async (action: BaseAction): Promise<boolean> => {
     try {
@@ -114,6 +121,6 @@ export const useIssueActions = () => {
     getActionsForIssue,
     markActionComplete,
     markActionIncomplete,
-    loading
+    loading: false // No longer using local loading state since we use TanStack Query
   };
 };

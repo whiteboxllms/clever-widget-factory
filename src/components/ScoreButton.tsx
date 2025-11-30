@@ -13,8 +13,10 @@ export function ScoreButton({ action, onScoreAction }: ScoreButtonProps) {
     return null;
   }
 
-  // Use the has_score field from the API
-  const hasScore = (action as any).has_score === true;
+  // Check if action has a score - be explicit about the check to avoid false positives
+  // has_score should be explicitly true (not just truthy)
+  // Check for strict boolean true to avoid false positives from string "true", number 1, etc.
+  const hasScore = (action as any).has_score === true && typeof (action as any).has_score === 'boolean';
 
   return (
     <Button

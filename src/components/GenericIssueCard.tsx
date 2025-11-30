@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +11,8 @@ import { useGenericIssues } from "@/hooks/useGenericIssues";
 import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
 import { useAssetScores } from "@/hooks/useAssetScores";
 import { useIssueActions } from "@/hooks/useIssueActions";
+import { offlineQueryConfig } from '@/lib/queryConfig';
+import { issueScoreQueryKey, issueActionsQueryKey } from '@/lib/queryKeys';
 import { getIssueTypeIcon, getIssueTypeColor, getContextTypeIcon } from "@/lib/issueTypeUtils";
 import { IssueScoreDialog } from "@/components/IssueScoreDialog";
 import { UnifiedActionDialog } from "@/components/UnifiedActionDialog";
@@ -74,6 +77,36 @@ export function GenericIssueCard({
 
   // Profiles now sourced from useOrganizationMembers (active members in current org)
 
+  // Use TanStack Query for scores and actions with proper caching
+  const scoreQuery = useQuery({
+    queryKey: issueScoreQueryKey(issue.id),
+    queryFn: () => getScoreForIssue(issue.id),
+    enabled: enableScorecard && !!issue.id,
+    ...offlineQueryConfig,
+    staleTime: 10 * 60 * 1000, // 10 minutes - scores don't change often
+  });
+
+  const actionsQuery = useQuery({
+    queryKey: issueActionsQueryKey(issue.id),
+    queryFn: () => getActionsForIssue(issue.id),
+    enabled: enableActions && !!issue.id,
+    ...offlineQueryConfig,
+    staleTime: 2 * 60 * 1000, // 2 minutes for actions
+  });
+
+  // Update state when queries resolve
+  useEffect(() => {
+    if (scoreQuery.data !== undefined) {
+      setExistingScore(scoreQuery.data);
+    }
+  }, [scoreQuery.data]);
+
+  useEffect(() => {
+    if (actionsQuery.data !== undefined) {
+      setExistingActions(actionsQuery.data || []);
+    }
+  }, [actionsQuery.data]);
+
   // Fetch context entity information
   useEffect(() => {
     const fetchContextEntity = async () => {
@@ -106,30 +139,6 @@ export function GenericIssueCard({
     }
   }, [issue.context_id, issue.context_type, showContext]);
 
-  // Fetch existing scores and actions when enabled
-  useEffect(() => {
-    const fetchScoreAndActions = async () => {
-      if (enableScorecard && issue.id) {
-        try {
-          const score = await getScoreForIssue(issue.id);
-          setExistingScore(score);
-        } catch (error) {
-          console.error('Error fetching score:', error);
-        }
-      }
-
-      if (enableActions && issue.id) {
-        try {
-          const actions = await getActionsForIssue(issue.id);
-          setExistingActions(actions || []);
-        } catch (error) {
-          console.error('Error fetching actions:', error);
-        }
-      }
-    };
-
-    fetchScoreAndActions();
-  }, [issue.id, enableScorecard, enableActions]); // Removed function dependencies that cause infinite loop
 
   // Check if 5 Whys session exists for this issue
   const checkFiveWhysSession = useCallback(async () => {

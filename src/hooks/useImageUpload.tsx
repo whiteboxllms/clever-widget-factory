@@ -164,6 +164,15 @@ export const useImageUpload = () => {
         bodySize: uint8Array.length
       });
 
+      // Check if credentials are configured
+      if (!import.meta.env.VITE_AWS_ACCESS_KEY_ID || !import.meta.env.VITE_AWS_SECRET_ACCESS_KEY) {
+        console.error('[UPLOAD] Missing AWS credentials:', {
+          hasAccessKey: !!import.meta.env.VITE_AWS_ACCESS_KEY_ID,
+          hasSecretKey: !!import.meta.env.VITE_AWS_SECRET_ACCESS_KEY
+        });
+        throw new Error('AWS credentials not configured. Contact administrator.');
+      }
+
       // Upload to S3
       const command = new PutObjectCommand({
         Bucket: S3_BUCKET,

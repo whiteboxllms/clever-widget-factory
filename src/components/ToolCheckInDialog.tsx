@@ -242,7 +242,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
           await apiService.post('/issues', {
             context_type: 'tool',
             context_id: tool.id,
-            reported_by: user?.id || 'unknown-user',
+            reported_by: user?.userId,
             description: form.tool_issues.trim(),
             issue_type: 'general',
             status: 'active',

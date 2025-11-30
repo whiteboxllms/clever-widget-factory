@@ -328,10 +328,23 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
             // Update tool status to checked_out
             await apiService.put(`/tools/${asset.id}`, { status: 'checked_out' });
           } catch (error: any) {
-            // Handle duplicate key constraint violation
-            if (error.message?.includes('duplicate key') || 
-                error.message?.includes('idx_unique_active_checkout_per_tool') ||
-                (error.error && error.error.includes('active checkout'))) {
+            // Handle duplicate key constraint violation or 409 conflict
+            // The API returns 409 with error object containing error, details, and existing_checkout
+            const errorMessage = typeof error.message === 'string' ? error.message : String(error.message || '');
+            const errorData = error.error || {};
+            const errorDataStr = typeof errorData === 'string' ? errorData : JSON.stringify(errorData);
+            
+            // Check for various error conditions
+            const isActiveCheckoutError = 
+              errorMessage.includes('active checkout') ||
+              errorMessage.includes('idx_unique_active_checkout_per_tool') ||
+              errorMessage.includes('duplicate key') ||
+              errorDataStr.includes('active checkout') ||
+              errorDataStr.includes('idx_unique_active_checkout_per_tool') ||
+              errorDataStr.includes('duplicate key') ||
+              error?.status === 409;
+            
+            if (isActiveCheckoutError) {
               // Don't show error - tool is already checked out, which is fine
               console.log('Tool already has active checkout, skipping checkout creation');
             } else {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { offlineMutationConfig } from '@/lib/queryConfig';
+import { offlineMutationConfig, offlineQueryConfig } from '@/lib/queryConfig';
 import { format } from "date-fns";
 import {
   Dialog,

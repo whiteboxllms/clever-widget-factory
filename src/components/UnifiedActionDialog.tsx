@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { offlineMutationConfig } from '@/lib/queryConfig';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { offlineMutationConfig, offlineQueryConfig } from '@/lib/queryConfig';
 import { format } from "date-fns";
 import {
   Dialog,
@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { apiService } from '@/lib/apiService';
 import { useOrganizationMembers } from '@/hooks/useOrganizationMembers';
+import { missionsQueryKey } from '@/lib/queryKeys';
 import { 
   Paperclip, 
   Calendar as CalendarIcon, 
@@ -39,6 +40,7 @@ import {
   Trash2,
   CheckCircle,
   Target,
+  Flag,
   Copy
 } from "lucide-react";
 import { useImageUpload } from "@/hooks/useImageUpload";
@@ -48,6 +50,7 @@ import { ActionImplementationUpdates } from './ActionImplementationUpdates';
 import { AssetSelector } from './AssetSelector';
 import { StockSelector } from './StockSelector';
 import { MultiParticipantSelector } from './MultiParticipantSelector';
+import { MissionSelector } from './MissionSelector';
 import { cn, sanitizeRichText, getActionBorderStyle } from "@/lib/utils";
 import { BaseAction, Profile, ActionCreationContext } from "@/types/actions";
 import { autoCheckinToolsForAction, activatePlannedCheckoutsIfNeeded } from '@/lib/autoToolCheckout';
@@ -121,6 +124,7 @@ export function UnifiedActionDialog({
   const [activeTab, setActiveTab] = useState<string>('');
   const [isInImplementationMode, setIsInImplementationMode] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [showMissionDialog, setShowMissionDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const preferName = (value?: string | null) => {
@@ -247,25 +251,26 @@ export function UnifiedActionDialog({
     }
   }, [open, action?.id, context?.type, isCreating]);
 
-  // Fetch mission data when action has mission_id
-  useEffect(() => {
-    const fetchMissionData = async () => {
-      if (formData.mission_id) {
-        try {
-          const result = await apiService.get('/missions');
-          const missions = result.data || [];
-          const mission = missions.find((m: any) => m.id === formData.mission_id);
-          setMissionData(mission || null);
-        } catch (error) {
-          console.error('Error fetching mission data:', error);
-        }
-      } else {
-        setMissionData(null);
-      }
-    };
+  // Fetch mission data when action has mission_id - use TanStack Query cache
+  const { data: missions = [] } = useQuery({
+    queryKey: missionsQueryKey(),
+    queryFn: async () => {
+      const result = await apiService.get('/missions');
+      return result.data || [];
+    },
+    enabled: !!formData.mission_id && open, // Only fetch when dialog is open and we have a mission_id
+    ...offlineQueryConfig,
+  });
 
-    fetchMissionData();
-  }, [formData.mission_id]);
+  // Find mission from cached data
+  useEffect(() => {
+    if (formData.mission_id && missions.length > 0) {
+      const mission = missions.find((m: any) => m.id === formData.mission_id);
+      setMissionData(mission || null);
+    } else {
+      setMissionData(null);
+    }
+  }, [formData.mission_id, missions]);
 
   // Sync implementation update count when action changes
   useEffect(() => {
@@ -748,21 +753,32 @@ export function UnifiedActionDialog({
         <DialogHeader>
           <div className="flex items-center gap-2">
             <DialogTitle>{getDialogTitle()}</DialogTitle>
-            {!isCreating && action?.id && (
+            <div className="flex items-center gap-2">
+              {!isCreating && action?.id && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopyLink}
+                  className={`h-7 w-7 p-0 ${linkCopied ? 'border-green-500 border-2' : ''}`}
+                  title="Copy action link"
+                >
+                  {linkCopied ? (
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleCopyLink}
-                className={`h-7 w-7 p-0 ${linkCopied ? 'border-green-500 border-2' : ''}`}
-                title="Copy action link"
+                onClick={() => setShowMissionDialog(true)}
+                className={`h-7 w-7 p-0 ${formData.mission_id ? 'bg-primary/10 border-primary/50' : ''}`}
+                title={formData.mission_id ? "Change linked project" : "Link to project"}
               >
-                {linkCopied ? (
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
+                <Flag className="h-4 w-4" />
               </Button>
-            )}
+            </div>
           </div>
           <DialogDescription>
             {isCreating ? 'Create a new action with details and assignments' : 'Edit action details and assignments'}
@@ -787,7 +803,7 @@ export function UnifiedActionDialog({
           {missionData && (
             <div className="bg-primary/5 border border-primary/20 p-4 rounded-lg">
               <div className="flex items-center gap-2 mb-2">
-                <Target className="h-4 w-4 text-primary" />
+                <Flag className="h-4 w-4 text-primary" />
                 <h4 className="font-semibold text-sm">Project Context</h4>
               </div>
               <div className="space-y-1">
@@ -832,7 +848,6 @@ export function UnifiedActionDialog({
               rows={3}
             />
           </div>
-
 
           {/* Assigned To, Participants, and Estimated Completion Date */}
           {/* Assigned To and Participants Row */}
@@ -1213,6 +1228,45 @@ export function UnifiedActionDialog({
           </div>
         </div>
       </DialogContent>
+
+      {/* Mission Selection Dialog */}
+      <Dialog open={showMissionDialog} onOpenChange={setShowMissionDialog}>
+        <DialogContent className="max-w-md w-full">
+          <DialogHeader>
+            <DialogTitle>Link to Project</DialogTitle>
+            <DialogDescription>
+              Search and select a project to link this action to.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 min-w-0">
+            <MissionSelector
+              selectedMissionId={formData.mission_id}
+              onMissionChange={(missionId) => {
+                setFormData(prev => ({ 
+                  ...prev, 
+                  mission_id: missionId || null,
+                  // Clear other parent relationships when linking to mission
+                  asset_id: missionId ? null : prev.asset_id,
+                  linked_issue_id: missionId ? null : prev.linked_issue_id
+                }));
+                // Close dialog after selection
+                if (missionId) {
+                  setShowMissionDialog(false);
+                }
+              }}
+              disabled={isSubmitting}
+            />
+          </div>
+          <div className="flex justify-end gap-2 mt-6">
+            <Button
+              variant="outline"
+              onClick={() => setShowMissionDialog(false)}
+            >
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

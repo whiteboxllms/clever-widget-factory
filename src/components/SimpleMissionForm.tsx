@@ -17,9 +17,9 @@ import { apiService, getApiData } from '@/lib/apiService';
 import { useAuth } from '@/hooks/useCognitoAuth';
 
 import { useTempPhotoStorage } from "@/hooks/useTempPhotoStorage";
-import { hasActualContent } from "@/lib/utils";
 import { getStandardActionsForTemplate } from "@/lib/standardActionBlocks";
 import { UnifiedActionDialog } from './UnifiedActionDialog';
+import { ActionListItemCard } from './ActionListItemCard';
 import { createMissionAction, BaseAction, ActionCreationContext } from '@/types/actions';
 
 interface Task {
@@ -35,13 +35,6 @@ interface Task {
   plan_commitment?: boolean | null;
   required_stock?: { part_id: string; quantity: number; part_name: string; }[];
   attachments?: string[];
-}
-
-interface Tool {
-  id: string;
-  name: string;
-  serial_number?: string;
-  status?: string;
 }
 
 interface Profile {
@@ -100,39 +93,11 @@ export function SimpleMissionForm({
   onMoveToBacklog,
   canMoveToBacklog = false
 }: SimpleMissionFormProps) {
-  const [tools, setTools] = useState<Tool[]>([]);
   const organizationId = useOrganizationId();
   const { toast } = useToast();
   const enhancedToast = useEnhancedToast();
   const tempPhotoStorage = useTempPhotoStorage();
   const { user } = useAuth();
-
-  useEffect(() => {
-    fetchTools();
-  }, []);
-
-  const fetchTools = async () => {
-    try {
-      const result = await apiService.get('/tools');
-      let toolsData = result.data || [];
-      
-      // Filter out removed tools client-side
-      toolsData = toolsData.filter((tool: Tool) => tool.status !== 'removed');
-      
-      // Sort by name
-      toolsData.sort((a: Tool, b: Tool) => a.name.localeCompare(b.name));
-      
-      setTools(toolsData);
-    } catch (error) {
-      console.error('Error fetching tools:', error);
-    }
-  };
-
-  const getToolDetails = (toolNames: string[]) => {
-    return toolNames
-      .map(name => tools.find(tool => tool.name === name))
-      .filter((tool): tool is Tool => tool !== undefined);
-  };
   const [showTasks, setShowTasks] = useState(true);
   const [editingTaskIndex, setEditingTaskIndex] = useState<number | null>(null);
   const [creatingNewTask, setCreatingNewTask] = useState(false);
@@ -174,14 +139,27 @@ export function SimpleMissionForm({
         policy: task.policy || '',
         observations: task.observations || '',
         assigned_to: task.assigned_to,
-        status: task.status,
+        status: task.status || 'active',
         plan_commitment: task.plan_commitment || false,
+        policy_agreed_at: task.policy_agreed_at || null,
+        policy_agreed_by: task.policy_agreed_by || null,
+        implementation_update_count: task.implementation_update_count || 0,
         mission_id: task.mission_id,
         estimated_completion_date: task.estimated_duration ? new Date(task.estimated_duration) : undefined,
+        estimated_duration: task.estimated_duration,
         actual_duration: task.actual_duration || '',
         required_tools: task.required_tools || [],
         required_stock: Array.isArray(task.required_stock) ? task.required_stock as { part_id: string; quantity: number; part_name: string; }[] : [],
-        attachments: task.attachments || []
+        attachments: task.attachments || [],
+        created_at: task.created_at || new Date().toISOString(),
+        updated_at: task.updated_at || new Date().toISOString(),
+        completed_at: task.completed_at || null,
+        assigned_to_name: task.assigned_to_name,
+        assigned_to_color: task.assigned_to_color,
+        mission: task.mission,
+        asset: task.asset,
+        issue_tool: task.issue_tool,
+        participants_details: task.participants_details || []
       }));
 
       setFormData(prev => ({ ...prev, actions: updatedTasks }));
@@ -261,20 +239,38 @@ export function SimpleMissionForm({
     setTaskDialogOpen(true);
   };
 
-  const mapActionToTask = (action: any): Task => ({
-    id: action.id,
-    title: action.title,
-    description: action.description || '',
-    policy: action.policy || '',
-    observations: action.observations || '',
-    assigned_to: action.assigned_to,
-    status: action.status,
-    plan_commitment: action.plan_commitment || false,
-    estimated_completion_date: action.estimated_duration ? new Date(action.estimated_duration) : undefined,
-    required_tools: (action.required_tools || []) as string[],
-    required_stock: (Array.isArray(action.required_stock) ? action.required_stock : []) as { part_id: string; quantity: number; part_name: string; }[],
-    attachments: (action.attachments || []) as string[]
-  });
+  const mapActionToTask = (action: any): Task => {
+    const task: Task = {
+      id: action.id,
+      title: action.title,
+      description: action.description || '',
+      policy: action.policy || '',
+      observations: action.observations || '',
+      assigned_to: action.assigned_to,
+      status: action.status,
+      plan_commitment: action.plan_commitment || false,
+      estimated_completion_date: action.estimated_duration ? new Date(action.estimated_duration) : undefined,
+      required_tools: (action.required_tools || []) as string[],
+      required_stock: (Array.isArray(action.required_stock) ? action.required_stock : []) as { part_id: string; quantity: number; part_name: string; }[],
+      attachments: (action.attachments || []) as string[]
+    };
+    
+    // Include BaseAction fields for proper border color calculation
+    (task as any).implementation_update_count = action.implementation_update_count || 0;
+    (task as any).policy_agreed_at = action.policy_agreed_at || null;
+    (task as any).policy_agreed_by = action.policy_agreed_by || null;
+    (task as any).created_at = action.created_at;
+    (task as any).updated_at = action.updated_at;
+    (task as any).completed_at = action.completed_at || null;
+    (task as any).assigned_to_name = action.assigned_to_name;
+    (task as any).assigned_to_color = action.assigned_to_color;
+    (task as any).mission = action.mission;
+    (task as any).asset = action.asset;
+    (task as any).issue_tool = action.issue_tool;
+    (task as any).participants_details = action.participants_details || [];
+    
+    return task;
+  };
 
   const handleCreateTask = async () => {
     // Reload task list from database to reflect new task
@@ -367,7 +363,21 @@ export function SimpleMissionForm({
               required_tools: (data.required_tools || []) as string[],
               required_stock: (Array.isArray(data.required_stock) ? data.required_stock : []) as { part_id: string; quantity: number; part_name: string; }[],
               attachments: (data.attachments || []) as string[]
-            };
+            } as any;
+            
+            // Include BaseAction fields for proper border color calculation
+            (updated as any).implementation_update_count = data.implementation_update_count || 0;
+            (updated as any).policy_agreed_at = data.policy_agreed_at || null;
+            (updated as any).policy_agreed_by = data.policy_agreed_by || null;
+            (updated as any).created_at = data.created_at;
+            (updated as any).updated_at = data.updated_at;
+            (updated as any).completed_at = data.completed_at || null;
+            (updated as any).assigned_to_name = data.assigned_to_name;
+            (updated as any).assigned_to_color = data.assigned_to_color;
+            (updated as any).mission = data.mission;
+            (updated as any).asset = data.asset;
+            (updated as any).issue_tool = data.issue_tool;
+            (updated as any).participants_details = data.participants_details || [];
             setFormData(prev => ({
               ...prev,
               actions: prev.actions.map((t, i) => (i === index ? updated : t))
@@ -595,111 +605,52 @@ export function SimpleMissionForm({
             </div>
           </div>
           
-          {formData.actions.map((task, index) => {
-            // Determine border color based on action status
-            // Progression: Gray (no border) → Blue (plan + commitment) → Yellow (implementation) → Green (completed)
-            const getActionBorderColor = () => {
-              const hasPolicy = hasActualContent(task.policy);
-              const hasObservations = hasActualContent(task.observations);
-              const hasPlanCommitment = task.plan_commitment === true;
-              
-              // Green border for completed actions  
-              if (task.status === 'completed') {
-                return 'border-emerald-500 border-2 shadow-emerald-200 shadow-lg';
-              }
-              
-              // Yellow border when there's implementation AND there was first a plan
-              if (hasObservations && hasPolicy && hasPlanCommitment) {
-                return 'border-yellow-500 border-2 shadow-yellow-200 shadow-lg';
-              }
-              
-              // Blue border when there's a plan AND commitment (ready to work)
-              if (hasPolicy && hasPlanCommitment) {
-                return 'border-blue-500 border-2 shadow-blue-200 shadow-lg';
-              }
-              
-              // Default border (gray - no special styling)
-              return 'border';
-            };
+          <div className="space-y-4">
+            {formData.actions.map((task, index) => {
+              // Convert Task to BaseAction format for ActionListItemCard
+              const actionAsBaseAction: BaseAction = {
+                id: task.id || `temp-${index}`,
+                title: task.title || `Action ${index + 1}`,
+                description: task.description,
+                policy: task.policy,
+                observations: task.observations,
+                status: task.status || 'active',
+                assigned_to: task.assigned_to,
+                created_at: (task as any).created_at || new Date().toISOString(),
+                updated_at: (task as any).updated_at || new Date().toISOString(),
+                completed_at: (task as any).completed_at || null,
+                mission_id: task.mission_id || missionId || null,
+                estimated_duration: task.estimated_completion_date?.toISOString() || null,
+                estimated_completion_date: task.estimated_completion_date,
+                required_tools: task.required_tools,
+                required_stock: task.required_stock,
+                attachments: task.attachments,
+                plan_commitment: task.plan_commitment || false,
+                policy_agreed_at: (task as any).policy_agreed_at || null,
+                policy_agreed_by: (task as any).policy_agreed_by || null,
+                implementation_update_count: (task as any).implementation_update_count || 0,
+                assigned_to_name: (task as any).assigned_to_name,
+                assigned_to_color: (task as any).assigned_to_color,
+                mission: (task as any).mission,
+                asset: (task as any).asset,
+                issue_tool: (task as any).issue_tool,
+                participants_details: (task as any).participants_details || []
+              };
 
-            return (
-            <div key={index} className={`${getActionBorderColor()} rounded-lg p-4 hover:shadow-md transition-shadow`}>
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    {/* Phase display removed - tasks no longer have phases */}
-                    <h4 className="font-medium">{task.title || `Action ${index + 1}`}</h4>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
-                    <div>
-                      <span className="font-medium">Assigned:</span> {
-                        task.assigned_to 
-                          ? profiles.find(p => p.user_id === task.assigned_to)?.full_name || 'Unknown'
-                          : 'Unassigned'
-                      }
-                    </div>
-                    <div>
-                      <span className="font-medium">Tools:</span> {task.required_tools?.length || 0} tools
-                      {task.required_tools && task.required_tools.length > 0 && (
-                        <div className="mt-1 space-y-1">
-                          {getToolDetails(task.required_tools).map((tool, toolIndex) => (
-                            <div key={toolIndex} className="text-xs text-muted-foreground">
-                              • {tool.name}
-                              {tool.serial_number && (
-                                <span className="ml-1 font-mono">({tool.serial_number})</span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {task.policy && (
-                    <div className="mt-2">
-                      <p className="text-sm text-muted-foreground font-medium">Policy:</p>
-                      <div 
-                        className="text-sm prose prose-sm max-w-none line-clamp-2 break-words overflow-hidden"
-                        dangerouslySetInnerHTML={{ __html: task.policy }}
-                      />
-                    </div>
-                  )}
-
-                  {/* Show temp photo count */}
-                  {tempPhotoStorage.getTempPhotosForTask(`temp-${index}`).length > 0 && (
-                    <p className="text-xs text-blue-600 mt-2">
-                      📸 {tempPhotoStorage.getTempPhotosForTask(`temp-${index}`).length} photo(s) attached
-                    </p>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => {
-                      setEditingTaskIndex(index);
-                      setTaskDialogOpen(true);
-                    }}
-                  >
-                    Edit
-                  </Button>
-                  {formData.actions.length > 1 && (
-                    <Button 
-                      type="button" 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => removeTask(index)}
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-          })}
+              return (
+                <ActionListItemCard
+                  key={task.id || index}
+                  action={actionAsBaseAction}
+                  profiles={profiles}
+                  onClick={() => {
+                    setEditingTaskIndex(index);
+                    setTaskDialogOpen(true);
+                  }}
+                  showScoreButton={false}
+                />
+              );
+            })}
+          </div>
         </CollapsibleContent>
       </Collapsible>
       

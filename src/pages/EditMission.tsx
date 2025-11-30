@@ -322,8 +322,8 @@ export default function EditMission() {
               Back to Missions
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">Edit Mission</h1>
-              <p className="text-muted-foreground">Update the mission details</p>
+              <h1 className="text-2xl font-bold">Edit Project</h1>
+              <p className="text-muted-foreground">Update the project details</p>
             </div>
           </div>
         </div>

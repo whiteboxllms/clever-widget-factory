@@ -1732,7 +1732,7 @@ exports.handler = async (event) => {
         const whereClause = orgFilter.condition ? `WHERE ${orgFilter.condition}` : '';
         
         const sql = `SELECT json_agg(row_to_json(t)) FROM (
-          SELECT * FROM missions m ${whereClause} ORDER BY created_at DESC
+          SELECT * FROM missions m ${whereClause} ORDER BY m.created_at DESC
         ) t;`;
         
         // Enhanced logging for debugging
@@ -1892,11 +1892,11 @@ exports.handler = async (event) => {
       const missionId = path.split('/missions/')[1]?.split('/')[0]; // Extract ID, handle trailing paths
       
       if (httpMethod === 'GET') {
-        const orgFilter = buildOrganizationFilter(authContext, 'm');
-        const whereClause = orgFilter.condition ? `WHERE m.id = '${missionId}' AND ${orgFilter.condition}` : `WHERE m.id = '${missionId}'`;
+        const orgFilter = buildOrganizationFilter(authContext, 'missions');
+        const whereClause = orgFilter.condition ? `WHERE missions.id = '${missionId}' AND ${orgFilter.condition}` : `WHERE missions.id = '${missionId}'`;
         
         const sql = `SELECT json_agg(row_to_json(t)) FROM (
-          SELECT * FROM missions m ${whereClause}
+          SELECT * FROM missions ${whereClause}
         ) t;`;
         
         const result = await queryJSON(sql);
@@ -1932,7 +1932,7 @@ exports.handler = async (event) => {
         }
         updates.push(`updated_at = NOW()`);
         
-        const orgFilter = buildOrganizationFilter(authContext, 'm');
+        const orgFilter = buildOrganizationFilter(authContext, 'missions');
         const whereClause = orgFilter.condition 
           ? `WHERE id = '${missionId}' AND ${orgFilter.condition}`
           : `WHERE id = '${missionId}'`;
@@ -1956,7 +1956,7 @@ exports.handler = async (event) => {
       }
       
       if (httpMethod === 'DELETE') {
-        const orgFilter = buildOrganizationFilter(authContext, 'm');
+        const orgFilter = buildOrganizationFilter(authContext, 'missions');
         const whereClause = orgFilter.condition 
           ? `WHERE id = '${missionId}' AND ${orgFilter.condition}`
           : `WHERE id = '${missionId}'`;

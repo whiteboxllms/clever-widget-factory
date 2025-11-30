@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { apiService, getApiData } from '@/lib/apiService';
 import { offlineQueryConfig } from '@/lib/queryConfig';
+import { toolsQueryKey, checkoutsQueryKey } from '@/lib/queryKeys';
 
 export interface Tool {
   id: string;
@@ -50,15 +51,16 @@ export const useToolsData = (showRemovedItems: boolean = false) => {
   const queryClient = useQueryClient();
 
   // Use TanStack Query to share cache with other hooks (useOfflineData, useCombinedAssets)
+  // Use shared query key function for consistency across the app
   const { data: toolsData = [], isLoading: toolsLoading, refetch: refetchTools } = useQuery({
-    queryKey: ['tools'],
+    queryKey: toolsQueryKey(),
     queryFn: fetchTools,
     ...offlineQueryConfig,
   });
 
   // Fetch checkouts separately
   const { data: checkoutsData = [], isLoading: checkoutsLoading } = useQuery({
-    queryKey: ['checkouts', 'active'],
+    queryKey: checkoutsQueryKey(false),
     queryFn: fetchCheckouts,
     ...offlineQueryConfig,
   });
@@ -91,7 +93,7 @@ export const useToolsData = (showRemovedItems: boolean = false) => {
   };
 
   const invalidateTools = () => {
-    queryClient.invalidateQueries({ queryKey: ['tools'] });
+    queryClient.invalidateQueries({ queryKey: toolsQueryKey() });
   };
 
   return {

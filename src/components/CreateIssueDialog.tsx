@@ -24,7 +24,7 @@ import { AlertTriangle, Upload, X, ImagePlus } from "lucide-react";
 import { useGenericIssues } from "@/hooks/useGenericIssues";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { ContextType, getOrderIssueTypeLabel } from "@/types/issues";
-import { supabase } from '@/lib/client';
+import { apiService } from '@/lib/apiService';
 
 interface CreateIssueDialogProps {
   open: boolean;
@@ -74,35 +74,19 @@ export function CreateIssueDialog({
       try {
         switch (contextType) {
           case 'tool':
-            const { data: toolsData } = await supabase
-              .from('tools')
-              .select('id, name, serial_number, status')
-              .neq('status', 'removed')
-              .order('name');
-            setTools(toolsData || []);
+            const toolsResult = await apiService.get('/tools');
+            const toolsData = (toolsResult.data || []).filter((t: any) => t.status !== 'removed');
+            setTools(toolsData);
             break;
           
           case 'order':
-            const { data: ordersData } = await supabase
-              .from('parts_orders')
-              .select(`
-                id, 
-                order_details,
-                supplier_name,
-                quantity_ordered,
-                parts (name, unit)
-              `)
-              .eq('status', 'pending')
-              .order('ordered_at', { ascending: false });
-            setOrders(ordersData || []);
+            const ordersResult = await apiService.get('/parts_orders?status=pending');
+            setOrders(ordersResult.data || []);
             break;
           
           case 'inventory':
-            const { data: partsData } = await supabase
-              .from('parts')
-              .select('id, name, unit, storage_vicinity')
-              .order('name');
-            setParts(partsData || []);
+            const partsResult = await apiService.get('/parts');
+            setParts(partsResult.data || []);
             break;
         }
       } catch (error) {
@@ -113,32 +97,32 @@ export function CreateIssueDialog({
     loadEntities();
   }, [contextType, open]);
 
-  // Set initial context ID and selected entity if provided
+  // Set initial context ID
   useEffect(() => {
     if (initialContextId) {
       setContextId(initialContextId);
-      
-      // Also set the selected entity based on the context type and ID
-      const findAndSetEntity = () => {
-        switch (contextType) {
-          case 'tool':
-            const tool = tools.find(t => t.id === initialContextId);
-            if (tool) setSelectedEntity(tool);
-            break;
-          case 'order':
-            const order = orders.find(o => o.id === initialContextId);
-            if (order) setSelectedEntity(order);
-            break;
-          case 'inventory':
-            const part = parts.find(p => p.id === initialContextId);
-            if (part) setSelectedEntity(part);
-            break;
-        }
-      };
-      
-      findAndSetEntity();
     }
-  }, [initialContextId, contextType, tools, orders, parts]);
+  }, [initialContextId]);
+
+  // Set selected entity when data loads
+  useEffect(() => {
+    if (!initialContextId || !contextId) return;
+    
+    switch (contextType) {
+      case 'tool':
+        const tool = tools.find(t => t.id === contextId);
+        if (tool) setSelectedEntity(tool);
+        break;
+      case 'order':
+        const order = orders.find(o => o.id === contextId);
+        if (order) setSelectedEntity(order);
+        break;
+      case 'inventory':
+        const part = parts.find(p => p.id === contextId);
+        if (part) setSelectedEntity(part);
+        break;
+    }
+  }, [contextId, contextType, tools, orders, parts, initialContextId]);
 
   const handleSubmit = async () => {
     if (!contextType || !contextId || !description.trim()) {
@@ -293,12 +277,16 @@ export function CreateIssueDialog({
                 value={contextId}
                 onChange={(e) => setContextId(e.target.value)}
               />
+            ) : initialContextId ? (
+              <Input
+                value={selectedEntity ? selectedEntity.name + (selectedEntity.serial_number ? ` (${selectedEntity.serial_number})` : '') : 'Loading...'}
+                disabled
+                className="bg-muted"
+              />
             ) : (
-              <Select value={contextId} onValueChange={handleEntitySelect} disabled={!!initialContextId}>
+              <Select value={contextId} onValueChange={handleEntitySelect}>
                 <SelectTrigger>
-                  <SelectValue 
-                    placeholder={initialContextId ? (selectedEntity?.name || "Loading...") : `Select ${contextType}`} 
-                  />
+                  <SelectValue placeholder={`Select ${contextType}`} />
                 </SelectTrigger>
                 <SelectContent>
                   {contextType === 'tool' && tools.map((tool) => (
@@ -308,12 +296,12 @@ export function CreateIssueDialog({
                   ))}
                   {contextType === 'order' && orders.map((order) => (
                     <SelectItem key={order.id} value={order.id}>
-                      {order.parts?.name} - {order.supplier_name} ({order.quantity_ordered} {order.parts?.unit})
+                      {order.supplier_name} - Order #{order.id.slice(0, 8)}
                     </SelectItem>
                   ))}
                   {contextType === 'inventory' && parts.map((part) => (
                     <SelectItem key={part.id} value={part.id}>
-                      {part.name} ({part.storage_vicinity})
+                      {part.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

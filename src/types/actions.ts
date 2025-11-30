@@ -28,6 +28,8 @@ export interface BaseAction {
   score?: number | null;
   scoring_data?: any;
   plan_commitment?: boolean | null;
+  policy_agreed_at?: string | null;
+  policy_agreed_by?: string | null;
   participants?: string[];
   implementation_update_count?: number;
   

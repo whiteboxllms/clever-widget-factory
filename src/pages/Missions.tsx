@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useActionProfiles } from "@/hooks/useActionProfiles";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { offlineQueryConfig } from '@/lib/queryConfig';
+import { missionsQueryKey } from '@/lib/queryKeys';
 import { ArrowLeft, Rocket, Flag, Calendar, User, CheckCircle, Clock, AlertCircle, Wrench, Microscope, GraduationCap, Hammer, Lightbulb, ChevronDown, ChevronUp, Filter, Settings } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { SimpleMissionForm } from '@/components/SimpleMissionForm';
@@ -77,8 +78,9 @@ const Missions = () => {
     return Array.isArray(data) ? data : [];
   };
 
+  // Use shared query key to share cache with other components
   const { data: missions = [], isLoading: loading } = useQuery({
-    queryKey: ['missions'],
+    queryKey: missionsQueryKey(),
     queryFn: fetchMissions,
     ...offlineQueryConfig,
   });

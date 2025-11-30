@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { offlineQueryConfig } from '@/lib/queryConfig';
 import { apiService, getApiData } from '@/lib/apiService';
+import { toolsQueryKey, actionsQueryKey } from '@/lib/queryKeys';
 
 const fetchTools = async () => {
   const response = await apiService.get<{ data: any[] }>('/tools?limit=1000');
@@ -34,7 +35,7 @@ const fetchIssues = async () => {
 
 export const useOfflineData = () => {
   const tools = useQuery({
-    queryKey: ['tools'],
+    queryKey: toolsQueryKey(),
     queryFn: fetchTools,
     ...offlineQueryConfig,
   });
@@ -46,7 +47,7 @@ export const useOfflineData = () => {
   });
 
   const actions = useQuery({
-    queryKey: ['actions'],
+    queryKey: actionsQueryKey(),
     queryFn: fetchActions,
     ...offlineQueryConfig,
   });

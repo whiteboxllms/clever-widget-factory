@@ -18,6 +18,7 @@ import { useActionScores, ActionScore } from '@/hooks/useActionScores';
 import { BaseAction, Profile } from '@/types/actions';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { apiService } from '@/lib/apiService';
+import { actionsQueryKey } from '@/lib/queryKeys';
 
 // Using unified BaseAction interface from types/actions.ts
 
@@ -55,11 +56,12 @@ export default function Actions() {
     return result.data || [];
   };
 
+  // Use shared query key to share cache with other parts of the app (like useEnhancedStrategicAttributes)
+  // This prevents duplicate queries and uses the default 15 minute staleTime from offlineQueryConfig
   const { data: actions = [], isLoading: loading } = useQuery({
-    queryKey: ['actions'],
+    queryKey: actionsQueryKey(),
     queryFn: fetchActions,
     ...offlineQueryConfig,
-    staleTime: 2 * 60 * 1000, // Override with 2 minutes for actions page
   });
 
   const fetchSpecificAction = useCallback(async (id: string) => {

@@ -1,5 +1,12 @@
 export const actionsQueryKey = () => ['actions'];
 
+export const toolsQueryKey = () => ['tools'];
+
+export const checkoutsQueryKey = (isReturned?: boolean) => [
+  'checkouts',
+  isReturned === false ? 'active' : isReturned === true ? 'returned' : 'all'
+];
+
 export const actionScoresQueryKey = (start?: string, end?: string) => [
   'action_scores',
   start ?? 'all',
@@ -30,4 +37,9 @@ export const issuesQueryKey = (filters: IssuesQueryFilters = {}) => [
 export const issueScoreQueryKey = (issueId: string) => ['issue_score', issueId];
 
 export const issueActionsQueryKey = (issueId: string) => ['issue_actions', issueId];
+
+// Missions query keys
+export const missionsQueryKey = () => ['missions'];
+
+export const missionQueryKey = (missionId: string) => ['mission', missionId];
 

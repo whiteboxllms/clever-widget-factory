@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/lib/apiService';
 import { offlineMutationConfig } from '@/lib/queryConfig';
+import { toolsQueryKey } from '@/lib/queryKeys';
 
 export function useAssetMutations() {
   const queryClient = useQueryClient();
@@ -22,7 +23,7 @@ export function useAssetMutations() {
       return result.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tools'] });
+      queryClient.invalidateQueries({ queryKey: toolsQueryKey() });
     },
     ...offlineMutationConfig,
   });

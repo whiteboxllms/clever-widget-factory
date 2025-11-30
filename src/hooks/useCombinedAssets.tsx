@@ -4,6 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUserNames } from '@/hooks/useUserNames';
 import { offlineQueryConfig } from '@/lib/queryConfig';
 import { apiService } from '@/lib/apiService';
+import { toolsQueryKey } from '@/lib/queryKeys';
 
 export interface CombinedAsset {
   id: string;
@@ -77,7 +78,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
   const queryClient = useQueryClient();
   
   const { data: toolsData = [], isLoading: toolsLoading } = useQuery({
-    queryKey: ['tools'],
+    queryKey: toolsQueryKey(),
     queryFn: fetchTools,
     ...offlineQueryConfig,
   });

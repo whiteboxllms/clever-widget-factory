@@ -51,41 +51,30 @@ export function MissionActionList({ missionId, profiles, canEdit = false, missio
   const fetchActions = async () => {
     setLoading(true);
     
-    const { data, error } = await supabase
-      .from('actions')
-      .select('*')
-      .eq('mission_id', missionId)
-      .order('updated_at', { ascending: false });
+    try {
+      const { apiService, getApiData } = await import('@/lib/apiService');
+      const response = await apiService.get<{ data: any[] }>('/actions');
+      const allActions = getApiData(response) || [];
+      
+      // Filter by mission_id
+      const missionActions = allActions.filter(action => action.mission_id === missionId);
+      
+      const actions = missionActions.map(action => ({
+        ...action,
+        required_stock: Array.isArray(action.required_stock) ? action.required_stock : []
+      }) as unknown as BaseAction);
 
-    if (error) {
+      setActions(actions);
+    } catch (error) {
       console.error('Error fetching actions:', error);
       toast({
         title: "Error",
         description: "Failed to load actions",
         variant: "destructive",
       });
-    } else {
-      const actions = (data || []).map(action => ({
-        ...action,
-        required_stock: Array.isArray(action.required_stock) ? action.required_stock : []
-      }) as unknown as BaseAction);
-
-      // Fetch implementation update counts for all actions
-      const actionsWithCounts = await Promise.all(
-        actions.map(async (action) => {
-          const { count } = await supabase
-            .from('action_implementation_updates')
-            .select('*', { count: 'exact', head: true })
-            .eq('action_id', action.id);
-          
-          return { ...action, implementation_update_count: count || 0 };
-        })
-      );
-
-      setActions(actionsWithCounts);
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   const handleCreateAction = () => {

@@ -216,7 +216,7 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
     setIsDeleting(updateId);
     
     try {
-      await apiService.delete(`/action_implementation_updates?id=${updateId}`);
+      await apiService.delete(`/action_implementation_updates/${updateId}`);
 
       console.log('Delete successful, refreshing from server...');
       

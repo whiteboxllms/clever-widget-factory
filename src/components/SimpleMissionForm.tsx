@@ -584,8 +584,12 @@ export function SimpleMissionForm({
               required_tools: formData.actions[editingTaskIndex].required_tools,
               required_stock: formData.actions[editingTaskIndex].required_stock,
               attachments: formData.actions[editingTaskIndex].attachments,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
+              // Preserve server-calculated meta so dialog border colors stay consistent
+              implementation_update_count: (formData.actions[editingTaskIndex] as any).implementation_update_count || 0,
+              policy_agreed_at: (formData.actions[editingTaskIndex] as any).policy_agreed_at || null,
+              policy_agreed_by: (formData.actions[editingTaskIndex] as any).policy_agreed_by || null,
+              created_at: (formData.actions[editingTaskIndex] as any).created_at || new Date().toISOString(),
+              updated_at: (formData.actions[editingTaskIndex] as any).updated_at || new Date().toISOString()
             } as BaseAction : undefined}
             profiles={profiles}
             onActionSaved={(saved) => handleActionEdited(saved)}

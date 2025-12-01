@@ -322,6 +322,50 @@ exports.handler = async (event) => {
     }
 
     // Parts endpoint
+    // POST /parts - Create new part
+    if (httpMethod === 'POST' && path.endsWith('/parts')) {
+      const body = JSON.parse(event.body || '{}');
+      if (!body.name) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'name is required' })
+        };
+      }
+      
+      const partId = randomUUID();
+      const sql = `
+        INSERT INTO parts (
+          id, name, description, category, current_quantity, minimum_quantity,
+          unit, parent_structure_id, storage_location, legacy_storage_vicinity,
+          accountable_person_id, image_url, organization_id, created_at, updated_at
+        ) VALUES (
+          '${partId}',
+          ${formatSqlValue(body.name)},
+          ${formatSqlValue(body.description)},
+          ${formatSqlValue(body.category)},
+          ${body.current_quantity || 0},
+          ${body.minimum_quantity || 0},
+          ${formatSqlValue(body.unit)},
+          ${formatSqlValue(body.parent_structure_id)},
+          ${formatSqlValue(body.storage_location)},
+          ${formatSqlValue(body.legacy_storage_vicinity)},
+          ${formatSqlValue(body.accountable_person_id)},
+          ${formatSqlValue(body.image_url)},
+          ${formatSqlValue(organizationId)},
+          NOW(),
+          NOW()
+        ) RETURNING *
+      `;
+      
+      const result = await queryJSON(sql);
+      return {
+        statusCode: 201,
+        headers,
+        body: JSON.stringify({ data: result[0] })
+      };
+    }
+    
     // PUT /parts/{id} - Update part (check this first before the GET /parts)
     if (httpMethod === 'PUT' && path.match(/\/parts\/[^/]+$/)) {
       const partId = path.split('/').pop();
@@ -2255,7 +2299,40 @@ exports.handler = async (event) => {
     }
 
     // Action implementation updates endpoint
-    if (path.endsWith('/action_implementation_updates')) {
+    if (path.endsWith('/action_implementation_updates') || path.match(/\/action_implementation_updates\/[a-f0-9-]+$/)) {
+      // DELETE by ID
+      if (httpMethod === 'DELETE' && path.match(/\/action_implementation_updates\/[a-f0-9-]+$/)) {
+        const updateId = path.split('/').pop();
+        const sql = `DELETE FROM action_implementation_updates WHERE id = '${escapeLiteral(updateId)}' RETURNING *`;
+        const result = await queryJSON(sql);
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ data: result[0] })
+        };
+      }
+      
+      // PUT by ID
+      if (httpMethod === 'PUT' && path.match(/\/action_implementation_updates\/[a-f0-9-]+$/)) {
+        const updateId = path.split('/').pop();
+        const body = JSON.parse(event.body || '{}');
+        const updates = buildUpdateClauses(body, ['update_text', 'update_type']);
+        if (updates.length === 0) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'No fields to update' })
+          };
+        }
+        const sql = `UPDATE action_implementation_updates SET ${updates.join(', ')} WHERE id = '${escapeLiteral(updateId)}' RETURNING *`;
+        const result = await queryJSON(sql);
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ data: result[0] })
+        };
+      }
+      
       if (httpMethod === 'POST') {
         const body = JSON.parse(event.body || '{}');
         const { action_id, update_text, updated_by } = body;

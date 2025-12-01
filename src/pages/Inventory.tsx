@@ -178,6 +178,7 @@ export default function Inventory() {
 
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [editSelectedImage, setEditSelectedImage] = useState<File | null>(null);
+  const [removeExistingImage, setRemoveExistingImage] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [attachments, setAttachments] = useState<string[]>([]);
   const [editAttachments, setEditAttachments] = useState<string[]>([]);
@@ -571,7 +572,10 @@ export default function Inventory() {
       setUploadingImage(true);
       
       let imageUrl = editingPart.image_url;
-      if (editSelectedImage) {
+      if (removeExistingImage) {
+        console.log('Removing existing image...');
+        imageUrl = null;
+      } else if (editSelectedImage) {
         console.log('Uploading new image...');
         imageUrl = await uploadImage(editSelectedImage, editingPart.id);
         console.log('Image uploaded:', imageUrl);
@@ -731,6 +735,7 @@ export default function Inventory() {
       setShowEditDialog(false);
       setEditingPart(null);
       setEditSelectedImage(null);
+      setRemoveExistingImage(false);
       
       console.log('Fetching updated parts list...');
       await fetchParts();
@@ -1429,6 +1434,8 @@ export default function Inventory() {
               <InventoryItemForm
                 selectedImage={editSelectedImage}
                 setSelectedImage={setEditSelectedImage}
+                removeExistingImage={removeExistingImage}
+                setRemoveExistingImage={setRemoveExistingImage}
                 attachments={editAttachments}
                 onAttachmentsChange={setEditAttachments}
                 isLoading={uploadingImage}

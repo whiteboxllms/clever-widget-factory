@@ -59,6 +59,8 @@ interface InventoryItemFormProps {
   isLeadership?: boolean;
   selectedImage?: File | null;
   setSelectedImage?: (image: File | null) => void;
+  removeExistingImage?: boolean;
+  setRemoveExistingImage?: (remove: boolean) => void;
 }
 
 export function InventoryItemForm({

@@ -61,32 +61,47 @@ export const useImageUpload = () => {
       throw new Error(error);
     }
 
-    // Accept common image types and HEIC (iOS)
-    const validTypes = ['image/', 'application/octet-stream']; // octet-stream for HEIC on some phones
-    const isValidType = validTypes.some(type => file.type.startsWith(type)) || file.name.match(/\.(jpg|jpeg|png|gif|webp|heic|heif)$/i);
+    // Accept common image types, HEIC (iOS), and PDFs
+    const validTypes = ['image/', 'application/octet-stream', 'application/pdf']; // octet-stream for HEIC on some phones
+    const isValidType = validTypes.some(type => file.type.startsWith(type)) || file.name.match(/\.(jpg|jpeg|png|gif|webp|heic|heif|pdf)$/i);
     
     console.log(`[UPLOAD-${uploadId}] VALIDATION:`, { type: file.type, isValidType });
     
     if (!isValidType) {
-      const error = `Invalid file type: ${file.type}. Only image files are allowed.`;
+      const error = `Invalid file type: ${file.type}. Only image and PDF files are allowed.`;
       console.error(`[UPLOAD-${uploadId}] TYPE_INVALID:`, error);
       throw new Error(error);
     }
 
     try {
-      console.log(`[UPLOAD-${uploadId}] COMPRESSION_START:`, { 
-        elapsed: performance.now() - startTime,
-        memory: (performance as any).memory?.usedJSHeapSize 
-      });
+      let compressionResult;
+      let compressedFile: File;
       
-      // Show compression start toast
-      const compressionToast = enhancedToast.showCompressionStart(file.name, file.size);
+      // Skip compression for PDFs
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        console.log(`[UPLOAD-${uploadId}] PDF_DETECTED: Skipping compression`);
+        compressedFile = file;
+        compressionResult = {
+          file,
+          originalSize: file.size,
+          compressedSize: file.size,
+          compressionRatio: 0
+        };
+      } else {
+        console.log(`[UPLOAD-${uploadId}] COMPRESSION_START:`, { 
+          elapsed: performance.now() - startTime,
+          memory: (performance as any).memory?.usedJSHeapSize 
+        });
+        
+        // Show compression start toast
+        const compressionToast = enhancedToast.showCompressionStart(file.name, file.size);
 
-      // Compress the image with simple compression
-      const compressionResult = await compressImageSimple(
-        file,
-        { maxSizeMB, maxWidthOrHeight }
-      );
+        // Compress the image with simple compression
+        compressionResult = await compressImageSimple(
+          file,
+          { maxSizeMB, maxWidthOrHeight }
+        );
+        compressedFile = compressionResult.file;
 
       // Log warnings if compression had issues
       if (compressionResult.warnings && compressionResult.warnings.length > 0) {
@@ -112,17 +127,16 @@ export const useImageUpload = () => {
       });
 
       // Show compression complete toast
-      enhancedToast.showCompressionComplete({
-        ...compressionResult,
-        compressionRatio: compressionResult.compressionRatio,
-        timings: { total: 0 },
-        stages: [],
-        originalFormat: file.type.split('/')[1] || 'unknown',
-        finalFormat: 'jpeg',
-        algorithm: 'Canvas compression'
-      });
-
-      const compressedFile = compressionResult.file;
+        enhancedToast.showCompressionComplete({
+          ...compressionResult,
+          compressionRatio: compressionResult.compressionRatio,
+          timings: { total: 0 },
+          stages: [],
+          originalFormat: file.type.split('/')[1] || 'unknown',
+          finalFormat: 'jpeg',
+          algorithm: 'Canvas compression'
+        });
+      }
 
       // Generate filename with prefix
       const fileName = generateFileName 
@@ -174,11 +188,15 @@ export const useImageUpload = () => {
       }
 
       // Upload to S3
+      const contentType = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf') 
+        ? 'application/pdf' 
+        : 'image/jpeg';
+      
       const command = new PutObjectCommand({
         Bucket: S3_BUCKET,
         Key: key,
         Body: uint8Array,
-        ContentType: 'image/jpeg', // Always JPEG after compression
+        ContentType: contentType,
       });
 
       const result = await s3Client.send(command);

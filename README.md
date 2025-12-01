@@ -145,10 +145,11 @@ The following files are legacy from the Supabase era and should be ignored:
 - **`get_user_organization_id()` function error**: When creating parts history, error `{error: 'function get_user_organization_id() does not exist'}` occurs. 
   - **Status**: Partially fixed - stub function created but may need verification
   - **Root Cause**: Database triggers on `parts_history` table (or other tables) may be calling this Supabase-era function
-  - **Temporary Fix**: Created stub function that returns default org ID (`00000000-0000-0000-0000-000000000001`)
+  - **Temporary Fix**: Created stub function that returns hardcoded org ID (`00000000-0000-0000-0000-000000000001`) for legacy trigger compatibility
+  - **Important**: All Lambda functions MUST pass `organization_id` explicitly from the authorizer context. The stub function is ONLY for legacy triggers.
   - **Proper Fix Needed**: 
     1. Find all triggers using `get_user_organization_id()` (see `find-triggers-using-org-id.sql`)
     2. Remove triggers or update them to not use this function
-    3. Ensure all Lambda INSERT statements explicitly include `organization_id` from request body
+    3. Verify all Lambda INSERT statements explicitly include `organization_id` from authorizer context (NOT from request body)
     4. Remove stub function once triggers are cleaned up
   - **Files**: `fix-get-user-org-id.sql`, `find-triggers-using-org-id.sql`

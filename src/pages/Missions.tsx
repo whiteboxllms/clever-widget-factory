@@ -6,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useCognitoAuth";
-import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useToast } from "@/hooks/use-toast";
 import { useActionProfiles } from "@/hooks/useActionProfiles";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -18,8 +17,6 @@ import { SimpleMissionForm } from '@/components/SimpleMissionForm';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { apiService } from '@/lib/apiService';
 import { useOrganizationMembers } from '@/hooks/useOrganizationMembers';
-
-import { withAuth, checkUserRole as checkUserRoleAuth } from '@/lib/authUtils';
 import { hasActualContent } from '@/lib/utils';
 interface Mission {
   id: string;
@@ -64,7 +61,6 @@ const Missions = () => {
   const {
     user
   } = useAuth();
-  const organizationId = useOrganizationId();
   const {
     toast
   } = useToast();
@@ -262,85 +258,68 @@ const Missions = () => {
       });
       return;
     }
-
-    if (!organizationId) {
+    if (!isAdmin) {
       toast({
-        title: "Error",
-        description: "Organization ID is required to create missions",
+        title: "Permission Error",
+        description: "Only admins can create new missions",
         variant: "destructive"
       });
       return;
     }
+
     try {
-      // Check if user has admin role using the enhanced auth utils
-      const roleCheck = await checkUserRoleAuth('admin');
-      if (!roleCheck.hasRole) {
-        toast({
-          title: "Permission Error",
-          description: "Only admins can create new missions",
-          variant: "destructive"
-        });
-        return;
-      }
+      // Create the mission
+      const missionResult = await apiService.post('/missions', {
+        title: formData.title,
+        problem_statement: formData.problem_statement,
+        created_by: user.id,
+        qa_assigned_to: formData.qa_assigned_to || null,
+      });
+      const missionData = missionResult.data || missionResult;
 
-      // Use withAuth wrapper for the mission creation
-      const result = await withAuth(async session => {
-        // Create the mission
-        const missionResult = await apiService.post('/missions', {
-          title: formData.title,
-          problem_statement: formData.problem_statement,
-          created_by: session.user.id,
-          qa_assigned_to: formData.qa_assigned_to || null,
-        });
-        const missionData = missionResult.data || missionResult;
-
-        // Handle both new tasks from form and existing orphaned tasks
-        const tasksToCreate = formData.actions.filter(task => task.title.trim() && !task.id);
-        const existingTasksToUpdate = formData.actions.filter(task => task.id);
-        const createdTasks = [];
-        const taskIdMap: Record<string, string> = {};
+      // Handle both new tasks from form and existing orphaned tasks
+      const tasksToCreate = formData.actions.filter(task => task.title.trim() && !task.id);
+      const existingTasksToUpdate = formData.actions.filter(task => task.id);
+      const createdTasks = [];
+      const taskIdMap: Record<string, string> = {};
+      
+      // Create new tasks
+      if (tasksToCreate.length > 0) {
+        const tasksResult = await apiService.post('/actions', tasksToCreate.map(task => ({
+          mission_id: missionData.id,
+          title: task.title,
+          description: task.description || null,
+          policy: task.policy || null,
+          observations: task.observations || null,
+          assigned_to: task.assigned_to || null,
+          plan_commitment: task.plan_commitment || false,
+        })));
+        const tasksData = Array.isArray(tasksResult) ? tasksResult : (tasksResult?.data || []);
         
-        // Create new tasks
-        if (tasksToCreate.length > 0) {
-          const tasksResult = await apiService.post('/actions', tasksToCreate.map(task => ({
-            mission_id: missionData.id,
-            title: task.title,
-            description: task.description || null,
-            policy: task.policy || null,
-            observations: task.observations || null,
-            assigned_to: task.assigned_to || null,
-            plan_commitment: task.plan_commitment || false,
-          })));
-          const tasksData = Array.isArray(tasksResult) ? tasksResult : (tasksResult?.data || []);
-          
-          // Create task ID mapping from temp IDs to real IDs
-          tasksToCreate.forEach((task, index) => {
-            const tempId = `temp-${index}`;
-            if (tasksData && tasksData[index]) {
-              taskIdMap[tempId] = tasksData[index].id;
-            }
-          });
-          
-          createdTasks.push(...(tasksData || []));
-        }
-
-        // Update existing orphaned tasks with the mission ID
-        if (existingTasksToUpdate.length > 0) {
-          for (const task of existingTasksToUpdate) {
-            const updatedTask = await apiService.put(`/actions/${task.id}`, { mission_id: missionData.id });
-            createdTasks.push(updatedTask.data || updatedTask);
+        // Create task ID mapping from temp IDs to real IDs
+        tasksToCreate.forEach((task, index) => {
+          const tempId = `temp-${index}`;
+          if (tasksData && tasksData[index]) {
+            taskIdMap[tempId] = tasksData[index].id;
           }
-        }
-
-        return { 
-          missionId: missionData.id, 
-          taskIdMap, 
-          createdTasks 
-        };
-      }, 'mission creation');
-      if (result.error) {
-        throw new Error(result.error);
+        });
+        
+        createdTasks.push(...(tasksData || []));
       }
+
+      // Update existing orphaned tasks with the mission ID
+      if (existingTasksToUpdate.length > 0) {
+        for (const task of existingTasksToUpdate) {
+          const updatedTask = await apiService.put(`/actions/${task.id}`, { mission_id: missionData.id });
+          createdTasks.push(updatedTask.data || updatedTask);
+        }
+      }
+
+      const result = { 
+        missionId: missionData.id, 
+        taskIdMap, 
+        createdTasks 
+      };
 
       // Generate Perplexity collaboration URL
       const collaborationUrl = `https://www.perplexity.ai/spaces/stargazer-assistant-F45qc1H7SmeN5wF1nxJobg?q=${encodeURIComponent(formData.problem_statement)}`;
@@ -355,10 +334,10 @@ const Missions = () => {
       });
       setShowCreateDialog(false);
       resetFormData();
-      fetchMissions();
+      queryClient.invalidateQueries({ queryKey: missionsQueryKey() });
       
       // Return the result for photo migration
-      return result.data;
+      return result;
     } catch (error) {
       toast({
         title: "Error",

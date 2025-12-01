@@ -76,3 +76,4 @@ prototype/
 
 # Lovable tagger metadata
 html.meta.json.gz
+response.json

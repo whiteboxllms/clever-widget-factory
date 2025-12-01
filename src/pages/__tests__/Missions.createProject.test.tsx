@@ -108,12 +108,6 @@ vi.mock('@/hooks/useActionProfiles', () => ({
   })),
 }));
 
-// Mock lib/authUtils
-vi.mock('@/lib/authUtils', () => ({
-  withAuth: vi.fn((fn) => fn({ user: { id: 'test-user-id' } })),
-  checkUserRole: vi.fn().mockResolvedValue({ hasRole: true }),
-}));
-
 describe('Missions Page - Create Project Flow', () => {
   let fetchCallHistory: Array<{ url: string; options?: RequestInit }> = [];
 

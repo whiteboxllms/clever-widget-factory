@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from '@/lib/client';
+import { apiService, getApiData } from '@/lib/apiService';
 
 interface CategoryData {
   category: string;
@@ -211,25 +212,37 @@ export function useInventoryAnalytics() {
         partsMap[part.id] = { name: part.name, description: part.description };
       });
 
-      // Fetch mission details for usage records
+      // Fetch mission and task details for usage records
       const missionIds = usageData?.map(u => u.mission_id).filter(Boolean) || [];
       const taskIds = usageData?.map(u => u.task_id).filter(Boolean) || [];
 
-      const { data: missionsData, error: missionsError } = await supabase
-        .from("missions")
-        .select("id, title")
-        .in("id", missionIds);
-
-      const { data: tasksData, error: tasksError } = await supabase
-        .from("actions")
-        .select("id, title")
-        .in("id", taskIds);
-
-      if (missionsError) {
-        console.error("Error fetching missions:", missionsError);
+      // Build mission map from AWS-backed API instead of Supabase
+      let missionsData: any[] = [];
+      try {
+        const missionsResponse = await apiService.get('/missions');
+        const missionsPayload = getApiData(missionsResponse as any) || missionsResponse;
+        const allMissions = Array.isArray(missionsPayload) ? missionsPayload : [];
+        if (missionIds.length > 0) {
+          const missionIdSet = new Set(missionIds);
+          missionsData = allMissions.filter((m: any) => missionIdSet.has(m.id));
+        }
+      } catch (missionsError) {
+        console.error("Error fetching missions from API:", missionsError);
       }
-      if (tasksError) {
-        console.error("Error fetching tasks:", tasksError);
+
+      // Build task map from AWS-backed /actions endpoint
+      let tasksData: any[] = [];
+      try {
+        // Reuse existing actions endpoint and filter in-memory to requested taskIds
+        const actionsResponse = await apiService.get('/actions');
+        const actionsPayload = getApiData(actionsResponse as any) || actionsResponse;
+        const allActions = Array.isArray(actionsPayload) ? actionsPayload : [];
+        if (taskIds.length > 0) {
+          const taskIdSet = new Set(taskIds);
+          tasksData = allActions.filter((action: any) => taskIdSet.has(action.id));
+        }
+      } catch (tasksError) {
+        console.error("Error fetching tasks from API:", tasksError);
       }
 
       const missionsMap: Record<string, string> = {};

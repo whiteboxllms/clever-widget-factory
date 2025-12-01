@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { ActionCard } from '@/components/ActionCard';
 import { Button } from "@/components/ui/button";
 import { Plus } from 'lucide-react';
-import { supabase } from '@/lib/client';
 import { useToast } from "@/hooks/use-toast";
 import { UnifiedActionDialog } from './UnifiedActionDialog';
 import { BaseAction, Profile, createMissionAction } from '@/types/actions';
@@ -23,29 +22,8 @@ export function MissionActionList({ missionId, profiles, canEdit = false, missio
   const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
+    // Initial load of actions for this mission
     fetchActions();
-
-    // Set up real-time subscription for actions changes
-    const channel = supabase
-      .channel('actions-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'actions',
-          filter: `mission_id=eq.${missionId}`
-        },
-        () => {
-          console.log('Actions changed, refreshing...');
-          fetchActions();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [missionId]);
 
   const fetchActions = async () => {

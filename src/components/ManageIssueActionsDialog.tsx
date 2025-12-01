@@ -16,8 +16,6 @@ import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
 import { issueActionsQueryKey } from '@/lib/queryKeys';
 import { offlineQueryConfig } from '@/lib/queryConfig';
 import { apiService } from '@/lib/apiService';
-
-import { supabase } from '@/lib/client';
 import { toast } from "@/hooks/use-toast";
 
 interface ToolIssue {
@@ -99,18 +97,9 @@ export function ManageIssueActionsDialog({
     if (open && issue.tool_id) {
       const fetchToolName = async () => {
         try {
-          const toolResponse = await supabase
-            .from('tools')
-            .select('name')
-            .eq('id', issue.tool_id)
-            .single();
-          
-          if (toolResponse.error) {
-            console.warn('Could not fetch tool name:', toolResponse.error);
-            setToolName("Unknown Tool");
-          } else {
-            setToolName(toolResponse.data?.name || "Unknown Tool");
-          }
+          const toolResponse = await apiService.get(`/tools/${issue.tool_id}`);
+          const toolData = (toolResponse as any).data || toolResponse;
+          setToolName(toolData?.name || "Unknown Tool");
         } catch (error) {
           console.error('Error fetching tool name:', error);
           setToolName("Unknown Tool");

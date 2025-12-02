@@ -178,11 +178,8 @@ export const CombinedAssetsContainer = () => {
     if (loading && assets.length === 0) return [];
     
     if (showMyCheckedOut) {
-      console.log('=== MY CHECKED OUT FILTER (Combined Assets) ===');
-      console.log('User ID:', user?.id);
-      console.log('Total assets:', assets.length);
-      console.log('Assets (not stock):', assets.filter(a => a.type === 'asset').length);
-      console.log('Checked out assets:', assets.filter(a => a.type === 'asset' && a.is_checked_out).map(a => ({
+      // Filtering checked out assets
+      assets.filter(a => a.type === 'asset' && a.is_checked_out).map(a => ({
         name: a.name,
         is_checked_out: a.is_checked_out,
         checked_out_user_id: a.checked_out_user_id,
@@ -334,7 +331,6 @@ export const CombinedAssetsContainer = () => {
           supplier_name: quantityChange.supplierName || null,
           supplier_url: quantityChange.supplierUrl || null
         });
-        console.log('History entry created successfully');
       } catch (historyError) {
         console.error('History logging failed:', historyError);
       }

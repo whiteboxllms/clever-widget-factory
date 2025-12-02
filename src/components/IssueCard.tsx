@@ -276,39 +276,15 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
           parentId: issue.id,
           parentTitle: issue.description,
           prefilledData: (() => {
-            // Debug logging
-            console.log('[IssueCard] Creating action from issue:', {
-              issueId: issue.id,
-              description: issue.description,
-              damage_assessment: issue.damage_assessment,
-              hasDamageAssessment: !!issue.damage_assessment,
-              tool_id: issue.tool_id,
-              fullIssue: issue
-            });
-            
             const combinedDescription = issue.damage_assessment 
               ? `${issue.description}\n\nDamage Assessment: ${issue.damage_assessment}`
               : issue.description;
             
-            console.log('[IssueCard] Combined description:', {
-              original: issue.description,
-              combined: combinedDescription,
-              length: combinedDescription.length
-            });
-            
-            const prefilled = createIssueAction(
+            return createIssueAction(
               issue.id, 
               combinedDescription,
               issue.tool_id
             );
-            
-            console.log('[IssueCard] Prefilled data:', {
-              description: prefilled.description,
-              descriptionLength: prefilled.description?.length,
-              linked_issue_id: prefilled.linked_issue_id
-            });
-            
-            return prefilled;
           })()
         }}
         profiles={profiles}

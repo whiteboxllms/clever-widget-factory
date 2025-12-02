@@ -180,17 +180,12 @@ IMPORTANT OVERRIDES (do not ignore):
 
   const handleParseResponse = () => {
     try {
-      console.log('Parsing AI response:', aiResponse);
       const parsed = JSON.parse(aiResponse);
-      console.log('Parsed data:', parsed);
-      console.log('Extracted scores:', parsed.scores);
-      console.log('Extracted root causes:', parsed.likely_root_causes);
       
       setParsedScores(parsed.scores || {});
       setRootCauses(parsed.likely_root_causes || []);
       setShowScoreForm(true); // Show the form after parsing
       
-      console.log('State should be updated - parsedScores:', parsed.scores || {});
       
       toast({
         title: "Response parsed successfully",

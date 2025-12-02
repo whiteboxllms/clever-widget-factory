@@ -175,7 +175,6 @@ export function UnifiedActionDialog({
   // Initialize form data when dialog opens - preserve state for same session
   useEffect(() => {
     if (open) {
-      console.log('[DIALOG] Opening dialog:', { actionId: action?.id, isCreating, isUploading });
       const actionId = action?.id || null;
       const contextType = context?.type || null;
       
@@ -244,7 +243,6 @@ export function UnifiedActionDialog({
       }
     } else {
       // Reset tracking when dialog closes
-      console.log('[DIALOG] Closing dialog:', { actionId: action?.id, isUploading, isSubmitting });
       setIsFormInitialized(false);
       setCurrentActionId(null);
       setCurrentContextType(null);
@@ -487,16 +485,7 @@ export function UnifiedActionDialog({
     // Capture files immediately before any other operations
     const files = event.target.files;
     
-    console.log('[UPLOAD] handleFileUpload called:', {
-      hasFiles: !!files,
-      fileCount: files?.length || 0,
-      inputValue: event.target.value,
-      inputId: event.target.id,
-      isMobile: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
-    });
-    
     if (!files || files.length === 0) {
-      console.log('[UPLOAD] No files selected - early return');
       // Reset input even if no files to allow re-selection
       event.target.value = '';
       return;
@@ -505,23 +494,11 @@ export function UnifiedActionDialog({
     // Create array copy immediately before resetting input
     const fileArray = Array.from(files);
     
-    console.log('[UPLOAD] File array created:', {
-      arrayLength: fileArray.length,
-      fileNames: fileArray.map(f => f.name)
-    });
-    
     // Reset input to allow re-selecting same files
     // Do this after capturing files but before async operations
     event.target.value = '';
 
     const uploadSessionId = Math.random().toString(36).substr(2, 9);
-    console.log(`[UPLOAD_SESSION-${uploadSessionId}] START:`, {
-      fileCount: fileArray.length,
-      files: fileArray.map(f => ({ name: f.name, size: f.size, type: f.type })),
-      userAgent: navigator.userAgent,
-      memory: (performance as any).memory?.usedJSHeapSize,
-      connection: (navigator as any).connection?.effectiveType
-    });
 
     try {
       // Wrap upload in Promise to ensure proper error handling
@@ -540,12 +517,6 @@ export function UnifiedActionDialog({
       
       const resultsArray = Array.isArray(uploadResults) ? uploadResults : [uploadResults];
       const uploadedUrls = resultsArray.map(result => result.url);
-      
-      console.log(`[UPLOAD_SESSION-${uploadSessionId}] SUCCESS:`, {
-        uploadedCount: uploadedUrls.length,
-        requestedCount: fileArray.length,
-        urls: uploadedUrls
-      });
       
       setFormData(prev => ({
         ...prev,
@@ -734,7 +705,6 @@ export function UnifiedActionDialog({
          * See: src/components/__tests__/UnifiedActionDialog.upload.test.tsx
          */
         if (!newOpen && isUploading) {
-          console.log('[DIALOG] Prevented close during upload');
           toast({
             title: "Upload in progress",
             description: "Please wait for the upload to complete before closing.",

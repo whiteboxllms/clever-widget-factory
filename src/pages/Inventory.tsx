@@ -215,31 +215,16 @@ export default function Inventory() {
   }, [parts, searchTerm, showLowInventoryOnly]);
 
   const fetchParts = async () => {
-    console.log('=== FETCHING PARTS ===');
     try {
       // Use API service with automatic Authorization header
       const { apiService, getApiData } = await import('@/lib/apiService');
       const response = await apiService.get<{ data: Part[] }>('/parts');
       const partsData = getApiData(response) || [];
       
-      console.log('Fetched parts count:', partsData.length);
-      
-      // Find Anaa part for debugging
-      const anaaPart = partsData.find((p: Part) => p.name.includes('Anaa'));
-      if (anaaPart) {
-        console.log('Anaa part from API:', {
-          id: anaaPart.id,
-          name: anaaPart.name,
-          unit: anaaPart.unit,
-          updated_at: anaaPart.updated_at
-        });
-      }
-      
       // Sort by name
       partsData.sort((a: Part, b: Part) => (a.name || '').localeCompare(b.name || ''));
       
       setParts(partsData);
-      console.log('Parts state updated');
     } catch (error: any) {
       console.error('Error fetching parts:', error);
       toast({
@@ -430,10 +415,8 @@ export default function Inventory() {
       
       // Handle image upload phase separately for better error tracking
       if (selectedImage) {
-        console.log('Starting image upload for:', selectedImage.name);
         try {
           imageUrl = await uploadImage(selectedImage);
-          console.log('Image upload successful:', imageUrl);
         } catch (uploadError) {
           console.error('Image upload failed:', uploadError);
           throw new Error(`Image upload failed: ${uploadError.message || 'Unknown upload error'}`);
@@ -449,8 +432,6 @@ export default function Inventory() {
         image_url: imageUrl
       };
 
-      console.log('Inserting part data to database:', partData);
-
       // Database insertion phase
       const { data, error } = await supabase
         .from('parts')
@@ -463,17 +444,12 @@ export default function Inventory() {
         throw new Error(`Database error: ${error.message} (Code: ${error.code || 'unknown'})`);
       }
 
-      console.log('Part inserted successfully:', data);
-
       // Log the creation to history
       try {
         if (!user?.userId) {
           console.error('No authenticated user found for history logging');
           throw new Error('User must be authenticated to create stock items');
         }
-        
-        console.log('Creating history entry with user ID:', currentUser.id);
-        console.log('Current user object:', currentUser);
         
         const historyError = await createPartsHistory.mutateAsync({
           part_id: data.id,
@@ -563,22 +539,14 @@ export default function Inventory() {
       return;
     }
 
-    console.log('=== UPDATE PART START ===');
-    console.log('editingPart:', editingPart);
-    console.log('formData received:', formData);
-    console.log('useMinimumQuantity:', useMinimumQuantity);
-
     try {
       setUploadingImage(true);
       
       let imageUrl = editingPart.image_url;
       if (removeExistingImage) {
-        console.log('Removing existing image...');
         imageUrl = null;
       } else if (editSelectedImage) {
-        console.log('Uploading new image...');
         imageUrl = await uploadImage(editSelectedImage, editingPart.id);
-        console.log('Image uploaded:', imageUrl);
       }
 
       const updateData = {
@@ -595,33 +563,19 @@ export default function Inventory() {
         updated_at: new Date().toISOString()
       };
 
-      console.log('=== SENDING UPDATE TO DATABASE ===');
-      console.log('Part ID:', editingPart.id);
-      console.log('Update data:', JSON.stringify(updateData, null, 2));
-
       const { data: updatedData, error } = await supabase
         .from('parts')
         .update(updateData)
         .eq('id', editingPart.id)
         .select();
 
-      console.log('=== DATABASE RESPONSE ===');
-      console.log('Error:', error);
-      console.log('Updated data:', updatedData);
-
       if (error) {
-        console.error('=== UPDATE FAILED ===');
-        console.error('Error details:', JSON.stringify(error, null, 2));
         throw error;
       }
       
       if (!updatedData || updatedData.length === 0) {
-        console.error('=== NO DATA RETURNED ===');
         throw new Error('Update succeeded but no data returned');
       }
-
-      console.log('=== UPDATE SUCCESSFUL ===');
-      console.log('Returned unit value:', updatedData[0]?.unit);
 
       // Log the update to history - including quantity changes
       try {
@@ -731,26 +685,19 @@ export default function Inventory() {
         description: "Part updated successfully",
       });
 
-      console.log('=== CLOSING DIALOG AND REFRESHING ===');
       setShowEditDialog(false);
       setEditingPart(null);
       setEditSelectedImage(null);
       setRemoveExistingImage(false);
       
-      console.log('Fetching updated parts list...');
       await fetchParts();
-      console.log('Parts list refreshed');
     } catch (error) {
-      console.error('=== ERROR UPDATING PART ===');
-      console.error('Error object:', error);
-      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to update part",
         variant: "destructive",
       });
     } finally {
-      console.log('=== UPDATE PART END ===');
       setUploadingImage(false);
     }
   };

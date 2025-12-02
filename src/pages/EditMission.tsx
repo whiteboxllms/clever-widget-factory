@@ -169,14 +169,12 @@ export default function EditMission() {
     }
     
     try {
-      console.log('Saving mission data:', data);
       await apiService.put(`/missions/${mission.id}`, {
         title: data.title,
         problem_statement: data.problem_statement,
         qa_assigned_to: data.qa_assigned_to || null,
         updated_at: new Date().toISOString()
       });
-      console.log('Mission save successful');
       
       toast({
         title: "Project Updated",
@@ -207,7 +205,6 @@ export default function EditMission() {
       return;
     }
     
-    console.log('Attempting to remove mission:', {
       id: mission.id, 
       title: mission.title,
       currentStatus: mission.status,
@@ -220,7 +217,6 @@ export default function EditMission() {
         updated_at: new Date().toISOString()
       });
 
-      console.log('Mission successfully removed');
       toast({
         title: "Project Removed",
         description: `Project PROJECT-${String(mission.mission_number).padStart(3, '0')} has been removed.`,
@@ -245,7 +241,6 @@ export default function EditMission() {
       return;
     }
     
-    console.log('Attempting to move mission to backlog:', {
       id: mission.id, 
       title: mission.title,
       currentStatus: mission.status,
@@ -258,7 +253,6 @@ export default function EditMission() {
         updated_at: new Date().toISOString()
       });
 
-      console.log('Mission successfully moved to backlog');
       toast({
         title: "Project Moved to Backlog",
         description: `Project PROJECT-${String(mission.mission_number).padStart(3, '0')} has been moved to the backlog.`,

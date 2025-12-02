@@ -47,7 +47,6 @@ export function ManageIssueActionsDialog({
   issue,
   onRefresh
 }: ManageIssueActionsDialogProps) {
-  console.log('[ManageIssueActionsDialog] Rendered with:', { open, issueId: issue.id });
   const queryClient = useQueryClient();
   const [toolName, setToolName] = useState<string>("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -58,11 +57,8 @@ export function ManageIssueActionsDialog({
   const actionsQuery = useQuery({
     queryKey: issueActionsQueryKey(issue.id),
     queryFn: async () => {
-      console.log('[ManageIssueActionsDialog] Fetching actions for issue:', issue.id);
       const response = await apiService.get<{ data: any[] }>(`/actions?linked_issue_id=${issue.id}`);
-      console.log('[ManageIssueActionsDialog] API response:', response);
       const data = response.data || [];
-      console.log('[ManageIssueActionsDialog] Parsed data:', data);
       
       return data.map(action => ({
         ...action,

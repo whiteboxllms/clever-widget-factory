@@ -781,7 +781,6 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
                   <span>
                     {(() => {
                       const assignedProfile = profiles.find(p => p.user_id === action.assigned_to);
-                      console.log('Action assigned_to:', action.assigned_to, 'Found profile:', assignedProfile);
                       if (assignedProfile) {
                         const isCurrentUser = user?.userId === action.assigned_to;
                         const nameColor = isCurrentUser ? favoriteColor : '#6B7280';

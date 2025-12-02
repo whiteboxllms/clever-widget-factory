@@ -56,7 +56,6 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
 
   const fetchUpdates = async () => {
     try {
-      console.log('Fetching updates for action:', actionId);
       const result = await apiService.get(`/action_implementation_updates?action_id=${actionId}`);
       const data = result.data || [];
       console.log('Fetched updates from server:', data.length, 'updates');
@@ -218,7 +217,6 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
     try {
       await apiService.delete(`/action_implementation_updates/${updateId}`);
 
-      console.log('Delete successful, refreshing from server...');
       
       // Refresh from server to get updated list
       await fetchUpdates();

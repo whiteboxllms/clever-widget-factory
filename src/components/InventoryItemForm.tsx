@@ -111,13 +111,10 @@ export function InventoryItemForm({
   }, [editingPart]);
 
   const handleSubmit = () => {
-    console.log('Form submission - formData:', formData);
-    console.log('Form submission - useMinimumQuantity:', useMinimumQuantity);
     onSubmit(formData, useMinimumQuantity);
   };
 
   const updateFormData = (field: keyof FormData, value: string | number) => {
-    console.log(`Updating form field ${field} to:`, value);
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 

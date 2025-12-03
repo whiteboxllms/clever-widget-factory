@@ -84,7 +84,10 @@ export default function Inventory() {
   
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
-  const [editingPart, setEditingPart] = useState<Part | null>(null);
+  const [editingPartId, setEditingPartId] = useState<string | null>(null);
+  
+  // Look up editing part from cache by ID (always fresh)
+  const editingPart = editingPartId ? parts.find(p => p.id === editingPartId) : null;
   const [showQuantityDialog, setShowQuantityDialog] = useState(false);
   const [quantityPart, setQuantityPart] = useState<Part | null>(null);
   const [quantityOperation, setQuantityOperation] = useState<'add' | 'remove'>('add');
@@ -127,7 +130,7 @@ export default function Inventory() {
       // Find and set the part for editing when edit parameter is present
       const partToEdit = parts.find(part => part.id === editPartId);
       if (partToEdit) {
-        setEditingPart(partToEdit);
+        setEditingPartId(editPartId);
         setShowEditDialog(true);
         // Clear the URL parameter to avoid reopening on refresh
         const newUrl = new URL(window.location.href);
@@ -686,7 +689,7 @@ export default function Inventory() {
       });
 
       setShowEditDialog(false);
-      setEditingPart(null);
+      setEditingPartId(null);
       setEditSelectedImage(null);
       setRemoveExistingImage(false);
       
@@ -1146,7 +1149,7 @@ export default function Inventory() {
                       variant="ghost"
                       size="sm"
                       onClick={() => {
-                        setEditingPart(part);
+                        setEditingPartId(part.id);
                         setShowEditDialog(true);
                       }}
                     >

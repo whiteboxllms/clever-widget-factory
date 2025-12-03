@@ -87,8 +87,11 @@ export default function Issues() {
   }, {} as Record<string, BaseIssue[]>);
 
   const [createIssueOpen, setCreateIssueOpen] = useState(false);
-  const [editingIssue, setEditingIssue] = useState<BaseIssue | null>(null);
+  const [editingIssueId, setEditingIssueId] = useState<string | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  
+  // Look up editing issue from cache by ID (always fresh)
+  const editingIssue = editingIssueId ? issues.find(i => i.id === editingIssueId) : null;
 
   const handleIssueResolve = async (issue: BaseIssue) => {
     try {
@@ -100,14 +103,14 @@ export default function Issues() {
   };
 
   const handleIssueEdit = (issue: BaseIssue) => {
-    setEditingIssue(issue);
+    setEditingIssueId(issue.id);
     setIsEditDialogOpen(true);
   };
 
   const handleEditSuccess = async () => {
     await fetchIssues();
     setIsEditDialogOpen(false);
-    setEditingIssue(null);
+    setEditingIssueId(null);
   };
 
   if (isLoading) {

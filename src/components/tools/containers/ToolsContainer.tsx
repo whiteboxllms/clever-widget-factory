@@ -37,7 +37,7 @@ export const ToolsContainer = () => {
   const [showRemovedItems, setShowRemovedItems] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editTool, setEditTool] = useState(null);
+  const [editToolId, setEditToolId] = useState<string | null>(null);
   const [checkoutTool, setCheckoutTool] = useState(null);
   const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false);
   const [isCheckinDialogOpen, setIsCheckinDialogOpen] = useState(false);
@@ -47,7 +47,7 @@ export const ToolsContainer = () => {
   const [reportIssueTool, setReportIssueTool] = useState(null);
   const [isReportIssueDialogOpen, setIsReportIssueDialogOpen] = useState(false);
   const [isCreateIssueDialogOpen, setIsCreateIssueDialogOpen] = useState(false);
-  const [editIssue, setEditIssue] = useState(null);
+  const [editIssueId, setEditIssueId] = useState<string | null>(null);
   const [isEditIssueDialogOpen, setIsEditIssueDialogOpen] = useState(false);
   const [storageVicinities, setStorageVicinities] = useState([]);
   const [removeTool, setRemoveTool] = useState(null);
@@ -93,7 +93,7 @@ export const ToolsContainer = () => {
     if (toolId && tools.length > 0) {
       const toolToEdit = tools.find(tool => tool.id === toolId);
       if (toolToEdit) {
-        setEditTool(toolToEdit);
+        setEditToolId(toolToEdit.id);
         setIsEditDialogOpen(true);
       }
     }
@@ -121,7 +121,7 @@ export const ToolsContainer = () => {
   };
 
   const handleEditClick = (tool) => {
-    setEditTool(tool);
+    setEditToolId(tool.id);
     setIsEditDialogOpen(true);
   };
 
@@ -157,7 +157,7 @@ export const ToolsContainer = () => {
   };
 
   const handleEditIssue = (issue) => {
-    setEditIssue(issue);
+    setEditIssueId(issue.id);
     setIsEditIssueDialogOpen(true);
   };
 
@@ -180,6 +180,10 @@ export const ToolsContainer = () => {
     await updateTool(toolId, updates);
     await fetchTools();
   };
+
+  // Look up entities from cache
+  const editTool = editToolId ? tools.find(t => t.id === editToolId) : null;
+  const editIssue = editIssueId ? issues.find(i => i.id === editIssueId) : null;
 
   if (loading) {
     return <div className="text-center py-8">Loading assets...</div>;
@@ -224,7 +228,7 @@ export const ToolsContainer = () => {
               fetchToolHistory(selectedTool.id);
             }
             setIsEditIssueDialogOpen(false);
-            setEditIssue(null);
+            setEditIssueId(null);
           }}
         />
       </>
@@ -295,7 +299,7 @@ export const ToolsContainer = () => {
         isOpen={isEditDialogOpen}
         onClose={() => {
           setIsEditDialogOpen(false);
-          setEditTool(null);
+          setEditToolId(null);
           navigate('/tools');
         }}
         onSubmit={handleUpdateTool}
@@ -353,7 +357,7 @@ export const ToolsContainer = () => {
             fetchToolHistory(selectedTool.id);
           }
           setIsEditIssueDialogOpen(false);
-          setEditIssue(null);
+          setEditIssueId(null);
         }}
       />
 

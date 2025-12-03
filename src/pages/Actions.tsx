@@ -31,7 +31,7 @@ export default function Actions() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('me');
-  const [editingAction, setEditingAction] = useState<BaseAction | null>(null);
+  const [editingActionId, setEditingActionId] = useState<string | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
@@ -74,7 +74,7 @@ export default function Actions() {
         throw new Error('Action not found');
       }
 
-      setEditingAction(action);
+      setEditingActionId(id);
       setIsEditDialogOpen(true);
       setIsCreating(false);
     } catch (error) {
@@ -86,12 +86,12 @@ export default function Actions() {
       });
       navigate('/actions');
     }
-  }, [organizationId, navigate]);
+  }, [organizationId, navigate, actions]);
 
   // Profiles are now handled by useActionProfiles hook for consistency
 
   const handleEditAction = async (action: BaseAction) => {
-    setEditingAction(action);
+    setEditingActionId(action.id);
     setIsCreating(false);
     setIsEditDialogOpen(true);
   };
@@ -101,18 +101,18 @@ export default function Actions() {
   const handleSaveAction = async () => {
     queryClient.invalidateQueries({ queryKey: ['actions'] });
     setIsEditDialogOpen(false);
-    setEditingAction(null);
+    setEditingActionId(null);
     setIsCreating(false);
   };
 
   const handleCancelEdit = () => {
     setIsEditDialogOpen(false);
-    setEditingAction(null);
+    setEditingActionId(null);
     setIsCreating(false);
   };
 
   const handleCreateAction = () => {
-    setEditingAction(null);
+    setEditingActionId(null);
     setIsCreating(true);
     setIsEditDialogOpen(true);
   };
@@ -160,7 +160,9 @@ export default function Actions() {
     if (searchActionId && actions.length > 0) {
       const action = actions.find(a => a.id === searchActionId);
       if (action) {
-        handleEditAction(action);
+        setEditingActionId(searchActionId);
+        setIsEditDialogOpen(true);
+        setIsCreating(false);
         processedUrlRef.current = searchActionId;
         // Clear the URL parameter after opening the action
         setSearchParams({});
@@ -169,7 +171,7 @@ export default function Actions() {
       // Find the action in the current actions list
       const action = actions.find(a => a.id === urlActionId);
       if (action) {
-        setEditingAction(action);
+        setEditingActionId(urlActionId);
         setIsEditDialogOpen(true);
         setIsCreating(false);
         processedUrlRef.current = urlActionId;
@@ -471,7 +473,7 @@ export default function Actions() {
               }
             }
           }}
-          action={editingAction || undefined}
+          action={editingActionId ? actions.find(a => a.id === editingActionId) : undefined}
           onActionSaved={handleSaveAction}
           profiles={profiles}
           isCreating={isCreating}

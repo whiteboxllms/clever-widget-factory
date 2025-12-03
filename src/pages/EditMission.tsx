@@ -205,12 +205,6 @@ export default function EditMission() {
       return;
     }
     
-      id: mission.id, 
-      title: mission.title,
-      currentStatus: mission.status,
-      missionNumber: mission.mission_number
-    });
-    
     try {
       await apiService.put(`/missions/${mission.id}`, {
         status: 'cancelled',
@@ -240,12 +234,6 @@ export default function EditMission() {
       console.error('Missing user or mission data:', { user: !!user, mission: !!mission });
       return;
     }
-    
-      id: mission.id, 
-      title: mission.title,
-      currentStatus: mission.status,
-      missionNumber: mission.mission_number
-    });
     
     try {
       await apiService.put(`/missions/${mission.id}`, {

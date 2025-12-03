@@ -46,6 +46,9 @@ The apiService automatically adds `/api` to all endpoints.
 The AWS API Gateway provides these endpoints:
 - `GET /health` - Health check
 - `GET /api/actions` - Get all actions
+- `POST /api/actions` - Create action
+- `PUT /api/actions/{id}` - Update action
+- `DELETE /api/actions/{id}` - Delete action
 - `GET /api/organization_members` - Get organization members
 - `GET /api/tools` - Get tools
 - `GET /api/parts` - Get parts

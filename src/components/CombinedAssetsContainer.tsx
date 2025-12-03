@@ -177,15 +177,7 @@ export const CombinedAssetsContainer = () => {
     // Skip filtering during loading to prevent flicker
     if (loading && assets.length === 0) return [];
     
-    if (showMyCheckedOut) {
-      // Filtering checked out assets
-      assets.filter(a => a.type === 'asset' && a.is_checked_out).map(a => ({
-        name: a.name,
-        is_checked_out: a.is_checked_out,
-        checked_out_user_id: a.checked_out_user_id,
-        matches: a.checked_out_user_id === user?.id
-      })));
-    }
+
     
     return assets.filter(asset => {
       // Type filters

@@ -111,6 +111,37 @@ During Cognito migration, user IDs were updated. Reference for any remaining mig
 | Mae Dela Torre | `48155769-4d22-4d36-9982-095ac9ad6b2c` | `1891f310-c071-705a-2c72-0d0a33c92bf0` |
 | Stefan Hamilton | `b8006f2b-0ec7-4107-b05a-b4c6b49541fd` | `08617390-b001-708d-f61e-07a1698282ec` |
 
+## Development Best Practices
+
+### TanStack Query Cache Pattern
+
+**Problem:** Storing entity objects in local state creates stale snapshots that don't update when the cache refetches.
+
+**Solution:** Store IDs in state, look up entities from cache.
+
+```typescript
+// ❌ BAD - Creates stale snapshot
+const [editingAction, setEditingAction] = useState<Action | null>(null);
+<Dialog action={editingAction} />
+
+// ✅ GOOD - Always fresh from cache
+const [editingActionId, setEditingActionId] = useState<string | null>(null);
+const editingAction = actions.find(a => a.id === editingActionId);
+<Dialog action={editingAction} />
+```
+
+**When to use:**
+- Edit dialogs (Actions, Missions, Issues, Tools, etc.)
+- Any component that displays cached data that can be updated elsewhere
+- Forms that stay open during save operations
+
+**Implementation:**
+- Store only the ID in `useState`
+- Look up the entity from the TanStack Query cache using `find()`
+- The lookup always returns fresh data after refetches
+
+See `src/pages/Actions.tsx` for reference implementation.
+
 ## What technologies are used for this project?
 
 This project is built with:

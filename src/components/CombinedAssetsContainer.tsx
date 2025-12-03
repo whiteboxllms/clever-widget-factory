@@ -56,7 +56,7 @@ export const CombinedAssetsContainer = () => {
   const [showRemovalDialog, setShowRemovalDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showViewDialog, setShowViewDialog] = useState(false);
-  const [selectedAsset, setSelectedAsset] = useState<CombinedAsset | null>(null);
+  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [selectedAssetForDetails, setSelectedAssetForDetails] = useState<CombinedAsset | null>(null);
   
   // Stock dialog states
@@ -172,23 +172,15 @@ export const CombinedAssetsContainer = () => {
     };
   }, [searchTerm, showRemovedItems, searchDescriptions, showLowStock]);
 
+  // Look up selected asset from cache
+  const selectedAsset = selectedAssetId ? assets.find(a => a.id === selectedAssetId) : null;
+
   // Filter assets based on current filters
   const filteredAssets = useMemo(() => {
     // Skip filtering during loading to prevent flicker
     if (loading && assets.length === 0) return [];
     
-    if (showMyCheckedOut) {
-      console.log('=== MY CHECKED OUT FILTER (Combined Assets) ===');
-      console.log('User ID:', user?.id);
-      console.log('Total assets:', assets.length);
-      console.log('Assets (not stock):', assets.filter(a => a.type === 'asset').length);
-      console.log('Checked out assets:', assets.filter(a => a.type === 'asset' && a.is_checked_out).map(a => ({
-        name: a.name,
-        is_checked_out: a.is_checked_out,
-        checked_out_user_id: a.checked_out_user_id,
-        matches: a.checked_out_user_id === user?.id
-      })));
-    }
+
     
     return assets.filter(asset => {
       // Type filters
@@ -219,7 +211,7 @@ export const CombinedAssetsContainer = () => {
   };
 
   const handleView = useCallback((asset: CombinedAsset) => {
-    setSelectedAsset(asset);
+    setSelectedAssetId(asset.id);
     setShowViewDialog(true);
     // Fetch additional data for view dialog if it's an asset
     if (asset.type === 'asset') {
@@ -229,7 +221,7 @@ export const CombinedAssetsContainer = () => {
   }, [fetchToolHistory, fetchAssetIssues]);
 
   const handleEdit = useCallback((asset: CombinedAsset) => {
-    setSelectedAsset(asset);
+    setSelectedAssetId(asset.id);
     // Initialize attachments with existing image if available
     if (asset.type === 'stock' && asset.image_url) {
       setStockAttachments([asset.image_url]);
@@ -240,22 +232,22 @@ export const CombinedAssetsContainer = () => {
   }, []);
 
   const handleRemove = useCallback((asset: CombinedAsset) => {
-    setSelectedAsset(asset);
+    setSelectedAssetId(asset.id);
     setShowRemovalDialog(true);
   }, []);
 
   const handleCheckout = useCallback((asset: CombinedAsset) => {
-    setSelectedAsset(asset);
+    setSelectedAssetId(asset.id);
     setShowCheckoutDialog(true);
   }, []);
 
   const handleCheckin = useCallback((asset: CombinedAsset) => {
-    setSelectedAsset(asset);
+    setSelectedAssetId(asset.id);
     setShowCheckinDialog(true);
   }, []);
 
   const handleManageIssues = useCallback((asset: CombinedAsset) => {
-    setSelectedAsset(asset);
+    setSelectedAssetId(asset.id);
     setShowIssueDialog(true);
   }, []);
 
@@ -276,26 +268,26 @@ export const CombinedAssetsContainer = () => {
 
   // Stock quantity handlers
   const handleAddQuantity = useCallback((asset: CombinedAsset) => {
-    setSelectedAsset(asset);
+    setSelectedAssetId(asset.id);
     setQuantityOperation('add');
     setShowQuantityDialog(true);
   }, []);
 
   const handleUseQuantity = useCallback((asset: CombinedAsset) => {
-    setSelectedAsset(asset);
+    setSelectedAssetId(asset.id);
     setQuantityOperation('remove');
     setShowQuantityDialog(true);
   }, []);
 
   const handleOrderStock = useCallback((asset: CombinedAsset) => {
-    setSelectedAsset(asset);
+    setSelectedAssetId(asset.id);
     setShowOrderDialog(true);
   }, []);
 
   const handleReceiveOrder = useCallback((asset: CombinedAsset) => {
     const orders = pendingOrders[asset.id];
     if (orders && orders.length > 0) {
-      setSelectedAsset(asset);
+      setSelectedAssetId(asset.id);
       setShowReceivingDialog(true);
     }
   }, [pendingOrders]);
@@ -334,7 +326,6 @@ export const CombinedAssetsContainer = () => {
           supplier_name: quantityChange.supplierName || null,
           supplier_url: quantityChange.supplierUrl || null
         });
-        console.log('History entry created successfully');
       } catch (historyError) {
         console.error('History logging failed:', historyError);
       }
@@ -347,7 +338,7 @@ export const CombinedAssetsContainer = () => {
       });
 
       setShowQuantityDialog(false);
-      setSelectedAsset(null);
+      setSelectedAssetId(null);
       setQuantityChange({ amount: '', reason: '', supplierName: '', supplierUrl: '' });
       refetch();
     } catch (error) {
@@ -374,7 +365,7 @@ export const CombinedAssetsContainer = () => {
 
       await refetch();
       setShowRemovalDialog(false);
-      setSelectedAsset(null);
+      setSelectedAssetId(null);
       
       toast({
         title: "Success",
@@ -397,7 +388,7 @@ export const CombinedAssetsContainer = () => {
       await updateAsset(toolId, toolData, selectedAsset.type === 'asset');
       await refetch();
       setShowEditDialog(false);
-      setSelectedAsset(null);
+      setSelectedAssetId(null);
       toast({
         title: "Success",
         description: `${selectedAsset.type === 'asset' ? 'Asset' : 'Stock item'} updated successfully`,
@@ -438,7 +429,7 @@ export const CombinedAssetsContainer = () => {
       await refetch();
       setShowEditDialog(false);
       setSelectedImage(null); // Reset image state
-      setSelectedAsset(null);
+      setSelectedAssetId(null);
       toast({
         title: "Success",
         description: "Stock item updated successfully",
@@ -592,13 +583,13 @@ export const CombinedAssetsContainer = () => {
           open={showCheckoutDialog}
           onOpenChange={() => {
             setShowCheckoutDialog(false);
-            setSelectedAsset(null);
+            setSelectedAssetId(null);
           }}
           tool={selectedAsset as any}
           onSuccess={() => {
             refetch();
             setShowCheckoutDialog(false);
-            setSelectedAsset(null);
+            setSelectedAssetId(null);
           }}
         />
       )}
@@ -609,13 +600,13 @@ export const CombinedAssetsContainer = () => {
           open={showCheckinDialog}
           onOpenChange={() => {
             setShowCheckinDialog(false);
-            setSelectedAsset(null);
+            setSelectedAssetId(null);
           }}
           tool={selectedAsset as any}
           onSuccess={() => {
             refetch();
             setShowCheckinDialog(false);
-            setSelectedAsset(null);
+            setSelectedAssetId(null);
           }}
         />
       )}
@@ -626,13 +617,13 @@ export const CombinedAssetsContainer = () => {
           open={showIssueDialog}
           onOpenChange={() => {
             setShowIssueDialog(false);
-            setSelectedAsset(null);
+            setSelectedAssetId(null);
           }}
           asset={selectedAsset}
           onSuccess={() => {
             refetch();
             setShowIssueDialog(false);
-            setSelectedAsset(null);
+            setSelectedAssetId(null);
           }}
         />
       )}
@@ -643,7 +634,7 @@ export const CombinedAssetsContainer = () => {
           open={showRemovalDialog}
           onOpenChange={() => {
             setShowRemovalDialog(false);
-            setSelectedAsset(null);
+            setSelectedAssetId(null);
           }}
           tool={selectedAsset as any}
           onConfirm={handleConfirmRemoval}
@@ -656,7 +647,7 @@ export const CombinedAssetsContainer = () => {
           onOpenChange={(open) => {
             if (!open) {
               setShowRemovalDialog(false);
-              setSelectedAsset(null);
+              setSelectedAssetId(null);
             }
           }}
         >
@@ -687,7 +678,7 @@ export const CombinedAssetsContainer = () => {
           isOpen={showEditDialog}
           onClose={() => {
             setShowEditDialog(false);
-            setSelectedAsset(null);
+            setSelectedAssetId(null);
             setSelectedImage(null); // Reset image state when closing
           }}
           onSubmit={handleEditSubmit}
@@ -700,7 +691,7 @@ export const CombinedAssetsContainer = () => {
         <Dialog open={showEditDialog} onOpenChange={(open) => {
           if (!open) {
             setShowEditDialog(false);
-            setSelectedAsset(null);
+            setSelectedAssetId(null);
           }
         }}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -728,7 +719,7 @@ export const CombinedAssetsContainer = () => {
               onSubmit={handleStockEditSubmit}
               onCancel={() => {
                 setShowEditDialog(false);
-                setSelectedAsset(null);
+                setSelectedAssetId(null);
                 setStockAttachments([]); // Reset attachments when canceling
               }}
               isLoading={isUploading}
@@ -750,7 +741,7 @@ export const CombinedAssetsContainer = () => {
                   variant="outline"
                   onClick={() => {
                     setShowViewDialog(false);
-                    setSelectedAsset(null);
+                    setSelectedAssetId(null);
                   }}
                 >
                   Close
@@ -762,7 +753,7 @@ export const CombinedAssetsContainer = () => {
                 currentCheckout={currentCheckout}
                 onBack={() => {
                   setShowViewDialog(false);
-                  setSelectedAsset(null);
+                  setSelectedAssetId(null);
                 }}
               />
             </div>
@@ -781,7 +772,7 @@ export const CombinedAssetsContainer = () => {
                   variant="outline"
                   onClick={() => {
                     setShowViewDialog(false);
-                    setSelectedAsset(null);
+                    setSelectedAssetId(null);
                   }}
                 >
                   Close
@@ -915,7 +906,7 @@ export const CombinedAssetsContainer = () => {
           isOpen={showOrderDialog}
           onClose={() => {
             setShowOrderDialog(false);
-            setSelectedAsset(null);
+            setSelectedAssetId(null);
           }}
           partId={selectedAsset.id}
           partName={selectedAsset.name}
@@ -932,14 +923,14 @@ export const CombinedAssetsContainer = () => {
           isOpen={showReceivingDialog}
           onClose={() => {
             setShowReceivingDialog(false);
-            setSelectedAsset(null);
+            setSelectedAssetId(null);
           }}
           order={pendingOrders[selectedAsset.id]?.[0] || null}
           part={selectedAsset as any}
           onSuccess={() => {
             refetch();
             setShowReceivingDialog(false);
-            setSelectedAsset(null);
+            setSelectedAssetId(null);
           }}
         />
       )}

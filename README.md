@@ -46,6 +46,9 @@ The apiService automatically adds `/api` to all endpoints.
 The AWS API Gateway provides these endpoints:
 - `GET /health` - Health check
 - `GET /api/actions` - Get all actions
+- `POST /api/actions` - Create action
+- `PUT /api/actions/{id}` - Update action
+- `DELETE /api/actions/{id}` - Delete action
 - `GET /api/organization_members` - Get organization members
 - `GET /api/tools` - Get tools
 - `GET /api/parts` - Get parts
@@ -108,6 +111,37 @@ During Cognito migration, user IDs were updated. Reference for any remaining mig
 | Mae Dela Torre | `48155769-4d22-4d36-9982-095ac9ad6b2c` | `1891f310-c071-705a-2c72-0d0a33c92bf0` |
 | Stefan Hamilton | `b8006f2b-0ec7-4107-b05a-b4c6b49541fd` | `08617390-b001-708d-f61e-07a1698282ec` |
 
+## Development Best Practices
+
+### TanStack Query Cache Pattern
+
+**Problem:** Storing entity objects in local state creates stale snapshots that don't update when the cache refetches.
+
+**Solution:** Store IDs in state, look up entities from cache.
+
+```typescript
+// ❌ BAD - Creates stale snapshot
+const [editingAction, setEditingAction] = useState<Action | null>(null);
+<Dialog action={editingAction} />
+
+// ✅ GOOD - Always fresh from cache
+const [editingActionId, setEditingActionId] = useState<string | null>(null);
+const editingAction = actions.find(a => a.id === editingActionId);
+<Dialog action={editingAction} />
+```
+
+**When to use:**
+- Edit dialogs (Actions, Missions, Issues, Tools, etc.)
+- Any component that displays cached data that can be updated elsewhere
+- Forms that stay open during save operations
+
+**Implementation:**
+- Store only the ID in `useState`
+- Look up the entity from the TanStack Query cache using `find()`
+- The lookup always returns fresh data after refetches
+
+See `src/pages/Actions.tsx` for reference implementation.
+
 ## What technologies are used for this project?
 
 This project is built with:
@@ -145,10 +179,11 @@ The following files are legacy from the Supabase era and should be ignored:
 - **`get_user_organization_id()` function error**: When creating parts history, error `{error: 'function get_user_organization_id() does not exist'}` occurs. 
   - **Status**: Partially fixed - stub function created but may need verification
   - **Root Cause**: Database triggers on `parts_history` table (or other tables) may be calling this Supabase-era function
-  - **Temporary Fix**: Created stub function that returns default org ID (`00000000-0000-0000-0000-000000000001`)
+  - **Temporary Fix**: Created stub function that returns hardcoded org ID (`00000000-0000-0000-0000-000000000001`) for legacy trigger compatibility
+  - **Important**: All Lambda functions MUST pass `organization_id` explicitly from the authorizer context. The stub function is ONLY for legacy triggers.
   - **Proper Fix Needed**: 
     1. Find all triggers using `get_user_organization_id()` (see `find-triggers-using-org-id.sql`)
     2. Remove triggers or update them to not use this function
-    3. Ensure all Lambda INSERT statements explicitly include `organization_id` from request body
+    3. Verify all Lambda INSERT statements explicitly include `organization_id` from authorizer context (NOT from request body)
     4. Remove stub function once triggers are cleaned up
   - **Files**: `fix-get-user-org-id.sql`, `find-triggers-using-org-id.sql`

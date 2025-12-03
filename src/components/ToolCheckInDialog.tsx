@@ -183,7 +183,6 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
       timestamp: new Date().toISOString()
     };
 
-    console.log('=== TOOL CHECK-IN ATTEMPT ===', debugInfo);
 
     // Show validation errors
     setShowValidation(true);
@@ -221,7 +220,6 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
         checkin_reason: form.checkin_reason || null,
       };
 
-      console.log('Checkin data:', checkinData);
 
       // Add hours used if tool has motor and hours were provided
       if (tool.has_motor && form.hours_used) {

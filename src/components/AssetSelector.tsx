@@ -68,19 +68,8 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
 
   // Log all available tools when component loads (for debugging) - only once
   useEffect(() => {
-    if (assets.length > 0 && !loading) {
-      console.log('[AssetSelector] Available tools:', {
-        total: assets.length,
-        toolNames: assets.map(a => a.name).sort(),
-        toolsWithBranch: assets.filter(a => a.name.toLowerCase().includes('branch')).map(a => ({
-          name: a.name,
-          id: a.id,
-          serial: a.serial_number,
-          category: a.category
-        }))
-      });
-    }
-  }, [assets.length, loading]); // Only log when length changes, not on every render
+    // Assets loaded
+  }, [assets.length, loading]);
 
   // Initialize selectedAssets from required_tools when actionId or formData changes
   // Wait for assets to be loaded before trying to map tool IDs to serial numbers
@@ -124,8 +113,6 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
       if (currentIdentifiersString === newIdentifiersString && selectedAssets.length > 0) {
         return; // Already set, don't update again
       }
-      
-      console.log('[AssetSelector] Auto-selecting tools from formData:', { toolIds, identifiers, assetsCount: assets.length });
       
       if (identifiers.length > 0) {
         setSelectedAssets(identifiers);
@@ -217,22 +204,6 @@ export function AssetSelector({ selectedAssets: _unused, onAssetsChange: _unused
         const categoryMatch = asset.category && asset.category.toLowerCase().includes(searchLower);
         const descMatch = asset.description && asset.description.toLowerCase().includes(searchLower);
         return nameMatch || serialMatch || categoryMatch || descMatch;
-      });
-      
-      console.log('[AssetSelector] Search Debug:', {
-        searchTerm,
-        searchLower,
-        totalAssets: uniqueAssets.length,
-        filteredCount: filteredAssets.length,
-        matchingCount: matchingTools.length,
-        sampleNames: uniqueAssets.slice(0, 10).map(a => ({
-          name: a.name,
-          category: a.category,
-          serial: a.serial_number,
-          nameIncludes: a.name.toLowerCase().includes(searchLower),
-          categoryIncludes: a.category?.toLowerCase().includes(searchLower)
-        })),
-        matchingTools: matchingTools.slice(0, 5).map(a => a.name)
       });
     }
   }, [searchTerm, uniqueAssets.length, filteredAssets.length]);

@@ -31,7 +31,7 @@ export default function Actions() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('me');
-  const [editingAction, setEditingAction] = useState<BaseAction | null>(null);
+  const [editingActionId, setEditingActionId] = useState<string | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
@@ -74,7 +74,7 @@ export default function Actions() {
         throw new Error('Action not found');
       }
 
-      setEditingAction(action);
+      setEditingActionId(id);
       setIsEditDialogOpen(true);
       setIsCreating(false);
     } catch (error) {
@@ -86,12 +86,12 @@ export default function Actions() {
       });
       navigate('/actions');
     }
-  }, [organizationId, navigate]);
+  }, [organizationId, navigate, actions]);
 
   // Profiles are now handled by useActionProfiles hook for consistency
 
   const handleEditAction = async (action: BaseAction) => {
-    setEditingAction(action);
+    setEditingActionId(action.id);
     setIsCreating(false);
     setIsEditDialogOpen(true);
   };
@@ -101,31 +101,29 @@ export default function Actions() {
   const handleSaveAction = async () => {
     queryClient.invalidateQueries({ queryKey: ['actions'] });
     setIsEditDialogOpen(false);
-    setEditingAction(null);
+    setEditingActionId(null);
     setIsCreating(false);
   };
 
   const handleCancelEdit = () => {
     setIsEditDialogOpen(false);
-    setEditingAction(null);
+    setEditingActionId(null);
     setIsCreating(false);
   };
 
   const handleCreateAction = () => {
-    setEditingAction(null);
+    setEditingActionId(null);
     setIsCreating(true);
     setIsEditDialogOpen(true);
   };
 
   const handleScoreAction = async (action: BaseAction, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card click
-    console.log('Setting scoring action:', action.id, action.title); // Debug log
     setScoringAction(action);
     
     // Load existing score if any
     if (action.id) {
       const score = await getScoreForAction(action.id);
-      console.log('Existing score for action:', score); // Debug log
       setExistingScore(score);
     }
     
@@ -162,7 +160,9 @@ export default function Actions() {
     if (searchActionId && actions.length > 0) {
       const action = actions.find(a => a.id === searchActionId);
       if (action) {
-        handleEditAction(action);
+        setEditingActionId(searchActionId);
+        setIsEditDialogOpen(true);
+        setIsCreating(false);
         processedUrlRef.current = searchActionId;
         // Clear the URL parameter after opening the action
         setSearchParams({});
@@ -171,7 +171,7 @@ export default function Actions() {
       // Find the action in the current actions list
       const action = actions.find(a => a.id === urlActionId);
       if (action) {
-        setEditingAction(action);
+        setEditingActionId(urlActionId);
         setIsEditDialogOpen(true);
         setIsCreating(false);
         processedUrlRef.current = urlActionId;
@@ -464,18 +464,16 @@ export default function Actions() {
               // Don't navigate if we're in the middle of an upload
               // Check if there's an active upload by checking the dialog's isUploading state
               // We'll handle navigation after upload completes or fails
-              console.log('[ACTIONS] Dialog closing, actionId:', actionId);
               handleCancelEdit();
               // Clear URL parameter when dialog is closed
               // Only navigate if we're not in the middle of an upload
               // The dialog component will handle preventing close during upload
               if (actionId) {
-                console.log('[ACTIONS] Navigating to /actions after dialog close');
                 navigate('/actions');
               }
             }
           }}
-          action={editingAction || undefined}
+          action={editingActionId ? actions.find(a => a.id === editingActionId) : undefined}
           onActionSaved={handleSaveAction}
           profiles={profiles}
           isCreating={isCreating}

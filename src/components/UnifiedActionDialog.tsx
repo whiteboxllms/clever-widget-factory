@@ -83,8 +83,16 @@ export function UnifiedActionDialog({
   
   const saveActionMutation = useMutation({
     mutationFn: async (actionData: any) => {
-      const result = await apiService.post('/actions', actionData);
-      return result.data;
+      // Use PUT for updates (when id exists), POST for creates
+      if (actionData.id) {
+        // For PUT requests, exclude id from body since it's in the URL path
+        const { id, ...updateData } = actionData;
+        const result = await apiService.put(`/actions/${id}`, updateData);
+        return result.data;
+      } else {
+        const result = await apiService.post('/actions', actionData);
+        return result.data;
+      }
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['actions'] });
@@ -98,7 +106,10 @@ export function UnifiedActionDialog({
         description: isCreating || !action?.id ? "Action created successfully" : "Action updated successfully"
       });
       onActionSaved(optimisticData as unknown as BaseAction);
-      onOpenChange(false);
+      // Don't close dialog if uploads are in progress or just completed
+      if (!isUploading && !isLocalUploading && !uploadJustCompletedRef.current) {
+        onOpenChange(false);
+      }
     },
     onError: (error) => {
       console.error('Error saving action:', error);
@@ -126,6 +137,11 @@ export function UnifiedActionDialog({
   const [linkCopied, setLinkCopied] = useState(false);
   const [showMissionDialog, setShowMissionDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Local uploading state set immediately when files are selected (before async operations)
+  // This prevents dialog from closing on mobile before uploadImages sets its internal state
+  const [isLocalUploading, setIsLocalUploading] = useState(false);
+  // Track when uploads just completed to prevent accidental closes immediately after
+  const uploadJustCompletedRef = useRef(false);
 
   const preferName = (value?: string | null) => {
     if (!value) return null;
@@ -175,12 +191,16 @@ export function UnifiedActionDialog({
   // Initialize form data when dialog opens - preserve state for same session
   useEffect(() => {
     if (open) {
-      console.log('[DIALOG] Opening dialog:', { actionId: action?.id, isCreating, isUploading });
       const actionId = action?.id || null;
       const contextType = context?.type || null;
       
       // Check if we're opening the same action/context or a different one
       const isSameSession = actionId === currentActionId && contextType === currentContextType;
+      
+      // Refetch in background to get latest data while showing cached version
+      if (action?.id && !isCreating) {
+        queryClient.refetchQueries({ queryKey: ['actions'] });
+      }
       
       // Only reset form if it's a different action/context or first time opening
       if (!isSameSession || !isFormInitialized) {
@@ -244,7 +264,6 @@ export function UnifiedActionDialog({
       }
     } else {
       // Reset tracking when dialog closes
-      console.log('[DIALOG] Closing dialog:', { actionId: action?.id, isUploading, isSubmitting });
       setIsFormInitialized(false);
       setCurrentActionId(null);
       setCurrentContextType(null);
@@ -481,71 +500,21 @@ export function UnifiedActionDialog({
 
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    event.preventDefault?.();
-    event.stopPropagation?.();
-    
-    // Capture files immediately before any other operations
     const files = event.target.files;
-    
-    console.log('[UPLOAD] handleFileUpload called:', {
-      hasFiles: !!files,
-      fileCount: files?.length || 0,
-      inputValue: event.target.value,
-      inputId: event.target.id,
-      isMobile: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
-    });
-    
-    if (!files || files.length === 0) {
-      console.log('[UPLOAD] No files selected - early return');
-      // Reset input even if no files to allow re-selection
-      event.target.value = '';
-      return;
-    }
+    if (!files || files.length === 0) return;
 
-    // Create array copy immediately before resetting input
     const fileArray = Array.from(files);
-    
-    console.log('[UPLOAD] File array created:', {
-      arrayLength: fileArray.length,
-      fileNames: fileArray.map(f => f.name)
-    });
-    
-    // Reset input to allow re-selecting same files
-    // Do this after capturing files but before async operations
     event.target.value = '';
-
-    const uploadSessionId = Math.random().toString(36).substr(2, 9);
-    console.log(`[UPLOAD_SESSION-${uploadSessionId}] START:`, {
-      fileCount: fileArray.length,
-      files: fileArray.map(f => ({ name: f.name, size: f.size, type: f.type })),
-      userAgent: navigator.userAgent,
-      memory: (performance as any).memory?.usedJSHeapSize,
-      connection: (navigator as any).connection?.effectiveType
-    });
+    setIsLocalUploading(true);
 
     try {
-      // Wrap upload in Promise to ensure proper error handling
-      const uploadPromise = uploadImages(fileArray, {
-        bucket: 'mission-attachments' as const
-      });
-      
-      // Add timeout for mobile devices to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
-          reject(new Error('Upload timeout - please try again with fewer or smaller files'));
-        }, 120000); // 2 minute timeout
-      });
-      
-      const uploadResults = await Promise.race([uploadPromise, timeoutPromise]) as any;
-      
+      const uploadResults = await uploadImages(fileArray, { bucket: 'mission-attachments' as const });
       const resultsArray = Array.isArray(uploadResults) ? uploadResults : [uploadResults];
       const uploadedUrls = resultsArray.map(result => result.url);
       
-      console.log(`[UPLOAD_SESSION-${uploadSessionId}] SUCCESS:`, {
-        uploadedCount: uploadedUrls.length,
-        requestedCount: fileArray.length,
-        urls: uploadedUrls
-      });
+      if (uploadedUrls.length === 0) {
+        throw new Error('No files were uploaded successfully');
+      }
       
       setFormData(prev => ({
         ...prev,
@@ -556,46 +525,20 @@ export function UnifiedActionDialog({
         title: "Success",
         description: `${uploadedUrls.length} file(s) uploaded successfully`
       });
+      
+      uploadJustCompletedRef.current = true;
+      setTimeout(() => {
+        uploadJustCompletedRef.current = false;
+      }, 500);
     } catch (error) {
-      console.error(`[UPLOAD_SESSION-${uploadSessionId}] FAILED:`, {
-        error,
-        errorName: error instanceof Error ? error.name : 'Unknown',
-        errorMessage: error instanceof Error ? error.message : String(error),
-        errorStack: error instanceof Error ? error.stack : undefined,
-        memory: (performance as any).memory?.usedJSHeapSize,
-        isMobile: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
-      });
-      
-      // Ensure we prevent any navigation or page reload
-      event.preventDefault?.();
-      event.stopPropagation?.();
-      
-      // Get user-friendly error message
-      let errorMessage = "Failed to upload files. Check console for details.";
-      if (error instanceof Error) {
-        errorMessage = error.message;
-        // Provide more helpful messages for common errors
-        if (error.message.includes('timeout')) {
-          errorMessage = "Upload timed out. Try uploading fewer files or smaller images.";
-        } else if (error.message.includes('network') || error.message.includes('fetch')) {
-          errorMessage = "Network error. Check your connection and try again.";
-        } else if (error.message.includes('CORS')) {
-          errorMessage = "Browser security error. Please refresh the page and try again.";
-        }
-      }
-      
-      // Show error toast - ensure it's displayed even on mobile
-      // Use a longer duration on mobile to ensure user sees it
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      console.error('Upload failed:', error);
       toast({
         title: "Upload Failed",
-        description: errorMessage,
-        variant: "destructive",
-        duration: isMobile ? 15000 : 10000 // Longer on mobile
+        description: error instanceof Error ? error.message : "Failed to upload files",
+        variant: "destructive"
       });
-      
-      // Don't re-throw - we've handled the error
-      // This prevents unhandled promise rejections that could cause page reloads
+    } finally {
+      setIsLocalUploading(false);
     }
   };
 
@@ -673,7 +616,8 @@ export function UnifiedActionDialog({
         estimated_duration: estimatedDuration,
         required_stock: formData.required_stock || [],
         required_tools: formData.required_tools || [],
-        attachments: formData.attachments || [],
+        // Always include attachments array, even if empty, so removals are properly saved
+        attachments: Array.isArray(formData.attachments) ? formData.attachments : [],
         mission_id: formData.mission_id || null,
         asset_id: formData.asset_id || null,
         linked_issue_id: formData.linked_issue_id || null,
@@ -685,6 +629,17 @@ export function UnifiedActionDialog({
         created_by: isCreating || !action?.id ? userId : action.created_by || userId,
         updated_by: userId
       };
+      
+      // Debug logging for attachment updates
+      if (action?.id && action.attachments?.length !== actionData.attachments.length) {
+        console.log('Attachments changed:', {
+          actionId: action.id,
+          oldCount: action.attachments?.length || 0,
+          newCount: actionData.attachments.length,
+          oldAttachments: action.attachments,
+          newAttachments: actionData.attachments
+        });
+      }
 
 
 
@@ -733,14 +688,15 @@ export function UnifiedActionDialog({
          * 
          * See: src/components/__tests__/UnifiedActionDialog.upload.test.tsx
          */
-        if (!newOpen && isUploading) {
-          console.log('[DIALOG] Prevented close during upload');
-          toast({
-            title: "Upload in progress",
-            description: "Please wait for the upload to complete before closing.",
-            variant: "default",
-            duration: 3000
-          });
+        if (!newOpen && (isUploading || isLocalUploading || uploadJustCompletedRef.current)) {
+          if (isUploading || isLocalUploading) {
+            toast({
+              title: "Upload in progress",
+              description: "Please wait for the upload to complete before closing.",
+              variant: "default",
+              duration: 3000
+            });
+          }
           return;
         }
         onOpenChange(newOpen);
@@ -1126,7 +1082,7 @@ export function UnifiedActionDialog({
                 onChange={handleFileUpload}
                 className="hidden"
                 id="attachmentUpload"
-                disabled={isUploading}
+                disabled={isUploading || isLocalUploading}
                 key={`file-input-${action?.id || 'new'}`}
               />
               <Button
@@ -1137,11 +1093,11 @@ export function UnifiedActionDialog({
                   e.stopPropagation();
                   fileInputRef.current?.click();
                 }}
-                disabled={isUploading}
+                disabled={isUploading || isLocalUploading}
                 className="w-full"
               >
                 <Paperclip className="h-4 w-4 mr-2" />
-                {isUploading ? 'Uploading...' : 'Upload Images & PDFs'}
+                {(isUploading || isLocalUploading) ? 'Uploading...' : 'Upload Images & PDFs'}
               </Button>
             </div>
             
@@ -1220,7 +1176,7 @@ export function UnifiedActionDialog({
             )}
             <Button
               onClick={handleSubmit}
-              disabled={isSubmitting || isUploading}
+              disabled={isSubmitting || isUploading || isLocalUploading}
               className="flex-1"
             >
               {isSubmitting ? (isCreating ? 'Creating...' : 'Saving...') : (isCreating ? 'Create Action' : 'Save Changes')}

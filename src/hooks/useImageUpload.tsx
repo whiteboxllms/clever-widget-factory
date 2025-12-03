@@ -54,75 +54,109 @@ export const useImageUpload = () => {
       validateFile(file);
     }
 
-    // Default file validation
-    if (file.size > 10 * 1024 * 1024) {
-      const error = `Image too large: ${(file.size / 1024 / 1024).toFixed(2)}MB. Maximum size is 10MB.`;
+    // Default file validation - stricter limit on mobile
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const maxSize = isMobile ? 5 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      const maxMB = isMobile ? 5 : 10;
+      const error = `Image too large: ${(file.size / 1024 / 1024).toFixed(2)}MB. Maximum size is ${maxMB}MB${isMobile ? ' on mobile' : ''}.`;
       console.error(`[UPLOAD-${uploadId}] VALIDATION_FAILED:`, error);
       throw new Error(error);
     }
 
-    // Accept common image types and HEIC (iOS)
-    const validTypes = ['image/', 'application/octet-stream']; // octet-stream for HEIC on some phones
-    const isValidType = validTypes.some(type => file.type.startsWith(type)) || file.name.match(/\.(jpg|jpeg|png|gif|webp|heic|heif)$/i);
+    // Accept common image types, HEIC (iOS), and PDFs
+    const validTypes = ['image/', 'application/octet-stream', 'application/pdf']; // octet-stream for HEIC on some phones
+    const isValidType = validTypes.some(type => file.type.startsWith(type)) || file.name.match(/\.(jpg|jpeg|png|gif|webp|heic|heif|pdf)$/i);
     
     console.log(`[UPLOAD-${uploadId}] VALIDATION:`, { type: file.type, isValidType });
     
     if (!isValidType) {
-      const error = `Invalid file type: ${file.type}. Only image files are allowed.`;
+      const error = `Invalid file type: ${file.type}. Only image and PDF files are allowed.`;
       console.error(`[UPLOAD-${uploadId}] TYPE_INVALID:`, error);
       throw new Error(error);
     }
 
     try {
-      console.log(`[UPLOAD-${uploadId}] COMPRESSION_START:`, { 
-        elapsed: performance.now() - startTime,
-        memory: (performance as any).memory?.usedJSHeapSize 
-      });
+      let compressionResult;
+      let compressedFile: File;
       
-      // Show compression start toast
-      const compressionToast = enhancedToast.showCompressionStart(file.name, file.size);
-
-      // Compress the image with simple compression
-      const compressionResult = await compressImageSimple(
-        file,
-        { maxSizeMB, maxWidthOrHeight }
-      );
-
-      // Log warnings if compression had issues
-      if (compressionResult.warnings && compressionResult.warnings.length > 0) {
-        console.warn(`[UPLOAD-${uploadId}] COMPRESSION_WARNINGS:`, compressionResult.warnings);
+      // Skip compression for PDFs
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        console.log(`[UPLOAD-${uploadId}] PDF_DETECTED: Skipping compression`);
+        compressedFile = file;
+        compressionResult = {
+          file,
+          originalSize: file.size,
+          compressedSize: file.size,
+          compressionRatio: 0
+        };
+      } else {
+        console.log(`[UPLOAD-${uploadId}] COMPRESSION_START:`, { 
+          elapsed: performance.now() - startTime,
+          memory: (performance as any).memory?.usedJSHeapSize 
+        });
         
-        // Show user-friendly warning for large files
-        const largeFileWarning = compressionResult.warnings.find(w => w.type === 'large_file' || w.type === 'timeout_risk');
-        if (largeFileWarning) {
+        // Show compression start toast
+        const compressionToast = enhancedToast.showCompressionStart(file.name, file.size);
+
+        try {
+          // Compress the image with simple compression
+          compressionResult = await compressImageSimple(
+            file,
+            { maxSizeMB, maxWidthOrHeight }
+          );
+          compressedFile = compressionResult.file;
+        } catch (compressionError) {
+          console.warn(`[UPLOAD-${uploadId}] COMPRESSION_FAILED, uploading original:`, compressionError);
           enhancedToast.showCompressionError(
-            largeFileWarning.message,
+            'Compression failed, uploading original image. Server will compress.',
             file.name
           );
+          compressedFile = file;
+          compressionResult = {
+            file,
+            originalSize: file.size,
+            compressedSize: file.size,
+            compressionRatio: 0
+          };
+        }
+
+        // Log warnings if compression had issues
+        if (compressionResult.warnings && compressionResult.warnings.length > 0) {
+          console.warn(`[UPLOAD-${uploadId}] COMPRESSION_WARNINGS:`, compressionResult.warnings);
+          
+          // Show user-friendly warning for large files
+          const largeFileWarning = compressionResult.warnings.find(w => w.type === 'large_file' || w.type === 'timeout_risk');
+          if (largeFileWarning) {
+            enhancedToast.showCompressionError(
+              largeFileWarning.message,
+              file.name
+            );
+          }
+        }
+
+        console.log(`[UPLOAD-${uploadId}] COMPRESSION_COMPLETE:`, { 
+          elapsed: performance.now() - startTime,
+          originalSize: compressionResult.originalSize,
+          compressedSize: compressionResult.compressedSize,
+          ratio: compressionResult.compressionRatio,
+          memory: (performance as any).memory?.usedJSHeapSize,
+          warnings: compressionResult.warnings?.length || 0
+        });
+
+        // Show compression complete toast only if actually compressed
+        if (compressionResult.compressionRatio > 0) {
+          enhancedToast.showCompressionComplete({
+            ...compressionResult,
+            compressionRatio: compressionResult.compressionRatio,
+            timings: { total: 0 },
+            stages: [],
+            originalFormat: file.type.split('/')[1] || 'unknown',
+            finalFormat: 'jpeg',
+            algorithm: 'Canvas compression'
+          });
         }
       }
-
-      console.log(`[UPLOAD-${uploadId}] COMPRESSION_COMPLETE:`, { 
-        elapsed: performance.now() - startTime,
-        originalSize: compressionResult.originalSize,
-        compressedSize: compressionResult.compressedSize,
-        ratio: compressionResult.compressionRatio,
-        memory: (performance as any).memory?.usedJSHeapSize,
-        warnings: compressionResult.warnings?.length || 0
-      });
-
-      // Show compression complete toast
-      enhancedToast.showCompressionComplete({
-        ...compressionResult,
-        compressionRatio: compressionResult.compressionRatio,
-        timings: { total: 0 },
-        stages: [],
-        originalFormat: file.type.split('/')[1] || 'unknown',
-        finalFormat: 'jpeg',
-        algorithm: 'Canvas compression'
-      });
-
-      const compressedFile = compressionResult.file;
 
       // Generate filename with prefix
       const fileName = generateFileName 
@@ -174,11 +208,15 @@ export const useImageUpload = () => {
       }
 
       // Upload to S3
+      const contentType = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf') 
+        ? 'application/pdf' 
+        : 'image/jpeg';
+      
       const command = new PutObjectCommand({
         Bucket: S3_BUCKET,
         Key: key,
         Body: uint8Array,
-        ContentType: 'image/jpeg', // Always JPEG after compression
+        ContentType: contentType,
       });
 
       const result = await s3Client.send(command);
@@ -234,27 +272,10 @@ export const useImageUpload = () => {
     files: File[],
     options: ImageUploadOptions
   ): Promise<ImageUploadResult[]> => {
-    const batchId = Math.random().toString(36).substr(2, 9);
-    const batchStartTime = performance.now();
-    
-    console.log(`[BATCH-${batchId}] START:`, { 
-      fileCount: files.length,
-      totalSize: files.reduce((sum, f) => sum + f.size, 0),
-      memory: (performance as any).memory?.usedJSHeapSize
-    });
-    
     const results: ImageUploadResult[] = [];
-    const errors: string[] = [];
+    const errors: { name: string; error: string }[] = [];
     
     for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      
-      console.log(`[BATCH-${batchId}] FILE_${i + 1}/${files.length}:`, {
-        elapsed: performance.now() - batchStartTime,
-        fileName: file.name,
-        memory: (performance as any).memory?.usedJSHeapSize
-      });
-      
       try {
         const fileOptions = {
           ...options,
@@ -263,44 +284,27 @@ export const useImageUpload = () => {
             : undefined
         };
         
-        const result = await uploadSingleImage(file, fileOptions);
+        const result = await uploadSingleImage(files[i], fileOptions);
         results.push(result);
-        
-        console.log(`[BATCH-${batchId}] FILE_${i + 1}_SUCCESS:`, {
-          elapsed: performance.now() - batchStartTime,
-          successCount: results.length,
-          memory: (performance as any).memory?.usedJSHeapSize
-        });
       } catch (error) {
-        console.error(`[BATCH-${batchId}] FILE_${i + 1}_FAILED:`, {
-          elapsed: performance.now() - batchStartTime,
-          fileName: file.name,
-          error
-        });
-        errors.push(file.name);
-        // Continue with next file instead of failing completely
+        const errorMsg = error instanceof Error ? error.message : 'Upload failed';
+        errors.push({ name: files[i].name, error: errorMsg });
       }
     }
     
-    console.log(`[BATCH-${batchId}] COMPLETE:`, {
-      totalElapsed: performance.now() - batchStartTime,
-      successCount: results.length,
-      failureCount: errors.length,
-      memory: (performance as any).memory?.usedJSHeapSize
-    });
-    
     if (errors.length > 0 && results.length === 0) {
-      const errorMsg = `All uploads failed: ${errors.join(', ')}`;
-      console.error(`[BATCH-${batchId}] ALL_FAILED:`, errorMsg);
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      const errorMsg = isMobile 
+        ? `All uploads failed. Large files may be too big for mobile. Try: 1) Use camera instead of gallery, 2) Reduce image quality in camera settings, or 3) Upload from computer.`
+        : `All uploads failed: ${errors.map(e => e.name).join(', ')}`;
       throw new Error(errorMsg);
     }
     
     if (errors.length > 0) {
-      console.warn(`[BATCH-${batchId}] PARTIAL_SUCCESS:`, {
-        succeeded: results.length,
-        failed: errors.length,
-        failedFiles: errors
-      });
+      enhancedToast.showUploadError(
+        `${errors.length} file(s) failed to upload`,
+        errors.map(e => e.name).join(', ')
+      );
     }
     
     return results;

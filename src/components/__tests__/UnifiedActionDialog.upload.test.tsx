@@ -44,17 +44,41 @@ vi.mock('@/hooks/use-toast', () => ({
   })),
 }));
 
+// Mock QueryClient to return actions
+vi.mock('@tanstack/react-query', async () => {
+  const actual = await vi.importActual('@tanstack/react-query');
+  return {
+    ...actual,
+    useQueryClient: () => ({
+      getQueryData: (key: any) => {
+        if (key[0] === 'actions') {
+          return [{
+            id: 'action-1',
+            title: 'Test Action',
+            status: 'not_started',
+            attachments: [],
+          }];
+        }
+        return [];
+      },
+      invalidateQueries: vi.fn(),
+    }),
+  };
+});
+
 describe('UnifiedActionDialog - Upload Dialog Behavior', () => {
   const defaultProps = {
     open: true,
     onOpenChange: vi.fn(),
     onActionSaved: vi.fn(),
     profiles: [] as any[],
-    action: {
-      id: 'action-1',
-      title: 'Test Action',
-      status: 'not_started',
-    } as any,
+    actionId: 'action-1',
+  };
+
+  const mockAction = {
+    id: 'action-1',
+    title: 'Test Action',
+    status: 'not_started',
   };
 
   beforeEach(() => {
@@ -70,7 +94,7 @@ describe('UnifiedActionDialog - Upload Dialog Behavior', () => {
 
     setupFetchMock((url: string) => {
       if (url.includes('/actions')) {
-        return mockApiResponse([defaultProps.action]);
+        return mockApiResponse([mockAction]);
       }
       return mockApiResponse([]);
     });

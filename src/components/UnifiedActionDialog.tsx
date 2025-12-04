@@ -195,7 +195,7 @@ export function UnifiedActionDialog({
   // Initialize form data when dialog opens - preserve state for same session
   useEffect(() => {
     if (open) {
-      const actionId = action?.id || null;
+      const currentActionId = actionId || null;
       const contextType = context?.type || null;
       
       // Check if we're opening the same action/context or a different one
@@ -204,11 +204,6 @@ export function UnifiedActionDialog({
       // Invalidate cache only when opening a different action to get fresh data
       if (actionId && !isCreating && !isSameSession) {
         queryClient.invalidateQueries({ queryKey: ['actions'] });
-      }
-      
-      // Refetch in background to get latest data while showing cached version
-      if (action?.id && !isCreating) {
-        queryClient.refetchQueries({ queryKey: ['actions'] });
       }
       
       // Only reset form if it's a different action/context or first time opening

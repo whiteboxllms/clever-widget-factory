@@ -473,7 +473,7 @@ export default function Actions() {
               }
             }
           }}
-          action={editingActionId ? actions.find(a => a.id === editingActionId) : undefined}
+          actionId={editingActionId || undefined}
           onActionSaved={handleSaveAction}
           profiles={profiles}
           isCreating={isCreating}

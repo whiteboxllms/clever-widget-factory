@@ -288,7 +288,7 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
             onChange={setNewUpdateText}
             placeholder="Add your implementation update..."
             className="min-h-[120px]"
-            autoFocus={true}
+            autoFocus={false}
           />
         </div>
         <div className="flex justify-end mt-2 mb-4">

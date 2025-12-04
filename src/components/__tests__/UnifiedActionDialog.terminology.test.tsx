@@ -16,6 +16,27 @@ vi.mock('@/hooks/useOrganizationId', () => ({
   useOrganizationId: vi.fn(() => 'org-1'),
 }));
 
+vi.mock('@tanstack/react-query', async () => {
+  const actual = await vi.importActual('@tanstack/react-query');
+  return {
+    ...actual,
+    useQueryClient: () => ({
+      getQueryData: (key: any) => {
+        if (key[0] === 'actions') {
+          return [{
+            id: 'action-1',
+            mission_id: 'mission-1',
+            attachments: [],
+          }];
+        }
+        return [];
+      },
+      invalidateQueries: vi.fn(),
+      refetchQueries: vi.fn(),
+    }),
+  };
+});
+
 describe('UnifiedActionDialog - UI Terminology', () => {
   const defaultProps = {
     open: true,
@@ -75,10 +96,7 @@ describe('UnifiedActionDialog - UI Terminology', () => {
         <UnifiedActionDialog
           {...defaultProps}
           context={context}
-          action={{
-            id: 'action-1',
-            mission_id: 'mission-1',
-          } as any}
+          actionId="action-1"
         />
       </AuthWrapper>
     );
@@ -102,10 +120,7 @@ describe('UnifiedActionDialog - UI Terminology', () => {
         <UnifiedActionDialog
           {...defaultProps}
           context={context}
-          action={{
-            id: 'action-1',
-            mission_id: 'mission-1',
-          } as any}
+          actionId="action-1"
         />
       </AuthWrapper>
     );

@@ -59,7 +59,8 @@ import { generateActionUrl, copyToClipboard } from "@/lib/urlUtils";
 interface UnifiedActionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  action?: BaseAction;
+  action?: BaseAction; // Deprecated: use actionId instead
+  actionId?: string;
   context?: ActionCreationContext;
   profiles: Profile[];
   onActionSaved: (saved?: BaseAction) => void;
@@ -69,17 +70,25 @@ interface UnifiedActionDialogProps {
 export function UnifiedActionDialog({
   open,
   onOpenChange,
-  action,
+  action: actionProp,
+  actionId: actionIdProp,
   context,
   profiles,
   onActionSaved,
   isCreating = false
 }: UnifiedActionDialogProps) {
+  const queryClient = useQueryClient();
+  
+  // Look up action from cache using ID (preferred pattern)
+  const cachedActions = queryClient.getQueryData(['actions']) as BaseAction[] | undefined;
+  const actionFromCache = actionIdProp && cachedActions ? cachedActions.find(a => a.id === actionIdProp) : undefined;
+  
+  // Use cached action if available, otherwise fall back to prop (for backward compatibility)
+  const action = actionFromCache || actionProp;
   const { toast } = useToast();
   const { isLeadership, user } = useAuth();
   const organizationId = useOrganizationId();
   const { members: organizationMembers = [] } = useOrganizationMembers();
-  const queryClient = useQueryClient();
   
   const saveActionMutation = useMutation({
     mutationFn: async (actionData: any) => {
@@ -191,29 +200,35 @@ export function UnifiedActionDialog({
   // Initialize form data when dialog opens - preserve state for same session
   useEffect(() => {
     if (open) {
-      const actionId = action?.id || null;
+      const actionId = actionIdProp || action?.id || null;
       const contextType = context?.type || null;
       
       // Check if we're opening the same action/context or a different one
       const isSameSession = actionId === currentActionId && contextType === currentContextType;
       
-      // Refetch in background to get latest data while showing cached version
-      if (action?.id && !isCreating) {
-        queryClient.refetchQueries({ queryKey: ['actions'] });
+      // Always invalidate cache when opening to ensure fresh data (attachments, border logic, etc.)
+      if ((actionIdProp || action?.id) && !isCreating) {
+        queryClient.invalidateQueries({ queryKey: ['actions'] });
       }
       
       // Only reset form if it's a different action/context or first time opening
       if (!isSameSession || !isFormInitialized) {
         if (action && !isCreating) {
-          // Editing existing action
-          setFormData({
-            ...action,
-            plan_commitment: action.plan_commitment || false,
-            policy_agreed_at: action.policy_agreed_at || null,
-            policy_agreed_by: action.policy_agreed_by || null,
-            required_stock: action.required_stock || [],
-            required_tools: action.required_tools || [],
-            attachments: action.attachments || []
+          // Editing existing action - update formData when action changes from cache
+          setFormData(prev => {
+            // Only update if this is a new session or attachments changed
+            if (!isSameSession || (action.attachments?.length !== prev.attachments?.length)) {
+              return {
+                ...action,
+                plan_commitment: action.plan_commitment || false,
+                policy_agreed_at: action.policy_agreed_at || null,
+                policy_agreed_by: action.policy_agreed_by || null,
+                required_stock: action.required_stock || [],
+                required_tools: action.required_tools || [],
+                attachments: action.attachments || []
+              };
+            }
+            return prev;
           });
           // Initialize implementation update count from action
           setImplementationUpdateCount(action.implementation_update_count || 0);
@@ -268,7 +283,22 @@ export function UnifiedActionDialog({
       setCurrentActionId(null);
       setCurrentContextType(null);
     }
-  }, [open, action?.id, context?.type, isCreating]);
+  }, [open, actionIdProp || action?.id, context?.type, isCreating]);
+
+  // Update formData when action changes from cache (after refetch)
+  useEffect(() => {
+    if (action && !isCreating && isFormInitialized) {
+      setFormData(prev => ({
+        ...action,
+        plan_commitment: action.plan_commitment || false,
+        policy_agreed_at: action.policy_agreed_at || null,
+        policy_agreed_by: action.policy_agreed_by || null,
+        required_stock: action.required_stock || [],
+        required_tools: action.required_tools || [],
+        attachments: action.attachments || []
+      }));
+    }
+  }, [action?.attachments?.length, action?.implementation_update_count, isCreating, isFormInitialized]);
 
   // Fetch mission data when action has mission_id - use TanStack Query cache
   const { data: missions = [] } = useQuery({

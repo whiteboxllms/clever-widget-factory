@@ -160,6 +160,16 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
     
     // Only load real photos for saved actions
     if (!action.id.startsWith('temp-')) {
+      // First, show cached attachments immediately
+      const cachedAttachments = action.attachments || [];
+      const cachedPhotos = cachedAttachments.map((url: string, index: number) => ({
+        id: `attachment-${index}`,
+        file_url: url,
+        file_name: `Attachment ${index + 1}`
+      }));
+      setPhotos(cachedPhotos);
+      
+      // Then always fetch fresh data in background
       try {
         const data = await apiService.get(`/api/actions/${action.id}`);
         

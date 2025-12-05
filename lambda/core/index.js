@@ -366,6 +366,31 @@ exports.handler = async (event) => {
       };
     }
     
+    // DELETE /parts/{id} - Delete part
+    if (httpMethod === 'DELETE' && path.match(/\/parts\/[^/]+$/)) {
+      const partId = path.split('/').pop();
+      
+      const sql = `
+        DELETE FROM parts 
+        WHERE id = '${escapeLiteral(partId)}'
+        RETURNING *;
+      `;
+      
+      const result = await queryJSON(sql);
+      if (!result || result.length === 0 || !result[0]) {
+        return {
+          statusCode: 404,
+          headers,
+          body: JSON.stringify({ error: 'Part not found' })
+        };
+      }
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ data: result[0] })
+      };
+    }
+    
     // PUT /parts/{id} - Update part (check this first before the GET /parts)
     if (httpMethod === 'PUT' && path.match(/\/parts\/[^/]+$/)) {
       const partId = path.split('/').pop();

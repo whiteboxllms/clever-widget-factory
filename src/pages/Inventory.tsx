@@ -707,12 +707,7 @@ export default function Inventory() {
 
   const deletePart = async (partId: string) => {
     try {
-      const { error } = await supabase
-        .from('parts')
-        .delete()
-        .eq('id', partId);
-
-      if (error) throw error;
+      await apiService.delete(`/parts/${partId}`);
 
       toast({
         title: "Success",
@@ -720,11 +715,11 @@ export default function Inventory() {
       });
 
       fetchParts();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting part:', error);
       toast({
         title: "Error",
-        description: "Failed to delete part",
+        description: error.message || "Failed to delete part",
         variant: "destructive",
       });
     }

@@ -211,14 +211,14 @@ export const CombinedAssetCard = memo(({
 
   return (
     <Card className="relative hover:shadow-md transition-shadow cursor-pointer h-full flex flex-col" onClick={() => onView(asset)}>
-      <CardHeader className="pb-3 pt-3 flex-shrink-0">
+      <CardHeader className="pb-2 pt-2 flex-shrink-0">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
           </div>
         </div>
         
         <div className="flex items-center justify-between gap-2 -mt-1">
-          <CardTitle className="text-base line-clamp-2 flex-1 leading-tight">{asset.name}</CardTitle>
+          <CardTitle className="text-lg line-clamp-2 flex-1 leading-tight">{asset.name}</CardTitle>
           {asset.type === 'stock' && (
             <Badge variant="secondary" className="text-xs shrink-0">
               Stock
@@ -236,22 +236,20 @@ export const CombinedAssetCard = memo(({
         )}
       </CardHeader>
 
-      <CardContent className="pt-0 flex-1 flex flex-col">
+      <CardContent className="pt-0 pb-2 flex-1 flex flex-col">
         {asset.image_url && (
-          <div className="mb-3 w-full h-32 rounded-md border bg-muted overflow-hidden flex-shrink-0">
+          <div className="mb-2 w-full h-32 md:h-40 rounded-md border bg-muted overflow-hidden flex-shrink-0">
             <img
               src={asset.image_url}
               alt={asset.name}
               className="w-full h-full object-cover"
               loading="lazy"
               decoding="async"
-              width="100%"
-              height="128"
             />
           </div>
         )}
 
-        <div className="space-y-2 text-sm text-muted-foreground">
+        <div className="space-y-1 text-sm text-muted-foreground">
           {asset.serial_number && (
             <div>
               <span className="font-medium">Serial:</span> {asset.serial_number}
@@ -308,15 +306,9 @@ export const CombinedAssetCard = memo(({
               </span>
             </div>
           )}
-
-          {asset.description && (
-            <div className="line-clamp-2">
-              <span className="font-medium">Description:</span> {asset.description}
-            </div>
-          )}
         </div>
 
-        <div className="flex gap-2 mt-4 mt-auto pt-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex gap-2 mt-2 mt-auto pt-2" onClick={(e) => e.stopPropagation()}>
           {/* Asset-specific buttons */}
           {asset.type === 'asset' && asset.status === 'available' && !checkoutInfo && onCheckout && (
             <TooltipProvider>

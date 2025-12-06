@@ -12,7 +12,7 @@ import { useAssetScores, AssetScore } from '@/hooks/useAssetScores';
 import { useToast } from '@/hooks/use-toast';
 import { ScoreEntryForm } from './ScoreEntryForm';
 import { ScoreDisplayCard } from './ScoreDisplayCard';
-import { supabase } from '@/lib/client';
+import { apiService } from '@/lib/apiService';
 
 interface ToolIssue {
   id: string;
@@ -176,31 +176,20 @@ export function IssueScoreDialog({ open, onOpenChange, issue, tool, existingScor
   };
 
   const createIssueScores = async (scores: Record<string, { score: number; reason: string }>) => {
-    // Get issue details and find the last user who checked out the tool
-    const { data: issueData, error: issueError } = await supabase
-      .from('issues')
-      .select('reported_by, reported_at, context_id')
-      .eq('id', issue.id)
-      .single();
+    // Get issue details
+    const issueResponse = await apiService.get(`/issues/${issue.id}`);
+    const issueData = issueResponse.data;
 
-    if (issueError) {
-      console.error('Error fetching issue data:', issueError);
+    if (!issueData) {
+      console.error('Error fetching issue data');
       return;
     }
 
     // Find the last checkout before the issue was reported
-    const { data: lastCheckout, error: checkoutError } = await supabase
-      .from('checkouts')
-      .select('user_id')
-      .eq('tool_id', tool.id)
-      .lt('checkout_date', issueData.reported_at)
-      .order('checkout_date', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (checkoutError) {
-      console.error('Error fetching checkout data:', checkoutError);
-    }
+    const checkoutResponse = await apiService.get(
+      `/checkouts?tool_id=${tool.id}&before=${issueData.reported_at}&limit=1`
+    );
+    const lastCheckout = checkoutResponse.data?.[0] || null;
 
     // 1. Create positive score for the reporter
     await createScore({

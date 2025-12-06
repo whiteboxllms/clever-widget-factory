@@ -1,9 +1,11 @@
 
 import { useState, useCallback } from 'react';
-import { supabase } from '@/lib/client';
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
+import { uploadToS3 } from '@/lib/s3Service';
+import { apiService } from '@/lib/apiService';
+import { useAuth } from '@/hooks/useCognitoAuth';
 
 export interface TempPhoto {
   id: string;
@@ -24,6 +26,7 @@ export const useTempPhotoStorage = () => {
   const organizationId = useOrganizationId();
   const [tempPhotos, setTempPhotos] = useState<TempPhoto[]>([]);
   const enhancedToast = useEnhancedToast();
+  const { user } = useAuth();
 
   const addTempPhoto = useCallback(async (file: File, taskTempId: string): Promise<string> => {
     const tempId = `temp-photo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -81,32 +84,26 @@ export const useTempPhotoStorage = () => {
         enhancedToast.showCompressionComplete(compressionResult);
         enhancedToast.dismiss(compressionToast.id);
 
-        // Upload to Supabase
+        // Upload to S3
         const uploadToast = enhancedToast.showUploadStart(tempPhoto.fileName, compressionResult.compressedSize);
         
         const fileName = `${Date.now()}-${tempPhoto.fileName}`;
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('mission-evidence')
-          .upload(fileName, compressionResult.file);
+        const uploadResult = await uploadToS3('mission-evidence', fileName, compressionResult.file);
 
-        if (uploadError) throw uploadError;
+        if (!uploadResult.success) throw new Error(uploadResult.error);
 
-        // Save attachment record
-        const { data: attachmentData, error: attachmentError } = await supabase
-          .from('mission_attachments')
-          .insert({
-            task_id: realTaskId,
-            mission_id: missionId,
-            file_name: tempPhoto.fileName,
-            file_url: uploadData.path,
-            file_type: compressionResult.file.type,
-            attachment_type: 'evidence',
-            uploaded_by: (await supabase.auth.getUser()).data.user?.id
-          })
-          .select()
-          .single();
+        const relativePath = `mission-evidence/${fileName}`;
 
-        if (attachmentError) throw attachmentError;
+        // Save attachment record via API
+        const attachmentData = await apiService.post('/api/mission_attachments', {
+          task_id: realTaskId,
+          mission_id: missionId,
+          file_name: tempPhoto.fileName,
+          file_url: relativePath,
+          file_type: compressionResult.file.type,
+          attachment_type: 'evidence',
+          uploaded_by: user?.userId
+        });
 
         enhancedToast.showUploadSuccess(tempPhoto.fileName);
         enhancedToast.dismiss(uploadToast.id);
@@ -141,7 +138,7 @@ export const useTempPhotoStorage = () => {
     setTempPhotos([]);
 
     return savedPhotos;
-  }, [tempPhotos, enhancedToast]);
+  }, [tempPhotos, enhancedToast, user]);
 
   const cleanupTempPhotos = useCallback(() => {
     tempPhotos.forEach(photo => URL.revokeObjectURL(photo.fileUrl));

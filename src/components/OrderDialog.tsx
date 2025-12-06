@@ -11,7 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { CalendarIcon, Info } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { supabase } from '@/lib/client';
+import { apiService } from '@/lib/apiService';
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
@@ -104,28 +104,19 @@ export function OrderDialog({
 
       if (editingOrder) {
         // Update existing order
-        const { error } = await supabase
-          .from('parts_orders')
-          .update(orderData)
-          .eq('id', editingOrder.id);
-
-        if (error) throw error;
+        await apiService.put(`/parts_orders/${editingOrder.id}`, orderData);
 
         toast({
           title: `Order updated for ${partName}`,
         });
       } else {
         // Create new order
-        const { error } = await supabase
-          .from('parts_orders')
-          .insert([{
-            ...orderData,
-            part_id: partId,
-            ordered_by: user.id,
-            status: 'pending',
-          }]);
-
-        if (error) throw error;
+        await apiService.post('/parts_orders', {
+          ...orderData,
+          part_id: partId,
+          ordered_by: user.userId,
+          status: 'pending',
+        });
 
         toast({
           title: `Order created for ${partName}`,

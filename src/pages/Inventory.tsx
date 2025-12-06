@@ -244,37 +244,13 @@ export default function Inventory() {
 
   const fetchPendingOrders = async () => {
     try {
-      // First fetch orders
-      const { data: orders, error: ordersError } = await supabase
-        .from('parts_orders')
-        .select('*')
-        .in('status', ['pending', 'partially_received'])
-        .order('ordered_at', { ascending: false });
-
-      if (ordersError) throw ordersError;
-
-      // Fetch supplier contact info for orders with supplier_id
-      const ordersWithSupplierInfo = await Promise.all(
-        (orders || []).map(async (order) => {
-          if (order.supplier_id) {
-            const { data: supplier } = await supabase
-              .from('suppliers')
-              .select('contact_info')
-              .eq('id', order.supplier_id)
-              .single();
-            
-            return {
-              ...order,
-              supplier_contact_info: supplier?.contact_info || null
-            };
-          }
-          return order;
-        })
-      );
+      const { apiService, getApiData } = await import('@/lib/apiService');
+      const response = await apiService.get<{ data: PendingOrder[] }>('/parts_orders?status=pending,partially_received');
+      const orders = getApiData(response) || [];
 
       // Group orders by part_id
       const ordersByPart: Record<string, PendingOrder[]> = {};
-      ordersWithSupplierInfo.forEach(order => {
+      orders.forEach(order => {
         if (!ordersByPart[order.part_id]) {
           ordersByPart[order.part_id] = [];
         }
@@ -436,16 +412,7 @@ export default function Inventory() {
       };
 
       // Database insertion phase
-      const { data, error } = await supabase
-        .from('parts')
-        .insert([partData])
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Database insert error:', error);
-        throw new Error(`Database error: ${error.message} (Code: ${error.code || 'unknown'})`);
-      }
+      const data = await apiService.post('/parts', partData);
 
       // Log the creation to history
       try {
@@ -468,8 +435,6 @@ export default function Inventory() {
         if (historyError) {
           console.error('Error logging history:', historyError);
           // Don't fail the operation if history logging fails
-        } else {
-          console.log('History logged successfully for user:', currentUser.id);
         }
       } catch (historyError) {
         console.error('History logging failed:', historyError);
@@ -566,26 +531,11 @@ export default function Inventory() {
         updated_at: new Date().toISOString()
       };
 
-      const { data: updatedData, error } = await supabase
-        .from('parts')
-        .update(updateData)
-        .eq('id', editingPart.id)
-        .select();
-
-      if (error) {
-        throw error;
-      }
-      
-      if (!updatedData || updatedData.length === 0) {
-        throw new Error('Update succeeded but no data returned');
-      }
+      await apiService.put(`/parts/${editingPart.id}`, updateData);
 
       // Log the update to history - including quantity changes
       try {
-        // Get the current authenticated user ID from the session
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        
-        if (!currentUser?.id) {
+        if (!user?.userId) {
           console.error('No authenticated user found for history logging');
           throw new Error('User must be authenticated to update stock items');
         }
@@ -662,22 +612,15 @@ export default function Inventory() {
           }
         }
         
-        const { error: historyError } = await supabase
-          .from('parts_history')
-          .insert([{
-            part_id: editingPart.id,
-            change_type: changeType,
-            old_quantity: quantityChanged ? oldQuantity : null,
-            new_quantity: quantityChanged ? newQuantity : null,
-            quantity_change: quantityChanged ? (newQuantity - oldQuantity) : null,
-            changed_by: currentUser.id,
-            change_reason: changeReason,
-          }]);
-
-        if (historyError) {
-          console.error('Error logging history:', historyError);
-          // Don't fail the operation if history logging fails
-        }
+        await apiService.post('/parts_history', {
+          part_id: editingPart.id,
+          change_type: changeType,
+          old_quantity: quantityChanged ? oldQuantity : null,
+          new_quantity: quantityChanged ? newQuantity : null,
+          quantity_change: quantityChanged ? (newQuantity - oldQuantity) : null,
+          changed_by: user.userId,
+          change_reason: changeReason,
+        });
       } catch (historyError) {
         console.error('History logging failed:', historyError);
         // Continue with success flow even if history fails
@@ -762,12 +705,9 @@ export default function Inventory() {
 
     try {
       // Update the part quantity
-      const { error } = await supabase
-        .from('parts')
-        .update({ current_quantity: newQuantity })
-        .eq('id', quantityPart.id);
-
-      if (error) throw error;
+      await apiService.put(`/parts/${quantityPart.id}`, { 
+        current_quantity: newQuantity 
+      });
 
       // If adding quantity, try to fulfill pending orders automatically
       let fulfilledOrderId = null;
@@ -786,18 +726,13 @@ export default function Inventory() {
             const newStatus = newReceivedQuantity >= order.quantity_ordered ? 'completed' : 'partially_received';
             
             try {
-              const { error: orderError } = await supabase
-                .from('parts_orders')
-                .update({
-                  quantity_received: newReceivedQuantity,
-                  status: newStatus
-                })
-                .eq('id', order.id);
-
-              if (!orderError) {
-                fulfilledOrderId = order.id;
-                remainingQuantity -= fulfillmentQuantity;
-              }
+              await apiService.put(`/parts_orders/${order.id}`, {
+                quantity_received: newReceivedQuantity,
+                status: newStatus
+              });
+              
+              fulfilledOrderId = order.id;
+              remainingQuantity -= fulfillmentQuantity;
             } catch (orderError) {
               console.error('Error updating order:', orderError);
             }
@@ -927,12 +862,7 @@ export default function Inventory() {
 
   const handleDeleteOrder = async (orderId: string) => {
     try {
-      const { error } = await supabase
-        .from('parts_orders')
-        .delete()
-        .eq('id', orderId);
-
-      if (error) throw error;
+      await apiService.delete(`/parts_orders/${orderId}`);
 
       // Immediately update local state to remove the deleted order
       setPendingOrders(prevOrders => {

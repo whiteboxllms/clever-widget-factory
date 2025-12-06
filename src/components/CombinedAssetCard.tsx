@@ -5,7 +5,7 @@ import { Wrench, Package, Edit, Trash2, LogOut, LogIn, AlertTriangle, AlertCircl
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { InventoryHistoryDialog } from "./InventoryHistoryDialog";
 import { AssetHistoryDialog } from "./AssetHistoryDialog";
-import { useVisibleImage } from "@/hooks/useVisibleImage";
+
 import { useMemo, memo, useRef } from "react";
 
 interface CombinedAsset {
@@ -150,9 +150,6 @@ export const CombinedAssetCard = memo(({
   hasPendingOrders,
   onShowHistory
 }: CombinedAssetCardProps) => {
-  
-  
-  const { containerRef, imageUrl } = useVisibleImage(asset.id, asset.type, asset.image_url);
   const checkoutDateDisplay = useMemo(() => {
     if (!checkoutInfo?.checkout_date) return null;
     const parsedDate = new Date(checkoutInfo.checkout_date);
@@ -240,19 +237,19 @@ export const CombinedAssetCard = memo(({
       </CardHeader>
 
       <CardContent className="pt-0 flex-1 flex flex-col">
-        <div ref={containerRef} className="mb-3">
-          {imageUrl ? (
+        {asset.image_url && (
+          <div className="mb-3 w-full h-32 rounded-md border bg-muted overflow-hidden flex-shrink-0">
             <img
-              src={imageUrl}
+              src={asset.image_url}
               alt={asset.name}
-              className="w-full h-32 object-cover rounded-md border"
+              className="w-full h-full object-cover"
               loading="lazy"
               decoding="async"
+              width="100%"
+              height="128"
             />
-          ) : (
-            <div className="w-full h-32 rounded-md border bg-muted animate-pulse" />
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="space-y-2 text-sm text-muted-foreground">
           {asset.serial_number && (

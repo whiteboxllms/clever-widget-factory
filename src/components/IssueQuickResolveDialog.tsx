@@ -3,9 +3,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { supabase } from '@/lib/client';
 import { useToast } from '@/hooks/use-toast';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
+import { apiService } from '@/lib/apiService';
+import { useAuth } from '@/hooks/useCognitoAuth';
 import { useImageUpload } from '@/hooks/useImageUpload';
 import { Paperclip, CheckCircle } from 'lucide-react';
 
@@ -26,6 +27,7 @@ export function IssueQuickResolveDialog({
 }: IssueQuickResolveDialogProps) {
   const { toast } = useToast();
   const { uploadImages, isUploading } = useImageUpload();
+  const { user } = useAuth();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -81,33 +83,23 @@ export function IssueQuickResolveDialog({
     setIsSubmitting(true);
     
     try {
-      const { error: updateError } = await supabase
-        .from('issues')
-        .update({
-          status: 'resolved',
-          root_cause: formData.rootCause,
-          resolution_notes: formData.resolutionNotes,
-          resolution_photo_urls: formData.photos,
-          resolved_at: new Date().toISOString()
-        })
-        .eq('id', issue.id);
-
-      if (updateError) throw updateError;
+      await apiService.put(`/issues/${issue.id}`, {
+        status: 'resolved',
+        root_cause: formData.rootCause,
+        resolution_notes: formData.resolutionNotes,
+        resolution_photo_urls: formData.photos,
+        resolved_at: new Date().toISOString()
+      });
 
       // Log the resolution in history
-      const organizationId = useOrganizationId();
-      const { error: historyError } = await supabase
-        .from('issue_history')
-        .insert({
-          issue_id: issue.id,
-          changed_by: (await supabase.auth.getUser()).data.user?.id,
-          old_status: issue.status,
-          new_status: 'resolved',
-          field_changed: 'status',
-          notes: `Issue resolved. Root cause: ${formData.rootCause}. Resolution: ${formData.resolutionNotes}`,
-        });
-
-      if (historyError) throw historyError;
+      await apiService.post('/issue_history', {
+        issue_id: issue.id,
+        changed_by: user?.userId,
+        old_status: issue.status,
+        new_status: 'resolved',
+        field_changed: 'status',
+        notes: `Issue resolved. Root cause: ${formData.rootCause}. Resolution: ${formData.resolutionNotes}`,
+      });
 
       toast({
         title: "Issue Resolved",

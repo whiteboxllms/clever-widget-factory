@@ -7,8 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, ClipboardCheck, Package, Wrench, Search, CheckCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/client';
 import { useToast } from '@/hooks/use-toast';
+import { apiService } from '@/lib/apiService';
+import { useAuth } from '@/hooks/useCognitoAuth';
 
 interface Tool {
   id: string;
@@ -70,65 +71,42 @@ const Audit = () => {
     try {
       const toolIds = currentAudit.map(tool => tool.id);
       
-      // Get updated tool data with parent structure information
-      const { data: updatedTools, error: toolsError } = await supabase
-        .from('tools')
-        .select(`
-          id, 
-          name, 
-          parent_structure_id, 
-          storage_location, 
-          last_audited_at,
-          parent_structure:tools!parent_structure_id(name)
-        `)
-        .in('id', toolIds);
-
-      if (toolsError) throw toolsError;
+      // Get updated tool data
+      const toolsResponse = await apiService.get(`/tools?ids=${toolIds.join(',')}`);
+      const updatedTools = toolsResponse.data || [];
 
       // Get audit information for tools audited today
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
-      const { data: auditData, error: auditError } = await supabase
-        .from('tool_audits')
-        .select(`
-          tool_id,
-          audited_by,
-          audited_at
-        `)
-        .in('tool_id', toolIds)
-        .gte('audited_at', today.toISOString())
-        .order('audited_at', { ascending: false });
-
-      if (auditError) throw auditError;
+      const auditsResponse = await apiService.get(
+        `/tool_audits?tool_ids=${toolIds.join(',')}&after=${today.toISOString()}`
+      );
+      const auditData = auditsResponse.data || [];
 
       // Get auditor names
-      const auditorIds = auditData?.map(audit => audit.audited_by) || [];
+      const auditorIds = auditData.map((audit: any) => audit.audited_by);
       let profilesData: any[] = [];
       
       if (auditorIds.length > 0) {
-        // Use secure function instead of direct table access
-        const { data: profiles, error: profilesError } = await supabase
-          .rpc('get_user_display_names');
-          
-        if (!profilesError) {
-          // Filter to only requested auditor IDs
-          profilesData = (profiles || []).filter(p => auditorIds.includes(p.user_id));
-        }
+        const profilesResponse = await apiService.get(
+          `/organization_members?user_ids=${auditorIds.join(',')}`
+        );
+        profilesData = profilesResponse.data || [];
       }
 
       // Update the audit list with fresh data and audit info
       const refreshedAudit = currentAudit.map(tool => {
-        const updatedTool = updatedTools?.find(t => t.id === tool.id);
-        const auditInfo = auditData?.find(audit => audit.tool_id === tool.id);
+        const updatedTool = updatedTools.find((t: any) => t.id === tool.id);
+        const auditInfo = auditData.find((audit: any) => audit.tool_id === tool.id);
         
         const result: Tool = {
           ...(updatedTool || tool),
-          parent_structure_name: updatedTool?.parent_structure?.name || tool.parent_structure_name || 'Unassigned'
+          parent_structure_name: updatedTool?.parent_structure_name || tool.parent_structure_name || 'Unassigned'
         };
         
         if (auditInfo) {
-          const auditorProfile = profilesData.find(p => p.user_id === auditInfo.audited_by);
+          const auditorProfile = profilesData.find((p: any) => p.user_id === auditInfo.audited_by);
           if (!auditorProfile?.full_name) {
             throw new Error(`Auditor profile not found for audit conducted by user ${auditInfo.audited_by}`);
           }
@@ -163,49 +141,9 @@ const Audit = () => {
       if (!selectedType) return [];
       
       if (selectedType === 'tools') {
-        // Get all available tools and all parent structures separately
-        const [toolsResponse, structuresResponse] = await Promise.all([
-          supabase
-            .from('tools')
-            .select('parent_structure_id')
-            .eq('status', 'available'),
-          supabase
-            .from('tools')
-            .select('id, name')
-            .in('category', ['Infrastructure', 'Container'])
-            .neq('status', 'removed')
-        ]);
-        
-        if (toolsResponse.error) throw toolsResponse.error;
-        if (structuresResponse.error) throw structuresResponse.error;
-        
-        // Create lookup map for parent structure names
-        const structureNameMap = new Map<string, string>();
-        structuresResponse.data.forEach(structure => {
-          structureNameMap.set(structure.id, structure.name);
-        });
-        
-        // Count tools by structure
-        const structureMap = new Map<string, { id: string | null; name: string; count: number }>();
-        
-        toolsResponse.data.forEach((tool) => {
-          const structureId = tool.parent_structure_id;
-          const structureName = structureId ? structureNameMap.get(structureId) || 'Unknown Structure' : 'Unassigned';
-          const key = structureId || 'unassigned';
-          
-          if (structureMap.has(key)) {
-            structureMap.get(key)!.count++;
-          } else {
-            structureMap.set(key, {
-              id: structureId,
-              name: structureName,
-              count: 1
-            });
-          }
-        });
-        
-        return Array.from(structureMap.values())
-          .sort((a, b) => a.name.localeCompare(b.name));
+        // Get structure counts from API
+        const response = await apiService.get('/tools/structures/counts?status=available');
+        return response.data || [];
       }
       
       // For inventory (parts) - not implemented yet
@@ -218,30 +156,23 @@ const Audit = () => {
     if (!selectedType || !selectedStructure) return;
 
     try {
-      // Build query based on selected structure
-      let query = supabase
-        .from('tools')
-        .select(`
-          id, 
-          name, 
-          parent_structure_id, 
-          storage_location, 
-          last_audited_at,
-          parent_structure:tools!parent_structure_id(name)
-        `)
-        .eq('status', 'available')
-        .order('last_audited_at', { ascending: true, nullsFirst: true })
-        .limit(50); // Get more than needed for randomization
+      // Build query parameters
+      const params = new URLSearchParams({
+        status: 'available',
+        sort: 'last_audited_at',
+        order: 'asc',
+        limit: '50'
+      });
 
       // Filter by structure or unassigned
       if (selectedStructure === 'unassigned') {
-        query = query.is('parent_structure_id', null);
+        params.append('parent_structure_id', 'null');
       } else {
-        query = query.eq('parent_structure_id', selectedStructure);
+        params.append('parent_structure_id', selectedStructure);
       }
 
-      const { data: tools, error } = await query;
-      if (error) throw error;
+      const response = await apiService.get(`/tools?${params}`);
+      const tools = response.data || [];
 
       // Separate never audited and previously audited
       const neverAudited = tools.filter(tool => !tool.last_audited_at);
@@ -266,11 +197,8 @@ const Audit = () => {
       setGeneratedAudit(selectedTools);
       setCurrentStep('execute');
 
-      // Add parent structure name to selected tools
-      const toolsWithStructure = selectedTools.map(tool => ({
-        ...tool,
-        parent_structure_name: tool.parent_structure?.name || 'Unassigned'
-      }));
+      // Tools already have parent_structure_name from API
+      const toolsWithStructure = selectedTools;
 
       setGeneratedAudit(toolsWithStructure);
 

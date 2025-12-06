@@ -3,7 +3,7 @@ import { Edit2, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/lib/client';
+import { apiService } from '@/lib/apiService';
 
 interface EditableMemberNameProps {
   memberId: string;
@@ -33,12 +33,10 @@ export function EditableMemberName({ memberId, currentName, email, onNameUpdated
 
     setIsLoading(true);
     try {
-      const { error } = await supabase
-        .from('organization_members')
-        .update({ full_name: editValue.trim() })
-        .eq('id', memberId);
-
-      if (error) throw error;
+      await apiService.put('/organization_members', {
+        id: memberId,
+        full_name: editValue.trim()
+      });
 
       toast({
         title: "Success",

@@ -64,7 +64,7 @@ export const CombinedAssetGrid = ({
       : asset.checked_out_to || undefined;
 
     return (
-      <div style={{ minHeight: '300px', height: 'auto' }}>
+      <div style={{ minHeight: '400px', height: 'auto' }}>
         <CombinedAssetCard
           key={asset.id}
           asset={asset}

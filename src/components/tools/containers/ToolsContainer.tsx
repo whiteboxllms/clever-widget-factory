@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/client';
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, ArrowLeft } from "lucide-react";
@@ -24,7 +23,6 @@ import { IssueResolutionDialog } from "@/components/IssueResolutionDialog";
 import { IssueReportDialog } from "@/components/IssueReportDialog";
 import { CreateIssueDialog } from "@/components/CreateIssueDialog";
 import { IssueEditDialog } from "@/components/IssueEditDialog";
-import { IssueWorkflowDialog } from "@/components/IssueWorkflowDialog";
 import { ToolRemovalDialog } from "../ToolRemovalDialog";
 
 export const ToolsContainer = () => {
@@ -49,7 +47,6 @@ export const ToolsContainer = () => {
   const [isCreateIssueDialogOpen, setIsCreateIssueDialogOpen] = useState(false);
   const [editIssueId, setEditIssueId] = useState<string | null>(null);
   const [isEditIssueDialogOpen, setIsEditIssueDialogOpen] = useState(false);
-  const [storageVicinities, setStorageVicinities] = useState([]);
   const [removeTool, setRemoveTool] = useState(null);
   const [isRemovalDialogOpen, setIsRemovalDialogOpen] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
@@ -62,23 +59,6 @@ export const ToolsContainer = () => {
   const { toolHistory, currentCheckout, fetchToolHistory } = useToolHistory();
   const { issues, fetchIssues, updateIssue } = useToolIssues(selectedTool?.id || null);
   const { refetch: refetchParentStructures } = useParentStructures();
-
-  // Fetch storage vicinities for form
-  useEffect(() => {
-    const fetchStorageVicinities = async () => {
-      try {
-        const { data } = await supabase
-          .from('storage_vicinities')
-          .select('id, name')
-          .eq('is_active', true)
-          .order('name');
-        setStorageVicinities(data || []);
-      } catch (error) {
-        console.error('Error fetching storage vicinities:', error);
-      }
-    };
-    fetchStorageVicinities();
-  }, []);
 
   // Fetch tools with issues when filter is enabled
   useEffect(() => {

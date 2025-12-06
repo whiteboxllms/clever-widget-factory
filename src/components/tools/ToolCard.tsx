@@ -62,10 +62,13 @@ export const ToolCard = ({
         )}
 
         <div className="space-y-2 text-sm">
-          <div>
-            <span className="font-medium">Location:</span> {tool.legacy_storage_vicinity}
-            {tool.storage_location && ` - ${tool.storage_location}`}
-          </div>
+          {(tool.parent_structure_name || tool.storage_location) && (
+            <div>
+              <span className="font-medium">Location:</span>{' '}
+              {tool.parent_structure_name}
+              {tool.storage_location && ` - ${tool.storage_location}`}
+            </div>
+          )}
           
           {activeCheckout && (
             <div className="text-orange-600 font-medium">

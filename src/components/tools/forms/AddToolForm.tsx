@@ -67,7 +67,6 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
         status: newTool.status,
         parent_structure_id: newTool.parent_structure_id === "none" ? null : newTool.parent_structure_id,
         storage_location: newTool.storage_location || null,
-        legacy_storage_vicinity: "General",
         serial_number: newTool.serial_number || null,
         image_url: imageUrl
       };
@@ -167,7 +166,6 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
             specificLocation={newTool.storage_location}
             onAreaChange={(value) => setNewTool(prev => ({ ...prev, parent_structure_id: value }))}
             onSpecificLocationChange={(value) => setNewTool(prev => ({ ...prev, storage_location: value }))}
-            areaDataSource="parent_structures"
             areaFieldLabel="Area"
             specificLocationPlaceholder="e.g., Shelf A2, Drawer 3"
             isLoadingAreas={isLoadingParentStructures}

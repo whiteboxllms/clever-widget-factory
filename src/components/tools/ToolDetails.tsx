@@ -97,12 +97,14 @@ export const ToolDetails = ({
                   <div>
                     <span className="font-medium">Serial Number:</span> {tool.serial_number || 'Not specified'}
                   </div>
-                  <div>
-                    <span className="font-medium">Legacy Location:</span> {tool.legacy_storage_vicinity}
-                  </div>
+                  {tool.parent_structure_name && (
+                    <div>
+                      <span className="font-medium">Area:</span> {tool.parent_structure_name}
+                    </div>
+                  )}
                   {tool.storage_location && (
                     <div>
-                      <span className="font-medium">Storage Location:</span> {tool.storage_location}
+                      <span className="font-medium">Specific Location:</span> {tool.storage_location}
                     </div>
                   )}
                   {tool.actual_location && (

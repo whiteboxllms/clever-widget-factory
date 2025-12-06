@@ -262,14 +262,37 @@ export const CombinedAssetCard = memo(({
           )}
           
           
-          {asset.type === 'stock' && (
-            <div>
-              <span className="font-medium">Quantity:</span> {asset.current_quantity} {asset.unit || 'units'}
-              {asset.minimum_quantity && (
-                <span className="text-xs ml-1">(min: {asset.minimum_quantity})</span>
-              )}
-            </div>
-          )}
+          {asset.type === 'stock' && (() => {
+            const areaDisplay = asset.area_display || asset.parent_structure_name || asset.legacy_storage_vicinity;
+            const locationParts = [];
+            if (areaDisplay) locationParts.push(areaDisplay);
+            if (asset.storage_location) locationParts.push(asset.storage_location);
+            const locationStr = locationParts.length > 0 ? ` at ${locationParts.join(' • ')}` : '';
+            
+            return (
+              <div>
+                {asset.current_quantity} {asset.unit || 'pieces'}{locationStr}
+                {asset.minimum_quantity && (
+                  <span className="text-xs ml-1">(min: {asset.minimum_quantity})</span>
+                )}
+              </div>
+            );
+          })()}
+
+          {asset.type === 'asset' && (() => {
+            const areaDisplay = asset.area_display || asset.parent_structure_name || asset.legacy_storage_vicinity;
+            const locationParts = [];
+            if (areaDisplay) locationParts.push(areaDisplay);
+            if (asset.storage_location) locationParts.push(asset.storage_location);
+            
+            if (locationParts.length === 0) return null;
+            
+            return (
+              <div>
+                {locationParts.join(' • ')}
+              </div>
+            );
+          })()}
 
           {checkoutInfo && (
             <div>
@@ -279,29 +302,6 @@ export const CombinedAssetCard = memo(({
               </div>
             </div>
           )}
-
-          {(() => {
-            // Compute area_display from available fields (parent_structure_name || legacy_storage_vicinity)
-            const areaDisplay = asset.area_display || asset.parent_structure_name || asset.legacy_storage_vicinity;
-            
-            if (!asset.storage_location && !areaDisplay) return null;
-            
-            return (
-              <div>
-                {asset.storage_location && (
-                  <>
-                    <span className="font-medium">Location:</span> {asset.storage_location}
-                  </>
-                )}
-                {asset.storage_location && areaDisplay && ' • '}
-                {areaDisplay && (
-                  <>
-                    <span className="font-medium">Area:</span> {areaDisplay}
-                  </>
-                )}
-              </div>
-            );
-          })()}
 
           {asset.accountable_person_name && (
             <div>

@@ -342,7 +342,6 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
                 specificLocation={formData.storage_location}
                 onAreaChange={(value) => updateFormData('parent_structure_id', value)}
                 onSpecificLocationChange={(value) => updateFormData('storage_location', value)}
-                areaDataSource="parent_structures"
                 areaFieldLabel="Area"
                 specificLocationPlaceholder="e.g., Shelf A2, Drawer 3"
                 isLoadingAreas={isLoadingParentStructures}

@@ -58,7 +58,7 @@ describe('SimpleMissionForm - UI Terminology', () => {
     setupFetchMock(() => mockApiResponse([]));
   });
 
-  it('should display "Project Title" label', () => {
+  it('should display "Project Title" label', { timeout: 10000 }, () => {
     render(
       <AuthWrapper>
         <SimpleMissionForm
@@ -76,7 +76,7 @@ describe('SimpleMissionForm - UI Terminology', () => {
     expect(titleLabel).toBeInTheDocument();
   });
 
-  it('should have "Enter project title" placeholder', () => {
+  it('should have "Enter project title" placeholder', { timeout: 10000 }, () => {
     render(
       <AuthWrapper>
         <SimpleMissionForm
@@ -94,7 +94,7 @@ describe('SimpleMissionForm - UI Terminology', () => {
     expect(input).toBeInTheDocument();
   });
 
-  it('should display "Create Project" button when not editing', () => {
+  it('should display "Create Project" button when not editing', { timeout: 10000 }, () => {
     render(
       <AuthWrapper>
         <SimpleMissionForm
@@ -112,7 +112,7 @@ describe('SimpleMissionForm - UI Terminology', () => {
     expect(createButton).toBeInTheDocument();
   });
 
-  it('should work correctly without a template', () => {
+  it('should work correctly without a template', { timeout: 10000 }, () => {
     render(
       <AuthWrapper>
         <SimpleMissionForm

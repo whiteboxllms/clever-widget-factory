@@ -19,9 +19,10 @@ import { IssueQuickResolveDialog } from "./IssueQuickResolveDialog";
 import { CreateIssueDialog } from "./CreateIssueDialog";
 
 
-import { supabase } from '@/lib/client';
 import { toast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
+import { apiService } from "@/lib/apiService";
+import { useAuth } from "@/hooks/useCognitoAuth";
 
 interface IssueReportDialogProps {
   asset: CombinedAsset | Tool | null;
@@ -64,6 +65,7 @@ export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: Issu
   
   const { uploadImages, isUploading } = useImageUpload();
   const organizationId = useOrganizationId();
+  const { user } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,26 +146,17 @@ export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: Issu
 
   const handleRemoveIssue = async (issue: BaseIssue) => {
     try {
-      const { error: updateError } = await supabase
-        .from('issues')
-        .update({
-          status: 'removed'
-        })
-        .eq('id', issue.id);
+      await apiService.put(`/issues/${issue.id}`, {
+        status: 'removed'
+      });
 
-      if (updateError) throw updateError;
-
-      const { error: historyError } = await supabase
-        .from('issue_history')
-        .insert({
-          issue_id: issue.id,
-          old_status: issue.status,
-          new_status: 'removed',
-          changed_by: (await supabase.auth.getUser()).data.user?.id,
-          notes: 'Issue removed by contributor',
-        });
-
-      if (historyError) throw historyError;
+      await apiService.post('/issue_history', {
+        issue_id: issue.id,
+        old_status: issue.status,
+        new_status: 'removed',
+        changed_by: user?.userId,
+        notes: 'Issue removed by contributor',
+      });
 
       toast({
         title: "Issue removed",

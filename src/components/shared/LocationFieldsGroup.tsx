@@ -2,7 +2,6 @@ import React from 'react';
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { StorageVicinitySelector } from "@/components/StorageVicinitySelector";
 
 interface ParentStructure {
   id: string;
@@ -13,8 +12,7 @@ interface ParentStructure {
 
 interface LocationFieldsGroupProps {
   // Current values
-  legacyLocation?: string;
-  areaValue?: string;  // Can be parent_structure_id or storage_vicinity
+  areaValue?: string;  // parent_structure_id
   specificLocation?: string;
   
   // Change handlers
@@ -22,10 +20,7 @@ interface LocationFieldsGroupProps {
   onSpecificLocationChange: (value: string) => void;
   
   // Configuration
-  showLegacyField?: boolean;
-  legacyFieldLabel?: string;
   areaFieldLabel?: string;
-  areaDataSource: 'parent_structures' | 'storage_vicinities';
   specificLocationPlaceholder?: string;
   
   // Validation
@@ -40,15 +35,11 @@ interface LocationFieldsGroupProps {
 }
 
 export const LocationFieldsGroup: React.FC<LocationFieldsGroupProps> = ({
-  legacyLocation,
   areaValue,
   specificLocation,
   onAreaChange,
   onSpecificLocationChange,
-  showLegacyField = false,
-  legacyFieldLabel = "Legacy Location (Reference)",
   areaFieldLabel = "Area",
-  areaDataSource,
   specificLocationPlaceholder = "e.g., Shelf A2, Drawer 3",
   areaRequired = false,
   specificLocationRequired = false,
@@ -56,9 +47,13 @@ export const LocationFieldsGroup: React.FC<LocationFieldsGroupProps> = ({
   parentStructures = []
 }) => {
 
-  const renderAreaField = () => {
-    if (areaDataSource === 'parent_structures') {
-      return (
+  return (
+    <div className="space-y-4">
+      {/* Area Field */}
+      <div>
+        <Label htmlFor="area-field">
+          {areaFieldLabel}{areaRequired && " *"}
+        </Label>
         <Select
           value={areaValue || "none"}
           onValueChange={onAreaChange}
@@ -76,38 +71,6 @@ export const LocationFieldsGroup: React.FC<LocationFieldsGroupProps> = ({
             )) : null}
           </SelectContent>
         </Select>
-      );
-    } else {
-      return (
-        <StorageVicinitySelector
-          value={areaValue || ""}
-          onValueChange={onAreaChange}
-          placeholder="Select or add storage vicinity"
-        />
-      );
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      {/* Legacy Location Field - Only show if specified */}
-      {showLegacyField && legacyLocation && (
-        <div>
-          <Label>{legacyFieldLabel}</Label>
-          <Input
-            value={legacyLocation}
-            disabled
-            className="bg-muted text-muted-foreground"
-          />
-        </div>
-      )}
-
-      {/* Area Field */}
-      <div>
-        <Label htmlFor="area-field">
-          {areaFieldLabel}{areaRequired && " *"}
-        </Label>
-        {renderAreaField()}
       </div>
 
       {/* Specific Location Field */}

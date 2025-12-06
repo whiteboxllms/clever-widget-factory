@@ -5,7 +5,7 @@ import { Wrench, Package, Edit, Trash2, LogOut, LogIn, AlertTriangle, AlertCircl
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { InventoryHistoryDialog } from "./InventoryHistoryDialog";
 import { AssetHistoryDialog } from "./AssetHistoryDialog";
-import { useVisibleImage } from "@/hooks/useVisibleImage";
+
 import { useMemo, memo, useRef } from "react";
 
 interface CombinedAsset {
@@ -150,9 +150,6 @@ export const CombinedAssetCard = memo(({
   hasPendingOrders,
   onShowHistory
 }: CombinedAssetCardProps) => {
-  
-  
-  const { containerRef, imageUrl } = useVisibleImage(asset.id, asset.type, asset.image_url);
   const checkoutDateDisplay = useMemo(() => {
     if (!checkoutInfo?.checkout_date) return null;
     const parsedDate = new Date(checkoutInfo.checkout_date);
@@ -214,14 +211,14 @@ export const CombinedAssetCard = memo(({
 
   return (
     <Card className="relative hover:shadow-md transition-shadow cursor-pointer h-full flex flex-col" onClick={() => onView(asset)}>
-      <CardHeader className="pb-3 pt-3 flex-shrink-0">
+      <CardHeader className="pb-2 pt-2 flex-shrink-0">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
           </div>
         </div>
         
         <div className="flex items-center justify-between gap-2 -mt-1">
-          <CardTitle className="text-base line-clamp-2 flex-1 leading-tight">{asset.name}</CardTitle>
+          <CardTitle className="text-lg line-clamp-2 flex-1 leading-tight">{asset.name}</CardTitle>
           {asset.type === 'stock' && (
             <Badge variant="secondary" className="text-xs shrink-0">
               Stock
@@ -239,22 +236,20 @@ export const CombinedAssetCard = memo(({
         )}
       </CardHeader>
 
-      <CardContent className="pt-0 flex-1 flex flex-col">
-        <div ref={containerRef} className="mb-3">
-          {imageUrl ? (
+      <CardContent className="pt-0 pb-2 flex-1 flex flex-col">
+        {asset.image_url && (
+          <div className="mb-2 w-full h-32 md:h-40 rounded-md border bg-muted overflow-hidden flex-shrink-0">
             <img
-              src={imageUrl}
+              src={asset.image_url}
               alt={asset.name}
-              className="w-full h-32 object-cover rounded-md border"
+              className="w-full h-full object-cover"
               loading="lazy"
               decoding="async"
             />
-          ) : (
-            <div className="w-full h-32 rounded-md border bg-muted animate-pulse" />
-          )}
-        </div>
+          </div>
+        )}
 
-        <div className="space-y-2 text-sm text-muted-foreground">
+        <div className="space-y-1 text-sm text-muted-foreground">
           {asset.serial_number && (
             <div>
               <span className="font-medium">Serial:</span> {asset.serial_number}
@@ -262,14 +257,37 @@ export const CombinedAssetCard = memo(({
           )}
           
           
-          {asset.type === 'stock' && (
-            <div>
-              <span className="font-medium">Quantity:</span> {asset.current_quantity} {asset.unit || 'units'}
-              {asset.minimum_quantity && (
-                <span className="text-xs ml-1">(min: {asset.minimum_quantity})</span>
-              )}
-            </div>
-          )}
+          {asset.type === 'stock' && (() => {
+            const areaDisplay = asset.area_display || asset.parent_structure_name || asset.legacy_storage_vicinity;
+            const locationParts = [];
+            if (areaDisplay) locationParts.push(areaDisplay);
+            if (asset.storage_location) locationParts.push(asset.storage_location);
+            const locationStr = locationParts.length > 0 ? ` at ${locationParts.join(' • ')}` : '';
+            
+            return (
+              <div>
+                {asset.current_quantity} {asset.unit || 'pieces'}{locationStr}
+                {asset.minimum_quantity && (
+                  <span className="text-xs ml-1">(min: {asset.minimum_quantity})</span>
+                )}
+              </div>
+            );
+          })()}
+
+          {asset.type === 'asset' && (() => {
+            const areaDisplay = asset.area_display || asset.parent_structure_name || asset.legacy_storage_vicinity;
+            const locationParts = [];
+            if (areaDisplay) locationParts.push(areaDisplay);
+            if (asset.storage_location) locationParts.push(asset.storage_location);
+            
+            if (locationParts.length === 0) return null;
+            
+            return (
+              <div>
+                {locationParts.join(' • ')}
+              </div>
+            );
+          })()}
 
           {checkoutInfo && (
             <div>
@@ -280,29 +298,6 @@ export const CombinedAssetCard = memo(({
             </div>
           )}
 
-          {(() => {
-            // Compute area_display from available fields (parent_structure_name || legacy_storage_vicinity)
-            const areaDisplay = asset.area_display || asset.parent_structure_name || asset.legacy_storage_vicinity;
-            
-            if (!asset.storage_location && !areaDisplay) return null;
-            
-            return (
-              <div>
-                {asset.storage_location && (
-                  <>
-                    <span className="font-medium">Location:</span> {asset.storage_location}
-                  </>
-                )}
-                {asset.storage_location && areaDisplay && ' • '}
-                {areaDisplay && (
-                  <>
-                    <span className="font-medium">Area:</span> {areaDisplay}
-                  </>
-                )}
-              </div>
-            );
-          })()}
-
           {asset.accountable_person_name && (
             <div>
               <span className="font-medium">Accountable:</span> 
@@ -311,15 +306,9 @@ export const CombinedAssetCard = memo(({
               </span>
             </div>
           )}
-
-          {asset.description && (
-            <div className="line-clamp-2">
-              <span className="font-medium">Description:</span> {asset.description}
-            </div>
-          )}
         </div>
 
-        <div className="flex gap-2 mt-4 mt-auto pt-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex gap-2 mt-2 mt-auto pt-2" onClick={(e) => e.stopPropagation()}>
           {/* Asset-specific buttons */}
           {asset.type === 'asset' && asset.status === 'available' && !checkoutInfo && onCheckout && (
             <TooltipProvider>

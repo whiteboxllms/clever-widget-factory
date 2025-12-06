@@ -160,13 +160,10 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, isLeadership = f
 
           {/* Location Fields */}
           <LocationFieldsGroup
-            legacyLocation={tool.legacy_storage_vicinity}
             areaValue={editData.parent_structure_id}
             specificLocation={editData.storage_location}
             onAreaChange={(value) => setEditData(prev => ({ ...prev, parent_structure_id: value }))}
             onSpecificLocationChange={(value) => setEditData(prev => ({ ...prev, storage_location: value }))}
-            showLegacyField={!!(tool.legacy_storage_vicinity && !tool.parent_structure_id)}
-            areaDataSource="parent_structures"
             areaFieldLabel="Area"
             specificLocationPlaceholder="e.g., Shelf A2, Drawer 3"
             isLoadingAreas={isLoadingParentStructures}

@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from '@/lib/client';
+import { apiService } from '@/lib/apiService';
 import { useNavigate } from "react-router-dom";
 import { Edit } from "lucide-react";
 
@@ -34,50 +34,61 @@ export function DocumentationQualityDetailsDialog({
 
       // Get parts that were updated in the last week by this user
       const changeType = activityType === "Created" ? "create" : "update";
-      const { data: partsHistory, error } = await supabase
-        .from("parts_history")
-        .select("part_id, created_at, change_type")
-        .eq("changed_by", userId)
-        .eq("change_type", changeType)
-        .gte("created_at", oneWeekAgo.toISOString())
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      if (!partsHistory || partsHistory.length === 0) {
-        return [];
-      }
-
-      // Get unique part IDs to avoid duplicates
-      const uniquePartIds = [...new Set(partsHistory.map(h => h.part_id))];
       
-      // Get current state of these parts
-      const { data: parts, error: partsError } = await supabase
-        .from("parts")
-        .select("id, name, description, storage_location, supplier, cost_per_unit, image_url, updated_at")
-        .in("id", uniquePartIds);
+      try {
+        // Fetch parts history from AWS API
+        const historyResponse = await apiService.get('/parts_history', {
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const allHistory = historyResponse.data || [];
+        
+        // Filter history by user, change type, and date
+        const partsHistory = allHistory.filter((h: any) => 
+          h.changed_by === userId &&
+          h.change_type === changeType &&
+          new Date(h.changed_at || h.created_at) >= oneWeekAgo
+        );
 
-      if (partsError) throw partsError;
-
-      const partsMap = new Map((parts || []).map(p => [p.id, p]));
-
-      // Get the most recent activity date for each part
-      const partToLatestActivity = new Map();
-      partsHistory.forEach(history => {
-        const currentLatest = partToLatestActivity.get(history.part_id);
-        if (!currentLatest || new Date(history.created_at) > new Date(currentLatest)) {
-          partToLatestActivity.set(history.part_id, history.created_at);
+        if (!partsHistory || partsHistory.length === 0) {
+          return [];
         }
-      });
 
-      // Return one entry per unique part
-      return uniquePartIds.map(partId => ({
-        id: partId, // Use part_id as unique identifier
-        part_id: partId,
-        created_at: partToLatestActivity.get(partId),
-        type: activityType.toLowerCase(),
-        part: partsMap.get(partId)
-      })).filter(item => item.part); // Filter out items where part wasn't found
+        // Get unique part IDs to avoid duplicates
+        const uniquePartIds = [...new Set(partsHistory.map((h: any) => h.part_id))];
+        
+        // Get current state of these parts from AWS API
+        const partsResponse = await apiService.get('/parts');
+        const allParts = partsResponse.data || [];
+        
+        // Filter parts to only those we need
+        const parts = allParts.filter((p: any) => uniquePartIds.includes(p.id));
+        const partsMap = new Map(parts.map((p: any) => [p.id, p]));
+
+        // Get the most recent activity date for each part
+        const partToLatestActivity = new Map();
+        partsHistory.forEach((history: any) => {
+          const currentLatest = partToLatestActivity.get(history.part_id);
+          const historyDate = history.changed_at || history.created_at;
+          if (!currentLatest || new Date(historyDate) > new Date(currentLatest)) {
+            partToLatestActivity.set(history.part_id, historyDate);
+          }
+        });
+
+        // Return one entry per unique part
+        return uniquePartIds.map(partId => ({
+          id: partId, // Use part_id as unique identifier
+          part_id: partId,
+          created_at: partToLatestActivity.get(partId),
+          type: activityType.toLowerCase(),
+          part: partsMap.get(partId)
+        })).filter(item => item.part); // Filter out items where part wasn't found
+      } catch (error) {
+        console.error('Error fetching documentation quality details:', error);
+        throw new Error('Failed to fetch documentation quality details');
+      }
     },
     enabled: open && !!userId && !!activityType,
     staleTime: 2 * 60 * 1000, // 2 minutes

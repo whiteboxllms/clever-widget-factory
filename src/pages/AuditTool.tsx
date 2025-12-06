@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, Camera, AlertTriangle, Edit, Flag } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/client';
+import { apiService } from '@/lib/apiService';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { useImageUpload } from '@/hooks/useImageUpload';
@@ -63,14 +63,8 @@ const AuditTool = () => {
   const { data: tool, isLoading } = useQuery({
     queryKey: ['tool', toolId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('tools')
-        .select('*')
-        .eq('id', toolId)
-        .single();
-      
-      if (error) throw error;
-      return data as Tool;
+      const response = await apiService.get(`/tools/${toolId}`);
+      return response.data as Tool;
     },
     enabled: !!toolId
   });
@@ -82,19 +76,10 @@ const AuditTool = () => {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-      const { data, error } = await supabase
-        .from('checkins')
-        .select(`
-          user_name,
-          checkin_date
-        `)
-        .eq('tool_id', toolId)
-        .gte('checkin_date', sevenDaysAgo.toISOString())
-        .order('checkin_date', { ascending: false })
-        .limit(1);
-
-      if (error) throw error;
-      return data?.[0] || null;
+      const response = await apiService.get(
+        `/checkins?tool_id=${toolId}&after=${sevenDaysAgo.toISOString()}&limit=1`
+      );
+      return response.data?.[0] || null;
     },
     enabled: !!toolId
   });
@@ -119,23 +104,17 @@ const AuditTool = () => {
       // Create audit record
       const auditData = {
         tool_id: toolId,
-        audited_by: user.id,
+        audited_by: user.userId,
         found_in_vicinity: formData.foundInVicinity,
         found_in_location: formData.foundInLocation,
         condition_found: formData.conditionFound,
         audit_comments: formData.auditComments,
         photo_urls: uploadedUrls,
         flagged_for_maintenance: formData.flaggedForMaintenance,
-        last_user_identified: null, // Will be enhanced later with proper user tracking
+        last_user_identified: null,
       };
 
-      const { error: auditError } = await supabase
-        .from('tool_audits')
-        .insert({
-          ...auditData,
-        });
-
-      if (auditError) throw auditError;
+      await apiService.post('/tool_audits', auditData);
 
       // Update tool's last_audited_at, audit_status, and condition
       const toolUpdates: any = {
@@ -149,12 +128,7 @@ const AuditTool = () => {
         toolUpdates.status = 'missing';
       }
 
-      const { error: toolError } = await supabase
-        .from('tools')
-        .update(toolUpdates)
-        .eq('id', toolId);
-
-      if (toolError) throw toolError;
+      await apiService.put(`/tools/${toolId}`, toolUpdates);
 
       // TODO: If flagged for maintenance, create maintenance request
       // This would require a maintenance_requests table

@@ -64,7 +64,7 @@ export const CombinedAssetGrid = ({
       : asset.checked_out_to || undefined;
 
     return (
-      <div style={{ minHeight: '300px', height: 'auto' }}>
+      <div>
         <CombinedAssetCard
           key={asset.id}
           asset={asset}
@@ -108,7 +108,7 @@ export const CombinedAssetGrid = ({
       overscan={200}
       style={{ height: '75vh' }}
       computeItemKey={(index) => assets[index]?.id || `item-${index}`}
-      listClassName="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+      listClassName="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"
       itemContent={itemContent}
       // Infinite scroll functionality
       endReached={onLoadMore}

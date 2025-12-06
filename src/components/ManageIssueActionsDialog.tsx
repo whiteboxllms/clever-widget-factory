@@ -50,7 +50,7 @@ export function ManageIssueActionsDialog({
   const queryClient = useQueryClient();
   const [toolName, setToolName] = useState<string>("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [editingAction, setEditingAction] = useState<BaseAction | null>(null);
+  const [editingActionId, setEditingActionId] = useState<string | null>(null);
   const { markActionComplete, markActionIncomplete } = useIssueActions();
   
   // Use TanStack Query to fetch actions for this issue - shares cache with GenericIssueCard
@@ -193,7 +193,7 @@ export function ManageIssueActionsDialog({
                       key={action.id}
                       action={action}
                       profiles={profiles}
-                      onClick={() => setEditingAction(action)}
+                      onClick={() => setEditingActionId(action.id)}
                       showScoreButton={false}
                     />
                   ))}
@@ -216,14 +216,14 @@ export function ManageIssueActionsDialog({
 
       {/* Create/Edit Action Dialog */}
       <UnifiedActionDialog
-        open={showCreateDialog || !!editingAction}
+        open={showCreateDialog || !!editingActionId}
         onOpenChange={(open) => {
           if (!open) {
             setShowCreateDialog(false);
-            setEditingAction(null);
+            setEditingActionId(null);
           }
         }}
-        action={editingAction || undefined}
+        actionId={editingActionId || undefined}
         context={{
           type: 'issue',
           parentId: issue.id,
@@ -238,7 +238,7 @@ export function ManageIssueActionsDialog({
         profiles={profiles}
         onActionSaved={() => {
           setShowCreateDialog(false);
-          setEditingAction(null);
+          setEditingActionId(null);
           handleActionCreated();
         }}
         isCreating={showCreateDialog}

@@ -232,14 +232,10 @@ export function InventoryItemForm({
         <div className="col-span-2">
           {/* Location Fields */}
           <LocationFieldsGroup
-            legacyLocation={editingPart?.legacy_storage_vicinity}
             areaValue={formData.parent_structure_id}
             specificLocation={formData.storage_location}
             onAreaChange={(value) => updateFormData('parent_structure_id', value === 'none' ? null : value)}
             onSpecificLocationChange={(value) => updateFormData('storage_location', value)}
-            showLegacyField={!!editingPart?.legacy_storage_vicinity}
-            legacyFieldLabel="Legacy Storage Vicinity (Reference)"
-            areaDataSource="parent_structures"
             areaFieldLabel="Area"
             specificLocationPlaceholder="e.g., Shelf 3, Bin B2"
             areaRequired={true}

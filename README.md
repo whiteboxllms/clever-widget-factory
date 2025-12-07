@@ -53,6 +53,7 @@ The AWS API Gateway provides these endpoints:
 - `GET /api/tools` - Get tools
 - `GET /api/parts` - Get parts
 - `POST /api/query` - Execute custom SQL queries
+- `POST /api/semantic-search` - Semantic search using Bedrock embeddings
 
 #### `/api/tools` response
 Tools are served by the `cwf-core-lambda` function which queries the AWS RDS instance. Each tool row now includes checkout metadata resolved server-side (no extra checkout request required):
@@ -172,6 +173,33 @@ The following files are legacy from the Supabase era and should be ignored:
 - `supabase/` directory
 - Any files referencing `@supabase/supabase-js`
 - `SUPABASE_TO_AWS_MIGRATION_PLAN.md` (migration is complete)
+
+### Semantic Search
+
+The application uses AWS Bedrock Titan embeddings for semantic search across tools and parts.
+
+**Architecture:**
+- `cwf-semantic-search` Lambda: Handles search requests, generates embeddings via Bedrock, queries vector database
+- `cwf-embeddings-lambda`: Standalone Lambda for generating embeddings (used by backfill scripts)
+- VPC Endpoint: `bedrock-runtime` endpoint allows Lambda in VPC to access Bedrock
+- Database: PostgreSQL with pgvector extension for vector similarity search
+
+**Backfill embeddings:**
+```bash
+./backfill-embeddings-full-context.sh
+```
+
+This generates embeddings for all tools including their metadata, issues, and action history.
+
+**Search endpoint:**
+```bash
+POST /api/semantic-search
+{
+  "query": "search text",
+  "table": "parts" | "tools",
+  "limit": 10
+}
+```
 
 ### TODO / Known Issues
 

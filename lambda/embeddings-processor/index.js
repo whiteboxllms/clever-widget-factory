@@ -6,7 +6,7 @@ const API_BASE_URL = process.env.API_BASE_URL || 'https://0720au267k.execute-api
 
 async function generateEmbedding(text) {
   const command = new InvokeModelCommand({
-    modelId: 'amazon.titan-embed-text-v1',
+    modelId: 'amazon.titan-embed-text-v2:0',
     contentType: 'application/json',
     accept: 'application/json',
     body: JSON.stringify({ inputText: text })

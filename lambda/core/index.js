@@ -275,7 +275,12 @@ exports.handler = async (event) => {
         
         const sql = `SELECT json_agg(row_to_json(result)) FROM (
           SELECT DISTINCT ON (tools.id)
-            tools.*,
+            tools.id, tools.name, tools.description, tools.category, tools.legacy_storage_vicinity,
+            tools.actual_location, tools.serial_number, tools.last_maintenance,
+            tools.manual_url, tools.known_issues, tools.has_motor, tools.stargazer_sop,
+            tools.storage_location, tools.last_audited_at, tools.audit_status,
+            tools.parent_structure_id, tools.organization_id, tools.accountable_person_id,
+            tools.created_at, tools.updated_at,
             CASE 
               WHEN active_checkouts.id IS NOT NULL THEN 'checked_out'
               ELSE tools.status

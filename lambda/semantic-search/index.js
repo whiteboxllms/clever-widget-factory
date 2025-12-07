@@ -1,7 +1,7 @@
-const { query } = require('../shared/db');
-const { getAuthorizerContext } = require('../shared/auth');
-const { success, error, corsResponse } = require('../shared/response');
-const { generateEmbedding } = require('../shared/embeddings');
+const { query } = require('./shared/db');
+const { getAuthorizerContext } = require('./shared/auth');
+const { success, error, corsResponse } = require('./shared/response');
+const { generateEmbedding } = require('./shared/embeddings');
 
 exports.handler = async (event) => {
   console.log('Semantic search event:', JSON.stringify(event, null, 2));

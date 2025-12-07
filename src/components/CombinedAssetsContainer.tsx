@@ -42,6 +42,9 @@ export const CombinedAssetsContainer = () => {
   const organizationId = useOrganizationId();
   const { uploadImages, isUploading } = useImageUpload();
   const [searchTerm, setSearchTerm] = useState("");
+  const [semanticSearchTerm, setSemanticSearchTerm] = useState("");
+  const [semanticResults, setSemanticResults] = useState<string[]>([]);
+  const [isSemanticSearching, setIsSemanticSearching] = useState(false);
   const [showMyCheckedOut, setShowMyCheckedOut] = useState(false);
   const [showWithIssues, setShowWithIssues] = useState(false);
   const [showLowStock, setShowLowStock] = useState(false);
@@ -80,6 +83,7 @@ export const CombinedAssetsContainer = () => {
   const [limit] = useState(50);
   const searchRef = useRef(searchTerm);
   const debounceTimerRef = useRef<number | undefined>(undefined);
+  const semanticDebounceTimerRef = useRef<number | undefined>(undefined);
   const { assets, loading, createAsset, updateAsset, refetch, fetchAssets } = useCombinedAssets(showRemovedItems, {
     search: searchTerm,
     limit,
@@ -146,6 +150,54 @@ export const CombinedAssetsContainer = () => {
     fetchPendingOrders();
   }, []);
 
+  // Semantic search handler
+  const performSemanticSearch = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setSemanticResults([]);
+      return;
+    }
+
+    setIsSemanticSearching(true);
+    try {
+      const response = await apiService.post('/semantic-search', {
+        query: query.trim(),
+        table: 'parts',
+        limit: 10
+      });
+      
+      const ids = response.results?.map((r: any) => r.id) || [];
+      setSemanticResults(ids);
+    } catch (error) {
+      console.error('Semantic search failed:', error);
+      toast({
+        title: "Search Error",
+        description: "Semantic search failed. Please try again.",
+        variant: "destructive"
+      });
+      setSemanticResults([]);
+    } finally {
+      setIsSemanticSearching(false);
+    }
+  }, [toast]);
+
+  // Semantic search debounce effect
+  useEffect(() => {
+    if (semanticDebounceTimerRef.current) window.clearTimeout(semanticDebounceTimerRef.current);
+    
+    if (!semanticSearchTerm.trim()) {
+      setSemanticResults([]);
+      return;
+    }
+
+    semanticDebounceTimerRef.current = window.setTimeout(() => {
+      performSemanticSearch(semanticSearchTerm);
+    }, 500);
+
+    return () => {
+      if (semanticDebounceTimerRef.current) window.clearTimeout(semanticDebounceTimerRef.current);
+    };
+  }, [semanticSearchTerm, performSemanticSearch]);
+
   // Consolidated effect to handle all filter changes and prevent race conditions
   useEffect(() => {
     if (debounceTimerRef.current) window.clearTimeout(debounceTimerRef.current);
@@ -180,9 +232,7 @@ export const CombinedAssetsContainer = () => {
     // Skip filtering during loading to prevent flicker
     if (loading && assets.length === 0) return [];
     
-
-    
-    return assets.filter(asset => {
+    let filtered = assets.filter(asset => {
       // Type filters
       if (showOnlyAssets && asset.type !== 'asset') return false;
       if (showOnlyStock && asset.type !== 'stock') return false;
@@ -200,7 +250,16 @@ export const CombinedAssetsContainer = () => {
 
       return true;
     });
-  }, [assets, showOnlyAssets, showOnlyStock, showMyCheckedOut, showWithIssues, user?.id, loading]);
+
+    // Apply semantic search filter if active
+    if (semanticResults.length > 0) {
+      filtered = filtered.filter(asset => 
+        asset.type === 'stock' && semanticResults.includes(asset.id)
+      );
+    }
+
+    return filtered;
+  }, [assets, showOnlyAssets, showOnlyStock, showMyCheckedOut, showWithIssues, user?.id, loading, semanticResults]);
 
   const handleCreateAsset = async (assetData: any, isAsset: boolean) => {
     const result = await createAsset(assetData, isAsset);
@@ -515,6 +574,9 @@ export const CombinedAssetsContainer = () => {
       <CombinedAssetFilters
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
+        semanticSearchTerm={semanticSearchTerm}
+        setSemanticSearchTerm={setSemanticSearchTerm}
+        isSemanticSearching={isSemanticSearching}
         searchDescriptions={searchDescriptions}
         setSearchDescriptions={setSearchDescriptions}
         showMyCheckedOut={showMyCheckedOut}

@@ -10,6 +10,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 interface CombinedAssetFiltersProps {
   searchTerm: string;
   setSearchTerm: (term: string) => void;
+  semanticSearchTerm: string;
+  setSemanticSearchTerm: (term: string) => void;
+  isSemanticSearching?: boolean;
   searchDescriptions: boolean;
   setSearchDescriptions: (show: boolean) => void;
   showMyCheckedOut: boolean;
@@ -30,6 +33,9 @@ interface CombinedAssetFiltersProps {
 export const CombinedAssetFilters = ({
   searchTerm,
   setSearchTerm,
+  semanticSearchTerm,
+  setSemanticSearchTerm,
+  isSemanticSearching = false,
   searchDescriptions,
   setSearchDescriptions,
   showMyCheckedOut,
@@ -74,6 +80,31 @@ export const CombinedAssetFilters = ({
             <X className="h-4 w-4" />
           </button>
         )}
+      </div>
+
+      {/* Semantic Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Semantic search (parts only)..."
+          value={semanticSearchTerm}
+          onChange={(e) => setSemanticSearchTerm(e.target.value)}
+          className="pl-10 pr-10"
+          disabled={isSemanticSearching}
+        />
+        {isSemanticSearching ? (
+          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+            <div className="animate-spin h-4 w-4 border-2 border-muted-foreground border-t-transparent rounded-full" />
+          </div>
+        ) : semanticSearchTerm ? (
+          <button
+            onClick={() => setSemanticSearchTerm("")}
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            type="button"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        ) : null}
       </div>
 
       {/* Collapsible Filters */}

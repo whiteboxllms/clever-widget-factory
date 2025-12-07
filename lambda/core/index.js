@@ -8,7 +8,7 @@ const dbConfig = {
   port: 5432,
   database: 'postgres',
   user: 'postgres',
-  password: process.env.DB_PASSWORD || 'CWF_Dev_2025!',
+  password: process.env.DB_PASSWORD,
   ssl: {
     rejectUnauthorized: false
   }
@@ -2459,6 +2459,58 @@ exports.handler = async (event) => {
         headers,
         body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
       };
+    }
+
+    // Semantic search endpoint
+    if (httpMethod === 'POST' && path.endsWith('/semantic-search')) {
+      const { generateEmbedding } = require('./shared/embeddings');
+      const body = JSON.parse(event.body || '{}');
+      const { query, table = 'parts', limit = 10 } = body;
+      
+      if (!query) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'query is required' })
+        };
+      }
+      
+      try {
+        // Generate query embedding
+        const queryEmbedding = await generateEmbedding(query);
+        
+        // Search parts table
+        const sql = `
+          SELECT 
+            id,
+            name,
+            description,
+            category,
+            storage_location,
+            current_quantity,
+            (search_embedding <=> '[${queryEmbedding.join(',')}]') as similarity_score
+          FROM parts
+          WHERE organization_id = '${organizationId}'
+            AND search_embedding IS NOT NULL
+          ORDER BY similarity_score
+          LIMIT ${limit}
+        `;
+        
+        const results = await queryJSON(sql);
+        
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ results })
+        };
+      } catch (error) {
+        console.error('Semantic search error:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: error.message })
+        };
+      }
     }
 
     // Default 404

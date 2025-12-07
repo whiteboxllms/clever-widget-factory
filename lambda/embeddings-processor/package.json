@@ -1,0 +1,9 @@
+{
+  "name": "cwf-embeddings-processor",
+  "version": "1.0.0",
+  "description": "Processes asset events and generates embeddings",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.709.0"
+  }
+}

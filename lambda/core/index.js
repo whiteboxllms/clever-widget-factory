@@ -2461,58 +2461,6 @@ exports.handler = async (event) => {
       };
     }
 
-    // Semantic search endpoint
-    if (httpMethod === 'POST' && path.endsWith('/semantic-search')) {
-      const { generateEmbedding } = require('./shared/embeddings');
-      const body = JSON.parse(event.body || '{}');
-      const { query, table = 'parts', limit = 10 } = body;
-      
-      if (!query) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ error: 'query is required' })
-        };
-      }
-      
-      try {
-        // Generate query embedding
-        const queryEmbedding = await generateEmbedding(query);
-        
-        // Search parts table
-        const sql = `
-          SELECT 
-            id,
-            name,
-            description,
-            category,
-            storage_location,
-            current_quantity,
-            (search_embedding <=> '[${queryEmbedding.join(',')}]') as similarity_score
-          FROM parts
-          WHERE organization_id = '${organizationId}'
-            AND search_embedding IS NOT NULL
-          ORDER BY similarity_score
-          LIMIT ${limit}
-        `;
-        
-        const results = await queryJSON(sql);
-        
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({ results })
-        };
-      } catch (error) {
-        console.error('Semantic search error:', error);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: error.message })
-        };
-      }
-    }
-
     // Default 404
     return {
       statusCode: 404,

@@ -10,6 +10,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 interface CombinedAssetFiltersProps {
   searchTerm: string;
   setSearchTerm: (term: string) => void;
+  isSemanticSearching?: boolean;
+  onSemanticSearch: () => void;
+  onClearSearch?: () => void;
   searchDescriptions: boolean;
   setSearchDescriptions: (show: boolean) => void;
   showMyCheckedOut: boolean;
@@ -30,6 +33,9 @@ interface CombinedAssetFiltersProps {
 export const CombinedAssetFilters = ({
   searchTerm,
   setSearchTerm,
+  isSemanticSearching = false,
+  onSemanticSearch,
+  onClearSearch,
   searchDescriptions,
   setSearchDescriptions,
   showMyCheckedOut,
@@ -50,30 +56,41 @@ export const CombinedAssetFilters = ({
 
   return (
     <div className="space-y-4">
-      {/* Search Bar */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search by name, serial number, or storage location..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              e.stopPropagation();
-            }
-          }}
-          className="pl-10 pr-10"
-        />
-        {searchTerm && (
-          <button
-            onClick={() => setSearchTerm("")}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-            type="button"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
+      {/* Search Bar with AI Search Button */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by name, serial number, or storage location..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 pr-10"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => {
+                setSearchTerm("");
+                onClearSearch?.();
+              }}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              type="button"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <Button
+          onClick={onSemanticSearch}
+          disabled={!searchTerm.trim() || isSemanticSearching}
+          variant="secondary"
+          title="AI-powered semantic search"
+        >
+          {isSemanticSearching ? (
+            <div className="animate-spin h-4 w-4 border-2 border-muted-foreground border-t-transparent rounded-full" />
+          ) : (
+            <Search className="h-4 w-4" />
+          )}
+        </Button>
       </div>
 
       {/* Collapsible Filters */}

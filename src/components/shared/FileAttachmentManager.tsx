@@ -1,3 +1,4 @@
+import React from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Paperclip, X } from "lucide-react";
@@ -10,6 +11,7 @@ interface FileAttachmentManagerProps {
   label?: string;
   disabled?: boolean;
   maxFiles?: number;
+  onUploadStateChange?: (isUploading: boolean) => void;
 }
 
 export const FileAttachmentManager = ({
@@ -18,9 +20,15 @@ export const FileAttachmentManager = ({
   bucket,
   label = "Attachments (Images & PDFs)",
   disabled = false,
-  maxFiles = 10
+  maxFiles = 10,
+  onUploadStateChange
 }: FileAttachmentManagerProps) => {
   const { uploadFiles, isUploading } = useFileUpload();
+  
+  // Notify parent of upload state changes
+  React.useEffect(() => {
+    onUploadStateChange?.(isUploading);
+  }, [isUploading, onUploadStateChange]);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;

@@ -111,20 +111,26 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
 
   const updateMutation = useMutation({
     mutationFn: async ({ issueId, updates }: { issueId: string; updates: Partial<BaseIssue> }) => {
-      // Get current issue data to track changes
-      const currentData = await apiService.get(`/issues/${issueId}`);
-      const currentIssue = currentData.data;
-
       // Update the issue
       await apiService.put(`/issues/${issueId}`, updates);
 
-      // Create history entry for the update
-      await apiService.post(`/issue_history`, {
-        issue_id: issueId,
-        old_status: currentIssue.status,
-        new_status: updates.status || currentIssue.status,
-        notes: 'Issue updated'
-      });
+      // Create history entry for the update (only if status changed)
+      if (updates.status) {
+        try {
+          const currentData = await apiService.get(`/issues/${issueId}`);
+          const currentIssue = currentData.data;
+          
+          await apiService.post(`/issue_history`, {
+            issue_id: issueId,
+            old_status: currentIssue.status,
+            new_status: updates.status,
+            notes: 'Issue updated'
+          });
+        } catch (historyError) {
+          console.error('Failed to create history entry:', historyError);
+          // Don't fail the whole update if history fails
+        }
+      }
 
       toast({
         title: "Issue updated",
@@ -134,8 +140,8 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
       return true;
     },
     onSuccess: () => {
-      // Invalidate only the specific query that was affected
-      queryClient.invalidateQueries({ queryKey });
+      // Invalidate all issues queries to ensure fresh data
+      queryClient.invalidateQueries({ queryKey: ['issues'] });
     },
     onError: (error) => {
       console.error('Error updating issue:', error);

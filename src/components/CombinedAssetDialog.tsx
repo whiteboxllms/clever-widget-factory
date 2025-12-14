@@ -54,6 +54,7 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
   });
   
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   const [useMinimumQuantity, setUseMinimumQuantity] = useState(false);
   const { toast } = useToast();
   const { parentStructures, loading: isLoadingParentStructures } = useParentStructures();
@@ -89,7 +90,6 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
           status: formData.status,
           parent_structure_id: formData.parent_structure_id === "none" ? null : formData.parent_structure_id,
           storage_location: formData.storage_location || null,
-          legacy_storage_vicinity: "General",
           serial_number: formData.serial_number || null,
           image_url: imageUrl
         };
@@ -106,7 +106,6 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
           unit: formData.unit,
           parent_structure_id: formData.parent_structure_id === "none" ? null : formData.parent_structure_id,
           storage_location: formData.storage_location || null,
-          legacy_storage_vicinity: "General",
           image_url: imageUrl
         };
         await onSubmit(partData, false);
@@ -147,7 +146,11 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      // Prevent closing while uploading or submitting
+      if (!open && (isUploadingFiles || isSubmitting)) return;
+      onClose();
+    }}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -359,6 +362,7 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
                 label="Item Images & Documents"
                 disabled={isSubmitting}
                 maxFiles={5}
+                onUploadStateChange={setIsUploadingFiles}
               />
             </div>
           </div>

@@ -45,16 +45,18 @@ type AssetsQueryOptions = {
   page?: number;
   searchDescriptions?: boolean;
   showLowStock?: boolean;
+  skipPagination?: boolean;
 };
 
 const fetchTools = async () => {
-  const result = await apiService.get('/tools?limit=1000');
+  const result = await apiService.get('/tools?limit=2000');
   return result.data || [];
 };
 
 const fetchParts = async () => {
   try {
-    const result = await apiService.get('/parts?limit=1000');
+    const result = await apiService.get('/parts?limit=2000');
+    console.log('✅ Parts fetched:', result.data?.length || 0, 'items');
     return result.data || [];
   } catch (error) {
     console.error('❌ Parts fetch error:', error);
@@ -63,7 +65,7 @@ const fetchParts = async () => {
 };
 
 const fetchActions = async () => {
-  const result = await apiService.get('/actions?limit=1000');
+  const result = await apiService.get('/actions?limit=2000');
   return result.data || [];
 };
 
@@ -184,12 +186,16 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
       );
     }
     
-    // Apply pagination to each type separately
-    const limit = options?.limit || 50;
-    const page = options?.page || 0;
+    // Apply pagination to each type separately (unless skipPagination is true)
+    let paginatedParts = filteredPartsData;
+    let paginatedTools = filteredToolsData;
     
-    const paginatedParts = filteredPartsData.slice(0, (page + 1) * limit);
-    const paginatedTools = filteredToolsData.slice(0, (page + 1) * limit);
+    if (!options?.skipPagination) {
+      const limit = options?.limit || 50;
+      const page = options?.page || 0;
+      paginatedParts = filteredPartsData.slice(0, (page + 1) * limit);
+      paginatedTools = filteredToolsData.slice(0, (page + 1) * limit);
+    }
     
     const allAssets: CombinedAsset[] = [
       ...paginatedParts.map(part => ({
@@ -210,7 +216,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
     ];
     
     return allAssets;
-  }, [showRemovedItems, toolsData, partsData, loading, options?.search, options?.searchDescriptions, options?.showLowStock, options?.limit, options?.page]);
+  }, [showRemovedItems, toolsData, partsData, loading, options?.search, options?.searchDescriptions, options?.showLowStock, options?.limit, options?.page, options?.skipPagination]);
   
   return {
     assets: processedAssets,

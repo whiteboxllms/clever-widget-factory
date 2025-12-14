@@ -35,6 +35,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, isLeadership = f
     attachments: tool?.image_url ? [tool.image_url] : [],
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   const { toast } = useToast();
   const { parentStructures, loading: isLoadingParentStructures } = useParentStructures();
   const { isAdmin } = useAuth();
@@ -48,7 +49,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, isLeadership = f
         description: tool.description || "",
         category: tool.category || "",
         status: tool.status || "available",
-        parent_structure_id: tool.parent_structure_id || "none",
+        parent_structure_id: tool.parent_structure_id ? String(tool.parent_structure_id) : "none",
         storage_location: tool.storage_location || "",
         serial_number: tool.serial_number || "",
         accountable_person_id: (tool as any)?.accountable_person_id || "none",
@@ -101,7 +102,10 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, isLeadership = f
   if (!tool) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open && (isUploadingFiles || isSubmitting)) return;
+      onClose();
+    }}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Asset: {tool.name}</DialogTitle>
@@ -222,6 +226,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, isLeadership = f
             label="Tool Image"
             disabled={isSubmitting}
             maxFiles={1}
+            onUploadStateChange={setIsUploadingFiles}
           />
 
           <div className="flex justify-end gap-2 pt-4">

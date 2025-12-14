@@ -101,8 +101,11 @@ export const ToolsContainer = () => {
   };
 
   const handleEditClick = (tool) => {
+    console.log('🔧 Edit clicked for tool:', tool);
+    console.log('🔧 Setting editToolId to:', tool.id);
     setEditToolId(tool.id);
     setIsEditDialogOpen(true);
+    console.log('🔧 Dialog should now be open');
   };
 
   const handleRemoveClick = (tool) => {
@@ -164,6 +167,8 @@ export const ToolsContainer = () => {
   // Look up entities from cache
   const editTool = editToolId ? tools.find(t => t.id === editToolId) : null;
   const editIssue = editIssueId ? issues.find(i => i.id === editIssueId) : null;
+  
+  console.log('🔍 Debug state:', { editToolId, editTool, isEditDialogOpen });
 
   if (loading) {
     return <div className="text-center py-8">Loading assets...</div>;

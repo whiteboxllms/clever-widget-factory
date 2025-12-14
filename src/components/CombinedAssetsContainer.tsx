@@ -42,6 +42,8 @@ export const CombinedAssetsContainer = () => {
   const organizationId = useOrganizationId();
   const { uploadImages, isUploading } = useImageUpload();
   const [searchTerm, setSearchTerm] = useState("");
+  const [semanticResults, setSemanticResults] = useState<CombinedAsset[]>([]);
+  const [isSemanticSearching, setIsSemanticSearching] = useState(false);
   const [showMyCheckedOut, setShowMyCheckedOut] = useState(false);
   const [showWithIssues, setShowWithIssues] = useState(false);
   const [showLowStock, setShowLowStock] = useState(false);
@@ -80,6 +82,7 @@ export const CombinedAssetsContainer = () => {
   const [limit] = useState(50);
   const searchRef = useRef(searchTerm);
   const debounceTimerRef = useRef<number | undefined>(undefined);
+  const semanticDebounceTimerRef = useRef<number | undefined>(undefined);
   const { assets, loading, createAsset, updateAsset, refetch, fetchAssets } = useCombinedAssets(showRemovedItems, {
     search: searchTerm,
     limit,
@@ -146,10 +149,77 @@ export const CombinedAssetsContainer = () => {
     fetchPendingOrders();
   }, []);
 
+  // Semantic search handler
+  const performSemanticSearch = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setSemanticResults([]);
+      return;
+    }
+
+    setIsSemanticSearching(true);
+    try {
+      // Search both parts and tools
+      const [partsResponse, toolsResponse] = await Promise.all([
+        apiService.post('/semantic-search', {
+          query: query.trim(),
+          table: 'parts',
+          limit: 10
+        }),
+        apiService.post('/semantic-search', {
+          query: query.trim(),
+          table: 'tools',
+          limit: 10
+        })
+      ]);
+      
+      console.log('RAW API:', { parts: partsResponse, tools: toolsResponse });
+      
+      // CRITICAL: Extract results from API response structure
+      // API returns { data: { results: [...] } } NOT just { results: [...] }
+      // DO NOT change this without testing semantic search display
+      const partsData = partsResponse?.results || partsResponse?.data?.results || [];
+      const toolsData = toolsResponse?.results || toolsResponse?.data?.results || [];
+      
+      console.log('Extracted:', partsData.length, 'parts,', toolsData.length, 'tools');
+      
+      // Map API results to CombinedAsset format with type and distance
+      const partsResults = partsData.map((r: any) => ({
+        ...r,
+        type: 'stock' as const,
+        similarity_score: r.distance
+      }));
+      const toolsResults = toolsData.map((r: any) => ({
+        ...r,
+        type: 'asset' as const,
+        similarity_score: r.distance
+      }));
+      const allResults = [...partsResults, ...toolsResults].sort((a, b) => a.similarity_score - b.similarity_score);
+      
+      console.log('🤖 SEMANTIC SEARCH COMPLETE:');
+      console.log('  - Tools:', toolsResults.length, 'Parts:', partsResults.length);
+      console.log('  - Top 3:', allResults.slice(0, 3).map(r => `${r.name} (${r.distance?.toFixed(3)})`));
+      
+      setSemanticResults(allResults);
+    } catch (error) {
+      console.error('Semantic search failed:', error);
+      toast({
+        title: "Search Error",
+        description: "Semantic search failed. Please try again.",
+        variant: "destructive"
+      });
+      setSemanticResults([]);
+    } finally {
+      setIsSemanticSearching(false);
+    }
+  }, [toast, fetchAssets, searchDescriptions, showLowStock]);
+
   // Consolidated effect to handle all filter changes and prevent race conditions
   useEffect(() => {
     if (debounceTimerRef.current) window.clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = window.setTimeout(() => {
+      // Don't trigger normal search if semantic results are active
+      if (semanticResults.length > 0) return;
+      
       const term = searchTerm.trim();
       if (term !== searchRef.current) {
         searchRef.current = term;
@@ -170,19 +240,25 @@ export const CombinedAssetsContainer = () => {
     return () => {
       if (debounceTimerRef.current) window.clearTimeout(debounceTimerRef.current);
     };
-  }, [searchTerm, showRemovedItems, searchDescriptions, showLowStock]);
+  }, [searchTerm, showRemovedItems, searchDescriptions, showLowStock, semanticResults.length]);
 
-  // Look up selected asset from cache
-  const selectedAsset = selectedAssetId ? assets.find(a => a.id === selectedAssetId) : null;
+  // Look up selected asset from cache (check semantic results first, then regular assets)
+  const selectedAsset = selectedAssetId 
+    ? (semanticResults.find(a => a.id === selectedAssetId) || assets.find(a => a.id === selectedAssetId))
+    : null;
 
   // Filter assets based on current filters
   const filteredAssets = useMemo(() => {
+    // If semantic search is active, return those results directly
+    if (semanticResults.length > 0) {
+      console.log('🔍 DISPLAYING SEMANTIC RESULTS:', semanticResults.length, 'items');
+      return semanticResults;
+    }
+    
     // Skip filtering during loading to prevent flicker
     if (loading && assets.length === 0) return [];
     
-
-    
-    return assets.filter(asset => {
+    let filtered = assets.filter(asset => {
       // Type filters
       if (showOnlyAssets && asset.type !== 'asset') return false;
       if (showOnlyStock && asset.type !== 'stock') return false;
@@ -200,7 +276,9 @@ export const CombinedAssetsContainer = () => {
 
       return true;
     });
-  }, [assets, showOnlyAssets, showOnlyStock, showMyCheckedOut, showWithIssues, user?.id, loading]);
+
+    return filtered;
+  }, [assets, showOnlyAssets, showOnlyStock, showMyCheckedOut, showWithIssues, user?.id, loading, semanticResults]);
 
   const handleCreateAsset = async (assetData: any, isAsset: boolean) => {
     const result = await createAsset(assetData, isAsset);
@@ -515,6 +593,9 @@ export const CombinedAssetsContainer = () => {
       <CombinedAssetFilters
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
+        isSemanticSearching={isSemanticSearching}
+        onSemanticSearch={() => performSemanticSearch(searchTerm)}
+        onClearSearch={() => setSemanticResults([])}
         searchDescriptions={searchDescriptions}
         setSearchDescriptions={setSearchDescriptions}
         showMyCheckedOut={showMyCheckedOut}
@@ -536,6 +617,8 @@ export const CombinedAssetsContainer = () => {
           </Button>
         }
       />
+
+
 
       {/* Assets Grid */}
       <CombinedAssetGrid

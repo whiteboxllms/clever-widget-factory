@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Wrench, Package, Edit, Trash2, LogOut, LogIn, AlertTriangle, AlertCircle, Plus, Minus, ShoppingCart, History } from "lucide-react";
+import { Wrench, Package, Edit, Trash2, LogOut, LogIn, AlertTriangle, AlertCircle, Plus, Minus, ShoppingCart, History, Triangle, Info } from "lucide-react";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { InventoryHistoryDialog } from "./InventoryHistoryDialog";
 import { AssetHistoryDialog } from "./AssetHistoryDialog";
@@ -32,6 +32,7 @@ interface CombinedAsset {
   accountable_person_color?: string;
   created_at?: string;
   updated_at?: string;
+  similarity_score?: number;
 }
 
 interface CheckoutInfo {
@@ -210,15 +211,34 @@ export const CombinedAssetCard = memo(({
   }, [asset.type, asset.has_issues]);
 
   return (
-    <Card className="relative hover:shadow-md transition-shadow cursor-pointer h-full flex flex-col" onClick={() => onView(asset)}>
+    <Card className="relative hover:shadow-md transition-shadow cursor-pointer flex flex-col min-h-[280px] md:min-h-[320px]" onClick={() => onView(asset)}>
       <CardHeader className="pb-2 pt-2 flex-shrink-0">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-          </div>
-        </div>
-        
-        <div className="flex items-center justify-between gap-2 -mt-1">
-          <CardTitle className="text-lg line-clamp-2 flex-1 leading-tight">{asset.name}</CardTitle>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-lg line-clamp-2 flex-1 leading-tight">
+            {asset.name}
+            {asset.similarity_score !== undefined && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex items-center gap-1 ml-2 text-xs text-muted-foreground font-normal cursor-help">
+                      <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M14 14 L2 14 L14 2" />
+                      </svg>
+                      {asset.similarity_score.toFixed(3)}
+                      <Info className="h-3 w-3" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <div className="space-y-1 text-xs">
+                      <p className="font-semibold">Semantic Distance: {asset.similarity_score.toFixed(3)}</p>
+                      <p>Lower values = better match (0 = identical)</p>
+                      <p className="text-muted-foreground">Uses Amazon Titan v1 embeddings (1536 dimensions) to convert search into a vector, then calculates cosine distance: 1 - (dot product / (||A|| × ||B||)) against Asset name and descriptions. This measures the angle between your search and this item in high-dimensional space. If getting bad results, verify name spelling is correct and there is an accurate description.</p>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </CardTitle>
           {asset.type === 'stock' && (
             <Badge variant="secondary" className="text-xs shrink-0">
               Stock
@@ -258,11 +278,11 @@ export const CombinedAssetCard = memo(({
           
           
           {asset.type === 'stock' && (() => {
-            const areaDisplay = asset.area_display || asset.parent_structure_name || asset.legacy_storage_vicinity;
+            const areaDisplay = asset.area_display || asset.parent_structure_name;
             const locationParts = [];
             if (areaDisplay) locationParts.push(areaDisplay);
             if (asset.storage_location) locationParts.push(asset.storage_location);
-            const locationStr = locationParts.length > 0 ? ` at ${locationParts.join(' • ')}` : '';
+            const locationStr = locationParts.length > 0 ? ` at ${locationParts.join(' - ')}` : '';
             
             return (
               <div>
@@ -274,20 +294,11 @@ export const CombinedAssetCard = memo(({
             );
           })()}
 
-          {asset.type === 'asset' && (() => {
-            const areaDisplay = asset.area_display || asset.parent_structure_name || asset.legacy_storage_vicinity;
-            const locationParts = [];
-            if (areaDisplay) locationParts.push(areaDisplay);
-            if (asset.storage_location) locationParts.push(asset.storage_location);
-            
-            if (locationParts.length === 0) return null;
-            
-            return (
-              <div>
-                {locationParts.join(' • ')}
-              </div>
-            );
-          })()}
+          {asset.type === 'asset' && (asset.area_display || asset.parent_structure_name || asset.storage_location) && (
+            <div>
+              {[asset.area_display || asset.parent_structure_name, asset.storage_location].filter(Boolean).join(' - ')}
+            </div>
+          )}
 
           {checkoutInfo && (
             <div>

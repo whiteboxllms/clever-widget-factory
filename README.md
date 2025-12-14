@@ -53,6 +53,7 @@ The AWS API Gateway provides these endpoints:
 - `GET /api/tools` - Get tools
 - `GET /api/parts` - Get parts
 - `POST /api/query` - Execute custom SQL queries
+- `POST /api/semantic-search` - Semantic search using Bedrock embeddings
 
 #### `/api/tools` response
 Tools are served by the `cwf-core-lambda` function which queries the AWS RDS instance. Each tool row now includes checkout metadata resolved server-side (no extra checkout request required):
@@ -173,13 +174,46 @@ The following files are legacy from the Supabase era and should be ignored:
 - Any files referencing `@supabase/supabase-js`
 - `SUPABASE_TO_AWS_MIGRATION_PLAN.md` (migration is complete)
 
+### Semantic Search
+
+The application uses AWS Bedrock Titan embeddings for semantic search across tools and parts.
+
+**Architecture:**
+- `cwf-semantic-search` Lambda: Handles search requests, generates embeddings via Bedrock, queries vector database
+- `cwf-embeddings-lambda`: Standalone Lambda for generating embeddings (used by backfill scripts)
+- VPC Endpoint: `bedrock-runtime` endpoint allows Lambda in VPC to access Bedrock
+- Database: PostgreSQL with pgvector extension for vector similarity search
+- **Embedding Model**: Amazon Titan Text Embeddings v1 (1536 dimensions)
+- **Indexed Fields**: Only `name` and `description` fields are embedded for semantic search
+
+**Backfill embeddings:**
+```bash
+./backfill-embeddings-full-context.sh
+```
+
+This generates embeddings for all tools and parts using their name and description fields.
+
+**Search endpoint:**
+```bash
+POST /api/semantic-search
+{
+  "query": "search text",
+  "table": "parts" | "tools",
+  "limit": 10
+}
+```
+
 ### TODO / Known Issues
 
+- **Proper Solution**: Implement presigned URL generation via backend Lambda
+  1. Create Lambda endpoint: `POST /api/upload/presigned-url`
+  2. Lambda generates temporary presigned URL with expiration
+  3. Frontend uploads directly to S3 using presigned URL
+  4. Remove `VITE_AWS_ACCESS_KEY_ID` and `VITE_AWS_SECRET_ACCESS_KEY` from frontend
+- **Files**: `src/hooks/useImageUpload.tsx`, `src/lib/s3Client.ts`
+
 #### Database Functions & Triggers
-- **`get_user_organization_id()` function error**: When creating parts history, error `{error: 'function get_user_organization_id() does not exist'}` occurs. 
-  - **Status**: Partially fixed - stub function created but may need verification
-  - **Root Cause**: Database triggers on `parts_history` table (or other tables) may be calling this Supabase-era function
-  - **Temporary Fix**: Created stub function that returns hardcoded org ID (`00000000-0000-0000-0000-000000000001`) for legacy trigger compatibility
+
   - **Important**: All Lambda functions MUST pass `organization_id` explicitly from the authorizer context. The stub function is ONLY for legacy triggers.
   - **Proper Fix Needed**: 
     1. Find all triggers using `get_user_organization_id()` (see `find-triggers-using-org-id.sql`)

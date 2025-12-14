@@ -19,6 +19,10 @@ import { IssueEditDialog } from "@/components/IssueEditDialog";
 
 import { useGenericIssues } from "@/hooks/useGenericIssues";
 import { ContextType, BaseIssue, getContextLabel } from "@/types/issues";
+import { apiService } from '@/lib/apiService';
+import { offlineQueryConfig } from '@/lib/queryConfig';
+import { issuesQueryKey } from '@/lib/queryKeys';
+import { fetchOrganizationMembers } from '@/lib/queryFetchers';
 
 export default function Issues() {
   const queryClient = useQueryClient();

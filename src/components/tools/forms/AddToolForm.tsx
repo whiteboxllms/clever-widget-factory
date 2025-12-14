@@ -41,6 +41,7 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
     attachments: [],
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   const { toast } = useToast();
   const { parentStructures, loading: isLoadingParentStructures } = useParentStructures();
   
@@ -103,7 +104,10 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open && (isUploadingFiles || isSubmitting)) return;
+      onClose();
+    }}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add New Asset</DialogTitle>
@@ -196,6 +200,7 @@ export const AddToolForm = ({ isOpen, onClose, onSubmit, initialName = "" }: Add
             label="Asset Image"
             disabled={isSubmitting}
             maxFiles={1}
+            onUploadStateChange={setIsUploadingFiles}
           />
 
           <div className="flex justify-end gap-2 pt-4">

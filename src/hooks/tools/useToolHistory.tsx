@@ -80,7 +80,10 @@ export const useToolHistory = () => {
     try {
       // Fetch unified history from computed endpoint
       const historyResult = await apiService.get(`/tools/${toolId}/history`);
-      const historyResponse = historyResult.data || { asset: null, checkouts: [], issues: [], actions: [] };
+      const historyResponse = historyResult.data || { asset: null, timeline: [], checkouts: [], issues: [], actions: [] };
+      
+      // Use timeline if available (contains asset_history entries)
+      const timeline = historyResponse.timeline || [];
       
       // Combine checkouts and issues into unified history
       const checkouts = (historyResponse.checkouts || []).map((checkout: any) => ({
@@ -95,30 +98,8 @@ export const useToolHistory = () => {
         date: issue.reported_at || issue.created_at,
         user_name: issue.reported_by_name,
         damage_assessment: issue.damage_assessment,
-        issue_description: issue.description // Ensure description is included
+        issue_description: issue.description
       }));
-      
-      // Add asset creation entry if asset exists
-      const assetEntries: any[] = [];
-      if (historyResponse.asset) {
-        const asset = historyResponse.asset;
-        // Add asset creation entry
-        if (asset.created_at) {
-          assetEntries.push({
-            type: 'asset_created',
-            date: asset.created_at,
-            asset_id: toolId
-          });
-        }
-        // Add asset update entry if updated_at is different from created_at
-        if (asset.updated_at && asset.updated_at !== asset.created_at) {
-          assetEntries.push({
-            type: 'asset_updated',
-            date: asset.updated_at,
-            asset_id: toolId
-          });
-        }
-      }
       
       // Add actions
       const actions = (historyResponse.actions || []).map((action: any) => ({
@@ -128,7 +109,7 @@ export const useToolHistory = () => {
         user_name: action.created_by_name || 'System'
       }));
       
-      const historyData = [...assetEntries, ...checkouts, ...issues, ...actions];
+      const historyData = [...timeline, ...checkouts, ...issues, ...actions];
 
       // Find current checkout (not returned)
       const activeCheckout = checkouts.find(
@@ -139,26 +120,19 @@ export const useToolHistory = () => {
       // Transform to HistoryEntry format
       const allHistory: HistoryEntry[] = historyData.map((entry: any) => {
         switch (entry.type) {
-          case 'asset_created':
+          case 'asset_change':
             return {
-              id: `asset-created-${toolId}`,
+              id: entry.data?.id || entry.id,
               type: 'asset_change',
               asset_id: toolId,
-              change_type: 'created',
-              changed_at: entry.date,
-              changed_by: 'system',
-              user_name: 'System'
-            } as AssetHistoryEntry;
-
-          case 'asset_updated':
-            return {
-              id: `asset-updated-${toolId}-${entry.date}`,
-              type: 'asset_change',
-              asset_id: toolId,
-              change_type: 'updated',
-              changed_at: entry.date,
-              changed_by: 'system',
-              user_name: 'System'
+              change_type: entry.data?.change_type || 'updated',
+              changed_at: entry.timestamp || entry.data?.changed_at,
+              changed_by: entry.data?.changed_by || 'system',
+              user_name: entry.data?.user_name || 'System',
+              field_changed: entry.data?.field_changed,
+              old_value: entry.data?.old_value,
+              new_value: entry.data?.new_value,
+              notes: entry.data?.notes
             } as AssetHistoryEntry;
 
           case 'checkout':
@@ -233,7 +207,47 @@ export const useToolHistory = () => {
         return new Date(dateB).getTime() - new Date(dateA).getTime();
       });
 
-      setToolHistory(allHistory);
+      // Group entries that happened within 5 seconds of each other
+      const groupedHistory: HistoryEntry[] = [];
+      let currentGroup: HistoryEntry[] = [];
+      let currentTimestamp: number | null = null;
+
+      allHistory.forEach((entry) => {
+        const entryTime = new Date('checkout_date' in entry ? (entry.checkout_date || entry.created_at) : entry.changed_at).getTime();
+        
+        if (currentTimestamp === null || Math.abs(entryTime - currentTimestamp) <= 5000) {
+          currentGroup.push(entry);
+          currentTimestamp = entryTime;
+        } else {
+          if (currentGroup.length > 1 && currentGroup.every(e => e.type === 'asset_change')) {
+            // Combine multiple asset_change entries into one
+            const combined = currentGroup[0] as AssetHistoryEntry;
+            combined.notes = currentGroup.map(e => {
+              const ae = e as AssetHistoryEntry;
+              return ae.field_changed ? `${ae.field_changed}: ${ae.new_value || 'null'}` : '';
+            }).filter(Boolean).join(', ');
+            groupedHistory.push(combined);
+          } else {
+            groupedHistory.push(...currentGroup);
+          }
+          currentGroup = [entry];
+          currentTimestamp = entryTime;
+        }
+      });
+
+      // Push last group
+      if (currentGroup.length > 1 && currentGroup.every(e => e.type === 'asset_change')) {
+        const combined = currentGroup[0] as AssetHistoryEntry;
+        combined.notes = currentGroup.map(e => {
+          const ae = e as AssetHistoryEntry;
+          return ae.field_changed ? `${ae.field_changed}: ${ae.new_value || 'null'}` : '';
+        }).filter(Boolean).join(', ');
+        groupedHistory.push(combined);
+      } else {
+        groupedHistory.push(...currentGroup);
+      }
+
+      setToolHistory(groupedHistory);
     } catch (error) {
       console.error('Error fetching tool history:', error);
       toast({

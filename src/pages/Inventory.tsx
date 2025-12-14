@@ -108,16 +108,15 @@ export default function Inventory() {
 
   // Helper function to resolve storage vicinity display name
   const getStorageVicinityDisplayName = (part: Part) => {
-    // First try to find the parent structure by ID
-    if (part.storage_vicinity) {
-      const parentStructure = parentStructures.find(p => p.id === part.storage_vicinity);
+    // Try to find the parent structure by ID
+    if (part.parent_structure_id) {
+      const parentStructure = parentStructures.find(p => p.id === part.parent_structure_id);
       if (parentStructure) {
         return parentStructure.name;
       }
     }
     
-    // Fall back to legacy storage vicinity if no parent structure found
-    return part.legacy_storage_vicinity || 'Unknown';
+    return 'Unknown';
   };
 
   // Handle URL parameters for edit mode, return navigation, and low stock filter
@@ -202,16 +201,7 @@ export default function Inventory() {
     fetchPendingOrders();
   }, []);
 
-  // Refresh parts when window regains focus (user returns to tab)
-  // This ensures inventory shows updated quantities after actions complete
-  useEffect(() => {
-    const handleFocus = () => {
-      fetchParts();
-    };
 
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, []);
 
   useEffect(() => {
     filterParts();

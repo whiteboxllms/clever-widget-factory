@@ -198,16 +198,14 @@ export const useImageUpload = () => {
         bodySize: uint8Array.length
       });
 
-      // Check if credentials are configured
+      // TODO: SECURITY - Replace direct S3 upload with presigned URL from backend
+      // Current implementation exposes AWS credentials in frontend code
+      // Proper solution: Backend generates presigned URLs for uploads
+      
       if (!import.meta.env.VITE_AWS_ACCESS_KEY_ID || !import.meta.env.VITE_AWS_SECRET_ACCESS_KEY) {
-        console.error('[UPLOAD] Missing AWS credentials:', {
-          hasAccessKey: !!import.meta.env.VITE_AWS_ACCESS_KEY_ID,
-          hasSecretKey: !!import.meta.env.VITE_AWS_SECRET_ACCESS_KEY
-        });
-        throw new Error('AWS credentials not configured. Contact administrator.');
+        throw new Error('Upload service not configured. Contact administrator.');
       }
 
-      // Upload to S3
       const contentType = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf') 
         ? 'application/pdf' 
         : 'image/jpeg';

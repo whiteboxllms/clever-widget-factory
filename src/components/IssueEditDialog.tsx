@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Edit, ImagePlus, X } from "lucide-react";
 import { useImageUpload, ImageUploadResult } from "@/hooks/useImageUpload";
 import { BaseIssue } from "@/types/issues";
+import { useToast } from "@/hooks/use-toast";
 
 interface IssueEditDialogProps {
   issue: BaseIssue | null;
@@ -25,6 +26,7 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { uploadImages, isUploading } = useImageUpload();
+  const { toast } = useToast();
 
   // Populate form when issue changes
   useEffect(() => {
@@ -46,22 +48,16 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
       
       // Upload new images if any are selected
       if (selectedImages.length > 0) {
-        try {
-          const uploadResults = await uploadImages(selectedImages, {
-            bucket: 'tool-resolution-photos' as const,
-            generateFileName: (file, index) => `issue-edit-${issue.id}-${Date.now()}-${index || 1}-${file.name}`
-          });
-          
-          const newUrls = Array.isArray(uploadResults) 
-            ? uploadResults.map(result => result.url)
-            : [uploadResults.url];
-          
-          photoUrls = [...photoUrls, ...newUrls];
-        } catch (error) {
-          console.error('Failed to upload images:', error);
-          setIsSubmitting(false);
-          return;
-        }
+        const uploadResults = await uploadImages(selectedImages, {
+          bucket: 'tool-resolution-photos' as const,
+          generateFileName: (file, index) => `issue-edit-${issue.id}-${Date.now()}-${index || 1}-${file.name}`
+        });
+        
+        const newUrls = Array.isArray(uploadResults) 
+          ? uploadResults.map(result => result.url)
+          : [uploadResults.url];
+        
+        photoUrls = [...photoUrls, ...newUrls];
       }
 
       const updates: Partial<BaseIssue> = {
@@ -70,12 +66,24 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
         report_photo_urls: photoUrls
       };
 
-      await onUpdate(issue.id, updates);
+      const success = await onUpdate(issue.id, updates);
       
-      onSuccess?.();
-      onOpenChange(false);
+      if (success) {
+        onSuccess?.();
+      } else {
+        toast({
+          title: "Update failed",
+          description: "The issue could not be updated. Please try again.",
+          variant: "destructive"
+        });
+      }
     } catch (error) {
       console.error("Error updating issue:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        variant: "destructive"
+      });
     } finally {
       setIsSubmitting(false);
     }

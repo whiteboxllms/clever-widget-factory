@@ -1,6 +1,10 @@
 const { Client } = require('pg');
 const { randomUUID } = require('crypto');
+const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
 const { getAuthorizerContext, buildOrganizationFilter, hasPermission, canAccessOrganization } = require('./shared/authorizerContext');
+
+const sqs = new SQSClient({ region: 'us-west-2' });
+const EMBEDDINGS_QUEUE_URL = 'https://sqs.us-west-2.amazonaws.com/131745734428/cwf-embeddings-queue';
 
 // Database configuration
 const dbConfig = {
@@ -183,6 +187,7 @@ exports.handler = async (event) => {
         
         // Log creation to asset_history
         if (userId && organizationId) {
+          console.log('📝 Logging asset creation:', { toolId, userId, organizationId });
           const historySql = `INSERT INTO asset_history (asset_id, change_type, changed_by, organization_id, changed_at) VALUES ('${toolId}', 'created', '${userId}', '${organizationId}', NOW())`;
           await queryJSON(historySql).catch(e => console.error('History log error:', e));
         }
@@ -223,10 +228,30 @@ exports.handler = async (event) => {
         // Log to asset_history
         const userId = authContext.cognito_user_id;
         if (userId && organizationId) {
+          console.log('📝 Logging asset update:', { toolId, userId, organizationId });
           const fields = Object.keys(body).filter(k => ['status','actual_location','storage_location','name','description','category','serial_number'].includes(k));
           for (const field of fields) {
             const historySql = `INSERT INTO asset_history (asset_id, change_type, field_changed, new_value, changed_by, organization_id, changed_at) VALUES ('${toolId}', 'updated', '${field}', ${formatSqlValue(body[field])}, '${userId}', '${organizationId}', NOW())`;
             await queryJSON(historySql).catch(e => console.error('History log error:', e));
+          }
+        }
+        
+        // Trigger embedding regeneration if name or description changed
+        if (body.name !== undefined || body.description !== undefined) {
+          const tool = result[0];
+          const searchText = `${tool.name || ''} - ${tool.description || ''}`;
+          try {
+            await sqs.send(new SendMessageCommand({
+              QueueUrl: EMBEDDINGS_QUEUE_URL,
+              MessageBody: JSON.stringify({
+                id: toolId,
+                table: 'tools',
+                text: searchText
+              })
+            }));
+            console.log('Sent embedding update to SQS for tool:', toolId);
+          } catch (sqsError) {
+            console.error('Failed to send SQS message:', sqsError.message);
           }
         }
         
@@ -275,12 +300,14 @@ exports.handler = async (event) => {
         
         const sql = `SELECT json_agg(row_to_json(result)) FROM (
           SELECT DISTINCT ON (tools.id)
-            tools.id, tools.name, tools.description, tools.category, tools.legacy_storage_vicinity,
+            tools.id, tools.name, tools.description, tools.category,
             tools.actual_location, tools.serial_number, tools.last_maintenance,
             tools.manual_url, tools.known_issues, tools.has_motor, tools.stargazer_sop,
             tools.storage_location, tools.last_audited_at, tools.audit_status,
             tools.parent_structure_id, tools.organization_id, tools.accountable_person_id,
             tools.created_at, tools.updated_at,
+            parent_tool.name as parent_structure_name,
+            parent_tool.name as area_display,
             CASE 
               WHEN active_checkouts.id IS NOT NULL THEN 'checked_out'
               ELSE tools.status
@@ -301,6 +328,7 @@ exports.handler = async (event) => {
             active_checkouts.intended_usage as checkout_intended_usage,
             active_checkouts.notes as checkout_notes
           FROM tools
+          LEFT JOIN tools parent_tool ON tools.parent_structure_id = parent_tool.id
           LEFT JOIN LATERAL (
             SELECT * FROM checkouts
             WHERE checkouts.tool_id = tools.id
@@ -461,6 +489,26 @@ exports.handler = async (event) => {
           body: JSON.stringify({ error: 'Not found' })
         };
       }
+      
+      // Trigger embedding regeneration if name or description changed
+      if (body.name !== undefined || body.description !== undefined) {
+        const part = result[0];
+        const searchText = `${part.name || ''} - ${part.description || ''}`;
+        try {
+          await sqs.send(new SendMessageCommand({
+            QueueUrl: EMBEDDINGS_QUEUE_URL,
+            MessageBody: JSON.stringify({
+              id: partId,
+              table: 'parts',
+              text: searchText
+            })
+          }));
+          console.log('Sent embedding update to SQS for part:', partId);
+        } catch (sqsError) {
+          console.error('Failed to send SQS message:', sqsError.message);
+        }
+      }
+      
       return {
         statusCode: 200,
         headers,
@@ -472,16 +520,23 @@ exports.handler = async (event) => {
     if (path.endsWith('/parts') && httpMethod === 'GET') {
       const { limit = 50, offset = 0 } = event.queryStringParameters || {};
       const sql = `SELECT json_agg(row_to_json(t)) FROM (
-        SELECT id, name, description, category, current_quantity, minimum_quantity, 
-               unit, parent_structure_id, storage_location, legacy_storage_vicinity, 
-               accountable_person_id, 
-               CASE 
-                 WHEN image_url LIKE '%supabase.co%' THEN 
-                   REPLACE(image_url, 'https://oskwnlhuuxjfuwnjuavn.supabase.co/storage/v1/object/public/', 'https://cwf-dev-assets.s3.us-west-2.amazonaws.com/')
-                 ELSE image_url 
-               END as image_url,
-               created_at, updated_at 
-        FROM parts ORDER BY name LIMIT ${limit} OFFSET ${offset}
+        SELECT 
+          parts.id, parts.name, parts.description, parts.category, 
+          parts.current_quantity, parts.minimum_quantity, 
+          parts.unit, parts.parent_structure_id, parts.storage_location, 
+          parts.accountable_person_id,
+          parent_tool.name as parent_structure_name,
+          parent_tool.name as area_display,
+          CASE 
+            WHEN parts.image_url LIKE '%supabase.co%' THEN 
+              REPLACE(parts.image_url, 'https://oskwnlhuuxjfuwnjuavn.supabase.co/storage/v1/object/public/', 'https://cwf-dev-assets.s3.us-west-2.amazonaws.com/')
+            ELSE parts.image_url 
+          END as image_url,
+          parts.created_at, parts.updated_at 
+        FROM parts
+        LEFT JOIN tools parent_tool ON parts.parent_structure_id = parent_tool.id
+        ORDER BY parts.name 
+        LIMIT ${limit} OFFSET ${offset}
       ) t;`;
       
       const result = await queryJSON(sql);

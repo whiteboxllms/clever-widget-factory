@@ -37,7 +37,7 @@ const Index = () => {
             View Assets
           </Button>
           <Button 
-            onClick={() => navigate('/inventory')} 
+            onClick={() => navigate('/combined-assets?view=stock')} 
             variant="outline" 
             className="w-full"
             size="lg"

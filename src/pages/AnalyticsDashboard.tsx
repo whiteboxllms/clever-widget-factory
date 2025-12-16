@@ -289,7 +289,7 @@ export default function AnalyticsDashboard() {
                 days={heatmapDays}
                 onCellClick={(cell) => {
                   const params = new URLSearchParams({ date: cell.dayKey, users: cell.personId });
-                  navigate(`/inventory?${params.toString()}`);
+                  navigate(`/combined-assets?view=stock&${params.toString()}`);
                 }}
               />
             ) : (

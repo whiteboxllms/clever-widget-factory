@@ -154,7 +154,7 @@ app.get('/api/parts', async (req, res) => {
     const sql = `SELECT json_agg(row_to_json(t)) FROM (
       SELECT id, name, description, category, current_quantity, minimum_quantity, 
              unit, parent_structure_id, storage_location, legacy_storage_vicinity, 
-             accountable_person_id, 
+             accountable_person_id, sellable, cost_per_unit,
              CASE 
                WHEN image_url LIKE '%supabase.co%' THEN 
                  REPLACE(image_url, 'https://oskwnlhuuxjfuwnjuavn.supabase.co/storage/v1/object/public/', 'https://cwf-dev-assets.s3.us-west-2.amazonaws.com/')
@@ -162,6 +162,33 @@ app.get('/api/parts', async (req, res) => {
              END as image_url,
              created_at, updated_at 
       FROM parts ORDER BY name LIMIT ${limit} OFFSET ${offset}
+    ) t;`;
+    
+    const result = await queryJSON(sql);
+    res.json({ data: result || [] });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Sellable parts endpoint for sari-sari store
+app.get('/api/parts/sellable', async (req, res) => {
+  try {
+    const sql = `SELECT json_agg(row_to_json(t)) FROM (
+      SELECT id, name, description, category, current_quantity, minimum_quantity, 
+             unit, cost_per_unit, sellable,
+             CASE 
+               WHEN image_url LIKE '%supabase.co%' THEN 
+                 REPLACE(image_url, 'https://oskwnlhuuxjfuwnjuavn.supabase.co/storage/v1/object/public/', 'https://cwf-dev-assets.s3.us-west-2.amazonaws.com/')
+               ELSE image_url 
+             END as image_url,
+             created_at, updated_at 
+      FROM parts 
+      WHERE sellable = true 
+        AND current_quantity > 0
+        AND (cost_per_unit > 0 OR description ILIKE '%free%' OR description ILIKE '%customer%')
+      ORDER BY name
     ) t;`;
     
     const result = await queryJSON(sql);

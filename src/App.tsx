@@ -5,7 +5,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { offlineQueryConfig, offlineMutationConfig } from "@/lib/queryConfig";
 import { queryCachePersister, QUERY_CACHE_MAX_AGE } from "@/lib/queryPersistAdapter";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useCognitoAuth";
 import { OrganizationProvider } from "@/hooks/useOrganization";
 import { AppSettingsProvider } from "@/hooks/useAppSettings";
@@ -21,7 +21,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Tools from "./pages/Tools";
-import Inventory from "./pages/Inventory";
+
 import InventorySummary from "./pages/InventorySummary";
 import CombinedAssets from "./pages/CombinedAssets";
 import CheckIn from "./pages/CheckIn";
@@ -40,6 +40,7 @@ import AcceptInvite from "./pages/AcceptInvite";
 import SettingsPage from "./pages/Settings";
 import UploadDebug from "./pages/UploadDebug";
 import UploadMobileTest from "./pages/UploadMobileTest";
+import SariSariChat from "./pages/SariSariChat";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -125,11 +126,7 @@ function AppContent() {
         />
         <Route
           path="/inventory"
-          element={
-            <ProtectedRoute>
-              <Inventory />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/combined-assets?view=stock" replace />}
         />
         <Route
           path="/inventory/summary"
@@ -256,6 +253,14 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <UploadMobileTest />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sari-sari-chat"
+          element={
+            <ProtectedRoute>
+              <SariSariChat />
             </ProtectedRoute>
           }
         />

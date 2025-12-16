@@ -64,7 +64,7 @@ export function ActivityDetailsDialog({
       date: selectedDate,
       users: selectedUsers.join(',')
     });
-    navigate(`/inventory?${params.toString()}`);
+    navigate(`/combined-assets?view=stock&${params.toString()}`);
   };
 
   const dateActivities = detailedActivity.filter(

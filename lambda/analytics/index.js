@@ -5,7 +5,7 @@ const getDbConfig = () => ({
   port: 5432,
   database: 'postgres',
   user: 'postgres',
-  password: process.env.DB_PASSWORD || 'CWF_Dev_2025!',
+  password: process.env.DB_PASSWORD,
   ssl: { rejectUnauthorized: false }
 });
 

@@ -34,7 +34,7 @@ export default function InventorySummary() {
   }, [location.search]);
 
   const handleLowStockClick = () => {
-    navigate('/inventory?showLowStock=true');
+    navigate('/combined-assets?view=stock&showLowStock=true');
   };
 
   if (error) {
@@ -42,7 +42,7 @@ export default function InventorySummary() {
       <div className="min-h-screen bg-background p-4">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
-            <Link to="/inventory">
+            <Link to="/combined-assets?view=stock">
               <Button variant="outline" size="sm">
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to Stock
@@ -65,7 +65,7 @@ export default function InventorySummary() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
-          <Link to="/inventory">
+          <Link to="/combined-assets?view=stock">
             <Button variant="outline" size="sm">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Stock

@@ -20,7 +20,7 @@ import SuperAdminRoute from "@/components/SuperAdminRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
-import Tools from "./pages/Tools";
+
 
 import InventorySummary from "./pages/InventorySummary";
 import CombinedAssets from "./pages/CombinedAssets";
@@ -102,19 +102,11 @@ function AppContent() {
         />
         <Route
           path="/tools"
-          element={
-            <ProtectedRoute>
-              <Tools />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/combined-assets" replace />}
         />
         <Route
           path="/tools/:toolId/edit"
-          element={
-            <ProtectedRoute>
-              <Tools />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/combined-assets" replace />}
         />
         <Route
           path="/combined-assets"

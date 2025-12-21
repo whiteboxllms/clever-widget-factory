@@ -1,16 +1,27 @@
 {
   "name": "cwf-semantic-search-lambda",
   "version": "1.0.0",
-  "description": "Semantic search Lambda using Bedrock embeddings",
+  "description": "Semantic search Lambda using Bedrock embeddings with enhanced pipeline support",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
-  "keywords": ["semantic-search", "bedrock", "embeddings"],
+  "keywords": ["semantic-search", "bedrock", "embeddings", "nlp", "pipeline"],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "pg": "^8.11.3",
     "@aws-sdk/client-bedrock-runtime": "^3.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/__tests__/**/*.test.js"
+    ]
   }
 }

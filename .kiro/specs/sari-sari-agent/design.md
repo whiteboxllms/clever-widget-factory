@@ -64,12 +64,12 @@ graph TB
 
 **MVP Configuration (Using Existing Infrastructure):**
 - **AWS Lambda**: $5-10 (1M requests, 512MB, 3s avg duration)
-- **Existing RDS Database**: $0 (already running - just add new tables/columns)
+- **Existing RDS Database**: $0 (already running - just add new tables/columns + pgvector)
 - **Existing API Gateway**: $0 (already running - just add new endpoints)
-- **Amazon Bedrock (Claude)**: $8-15 (based on usage)
+- **Amazon Bedrock (Claude + Titan Embeddings)**: $12-20 (NLP + embedding generation)
 - **GitHub Pages Hosting**: $0 (free static hosting)
 - **CloudWatch**: $2-3 (basic monitoring)
-- **Total: $15-28/month** (Extremely cost-effective!)
+- **Total: $19-33/month** (Still extremely cost-effective!)
 
 **Optimized Configuration (Add Redis Later):**
 - **Above MVP costs**: $15-28
@@ -131,19 +131,39 @@ Provides natural language understanding with pluggable AI backends for flexibili
 **Key Features:**
 - Intent classification (browse, inquire, purchase, negotiate, help)
 - Entity extraction (product names, quantities, preferences, personality traits)
+- **Product description identification** - Extract searchable product terms from natural language queries
 - Context-aware response generation with personality adaptation
 - Conversation memory and customer profiling
 - Negotiation and upselling capabilities
 - Personality framework for testing different agent behaviors
+- **Semantic search integration** - Coordinate with semantic search service for product discovery
 
 **Interface:**
 ```typescript
 interface NLPService {
   analyzeIntent(message: string, context: ConversationContext): Promise<Intent>
   extractEntities(message: string): Promise<Entity[]>
+  extractProductDescription(message: string): Promise<ProductSearchTerm>
+  extractNegations(message: string): Promise<NegationFilter[]>
   generateResponse(intent: Intent, context: BusinessContext, personality: PersonalityProfile): Promise<string>
   detectCustomerPersonality(conversationHistory: Message[]): Promise<PersonalityInsights>
   suggestUpsells(currentCart: CartItem[], customerProfile: CustomerProfile): Promise<UpsellSuggestion[]>
+  formatSearchResults(searchResults: Product[], originalQuery: string, negations?: NegationFilter[]): Promise<string>
+}
+
+interface ProductSearchTerm {
+  extractedTerm: string
+  confidence: number
+  originalQuery: string
+  searchType: 'characteristic' | 'name' | 'category' | 'description'
+  negations?: NegationFilter[]
+}
+
+interface NegationFilter {
+  negatedTerm: string
+  negationType: 'characteristic' | 'ingredient' | 'category' | 'attribute'
+  confidence: number
+  originalPhrase: string
 }
 
 interface PersonalityProfile {
@@ -180,6 +200,74 @@ graph TB
     Cloud --> |API| Bedrock[Amazon Bedrock]
 ```
 
+### Semantic Search Service
+
+Provides vector-based semantic search capabilities for product discovery using natural language understanding.
+
+**Key Responsibilities:**
+- Convert product descriptions and search terms into vector embeddings
+- Perform semantic similarity search across product catalog
+- Maintain and update product embedding vectors
+- Log search operations for analytics and improvement
+- Handle embedding model updates and reindexing
+
+**Architecture:**
+```mermaid
+graph TB
+    subgraph "Semantic Search Pipeline"
+        Query[Customer Query]
+        Extract[NLP: Extract Product Term]
+        Embed[Generate Query Embedding]
+        Search[Vector Similarity Search]
+        Filter[Agent: Filter Results]
+        Response[Formatted Response]
+    end
+    
+    subgraph "Vector Storage"
+        ProductDB[(Product Database)]
+        EmbedDB[(Embedding Vectors)]
+        SearchLog[(Search Analytics)]
+    end
+    
+    Query --> Extract
+    Extract --> Embed
+    Embed --> Search
+    Search --> Filter
+    Filter --> Response
+    
+    Search --> EmbedDB
+    Search --> SearchLog
+    EmbedDB --> ProductDB
+```
+
+**Interface:**
+```typescript
+interface SemanticSearchService {
+  searchProducts(searchTerm: string, limit?: number, negations?: NegationFilter[], sellableOnly?: boolean): Promise<SemanticSearchResult[]>
+  generateEmbedding(text: string): Promise<number[]>
+  updateProductEmbeddings(products: Product[]): Promise<void>
+  logSearch(searchTerm: string, results: SemanticSearchResult[], sessionId: string, negations?: NegationFilter[], sellabilityFiltered?: boolean): Promise<void>
+  getSimilarProducts(productId: string, limit?: number, sellableOnly?: boolean): Promise<Product[]>
+  filterNegatedProducts(products: SemanticSearchResult[], negations: NegationFilter[]): Promise<SemanticSearchResult[]>
+}
+
+interface SemanticSearchResult {
+  product: Product
+  similarity: number
+  searchTerm: string
+  timestamp: Date
+}
+```
+
+**Implementation Details:**
+- **Embedding Model**: Use Amazon Bedrock Titan Embeddings or local sentence-transformers
+- **Vector Storage**: PostgreSQL with pgvector extension (leveraging existing RDS)
+- **Similarity Metric**: Cosine similarity for semantic matching
+- **Indexing Strategy**: Batch update embeddings during low-traffic periods
+- **Fallback**: Text-based search when semantic search fails
+- **Sellability Filtering**: ALL customer-facing searches MUST include `WHERE sellable = true` in database queries
+- **Default Behavior**: `sellableOnly` parameter defaults to `true` for customer-facing operations
+
 ### Inventory Service
 
 Integrates with existing farm inventory system with enhanced sellability controls and customer-facing product management.
@@ -196,12 +284,12 @@ Integrates with existing farm inventory system with enhanced sellability control
 interface InventoryService {
   getAvailableProducts(filters?: ProductFilter): Promise<Product[]>
   getSellableProducts(filters?: ProductFilter): Promise<Product[]> // Only items marked for sale
+  searchProductsSemantically(searchTerm: string, filters?: ProductFilter): Promise<SemanticSearchResult[]>
   getProductDetails(productId: string): Promise<ProductDetails>
   checkAvailability(productId: string, quantity: number): Promise<AvailabilityInfo>
   reserveItems(items: CartItem[]): Promise<ReservationResult>
   updateStock(transactions: StockTransaction[]): Promise<void>
   toggleSellability(productId: string, sellable: boolean): Promise<void>
-
 }
 
 interface ProductFilter {
@@ -359,6 +447,15 @@ interface ConversationContext {
   // Simplified for MVP
   negotiationHistory: NegotiationAttempt[]
   upsellAttempts: UpsellAttempt[]
+  searchHistory: SearchAttempt[]
+}
+
+interface SearchAttempt {
+  originalQuery: string
+  extractedSearchTerm: string
+  searchResults: SemanticSearchResult[]
+  selectedProducts: string[]
+  timestamp: Date
 }
 
 
@@ -420,8 +517,13 @@ interface CustomerPreferences {
 
 **Database Migration Strategy:**
 ```sql
--- Add essential column to existing products table for MVP
+-- Add essential columns to existing products table for MVP
 ALTER TABLE products ADD COLUMN sellable BOOLEAN DEFAULT true;
+ALTER TABLE products ADD COLUMN embedding_text TEXT; -- Enhanced product description for embeddings
+ALTER TABLE products ADD COLUMN embedding_vector vector(1536); -- Vector embeddings (using pgvector)
+
+-- Enable pgvector extension for semantic search
+CREATE EXTENSION IF NOT EXISTS vector;
 
 -- Create new tables for agent functionality
 CREATE TABLE conversation_sessions (
@@ -457,7 +559,20 @@ CREATE TABLE transactions (
   FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
 );
 
+-- New table for semantic search analytics
+CREATE TABLE search_logs (
+  search_id VARCHAR(255) PRIMARY KEY,
+  session_id VARCHAR(255),
+  original_query TEXT,
+  extracted_search_term TEXT,
+  search_results JSON,
+  selected_products JSON,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (session_id) REFERENCES conversation_sessions(session_id)
+);
 
+-- Create index for vector similarity search
+CREATE INDEX products_embedding_idx ON products USING ivfflat (embedding_vector vector_cosine_ops);
 ```
 
 **Connection Architecture:**
@@ -492,6 +607,58 @@ interface DatabaseService {
 ## Correctness Properties
 
 *A property is a characteristic or behavior that should hold true across all valid executions of a system-essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
+
+Property 28: Product description extraction reliability
+*For any* customer question containing product-related terms, the Agent_Core should successfully extract a meaningful product search term
+**Validates: Requirements 8.1**
+
+Property 29: Search term logging consistency
+*For any* product description extraction, the system should create a corresponding log entry with the extracted search term
+**Validates: Requirements 8.2**
+
+Property 30: Semantic search functionality
+*For any* valid extracted search term, the Semantic_Search_Service should generate vector embeddings and return semantically relevant product results
+**Validates: Requirements 8.3**
+
+Property 31: Result filtering and formatting
+*For any* set of semantic search results, the Agent_Core should select contextually relevant items and format them into an appropriate customer response
+**Validates: Requirements 8.4**
+
+Property 32: Search operation logging
+*For any* semantic search operation performed, the system should create appropriate log entries for analytics and improvement
+**Validates: Requirements 3.6**
+
+Property 33: Negation term extraction
+*For any* customer query containing negation phrases like "don't like", "no", "not", "avoid", or "without", the Agent_Core should correctly identify and extract the negated terms
+**Validates: Requirements 10.1**
+
+Property 34: Negation logging consistency
+*For any* query where negated terms are identified, the system should create log entries containing both positive search intent and negation filters
+**Validates: Requirements 10.2**
+
+Property 35: Semantic negation filtering
+*For any* semantic search with negation filters, the Semantic_Search_Service should exclude products that semantically match the negated characteristics
+**Validates: Requirements 10.3**
+
+Property 36: Spicy product exclusion
+*For any* query expressing dislike of spicy items, the system should exclude products containing chili, hot sauce, spiced items, and other semantically similar spicy products from results
+**Validates: Requirements 10.4**
+
+Property 37: Negation explanation transparency
+*For any* search where negation filtering is applied, the Agent_Core should include an explanation to the customer about what items have been excluded
+**Validates: Requirements 10.5**
+
+Property 38: Sellable products only in search results
+*For any* semantic search operation, the system should only return products where the sellable field is true
+**Validates: Requirements 11.1, 11.3**
+
+Property 39: Customer-facing sellability filtering
+*For any* product browsing or search operation, the Agent_Core should exclude all non-sellable items before displaying results to customers
+**Validates: Requirements 11.2, 11.4**
+
+Property 40: Sellability filter logging
+*For any* search operation, the system should log whether sellability filtering was applied and how many products were excluded
+**Validates: Requirements 11.5**
 
 <function_calls>
 <invoke name="prework">

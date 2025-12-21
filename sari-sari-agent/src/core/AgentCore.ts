@@ -288,8 +288,8 @@ export class AgentCore implements IAgentCore {
         case StoreIntent.PRODUCT_INQUIRY:
           return await this.handleProductInquiry(intent, businessContext);
           
-        case StoreIntent.PRICE_CHECK:
-          return await this.handlePriceCheck(intent, businessContext);
+        case StoreIntent.PRICE_INQUIRY:
+          return await this.handlePriceInquiry(intent, businessContext);
           
         case StoreIntent.ADD_TO_CART:
           return await this.handleAddToCart(intent, session, businessContext);
@@ -322,18 +322,37 @@ export class AgentCore implements IAgentCore {
    */
   private async handleBrowseProducts(intent: Intent, context: BusinessContext): Promise<AgentResponse> {
     const categoryEntity = intent.entities.find(e => e.type === 'product_category');
+    const productEntity = intent.entities.find(e => e.type === 'product_name');
     const category = categoryEntity?.value;
+    const searchTerm = productEntity?.value;
 
     let products: Product[];
-    if (category) {
+    let responseText: string;
+
+    if (searchTerm) {
+      // Handle descriptive searches like "spiced", "fresh", etc.
+      try {
+        products = await this.inventoryService.searchProducts(searchTerm, true);
+        responseText = products.length > 0 
+          ? `Here are our ${searchTerm} products:`
+          : `I couldn't find any ${searchTerm} products. Here are our available products:`;
+        
+        // If no results from search, fall back to all products
+        if (products.length === 0) {
+          products = await this.inventoryService.getSellableProducts({ inStock: true });
+        }
+      } catch (error) {
+        logger.warn('Search failed during browse, falling back to all products', { error });
+        products = await this.inventoryService.getSellableProducts({ inStock: true });
+        responseText = "Here are our available products:";
+      }
+    } else if (category) {
       products = await this.inventoryService.getProductsByCategory(category, true);
+      responseText = `Here are our fresh ${category} products:`;
     } else {
       products = await this.inventoryService.getSellableProducts({ inStock: true });
+      responseText = "Here are our available products:";
     }
-
-    const responseText = category 
-      ? `Here are our fresh ${category} products:`
-      : "Here are our available products:";
 
     return {
       text: responseText,
@@ -383,10 +402,20 @@ export class AgentCore implements IAgentCore {
       };
     }
 
-    // Find matching products
-    const matchingProducts = context.inventory.filter(product =>
+    // First try to find exact matches in current inventory
+    let matchingProducts = context.inventory.filter(product =>
       product.name.toLowerCase().includes(productEntity.value.toLowerCase())
     );
+
+    // If no exact matches, use search functionality for broader matching
+    if (matchingProducts.length === 0) {
+      try {
+        matchingProducts = await this.inventoryService.searchProducts(productEntity.value, true);
+      } catch (error) {
+        logger.warn('Search failed, falling back to inventory filter', { error });
+        matchingProducts = [];
+      }
+    }
 
     if (matchingProducts.length === 0) {
       return {
@@ -440,9 +469,9 @@ export class AgentCore implements IAgentCore {
   }
 
   /**
-   * Handle price check requests
+   * Handle price inquiry requests
    */
-  private async handlePriceCheck(intent: Intent, context: BusinessContext): Promise<AgentResponse> {
+  private async handlePriceInquiry(intent: Intent, context: BusinessContext): Promise<AgentResponse> {
     const productEntity = intent.entities.find(e => e.type === 'product_name');
     
     if (!productEntity) {

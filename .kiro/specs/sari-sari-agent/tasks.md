@@ -15,11 +15,17 @@
     - Implement validation for sellable field
     - _Requirements: 5.3, 5.4_
 
-  - [ ]* 2.2 Write property test for product model validation
+  - [x] 2.2 Add semantic search fields to Product model
+    - Add embedding_text field for enhanced product descriptions
+    - Add embedding_vector field for vector storage
+    - Create ProductSearchTerm and SemanticSearchResult interfaces
+    - _Requirements: 8.1, 8.3_
+
+  - [ ]* 2.3 Write property test for product model validation
     - **Property 24: Sellability filtering**
     - **Validates: Requirements Enhanced inventory**
 
-  - [x] 2.3 Create RDS database migration for MVP agent features
+  - [x] 2.4 Create RDS database migration for MVP agent features
     - **BACKUP FIRST**: Create logical backup of products table structure and data
     - Add sellable boolean column to existing products table (with DEFAULT true for safety)
     - Create new tables for Sessions, Customers, Transactions
@@ -28,27 +34,52 @@
     - **ROLLBACK PLAN**: Document exact steps to revert changes if needed
     - _Requirements: 5.1, 5.2_
 
-  - [x] 2.4 Implement ConversationContext with personality and negotiation tracking
-    - Add personality insights, negotiation history, and upsell tracking
-    - Create session state management
-    - _Requirements: 3.3, 3.5_
+  - [x] 2.5 Add semantic search database schema
+    - **BACKUP FIRST**: Create backup before adding pgvector extension
+    - Enable pgvector extension in existing RDS database
+    - Add embedding_text and embedding_vector columns to products table
+    - Create search_logs table for analytics
+    - Create vector similarity search indexes
+    - **TEST**: Verify vector operations work correctly
+    - _Requirements: 8.2, 8.3, 3.6_
 
-- [ ] 3. Build inventory service with sellability controls
+  - [x] 2.6 Implement ConversationContext with personality and negotiation tracking
+    - Add personality insights, negotiation history, and upsell tracking
+    - Add search history tracking for semantic search operations
+    - Create session state management
+    - _Requirements: 3.3, 3.5, 3.6_
+
+- [ ] 3. Build inventory service with sellability controls and semantic search
   - [x] 3.1 Implement enhanced inventory service interface
     - Create getSellableProducts method with filtering
     - Add toggleSellability functionality
     - Implement getBargainableItems method
     - _Requirements: 2.1, 5.1, 5.3_
 
-  - [ ]* 3.2 Write property test for inventory filtering
+  - [ ] 3.2 Add semantic search integration to inventory service
+    - Implement searchProductsSemantically method with mandatory sellability filtering
+    - **CRITICAL**: Ensure all customer-facing searches use sellableOnly=true by default
+    - Integrate with SemanticSearchService for product discovery
+    - Add result filtering and ranking logic
+    - _Requirements: 8.3, 8.4, 11.1, 11.2_
+
+  - [ ]* 3.3 Write property test for inventory filtering
     - **Property 11: Real-time inventory synchronization**
     - **Validates: Requirements 5.1**
 
-  - [ ]* 3.3 Write property test for sellability filtering
+  - [ ]* 3.4 Write property test for sellability filtering
     - **Property 24: Sellability filtering**
     - **Validates: Requirements Enhanced inventory**
 
-  - [x] 3.4 Integrate with existing RDS farm inventory system
+  - [ ]* 3.4.1 Write property test for customer-facing sellability filtering
+    - **Property 39: Customer-facing sellability filtering**
+    - **Validates: Requirements 11.2, 11.4**
+
+  - [ ]* 3.5 Write property test for semantic search functionality
+    - **Property 30: Semantic search functionality**
+    - **Validates: Requirements 8.3**
+
+  - [x] 3.6 Integrate with existing RDS farm inventory system
     - Create database connection service for existing RDS instance
     - Implement queries for extended product table with new sellability fields
     - Add connection pooling and error handling for RDS
@@ -56,187 +87,307 @@
     - **FALLBACK**: Ensure graceful degradation if new fields are missing
     - _Requirements: 5.1, 5.2, 5.4_
 
-- [ ] 4. Implement basic agent personality (MVP approach)
-  - [x] 4.1 Create simple personality interface with single default personality
+- [ ] 4. Implement semantic search service
+  - [x] 4.1 Create SemanticSearchService interface and core functionality
+    - Implement vector embedding generation using Amazon Bedrock Titan
+    - Create semantic similarity search using pgvector with sellability filtering
+    - **CRITICAL**: Add `WHERE sellable = true` to ALL customer-facing search queries
+    - Add product embedding management and updates
+    - **ADD**: Debug logging for embedding generation, search queries, similarity scores, and sellability filtering
+    - _Requirements: 8.3, 11.1, 11.3_
+
+  - [ ]* 4.2 Write property test for embedding generation
+    - **Property 30: Semantic search functionality**
+    - **Validates: Requirements 8.3**
+
+  - [ ] 4.3 Implement search logging and analytics
+    - Create search operation logging to search_logs table
+    - Add analytics tracking for search terms and results
+    - Implement search performance monitoring
+    - Add negation filter logging for analytics
+    - **ADD**: Log sellability filtering status and excluded product counts
+    - _Requirements: 8.2, 3.6, 10.2, 11.5_
+
+  - [ ] 4.3.1 Implement negation filtering in semantic search
+    - Add filterNegatedProducts method to SemanticSearchService
+    - Create semantic similarity checking for negated terms
+    - Implement exclusion logic for products matching negated characteristics
+    - **ADD**: Debug logging for negation filtering decisions and excluded products
+    - _Requirements: 10.3, 10.4_
+
+  - [ ]* 4.4 Write property test for search logging
+    - **Property 32: Search operation logging**
+    - **Validates: Requirements 3.6**
+
+  - [ ]* 4.4.1 Write property test for negation logging
+    - **Property 34: Negation logging consistency**
+    - **Validates: Requirements 10.2**
+
+  - [ ]* 4.4.2 Write property test for semantic negation filtering
+    - **Property 35: Semantic negation filtering**
+    - **Validates: Requirements 10.3**
+
+  - [ ]* 4.4.3 Write property test for spicy product exclusion
+    - **Property 36: Spicy product exclusion**
+    - **Validates: Requirements 10.4**
+
+  - [ ]* 4.4.4 Write property test for sellable products only in search results
+    - **Property 38: Sellable products only in search results**
+    - **Validates: Requirements 11.1, 11.3**
+
+  - [ ]* 4.4.5 Write property test for sellability filter logging
+    - **Property 40: Sellability filter logging**
+    - **Validates: Requirements 11.5**
+
+  - [ ] 4.5 Create product embedding initialization and updates
+    - Generate initial embeddings for existing products
+    - Implement batch embedding update processes
+    - Add embedding refresh mechanisms for product changes
+    - _Requirements: 8.3_
+
+- [ ] 5. Implement basic agent personality (MVP approach)
+  - [x] 5.1 Create simple personality interface with single default personality
     - Implement basic "Friendly Farmer" personality as default
     - Create simple response tone and style configuration
     - _Requirements: 4.1_
 
-  - [x] 4.2 Add basic upselling and negotiation responses
+  - [x] 5.2 Add basic upselling and negotiation responses
     - Create simple upsell suggestion logic
     - Add basic price negotiation responses (accept/decline/counter)
     - _Requirements: 2.5_
 
-- [ ] 5. Build NLP service with pluggable AI backends
-  - [x] 5.1 Create NLP service interface with AI router
+- [ ] 6. Build NLP service with pluggable AI backends and product description extraction
+  - [x] 6.1 Create NLP service interface with AI router
     - Implement pluggable backend architecture
     - Create AI router for cloud vs local decision making
     - _Requirements: 1.1, 1.2_
 
-  - [ ]* 5.2 Write property test for message processing
+  - [ ] 6.2 Add product description extraction functionality
+    - Implement extractProductDescription method in NLP service
+    - Create logic to identify product search terms from natural language
+    - Add confidence scoring for extracted terms
+    - **ADD**: Debug logging for extraction process, confidence scores, and decision logic
+    - _Requirements: 8.1_
+
+  - [x] 6.2.1 Implement negation detection and extraction
+    - Add extractNegations method to NLP service
+    - Create logic to identify negation phrases ("don't like", "no", "not", "avoid", "without")
+    - Extract negated terms and categorize them (characteristic, ingredient, category, attribute)
+    - **ADD**: Debug logging for negation detection, extracted terms, and confidence scores
+    - _Requirements: 10.1_
+
+  - [ ]* 6.3 Write property test for product description extraction
+    - **Property 28: Product description extraction reliability**
+    - **Validates: Requirements 8.1**
+
+  - [ ]* 6.3.1 Write property test for negation term extraction
+    - **Property 33: Negation term extraction**
+    - **Validates: Requirements 10.1**
+
+  - [ ]* 6.4 Write property test for message processing
     - **Property 1: Message processing reliability**
     - **Validates: Requirements 1.1**
 
-  - [x] 5.3 Implement Amazon Bedrock integration
+  - [x] 6.5 Implement Amazon Bedrock integration
     - Set up Claude API integration for cloud AI processing
     - Implement intent classification and entity extraction
     - _Requirements: 1.1, 2.1, 2.2_
 
-  - [x] 5.4 Prepare local AI integration architecture
+  - [ ] 6.6 Add semantic search result formatting
+    - Implement formatSearchResults method with negation support
+    - Create logic to select most relevant products from search results
+    - Add contextual response generation for search results
+    - Add explanation generation for negation filtering
+    - **ADD**: Debug logging for result filtering decisions and response generation logic
+    - _Requirements: 8.4, 10.5_
+
+  - [ ]* 6.7 Write property test for result filtering and formatting
+    - **Property 31: Result filtering and formatting**
+    - **Validates: Requirements 8.4**
+
+  - [ ]* 6.7.1 Write property test for negation explanation transparency
+    - **Property 37: Negation explanation transparency**
+    - **Validates: Requirements 10.5**
+
+  - [x] 6.8 Prepare local AI integration architecture
     - Design interface for future Ollama/LM Studio integration
     - Create local AI service stub for RTX 4060 support
     - _Requirements: 7.1, 7.4_
 
-  - [x] 5.5 Implement basic response generation with simple personality
+  - [x] 6.9 Implement basic response generation with simple personality
     - Create friendly, helpful response generation
     - Add basic upselling and negotiation response capabilities
     - _Requirements: 2.5, 4.1_
 
-- [ ] 6. Develop enhanced pricing calculator with negotiation support
-  - [ ] 6.1 Implement base pricing calculation with negotiation bounds
+- [ ] 7. Develop enhanced pricing calculator with negotiation support
+  - [ ] 7.1 Implement base pricing calculation with negotiation bounds
     - Create price calculation with min/max ranges
     - Add seasonal and promotional pricing
     - _Requirements: 2.3, 6.1, 6.3_
 
-  - [ ]* 6.2 Write property test for pricing calculation
+  - [ ]* 7.2 Write property test for pricing calculation
     - **Property 5: Pricing calculation correctness**
     - **Validates: Requirements 2.3, 6.1**
 
-  - [ ] 6.3 Build negotiation engine
+  - [ ] 7.3 Build negotiation engine
     - Implement price negotiation logic with personality-based strategies
     - Create counter-offer evaluation system
     - Add profit margin protection
     - _Requirements: 6.2, 6.4_
 
-  - [ ]* 6.4 Write property test for negotiation bounds
+  - [ ]* 7.4 Write property test for negotiation bounds
     - **Property 25: Negotiation bounds**
     - **Validates: Requirements Enhanced pricing**
 
-  - [ ] 6.5 Implement upselling recommendation system
+  - [ ] 7.5 Implement upselling recommendation system
     - Create context-aware product suggestions
     - Add bundle and cross-sell opportunities
     - _Requirements: 2.5_
 
-  - [ ]* 6.6 Write property test for upsell appropriateness
+  - [ ]* 7.6 Write property test for upsell appropriateness
     - **Property 27: Upsell appropriateness**
     - **Validates: Requirements Enhanced agent personality**
 
-- [ ] 7. Create agent core orchestration service
-  - [x] 7.1 Implement main Agent Core interface
+- [ ] 8. Create agent core orchestration service
+  - [x] 8.1 Implement main Agent Core interface
     - Create conversation orchestration logic
     - Integrate NLP, inventory, pricing, and personality services
+    - **ADD**: Comprehensive debug logging for all service interactions and decision points
     - _Requirements: 1.1, 1.2, 1.3_
 
-  - [ ]* 7.2 Write property test for response display
+  - [ ]* 8.2 Write property test for response display
     - **Property 2: Response display consistency**
     - **Validates: Requirements 1.2**
 
-  - [ ] 7.3 Implement session management
+  - [ ] 8.3 Implement session management
     - Create session initialization and cleanup
     - Add conversation state persistence
+    - **ADD**: Debug logging for session lifecycle events and state changes
     - _Requirements: 3.1, 3.2, 3.3_
 
-  - [ ]* 7.4 Write property test for session isolation
+  - [ ]* 8.4 Write property test for session isolation
     - **Property 8: Session isolation**
     - **Validates: Requirements 3.3**
 
-  - [ ] 7.5 Add analytics and logging
+  - [ ] 8.5 Add analytics and logging
     - Implement interaction logging for analytics
     - Create cost monitoring and alerts
+    - **ADD**: Structured logging with correlation IDs for troubleshooting
     - _Requirements: 3.5, 7.4_
 
-- [ ] 8. Build web interface and chat component
-  - [ ] 8.1 Create React-based chat interface
+- [ ] 9. Build web interface and chat component
+  - [ ] 9.1 Create React-based chat interface
     - Build responsive chat UI component
     - Implement message display and input handling
+    - **ADD**: Client-side logging for user interactions and errors
     - _Requirements: 1.1, 1.2_
 
-
-
-  - [ ] 8.3 Implement product display and cart functionality
+  - [ ] 9.2 Implement product display and cart functionality
     - Create product browsing interface
     - Add shopping cart with negotiation support
+    - **ADD**: Debug logging for product selection and cart operations
     - _Requirements: 2.1, 2.2, 2.3_
 
-  - [ ] 8.4 Add screensaver and idle state management
+  - [ ] 9.3 Add screensaver and idle state management
     - Implement 10-minute idle timeout with screensaver
     - Maintain system responsiveness during idle
+    - **ADD**: Logging for idle state transitions and user activity
     - _Requirements: 3.2_
 
-- [ ] 9. Implement AWS Lambda functions and API Gateway
-  - [ ] 9.1 Create Lambda functions for core services
+- [ ] 10. Implement AWS Lambda functions and API Gateway
+  - [ ] 10.1 Create Lambda functions for core services
     - Deploy agent core, inventory, and pricing services as Lambda functions
     - Set up API Gateway endpoints
+    - **ADD**: CloudWatch logging with structured JSON logs for all Lambda functions
+    - **ADD**: Request/response logging with correlation IDs for tracing
     - _Requirements: 7.1, 7.2_
 
-  - [ ] 9.2 Set up RDS database connections (Redis deferred for MVP)
+  - [ ] 10.2 Set up RDS database connections (Redis deferred for MVP)
     - Configure RDS database connections with proper security groups
     - Implement connection pooling and error handling for RDS
     - **TEST**: Verify database connectivity and query performance
     - **MONITOR**: Set up basic CloudWatch monitoring for database connections
+    - **ADD**: Database query logging with execution times and error tracking
     - _Requirements: 5.1, 5.2_
 
-  - [ ] 9.3 Deploy static assets to S3 and CloudFront
+  - [ ] 10.3 Deploy static assets to S3 and CloudFront
     - Set up web hosting for React application
     - Configure CDN for optimal performance
+    - **ADD**: Access logging for static asset requests
     - _Requirements: 7.1_
 
-- [ ] 10. Checkpoint - Database changes complete
+- [ ] 11. Checkpoint - Database changes complete
   - **VERIFY**: All database migrations completed successfully
   - **TEST**: Existing farm applications still function normally
   - **CONFIRM**: New agent tables created and accessible
+  - **VERIFY**: Debug logging is working for all database operations
   - Ensure all tests pass, ask the user if questions arise.
   - **HUMAN APPROVAL REQUIRED** before proceeding to integration tasks
 
-- [ ] 11. Implement error handling and graceful degradation
-  - [ ] 11.1 Add comprehensive error handling
+- [ ] 12. Implement error handling and graceful degradation
+  - [ ] 12.1 Add comprehensive error handling
     - Implement error response strategies for system, business, and user errors
     - Create fallback mechanisms for service failures
+    - **ADD**: Detailed error logging with stack traces and context information
+    - **ADD**: Error correlation tracking across service boundaries
     - _Requirements: 5.5_
 
-  - [ ]* 11.2 Write property test for error logging
+  - [ ]* 12.2 Write property test for error logging
     - **Property 15: Synchronization error handling**
     - **Validates: Requirements 5.5**
 
-  - [ ] 11.3 Implement caching and performance optimization
+  - [ ] 12.3 Implement caching and performance optimization
     - Add response caching to reduce AI API costs
     - Optimize database queries and Lambda performance
+    - **ADD**: Cache hit/miss logging and performance metrics
     - _Requirements: 7.1, 7.4_
 
-- [ ] 12. Add cost monitoring and optimization
-  - [ ] 12.1 Implement cost tracking and alerts
+- [ ] 13. Add cost monitoring and optimization
+  - [ ] 13.1 Implement cost tracking and alerts
     - Set up CloudWatch metrics for service usage
     - Create budget alerts at 80% threshold
+    - **ADD**: Detailed cost logging by service and operation type
+    - **ADD**: Real-time cost tracking dashboard with debug information
     - _Requirements: 7.1, 7.4_
 
-  - [ ]* 12.2 Write property test for cost monitoring
+  - [ ]* 13.2 Write property test for cost monitoring
     - **Property 20: Cost monitoring alerts**
     - **Validates: Requirements 7.4**
 
-  - [ ] 12.3 Optimize for cost efficiency
+  - [ ] 13.3 Optimize for cost efficiency
     - Implement intelligent caching strategies
     - Add request batching and connection pooling
+    - **ADD**: Performance logging for optimization decisions
     - _Requirements: 7.1, 7.5_
 
-- [ ] 13. Final integration and deployment
-  - [ ] 13.1 End-to-end integration testing
+- [ ] 14. Final integration and deployment
+  - [ ] 14.1 End-to-end integration testing
     - Test complete customer journey from greeting to purchase
     - Verify personality switching and negotiation flows
-    - _Requirements: 1.1, 1.2, 2.1, 2.2, 2.3_
+    - **ADD**: Comprehensive test logging with detailed trace information
+    - **ADD**: Semantic search testing with query/result logging
+    - _Requirements: 1.1, 1.2, 2.1, 2.2, 2.3, 8.1, 8.3, 8.4_
 
-  - [ ] 13.2 Deploy to production environment
+  - [ ] 14.2 Deploy to production environment
     - Set up production AWS infrastructure
     - Configure monitoring and logging
+    - **ADD**: Production-grade logging configuration with log retention policies
+    - **ADD**: Centralized log aggregation and search capabilities
     - _Requirements: 7.1, 7.2_
 
-  - [ ] 13.3 Create admin documentation and configuration guides
+  - [ ] 14.3 Create admin documentation and configuration guides
     - Document personality configuration process
     - Create troubleshooting and maintenance guides
+    - **ADD**: Debug logging guide and troubleshooting playbook
+    - **ADD**: Log analysis procedures for semantic search optimization
     - _Requirements: 8.1_
 
-- [ ] 14. Final checkpoint - Complete system verification
+- [ ] 15. Final checkpoint - Complete system verification
   - **VERIFY**: Sari sari agent fully functional end-to-end
   - **TEST**: All existing farm systems remain operational
+  - **VERIFY**: Semantic search working correctly with "hot" query returning vinegar products
+  - **VERIFY**: All debug logging is functioning and providing useful troubleshooting information
   - **DOCUMENT**: Deployment procedures and monitoring setup
+  - **DOCUMENT**: Log analysis procedures and troubleshooting workflows
   - Ensure all tests pass, ask the user if questions arise.
   - **HUMAN APPROVAL REQUIRED** for production deployment

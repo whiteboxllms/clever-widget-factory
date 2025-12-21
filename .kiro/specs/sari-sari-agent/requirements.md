@@ -13,6 +13,7 @@ A self-serve sari sari store interface that enables customers to interact with a
 - **Price_Calculator**: Component that computes product pricing based on quantity, promotions, and inventory data
 - **Voice_Interface**: Speech-to-text and text-to-speech capabilities for verbal customer interactions
 - **Language_Service**: Multilingual translation and localization component
+- **Semantic_Search_Service**: Vector-based search system that understands product descriptions and customer queries semantically rather than through exact text matching
 
 ## Requirements
 
@@ -30,15 +31,16 @@ A self-serve sari sari store interface that enables customers to interact with a
 
 ### Requirement 2
 
-**User Story:** As a customer, I want to ask about available products and their details, so that I can make informed purchasing decisions.
+**User Story:** As a customer, I want to ask about available products using natural language, so that I can find items even when I don't know exact product names.
 
 #### Acceptance Criteria
 
-1. WHEN a customer asks about product availability THEN the Agent_Core SHALL query the Inventory_Service and provide current stock information
-2. WHEN a customer requests product details THEN the Agent_Core SHALL provide description, origin, freshness, and nutritional information
-3. WHEN a customer asks about pricing THEN the Price_Calculator SHALL compute and display current prices including any applicable discounts
-4. WHEN inventory levels are low THEN the Agent_Core SHALL inform customers of limited availability
-5. WHEN a product is out of stock THEN the Agent_Core SHALL suggest similar available alternatives
+1. WHEN a customer uses descriptive language about products THEN the Agent_Core SHALL use semantic search to find relevant items based on meaning rather than exact text matches
+2. WHEN a customer asks about product characteristics THEN the Agent_Core SHALL filter semantic search results using intelligent agent reasoning to return contextually appropriate items
+3. WHEN a customer requests product details THEN the Agent_Core SHALL provide description, origin, freshness, and nutritional information
+4. WHEN a customer asks about pricing THEN the Price_Calculator SHALL compute and display current prices including any applicable discounts
+5. WHEN inventory levels are low THEN the Agent_Core SHALL inform customers of limited availability
+6. WHEN a product is out of stock THEN the Agent_Core SHALL suggest similar available alternatives using semantic similarity
 
 ### Requirement 3
 
@@ -51,6 +53,7 @@ A self-serve sari sari store interface that enables customers to interact with a
 3. WHEN multiple customers use the system THEN the system SHALL handle sequential interactions appropriately
 4. WHERE sensor capabilities are implemented THEN the system SHALL support automatic presence detection and activation
 5. WHEN a customer interaction begins THEN the system SHALL log the session timestamp for analytics
+6. WHEN a semantic search is performed THEN the system SHALL log the extracted product search term and search results for analytics and improvement
 
 ### Requirement 4
 
@@ -101,6 +104,42 @@ A self-serve sari sari store interface that enables customers to interact with a
 5. WHEN optimizing for cost THEN the system SHALL use efficient algorithms and caching to minimize computational expenses
 
 ### Requirement 8
+
+**User Story:** As a customer, I want to search for products using natural descriptions like "something hot" or "spicy items", so that I can find products based on characteristics rather than exact names.
+
+#### Acceptance Criteria
+
+1. WHEN a customer asks a question THEN the Agent_Core SHALL identify and extract the product description from the natural language query
+2. WHEN a product description is identified THEN the system SHALL log the extracted search term used for semantic search
+3. WHEN the extracted search term is processed THEN the Semantic_Search_Service SHALL convert it into vector embeddings and search product descriptions semantically
+4. WHEN semantic search returns results THEN the Agent_Core SHALL select the most relevant items and form an appropriate response
+5. WHEN a customer asks for "hot" items THEN the system SHALL return products like "Long neck vinegar spice" and "Spiced vinegar lipid" based on semantic understanding
+
+### Requirement 10
+
+**User Story:** As a customer, I want to express what I don't want using natural language like "I don't like spicy" or "no hot items", so that the system excludes those products from my search results.
+
+#### Acceptance Criteria
+
+1. WHEN a customer uses negation phrases like "don't like", "no", "not", "avoid", or "without" THEN the Agent_Core SHALL identify and extract the negated terms from the query
+2. WHEN negated terms are identified THEN the system SHALL log both the positive search intent and the negation filters for analytics
+3. WHEN performing semantic search with negations THEN the Semantic_Search_Service SHALL filter out products that semantically match the negated characteristics
+4. WHEN a customer says "I don't like spicy" THEN the system SHALL exclude products containing chili, hot sauce, spiced items, and other semantically similar spicy products
+5. WHEN negation filtering is applied THEN the Agent_Core SHALL explain to the customer that spicy items have been excluded from the results
+
+### Requirement 11
+
+**User Story:** As a customer, I want to only see products that are available for purchase, so that I don't waste time looking at items that aren't for sale.
+
+#### Acceptance Criteria
+
+1. WHEN performing any product search THEN the Semantic_Search_Service SHALL only return products where the sellable field is true
+2. WHEN a customer browses products THEN the Agent_Core SHALL filter all results to exclude non-sellable items before displaying them
+3. WHEN semantic search queries the database THEN the system SHALL include sellable=true as a mandatory filter condition
+4. WHEN non-sellable products exist in the database THEN they SHALL never appear in customer-facing search results or product listings
+5. WHEN debugging search issues THEN the system SHALL log whether sellability filtering was applied and how many products were excluded
+
+### Requirement 9
 
 **User Story:** As a farm owner, I want the system to be extensible for future enhancements, so that I can add new capabilities as my business grows.
 

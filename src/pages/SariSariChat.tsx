@@ -70,7 +70,6 @@ export default function SariSariChat() {
     try {
       setLoadingProducts(true);
       const { apiService, getApiData } = await import('@/lib/apiService');
-      // Use the dedicated sellable endpoint - filtering happens in SQL for efficiency
       const response = await apiService.get<{ data: Part[] }>('/parts/sellable');
       const sellableProducts = getApiData(response) || [];
       
@@ -159,6 +158,62 @@ export default function SariSariChat() {
     }
   };
 
+  /**
+   * Extract product search term from user query
+   * Extracts the key product characteristics/names for semantic search
+   */
+  const extractProductSearchTerm = (userQuery: string): string => {
+    const query = userQuery.toLowerCase();
+    
+    // Product keywords that should be preserved
+    const productKeywords = [
+      // Characteristics
+      'spicy', 'hot', 'sweet', 'sour', 'salty', 'bitter', 'fresh', 'organic', 'pure', 'natural',
+      'mild', 'strong', 'light', 'heavy', 'thick', 'thin', 'smooth', 'rough', 'soft', 'hard',
+      'long', 'short', 'big', 'small', 'large', 'tiny', 'cold', 'warm', 'cool',
+      // Product names
+      'vinegar', 'sauce', 'pepper', 'salt', 'sugar', 'oil', 'water', 'juice', 'milk',
+      'rice', 'bread', 'meat', 'fish', 'chicken', 'pork', 'beef', 'vegetables', 'fruits',
+      'tomato', 'onion', 'garlic', 'ginger', 'chili', 'lemon', 'lime', 'coconut',
+      // Categories
+      'food', 'drink', 'beverage', 'snack', 'candy', 'chocolate', 'cookie', 'cake',
+      'spices', 'condiments', 'seasoning', 'herbs', 'grains', 'cereals', 'pasta',
+      'dairy', 'cheese', 'butter', 'yogurt', 'cream'
+    ];
+    
+    // Remove common question words and phrases
+    let cleanedQuery = query
+      .replace(/^(what|show me|find me|get me|i want|i need|do you have|can you show|looking for)\s*/i, '')
+      .replace(/\b(products?|items?|things?|stuff|food|foods)\s*/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Extract product keywords from the cleaned query
+    const words = cleanedQuery.split(/\s+/);
+    const extractedKeywords = words.filter(word => 
+      productKeywords.includes(word) || 
+      word.length > 3 // Include longer words that might be product names
+    );
+
+    // If we found specific keywords, use them; otherwise use the cleaned query
+    let extractedTerm;
+    if (extractedKeywords.length > 0) {
+      extractedTerm = extractedKeywords.join(' ');
+    } else {
+      // Fallback to cleaned query if no specific keywords found
+      extractedTerm = cleanedQuery.length > 2 ? cleanedQuery : userQuery;
+    }
+
+    console.log('🔍 Product search term extraction:', {
+      originalQuery: userQuery,
+      cleanedQuery,
+      extractedKeywords,
+      extractedTerm
+    });
+
+    return extractedTerm;
+  };
+
   const convertPartToProductInfo = (part: Part): ProductInfo => {
     const getAvailability = (part: Part): 'in-stock' | 'low-stock' | 'out-of-stock' => {
       if (part.current_quantity <= 0) return 'out-of-stock';
@@ -210,18 +265,139 @@ export default function SariSariChat() {
       };
     }
 
-    // Search for specific products
-    const matchingProducts = availableProducts.filter(part => 
-      part.name.toLowerCase().includes(lowerMessage) ||
-      (part.description && part.description.toLowerCase().includes(lowerMessage))
-    );
+    // Use semantic search for product queries
+    console.log('🔍 User query:', message);
+    console.log('🔍 Checking if query needs semantic search...');
+    
+    // Check if this looks like a product search query
+    const productSearchKeywords = ['spicy', 'hot', 'sweet', 'sour', 'fresh', 'vinegar', 'sauce', 'pepper', 'what', 'find', 'have', 'get'];
+    const isProductQuery = productSearchKeywords.some(keyword => lowerMessage.includes(keyword));
+    
+    if (isProductQuery) {
+      console.log('🎯 Detected product search query, using semantic search...');
+      
+      // Extract the search term but preserve natural language for semantic search
+      const extractedSearchTerm = extractProductSearchTerm(message);
+      console.log('🔍 Search term being sent to semantic search:', extractedSearchTerm);
+      
+      try {
+        // Use the same semantic search approach as CombinedAssetsContainer
+        console.log('🔍 Calling semantic search via apiService...');
+        
+        const response = await apiService.post('/semantic-search', {
+          query: extractedSearchTerm,
+          table: 'parts',
+          limit: 6
+        });
+
+        console.log('✅ Semantic search API response:', response);
+        
+        // Extract results using the same pattern as CombinedAssetsContainer
+        const semanticResults = response?.results || response?.data?.results || [];
+        console.log(`🔍 Found ${semanticResults.length} semantic search results`);
+        
+        if (semanticResults.length > 0) {
+          console.log('🎯 Raw semantic search results:');
+          semanticResults.forEach((item: any, index: number) => {
+            console.log(`   ${index + 1}. ${item.name} (similarity: ${item.similarity || item.distance || 'N/A'})`);
+            if (item.description) {
+              console.log(`      Description: ${item.description.substring(0, 100)}...`);
+            }
+          });
+          
+          // Convert semantic search results to ProductInfo format
+          const products: ProductInfo[] = semanticResults.map((item: any) => ({
+            id: item.id,
+            name: item.name,
+            price: parseFloat(item.cost_per_unit || '0'),
+            availability: item.current_quantity > 0 ? 'in-stock' : 'out-of-stock',
+            description: item.description,
+            unit: item.unit,
+            current_quantity: item.current_quantity
+          }));
+
+          console.log('🎯 Converted semantic search results:', products.map(p => p.name));
+          
+          return {
+            text: `Found ${semanticResults.length} products using AI semantic search! Here's what matches your request:`,
+            suggestions: ["Add to cart", "Tell me more", "Show me similar products"],
+            products
+          };
+        } else {
+          console.log('🔍 No semantic search results found');
+        }
+      } catch (error) {
+        console.error('❌ Semantic search error:', error);
+        console.log('🔄 Falling back to simple text search...');
+      }
+    }
+
+    // Fallback to simple text search
+    console.log('🔄 Using fallback text search...');
+    console.log('🔍 Available products for text search:', availableProducts.length);
+    console.log('🔍 Search terms in message:', lowerMessage);
+    
+    const matchingProducts = availableProducts.filter(part => {
+      const nameMatch = part.name.toLowerCase().includes(lowerMessage);
+      const descMatch = part.description && part.description.toLowerCase().includes(lowerMessage);
+      const matches = nameMatch || descMatch;
+      
+      if (matches) {
+        console.log(`✅ Text search match: ${part.name} (name: ${nameMatch}, desc: ${descMatch})`);
+      }
+      
+      return matches;
+    });
+
+    console.log(`📋 Text search found ${matchingProducts.length} products:`, matchingProducts.map(p => p.name));
+    
+    // Special debug for spicy queries
+    if (lowerMessage.includes('spic')) {
+      console.log('🌶️  SPICY QUERY DEBUG:');
+      console.log('   All available products:');
+      availableProducts.forEach(p => {
+        console.log(`     - ${p.name} (sellable: ${p.sellable}, qty: ${p.current_quantity})`);
+        if (p.description) {
+          console.log(`       Description: ${p.description.substring(0, 100)}...`);
+        }
+      });
+      
+      console.log('   Products with "spice" in name:');
+      availableProducts.forEach(p => {
+        if (p.name.toLowerCase().includes('spice')) {
+          console.log(`     ✅ ${p.name}`);
+        }
+      });
+      
+      console.log('   Products with "spice" in description:');
+      availableProducts.forEach(p => {
+        if (p.description && p.description.toLowerCase().includes('spice')) {
+          console.log(`     ✅ ${p.name}: ${p.description.substring(0, 100)}...`);
+        }
+      });
+      
+      console.log('   Text search matches for spicy query:');
+      matchingProducts.forEach(p => {
+        console.log(`     - ${p.name} (matched because: ${p.name.toLowerCase().includes(lowerMessage) ? 'name' : 'description'})`);
+      });
+      
+      if (matchingProducts.some(p => p.name.toLowerCase().includes('pure vinegar'))) {
+        console.log('❌ FOUND PURE VINEGAR - This is the problem!');
+        const pureVinegar = matchingProducts.find(p => p.name.toLowerCase().includes('pure vinegar'));
+        if (pureVinegar) {
+          console.log(`   Pure vinegar details: ${pureVinegar.name}`);
+          console.log(`   Description: ${pureVinegar.description}`);
+          console.log(`   Why it matched: name includes "${lowerMessage}"? ${pureVinegar.name.toLowerCase().includes(lowerMessage)}`);
+          console.log(`   Why it matched: description includes "${lowerMessage}"? ${pureVinegar.description && pureVinegar.description.toLowerCase().includes(lowerMessage)}`);
+        }
+      }
+    }
 
     if (matchingProducts.length > 0) {
       const products = matchingProducts.slice(0, 3).map(convertPartToProductInfo);
-      const firstProduct = matchingProducts[0];
       
       return {
-        text: `Found ${matchingProducts.length} matching product${matchingProducts.length > 1 ? 's' : ''}! Here's what we have:`,
+        text: `Found ${matchingProducts.length} matching product${matchingProducts.length > 1 ? 's' : ''} using text search:`,
         suggestions: ["Add to cart", "Tell me more", "Show me similar products"],
         products
       };

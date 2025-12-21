@@ -8,7 +8,7 @@ import { Product, NutritionalData } from '@/types/core';
 import { ValidationError } from '@/utils/errors';
 import { logger } from '@/utils/logger';
 
-// Enhanced validation schema for Product with sellability
+// Enhanced validation schema for Product with sellability and semantic search
 export const EnhancedProductSchema = z.object({
   id: z.string().min(1, 'Product ID is required'),
   name: z.string().min(1, 'Product name is required').max(255, 'Product name too long'),
@@ -22,7 +22,10 @@ export const EnhancedProductSchema = z.object({
   nutritionalInfo: z.record(z.number()).optional(),
   tags: z.array(z.string().max(50, 'Tag too long')).max(20, 'Too many tags'),
   // Enhanced sellability field with validation
-  sellable: z.boolean().default(true)
+  sellable: z.boolean().default(true),
+  // Semantic search fields
+  embeddingText: z.string().max(2000, 'Embedding text too long').optional(),
+  embeddingVector: z.array(z.number()).max(1536, 'Embedding vector too large').optional()
 }).refine(
   (data) => !data.expiryDate || !data.harvestDate || data.expiryDate > data.harvestDate,
   {
@@ -238,6 +241,96 @@ export class ProductModel {
       tags: this.data.tags,
       freshness: this.getFreshnessIndicator()
     };
+  }
+
+  /**
+   * Generate enhanced text for semantic search embeddings
+   */
+  generateEmbeddingText(): string {
+    const parts = [
+      this.data.name,
+      this.data.description,
+      this.data.category,
+      ...this.data.tags
+    ];
+
+    // Add freshness information if available
+    const freshness = this.getFreshnessIndicator();
+    if (freshness) {
+      parts.push(`freshness: ${freshness}`);
+    }
+
+    // Add nutritional highlights if available
+    if (this.data.nutritionalInfo) {
+      const nutritionHighlights = Object.entries(this.data.nutritionalInfo)
+        .filter(([_, value]) => value > 0)
+        .map(([key, _]) => key)
+        .slice(0, 3); // Limit to top 3 nutritional aspects
+      
+      if (nutritionHighlights.length > 0) {
+        parts.push(`nutrition: ${nutritionHighlights.join(', ')}`);
+      }
+    }
+
+    return parts.filter(Boolean).join(' ');
+  }
+
+  /**
+   * Set embedding text for semantic search
+   */
+  setEmbeddingText(embeddingText: string): void {
+    if (embeddingText.length > 2000) {
+      throw new ValidationError('Embedding text too long');
+    }
+    
+    this.data.embeddingText = embeddingText;
+    logger.debug('Product embedding text updated', { 
+      productId: this.data.id,
+      textLength: embeddingText.length
+    });
+  }
+
+  /**
+   * Set embedding vector for semantic search
+   */
+  setEmbeddingVector(vector: number[]): void {
+    if (vector.length > 1536) {
+      throw new ValidationError('Embedding vector too large');
+    }
+    
+    this.data.embeddingVector = vector;
+    logger.debug('Product embedding vector updated', { 
+      productId: this.data.id,
+      vectorDimensions: vector.length
+    });
+  }
+
+  /**
+   * Check if product has embedding data for semantic search
+   */
+  hasEmbedding(): boolean {
+    return !!(this.data.embeddingText && this.data.embeddingVector);
+  }
+
+  /**
+   * Get embedding text, generating if not set
+   */
+  getEmbeddingText(): string {
+    if (!this.data.embeddingText) {
+      this.data.embeddingText = this.generateEmbeddingText();
+      logger.debug('Generated embedding text for product', { 
+        productId: this.data.id,
+        embeddingText: this.data.embeddingText
+      });
+    }
+    return this.data.embeddingText;
+  }
+
+  /**
+   * Get embedding vector if available
+   */
+  getEmbeddingVector(): number[] | undefined {
+    return this.data.embeddingVector;
   }
 
   /**

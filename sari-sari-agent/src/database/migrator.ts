@@ -152,6 +152,11 @@ export class DatabaseMigrator {
         const backupFile = await this.createBackup('products');
         backupFiles.push(backupFile);
       }
+      
+      if (migrationSQL.includes('ALTER TABLE parts')) {
+        const backupFile = await this.createBackup('parts');
+        backupFiles.push(backupFile);
+      }
 
       // Execute migration in transaction
       const statements = migrationSQL
@@ -245,7 +250,8 @@ export class DatabaseMigrator {
     // Define migration order for MVP
     const migrations = [
       '001_add_sellable_column',
-      '002_create_agent_tables'
+      '002_create_agent_tables',
+      '003_add_semantic_search'
     ];
 
     for (const migration of migrations) {
@@ -267,14 +273,15 @@ export class DatabaseMigrator {
   async verifyMigrationState(): Promise<{
     sellableColumnExists: boolean;
     agentTablesExist: boolean;
+    semanticSearchReady: boolean;
     issues: string[];
   }> {
     const issues: string[] = [];
     
     // Check sellable column
-    const sellableColumnExists = await db.columnExists('products', 'sellable');
+    const sellableColumnExists = await db.columnExists('parts', 'sellable');
     if (!sellableColumnExists) {
-      issues.push('Sellable column missing from products table');
+      issues.push('Sellable column missing from parts table');
     }
 
     // Check agent tables
@@ -289,9 +296,24 @@ export class DatabaseMigrator {
       issues.push(`Missing agent tables: ${missingTables.join(', ')}`);
     }
 
+    // Check semantic search components
+    const embeddingTextExists = await db.columnExists('parts', 'embedding_text');
+    const embeddingVectorExists = await db.columnExists('parts', 'embedding_vector');
+    const searchLogsExists = await db.tableExists('search_logs');
+    
+    const semanticSearchReady = embeddingTextExists && embeddingVectorExists && searchLogsExists;
+    if (!semanticSearchReady) {
+      const missingComponents = [];
+      if (!embeddingTextExists) missingComponents.push('embedding_text column');
+      if (!embeddingVectorExists) missingComponents.push('embedding_vector column');
+      if (!searchLogsExists) missingComponents.push('search_logs table');
+      issues.push(`Missing semantic search components: ${missingComponents.join(', ')}`);
+    }
+
     return {
       sellableColumnExists,
       agentTablesExist: allAgentTablesExist,
+      semanticSearchReady,
       issues
     };
   }

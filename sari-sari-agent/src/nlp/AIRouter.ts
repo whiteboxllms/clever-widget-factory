@@ -469,9 +469,10 @@ export class AIRouter {
       };
     }
     
-    // Check for browse products
+    // Check for browse products (including descriptive searches)
     if (lowerMessage.includes('what') || lowerMessage.includes('show') || lowerMessage.includes('available') ||
-        lowerMessage.includes('have')) {
+        lowerMessage.includes('have') || lowerMessage.includes('spiced') || lowerMessage.includes('fresh') ||
+        lowerMessage.includes('organic')) {
       return {
         intent: { name: 'browse_products', confidence: 0.7, entities: [] },
         confidence: 0.7
@@ -506,13 +507,37 @@ export class AIRouter {
       });
     }
     
-    // Common product names
-    const products = ['tomato', 'lettuce', 'carrot', 'apple', 'banana', 'rice', 'milk'];
+    // Common product names and descriptive terms
+    const products = ['tomato', 'lettuce', 'carrot', 'apple', 'banana', 'rice', 'milk', 'vinegar'];
     for (const product of products) {
       if (lowerMessage.includes(product)) {
         entities.push({
           type: 'product_name',
           value: product,
+          confidence: 0.8
+        });
+      }
+    }
+    
+    // Product descriptors and attributes
+    const descriptors = ['spiced', 'fresh', 'organic', 'pure', 'cheap', 'long neck', 'lipid'];
+    for (const descriptor of descriptors) {
+      if (lowerMessage.includes(descriptor)) {
+        entities.push({
+          type: 'product_name',
+          value: descriptor,
+          confidence: 0.7
+        });
+      }
+    }
+    
+    // Product categories
+    const categories = ['vegetables', 'fruits', 'grains', 'dairy', 'spices', 'condiments'];
+    for (const category of categories) {
+      if (lowerMessage.includes(category)) {
+        entities.push({
+          type: 'product_category',
+          value: category,
           confidence: 0.8
         });
       }

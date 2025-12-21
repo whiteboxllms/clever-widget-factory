@@ -10,8 +10,10 @@ import {
   ProductFilter, 
   ProductDetails, 
   AvailabilityInfo, 
-  CartItem 
+  CartItem,
+  SemanticSearchResult 
 } from '@/types/core';
+import { SemanticSearchServiceImpl } from '@/search/SemanticSearchService';
 import { 
   InventoryService as IInventoryService, 
   ReservationResult, 
@@ -28,6 +30,12 @@ import { v4 as uuidv4 } from 'uuid';
 
 export class InventoryService implements IInventoryService {
   private readonly reservationTimeoutMs = 15 * 60 * 1000; // 15 minutes
+  private semanticSearchService: SemanticSearchServiceImpl;
+
+  constructor() {
+    // Initialize semantic search service
+    this.semanticSearchService = new SemanticSearchServiceImpl();
+  }
 
   /**
    * Get all available products with optional filtering
@@ -134,6 +142,229 @@ export class InventoryService implements IInventoryService {
       logger.error('Failed to get sellable products', { filters, error });
       throw new InventoryError(`Failed to retrieve sellable products: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  /**
+   * Search products using semantic similarity
+   */
+  async searchProductsSemantically(searchTerm: string, filters?: ProductFilter): Promise<SemanticSearchResult[]> {
+    try {
+      logger.debug('Starting semantic product search in InventoryService', { 
+        searchTerm, 
+        filters,
+        originalQuery: searchTerm 
+      });
+
+      // Step 1: Extract the actual product search term from the user query
+      // For now, use simple keyword extraction - this should be enhanced with NLP service
+      const extractedTerm = this.extractProductSearchTerm(searchTerm);
+      
+      logger.info('Extracted product search term', {
+        originalQuery: searchTerm,
+        extractedTerm,
+        extractionMethod: 'simple_keyword'
+      });
+
+      // Step 2: Use SemanticSearchService for actual vector search
+      let results: SemanticSearchResult[];
+      
+      try {
+        results = await this.semanticSearchService.searchProducts(extractedTerm, 20);
+        
+        logger.debug('Semantic search service returned results', {
+          extractedTerm,
+          resultsCount: results.length,
+          topSimilarity: results[0]?.similarity || 0
+        });
+      } catch (semanticError) {
+        logger.warn('Semantic search service failed, falling back to text search', {
+          extractedTerm,
+          error: semanticError instanceof Error ? semanticError.message : 'Unknown error'
+        });
+        
+        // Fallback to traditional text search
+        results = await this.performTextSearch(extractedTerm);
+      }
+
+      // Step 3: Apply inventory-specific filters
+      const filteredResults = await this.applyInventoryFilters(results, filters);
+
+      logger.info('Semantic search completed with filtering', { 
+        originalQuery: searchTerm,
+        extractedTerm,
+        rawResultsCount: results.length,
+        filteredResultsCount: filteredResults.length,
+        topSimilarity: filteredResults[0]?.similarity || 0,
+        filters,
+        topResults: filteredResults.slice(0, 3).map(r => ({
+          productId: r.product.id,
+          productName: r.product.name,
+          similarity: r.similarity,
+          hasSpiceInName: r.product.name.toLowerCase().includes('spice'),
+          hasSpiceInDescription: r.product.description.toLowerCase().includes('spice'),
+          hasSpiceInTags: r.product.tags.some(tag => tag.toLowerCase().includes('spice'))
+        }))
+      });
+
+      return filteredResults;
+    } catch (error) {
+      logger.error('Failed to perform semantic search', { 
+        searchTerm, 
+        filters, 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      throw new InventoryError(`Failed to perform semantic search: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Extract product search term from user query
+   * This is a simple implementation - should be enhanced with NLP service
+   */
+  private extractProductSearchTerm(userQuery: string): string {
+    const query = userQuery.toLowerCase();
+    
+    // Remove common query prefixes
+    const cleanedQuery = query
+      .replace(/^(show|find|get|search|look for|what do you have|do you have)/i, '')
+      .replace(/\b(products?|items?|things?|stuff)\b/gi, '')
+      .replace(/\b(with|that are|that is)\b/gi, '')
+      .trim();
+
+    // Extract key product characteristics
+    const productKeywords = [
+      'spice', 'spicy', 'hot', 'sweet', 'sour', 'bitter', 'salty',
+      'fresh', 'organic', 'natural', 'dried', 'canned', 'bottled',
+      'vinegar', 'sauce', 'oil', 'pepper', 'salt', 'sugar',
+      'vegetable', 'fruit', 'meat', 'dairy', 'grain', 'herb'
+    ];
+
+    // Find matching keywords
+    const foundKeywords = productKeywords.filter(keyword => 
+      cleanedQuery.includes(keyword)
+    );
+
+    const extractedTerm = foundKeywords.length > 0 
+      ? foundKeywords.join(' ') 
+      : cleanedQuery || userQuery;
+
+    logger.debug('Product search term extraction', {
+      originalQuery: userQuery,
+      cleanedQuery,
+      foundKeywords,
+      extractedTerm
+    });
+
+    return extractedTerm;
+  }
+
+  /**
+   * Perform traditional text search as fallback
+   */
+  private async performTextSearch(searchTerm: string): Promise<SemanticSearchResult[]> {
+    logger.debug('Performing fallback text search', { searchTerm });
+
+    try {
+      // Try full-text search first
+      let sql = `
+        SELECT *, 
+               MATCH(name, description, tags) AGAINST(? IN NATURAL LANGUAGE MODE) as relevance_score
+        FROM parts 
+        WHERE MATCH(name, description, tags) AGAINST(? IN NATURAL LANGUAGE MODE)
+        AND sellable = true 
+        AND current_quantity > 0
+        AND (expiry_date IS NULL OR expiry_date > NOW())
+        ORDER BY relevance_score DESC LIMIT 20
+      `;
+      
+      let rows = await db.query<any[]>(sql, [searchTerm, searchTerm]);
+      
+      // If no full-text results, fall back to LIKE search
+      if (rows.length === 0) {
+        logger.debug('No full-text results, using LIKE search', { searchTerm });
+        
+        sql = `
+          SELECT *, 1.0 as relevance_score
+          FROM parts 
+          WHERE (name LIKE ? OR description LIKE ? OR tags LIKE ?)
+          AND sellable = true 
+          AND current_quantity > 0
+          AND (expiry_date IS NULL OR expiry_date > NOW())
+          ORDER BY name ASC LIMIT 20
+        `;
+        
+        const likePattern = `%${searchTerm}%`;
+        rows = await db.query<any[]>(sql, [likePattern, likePattern, likePattern]);
+      }
+
+      const results: SemanticSearchResult[] = rows.map((row, index) => ({
+        product: this.mapRowToProduct(row),
+        similarity: Math.min(row.relevance_score / 10, 1.0) || (0.8 - index * 0.05),
+        searchTerm,
+        timestamp: new Date()
+      }));
+
+      logger.debug('Text search completed', {
+        searchTerm,
+        resultsCount: results.length,
+        searchMethod: rows.length > 0 ? 'fulltext' : 'like'
+      });
+
+      return results;
+    } catch (error) {
+      logger.error('Text search failed', { searchTerm, error });
+      return [];
+    }
+  }
+
+  /**
+   * Apply inventory-specific filters to search results
+   */
+  private async applyInventoryFilters(
+    results: SemanticSearchResult[], 
+    filters?: ProductFilter
+  ): Promise<SemanticSearchResult[]> {
+    let filteredResults = results;
+
+    // Apply sellable filter (default to true)
+    if (filters?.sellableOnly !== false) {
+      filteredResults = filteredResults.filter(result => result.product.sellable);
+    }
+
+    // Apply stock filter (default to in-stock only)
+    if (filters?.inStock !== false) {
+      filteredResults = filteredResults.filter(result => result.product.stockQuantity > 0);
+    }
+
+    // Apply category filter
+    if (filters?.category) {
+      filteredResults = filteredResults.filter(result => 
+        result.product.category.toLowerCase() === filters.category!.toLowerCase()
+      );
+    }
+
+    // Apply price range filter
+    if (filters?.priceRange) {
+      const [minPrice, maxPrice] = filters.priceRange;
+      filteredResults = filteredResults.filter(result => 
+        result.product.basePrice >= minPrice && result.product.basePrice <= maxPrice
+      );
+    }
+
+    // Filter out expired products
+    filteredResults = filteredResults.filter(result => {
+      if (!result.product.expiryDate) return true;
+      return result.product.expiryDate > new Date();
+    });
+
+    logger.debug('Applied inventory filters', {
+      originalCount: results.length,
+      filteredCount: filteredResults.length,
+      filters
+    });
+
+    return filteredResults;
   }
 
   /**
@@ -451,14 +682,14 @@ export class InventoryService implements IInventoryService {
   async searchProducts(query: string, sellableOnly: boolean = false): Promise<Product[]> {
     try {
       let sql = `
-        SELECT * FROM products 
+        SELECT * FROM parts 
         WHERE (name LIKE ? OR description LIKE ? OR tags LIKE ?)
       `;
       const searchTerm = `%${query}%`;
       const params = [searchTerm, searchTerm, searchTerm];
 
       if (sellableOnly) {
-        sql += ' AND sellable = true AND stock_quantity > 0';
+        sql += ' AND sellable = true AND current_quantity > 0';
       }
 
       sql += ' ORDER BY name ASC LIMIT 50';
@@ -495,7 +726,9 @@ export class InventoryService implements IInventoryService {
       expiryDate: row.expiry_date ? new Date(row.expiry_date) : undefined,
       nutritionalInfo: row.nutritional_info ? JSON.parse(row.nutritional_info) : undefined,
       tags: row.tags ? JSON.parse(row.tags) : [],
-      sellable: Boolean(row.sellable)
+      sellable: Boolean(row.sellable),
+      embeddingText: row.embedding_text || undefined,
+      embeddingVector: row.embedding_vector ? JSON.parse(row.embedding_vector) : undefined
     };
   }
 

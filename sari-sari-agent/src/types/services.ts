@@ -18,7 +18,10 @@ import {
   BusinessContext,
   Message,
   Promotion,
-  Transaction
+  Transaction,
+  ProductSearchTerm,
+  SemanticSearchResult,
+  NegationFilter
 } from './core';
 
 // Agent Core Service
@@ -32,6 +35,7 @@ export interface AgentCore {
 export interface InventoryService {
   getAvailableProducts(filters?: ProductFilter): Promise<Product[]>;
   getSellableProducts(filters?: ProductFilter): Promise<Product[]>; // Only items marked for sale
+  searchProductsSemantically(searchTerm: string, filters?: ProductFilter): Promise<SemanticSearchResult[]>;
   getProductDetails(productId: string): Promise<ProductDetails>;
   checkAvailability(productId: string, quantity: number): Promise<AvailabilityInfo>;
   reserveItems(items: CartItem[]): Promise<ReservationResult>;
@@ -58,7 +62,19 @@ export interface StockTransaction {
 export interface NLPService {
   analyzeIntent(message: string, context: ConversationContext): Promise<Intent>;
   extractEntities(message: string): Promise<Entity[]>;
+  extractProductDescription(message: string): Promise<ProductSearchTerm>;
+  extractNegations(message: string): Promise<NegationFilter[]>;
   generateResponse(intent: Intent, context: BusinessContext): Promise<string>;
+  formatSearchResults(searchResults: Product[], originalQuery: string, negations?: NegationFilter[]): Promise<string>;
+}
+
+// Semantic Search Service
+export interface SemanticSearchService {
+  searchProducts(searchTerm: string, limit?: number): Promise<SemanticSearchResult[]>;
+  generateEmbedding(text: string): Promise<number[]>;
+  updateProductEmbeddings(products: Product[]): Promise<void>;
+  logSearch(searchTerm: string, results: SemanticSearchResult[], sessionId: string): Promise<void>;
+  getSimilarProducts(productId: string, limit?: number): Promise<Product[]>;
 }
 
 // Price Calculator

@@ -17,6 +17,9 @@ export interface Product {
   tags: string[];
   // New field for MVP store functionality
   sellable: boolean; // Toggle for customer-facing availability
+  // Semantic search fields
+  embeddingText?: string; // Enhanced product description for embeddings
+  embeddingVector?: number[]; // Vector embeddings for semantic search
 }
 
 export interface NutritionalData {
@@ -34,6 +37,37 @@ export interface ProductFilter {
   priceRange?: [number, number];
   inStock?: boolean;
   sellableOnly?: boolean; // New filter for customer-facing products
+}
+
+// Semantic Search Types
+export interface ProductSearchTerm {
+  extractedTerm: string;
+  confidence: number;
+  originalQuery: string;
+  searchType: 'characteristic' | 'name' | 'category' | 'description';
+  negations?: NegationFilter[];
+}
+
+export interface NegationFilter {
+  negatedTerm: string;
+  negationType: 'characteristic' | 'ingredient' | 'category' | 'attribute';
+  confidence: number;
+  originalPhrase: string;
+}
+
+export interface SemanticSearchResult {
+  product: Product;
+  similarity: number;
+  searchTerm: string;
+  timestamp: Date;
+}
+
+export interface SearchAttempt {
+  originalQuery: string;
+  extractedSearchTerm: string;
+  searchResults: SemanticSearchResult[];
+  selectedProducts: string[];
+  timestamp: Date;
 }
 
 export interface ProductDetails extends Product {
@@ -70,6 +104,7 @@ export interface ConversationContext {
   // Simplified for MVP
   negotiationHistory: NegotiationAttempt[];
   upsellAttempts: UpsellAttempt[];
+  searchHistory: SearchAttempt[];
 }
 
 export interface Message {

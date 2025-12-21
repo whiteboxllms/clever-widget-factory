@@ -199,6 +199,11 @@ app.get('/api/parts/sellable', async (req, res) => {
   }
 });
 
+// Semantic search endpoint removed - use production API endpoint instead
+// The production semantic search is available at:
+// https://0720au267k.execute-api.us-west-2.amazonaws.com/prod/api/semantic-search
+// Use apiService.post('/semantic-search', { query, table, limit }) in frontend code
+
 app.listen(port, () => {
   console.log(`API server running on port ${port}`);
 });

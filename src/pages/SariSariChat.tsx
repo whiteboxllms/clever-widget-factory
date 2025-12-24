@@ -140,7 +140,7 @@ export default function SariSariChat() {
         timestamp: new Date(),
         suggestions: [
           "Show me available products",
-          "Roots & Remedies"
+          "Roots & Remedies" // Traditional medicine and herbal products
         ]
       };
       
@@ -323,7 +323,7 @@ export default function SariSariChat() {
                 Stargazer Farm Assistant
               </h1>
               <p className="text-sm text-muted-foreground">
-                Chat with our farm assistant to explore organic produce, wines, U-Pick options, and plan meals with what's in season.
+                Chat with our farm assistant to explore organic produce and wines.
               </p>
             </div>
           </div>

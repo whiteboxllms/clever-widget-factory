@@ -139,8 +139,7 @@ export default function SariSariChat() {
         content: "Welcome to Stargazer Farm 🌱\nWhat would you like to explore today?",
         timestamp: new Date(),
         suggestions: [
-          "Show me available products",
-          "Roots & Remedies" // Traditional medicine and herbal products
+          "Show me available products"
         ]
       };
       
@@ -280,7 +279,7 @@ export default function SariSariChat() {
   const handleSuggestionClick = (suggestion: string) => {
     setInputMessage(suggestion);
     // Auto-send if it's a common query
-    if (suggestion === "Show me available products" || suggestion === "Roots & Remedies") {
+    if (suggestion === "Show me available products") {
       setTimeout(() => {
         sendMessageWithText(suggestion);
       }, 100);

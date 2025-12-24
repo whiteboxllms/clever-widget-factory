@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Bot, User, ShoppingCart, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send, Bot, User, ShoppingCart, Loader2, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { apiService } from '@/lib/apiService';
+import { apiService, getApiData } from '@/lib/apiService';
 
 interface Message {
   id: string;
@@ -26,6 +27,7 @@ interface ProductInfo {
   description?: string;
   unit?: string;
   current_quantity?: number;
+  image_url?: string;
 }
 
 interface Part {
@@ -43,13 +45,78 @@ interface Part {
 export default function SariSariChat() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [availableProducts, setAvailableProducts] = useState<Part[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [conversationHistory, setConversationHistory] = useState<any[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Use TanStack Query for sellable products with caching and refresh
+  const {
+    data: availableProducts = [],
+    isLoading: loadingProducts,
+    error: productsError,
+    refetch: refetchProducts
+  } = useQuery({
+    queryKey: ['parts', 'sellable'],
+    queryFn: async (): Promise<Part[]> => {
+      console.log('🔄 Fetching sellable products...');
+      const response = await apiService.get<{ data: Part[] }>('/parts/sellable');
+      const sellableProducts = getApiData(response) || [];
+      
+      console.log('✅ Loaded sellable products:', sellableProducts);
+      console.log(`📋 Found ${sellableProducts.length} sellable items`);
+      
+      // Log specific products for debugging
+      sellableProducts.forEach((product, index) => {
+        console.log(`   ${index + 1}. ${product.name} - ₱${product.cost_per_unit || 0}${product.unit ? `/${product.unit}` : ''} (qty: ${product.current_quantity})`);
+      });
+      
+      return sellableProducts;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes (formerly cacheTime)
+    retry: 2,
+    refetchOnWindowFocus: true, // Refresh when user comes back to the tab
+    refetchOnMount: true, // Always fetch fresh data when component mounts
+  });
+
+  // Handle products error
+  useEffect(() => {
+    if (productsError) {
+      console.error('❌ Error fetching products:', productsError);
+      toast({
+        title: "Error",
+        description: "Failed to load available products. Click refresh to try again.",
+        variant: "destructive",
+      });
+    }
+  }, [productsError, toast]);
+
+  // Manual refresh function
+  const handleRefreshProducts = async () => {
+    console.log('🔄 Manual refresh triggered');
+    toast({
+      title: "Refreshing Products",
+      description: "Loading latest inventory...",
+    });
+    
+    try {
+      await refetchProducts();
+      toast({
+        title: "Products Refreshed",
+        description: `Found ${availableProducts.length} available items`,
+      });
+    } catch (error) {
+      toast({
+        title: "Refresh Failed",
+        description: "Could not refresh products. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -62,44 +129,18 @@ export default function SariSariChat() {
   useEffect(() => {
     // Initialize session and get welcome message
     initializeChat();
-    // Fetch available products
-    fetchAvailableProducts();
   }, []);
-
-  const fetchAvailableProducts = async () => {
-    try {
-      setLoadingProducts(true);
-      const { apiService, getApiData } = await import('@/lib/apiService');
-      const response = await apiService.get<{ data: Part[] }>('/parts/sellable');
-      const sellableProducts = getApiData(response) || [];
-      
-      setAvailableProducts(sellableProducts);
-      
-      console.log('Loaded sellable products:', sellableProducts);
-      console.log(`Found ${sellableProducts.length} sellable items`);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load available products",
-        variant: "destructive",
-      });
-    } finally {
-      setLoadingProducts(false);
-    }
-  };
 
   const initializeChat = async () => {
     try {
       const welcomeMessage: Message = {
         id: 'welcome-1',
         role: 'agent',
-        content: "Hello! Welcome to our farm store! I can help you browse our available products, check prices, and add items to your cart. What would you like to see today?",
+        content: "Welcome to Stargazer Farm 🌱\nWhat would you like to explore today?",
         timestamp: new Date(),
         suggestions: [
           "Show me available products",
-          "What's fresh today?",
-          "Check prices"
+          "Roots & Remedies"
         ]
       };
       
@@ -121,11 +162,16 @@ export default function SariSariChat() {
 
   const sendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return;
+    await sendMessageWithText(inputMessage);
+  };
+
+  const sendMessageWithText = async (text: string) => {
+    if (!text.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: 'user-' + Date.now(),
       role: 'user',
-      content: inputMessage,
+      content: text,
       timestamp: new Date()
     };
 
@@ -134,8 +180,7 @@ export default function SariSariChat() {
     setIsLoading(true);
 
     try {
-      // Simulate agent response (in real implementation, this would call the AgentCore)
-      const agentResponse = await simulateAgentResponse(inputMessage);
+      const agentResponse = await simulateAgentResponse(text);
       
       const agentMessage: Message = {
         id: 'agent-' + Date.now(),
@@ -156,62 +201,6 @@ export default function SariSariChat() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  /**
-   * Extract product search term from user query
-   * Extracts the key product characteristics/names for semantic search
-   */
-  const extractProductSearchTerm = (userQuery: string): string => {
-    const query = userQuery.toLowerCase();
-    
-    // Product keywords that should be preserved
-    const productKeywords = [
-      // Characteristics
-      'spicy', 'hot', 'sweet', 'sour', 'salty', 'bitter', 'fresh', 'organic', 'pure', 'natural',
-      'mild', 'strong', 'light', 'heavy', 'thick', 'thin', 'smooth', 'rough', 'soft', 'hard',
-      'long', 'short', 'big', 'small', 'large', 'tiny', 'cold', 'warm', 'cool',
-      // Product names
-      'vinegar', 'sauce', 'pepper', 'salt', 'sugar', 'oil', 'water', 'juice', 'milk',
-      'rice', 'bread', 'meat', 'fish', 'chicken', 'pork', 'beef', 'vegetables', 'fruits',
-      'tomato', 'onion', 'garlic', 'ginger', 'chili', 'lemon', 'lime', 'coconut',
-      // Categories
-      'food', 'drink', 'beverage', 'snack', 'candy', 'chocolate', 'cookie', 'cake',
-      'spices', 'condiments', 'seasoning', 'herbs', 'grains', 'cereals', 'pasta',
-      'dairy', 'cheese', 'butter', 'yogurt', 'cream'
-    ];
-    
-    // Remove common question words and phrases
-    let cleanedQuery = query
-      .replace(/^(what|show me|find me|get me|i want|i need|do you have|can you show|looking for)\s*/i, '')
-      .replace(/\b(products?|items?|things?|stuff|food|foods)\s*/gi, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    // Extract product keywords from the cleaned query
-    const words = cleanedQuery.split(/\s+/);
-    const extractedKeywords = words.filter(word => 
-      productKeywords.includes(word) || 
-      word.length > 3 // Include longer words that might be product names
-    );
-
-    // If we found specific keywords, use them; otherwise use the cleaned query
-    let extractedTerm;
-    if (extractedKeywords.length > 0) {
-      extractedTerm = extractedKeywords.join(' ');
-    } else {
-      // Fallback to cleaned query if no specific keywords found
-      extractedTerm = cleanedQuery.length > 2 ? cleanedQuery : userQuery;
-    }
-
-    console.log('🔍 Product search term extraction:', {
-      originalQuery: userQuery,
-      cleanedQuery,
-      extractedKeywords,
-      extractedTerm
-    });
-
-    return extractedTerm;
   };
 
   const convertPartToProductInfo = (part: Part): ProductInfo => {
@@ -237,220 +226,65 @@ export default function SariSariChat() {
     suggestions?: string[];
     products?: ProductInfo[];
   }> => {
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
-
-    const lowerMessage = message.toLowerCase();
-
-    if (lowerMessage.includes('hello') || lowerMessage.includes('hi')) {
-      return {
-        text: "Hello there! Great to see you! Let me know what you need and I'll find the perfect produce for you.",
-        suggestions: ["Show me products", "What's available today?", "Check prices"]
-      };
-    }
-
-    if (lowerMessage.includes('product') || lowerMessage.includes('available') || lowerMessage.includes('show')) {
-      if (availableProducts.length === 0) {
-        return {
-          text: "I'm sorry, we don't have any products available for sale right now. Please check back later!",
-          suggestions: ["Check back later", "Contact us"]
-        };
-      }
-
-      const products = availableProducts.slice(0, 6).map(convertPartToProductInfo);
-      return {
-        text: `Here are our available products today (${availableProducts.length} items total):`,
-        suggestions: ["Tell me more about an item", "Add to cart", "Check prices"],
-        products
-      };
-    }
-
-    // Use semantic search for product queries
     console.log('🔍 User query:', message);
-    console.log('🔍 Checking if query needs semantic search...');
+    console.log('🤖 Calling sari-sari chat Lambda with SearchPipeline...');
     
-    // Check if this looks like a product search query
-    const productSearchKeywords = ['spicy', 'hot', 'sweet', 'sour', 'fresh', 'vinegar', 'sauce', 'pepper', 'what', 'find', 'have', 'get'];
-    const isProductQuery = productSearchKeywords.some(keyword => lowerMessage.includes(keyword));
-    
-    if (isProductQuery) {
-      console.log('🎯 Detected product search query, using semantic search...');
-      
-      // Extract the search term but preserve natural language for semantic search
-      const extractedSearchTerm = extractProductSearchTerm(message);
-      console.log('🔍 Search term being sent to semantic search:', extractedSearchTerm);
-      
-      try {
-        // Use the same semantic search approach as CombinedAssetsContainer
-        console.log('🔍 Calling semantic search via apiService...');
-        
-        const response = await apiService.post('/semantic-search', {
-          query: extractedSearchTerm,
-          table: 'parts',
-          limit: 6
-        });
-
-        console.log('✅ Semantic search API response:', response);
-        
-        // Extract results using the same pattern as CombinedAssetsContainer
-        const semanticResults = response?.results || response?.data?.results || [];
-        console.log(`🔍 Found ${semanticResults.length} semantic search results`);
-        
-        if (semanticResults.length > 0) {
-          console.log('🎯 Raw semantic search results:');
-          semanticResults.forEach((item: any, index: number) => {
-            console.log(`   ${index + 1}. ${item.name} (similarity: ${item.similarity || item.distance || 'N/A'})`);
-            if (item.description) {
-              console.log(`      Description: ${item.description.substring(0, 100)}...`);
-            }
-          });
-          
-          // Convert semantic search results to ProductInfo format
-          const products: ProductInfo[] = semanticResults.map((item: any) => ({
-            id: item.id,
-            name: item.name,
-            price: parseFloat(item.cost_per_unit || '0'),
-            availability: item.current_quantity > 0 ? 'in-stock' : 'out-of-stock',
-            description: item.description,
-            unit: item.unit,
-            current_quantity: item.current_quantity
-          }));
-
-          console.log('🎯 Converted semantic search results:', products.map(p => p.name));
-          
-          return {
-            text: `Found ${semanticResults.length} products using AI semantic search! Here's what matches your request:`,
-            suggestions: ["Add to cart", "Tell me more", "Show me similar products"],
-            products
-          };
-        } else {
-          console.log('🔍 No semantic search results found');
-        }
-      } catch (error) {
-        console.error('❌ Semantic search error:', error);
-        console.log('🔄 Falling back to simple text search...');
-      }
-    }
-
-    // Fallback to simple text search
-    console.log('🔄 Using fallback text search...');
-    console.log('🔍 Available products for text search:', availableProducts.length);
-    console.log('🔍 Search terms in message:', lowerMessage);
-    
-    const matchingProducts = availableProducts.filter(part => {
-      const nameMatch = part.name.toLowerCase().includes(lowerMessage);
-      const descMatch = part.description && part.description.toLowerCase().includes(lowerMessage);
-      const matches = nameMatch || descMatch;
-      
-      if (matches) {
-        console.log(`✅ Text search match: ${part.name} (name: ${nameMatch}, desc: ${descMatch})`);
-      }
-      
-      return matches;
-    });
-
-    console.log(`📋 Text search found ${matchingProducts.length} products:`, matchingProducts.map(p => p.name));
-    
-    // Special debug for spicy queries
-    if (lowerMessage.includes('spic')) {
-      console.log('🌶️  SPICY QUERY DEBUG:');
-      console.log('   All available products:');
-      availableProducts.forEach(p => {
-        console.log(`     - ${p.name} (sellable: ${p.sellable}, qty: ${p.current_quantity})`);
-        if (p.description) {
-          console.log(`       Description: ${p.description.substring(0, 100)}...`);
-        }
+    try {
+      // Call Lambda - it now uses SearchPipeline for all queries
+      const response = await apiService.post('/sari-sari/chat', {
+        message,
+        sessionId,
+        conversationHistory
       });
       
-      console.log('   Products with "spice" in name:');
-      availableProducts.forEach(p => {
-        if (p.name.toLowerCase().includes('spice')) {
-          console.log(`     ✅ ${p.name}`);
-        }
-      });
+      console.log('✅ Lambda response:', response);
       
-      console.log('   Products with "spice" in description:');
-      availableProducts.forEach(p => {
-        if (p.description && p.description.toLowerCase().includes('spice')) {
-          console.log(`     ✅ ${p.name}: ${p.description.substring(0, 100)}...`);
-        }
-      });
+      // Extract data from response
+      const data = response.data || response;
       
-      console.log('   Text search matches for spicy query:');
-      matchingProducts.forEach(p => {
-        console.log(`     - ${p.name} (matched because: ${p.name.toLowerCase().includes(lowerMessage) ? 'name' : 'description'})`);
-      });
-      
-      if (matchingProducts.some(p => p.name.toLowerCase().includes('pure vinegar'))) {
-        console.log('❌ FOUND PURE VINEGAR - This is the problem!');
-        const pureVinegar = matchingProducts.find(p => p.name.toLowerCase().includes('pure vinegar'));
-        if (pureVinegar) {
-          console.log(`   Pure vinegar details: ${pureVinegar.name}`);
-          console.log(`   Description: ${pureVinegar.description}`);
-          console.log(`   Why it matched: name includes "${lowerMessage}"? ${pureVinegar.name.toLowerCase().includes(lowerMessage)}`);
-          console.log(`   Why it matched: description includes "${lowerMessage}"? ${pureVinegar.description && pureVinegar.description.toLowerCase().includes(lowerMessage)}`);
-        }
+      // Update conversation history
+      if (data.conversationHistory) {
+        setConversationHistory(data.conversationHistory);
       }
-    }
-
-    if (matchingProducts.length > 0) {
-      const products = matchingProducts.slice(0, 3).map(convertPartToProductInfo);
       
-      return {
-        text: `Found ${matchingProducts.length} matching product${matchingProducts.length > 1 ? 's' : ''} using text search:`,
-        suggestions: ["Add to cart", "Tell me more", "Show me similar products"],
-        products
-      };
-    }
-
-    if (lowerMessage.includes('price') || lowerMessage.includes('cost')) {
-      if (availableProducts.length === 0) {
-        return {
-          text: "We don't have any products available for pricing right now.",
-          suggestions: ["Check back later"]
-        };
+      if (data.debug) {
+        console.log('🔍 Pipeline debug info:', data.debug);
       }
 
-      const priceInfo = availableProducts.slice(0, 3).map(part => 
-        `${part.name}: ₱${(part.cost_per_unit || 0).toFixed(2)}${part.unit ? `/${part.unit}` : ''}`
-      ).join(', ');
-
+      // Convert products to ProductInfo format
+      const products: ProductInfo[] = (data.products || []).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        availability: p.in_stock ? 'in-stock' : 'out-of-stock',
+        description: p.description,
+        unit: p.unit,
+        current_quantity: p.stock_level,
+        image_url: p.image_url
+      }));
+      
       return {
-        text: `Here are some of our current prices: ${priceInfo}. All fresh from the farm!`,
-        suggestions: ["Show me all products", "Add to cart", "Negotiate price"]
+        text: data.response,
+        products,
+        suggestions: ["Tell me more", "Show similar items", "Add to cart"]
+      };
+    } catch (error) {
+      console.error('❌ Chat service error:', error);
+      return {
+        text: "I'm having trouble right now. Could you try rephrasing or browse our available products?",
+        suggestions: ["Show me products", "What's available today?", "Try again"]
       };
     }
-
-    if (lowerMessage.includes('cart') || lowerMessage.includes('buy')) {
-      return {
-        text: "I'd be happy to help you add items to your cart! Which product would you like and how much?",
-        suggestions: ["Show me products", "Check availability"]
-      };
-    }
-
-    if (lowerMessage.includes('negotiate') || lowerMessage.includes('deal')) {
-      return {
-        text: "I can work with you on pricing! What did you have in mind? I'm always willing to make a fair deal for good customers.",
-        suggestions: ["Show me products", "Make an offer"]
-      };
-    }
-
-    if (lowerMessage.includes('thank') || lowerMessage.includes('bye')) {
-      return {
-        text: "Thank you for visiting our farm store! Enjoy your fresh produce and come back soon!",
-        suggestions: []
-      };
-    }
-
-    // Default response
-    return {
-      text: "I can help you find fresh produce, check prices, or add items to your cart. What would you like to know about our farm products?",
-      suggestions: ["Show me products", "Check prices", "What's available today?"]
-    };
   };
 
   const handleSuggestionClick = (suggestion: string) => {
     setInputMessage(suggestion);
+    // Auto-send if it's a common query
+    if (suggestion === "Show me available products" || suggestion === "Roots & Remedies") {
+      setTimeout(() => {
+        sendMessageWithText(suggestion);
+      }, 100);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -486,16 +320,13 @@ export default function SariSariChat() {
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
                 <Bot className="h-6 w-6 text-green-600" />
-                Sari Sari Store Assistant
+                Stargazer Farm Assistant
               </h1>
               <p className="text-sm text-muted-foreground">
-                Chat with our AI assistant to browse and purchase fresh farm produce
+                Chat with our farm assistant to explore organic produce, wines, U-Pick options, and plan meals with what's in season.
               </p>
             </div>
           </div>
-          <Badge variant="outline" className="bg-green-50 text-green-700">
-            {sessionId ? 'Connected' : 'Connecting...'}
-          </Badge>
         </div>
       </header>
 
@@ -549,33 +380,37 @@ export default function SariSariChat() {
                     {message.products && message.products.length > 0 && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         {message.products.map((product) => (
-                          <Card key={product.id} className="border">
-                            <CardContent className="p-3">
-                              <div className="flex justify-between items-start mb-2">
-                                <h4 className="font-medium text-sm">{product.name}</h4>
-                                <Badge
-                                  className={`text-xs ${getAvailabilityColor(product.availability)} text-white`}
-                                >
-                                  {product.availability}
-                                </Badge>
+                          <Card key={product.id} className="border overflow-hidden">
+                            <CardContent className="p-0">
+                              {/* Product Image */}
+                              <div className="w-full h-32 bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center overflow-hidden">
+                                {product.image_url ? (
+                                  <img 
+                                    src={product.image_url} 
+                                    alt={product.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="text-4xl">🌿</div>
+                                )}
                               </div>
-                              <p className="text-xs text-muted-foreground mb-2">
-                                {product.description}
-                              </p>
-                              <div className="flex justify-between items-center mb-1">
-                                <span className="font-bold text-green-600">
-                                  ₱{product.price.toFixed(2)}{product.unit ? `/${product.unit}` : ''}
-                                </span>
-                                <Button size="sm" variant="outline">
-                                  <ShoppingCart className="h-3 w-3 mr-1" />
-                                  Add
-                                </Button>
-                              </div>
-                              {product.current_quantity !== undefined && (
-                                <p className="text-xs text-muted-foreground">
-                                  Available: {product.current_quantity} {product.unit || 'units'}
+                              
+                              {/* Product Info */}
+                              <div className="p-3">
+                                <h4 className="font-medium text-sm mb-1">{product.name}</h4>
+                                <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
+                                  {product.description}
                                 </p>
-                              )}
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs text-muted-foreground">
+                                    ₱{product.price.toFixed(2)}{product.unit ? `/${product.unit}` : ''}
+                                  </span>
+                                  <Button size="sm" variant="default" className="h-7">
+                                    <ShoppingCart className="h-3 w-3 mr-1" />
+                                    Add
+                                  </Button>
+                                </div>
+                              </div>
                             </CardContent>
                           </Card>
                         ))}
@@ -648,7 +483,10 @@ export default function SariSariChat() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground mt-2 text-center">
-              {loadingProducts ? 'Loading products...' : `Showing ${availableProducts.length} available products from your inventory`}
+              {loadingProducts 
+                ? 'Loading products...' 
+                : `Showing ${availableProducts.length} available products from your inventory${productsError ? ' (Error - click refresh)' : ''}`
+              }
             </p>
           </div>
         </div>

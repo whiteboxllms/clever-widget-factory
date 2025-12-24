@@ -8,12 +8,16 @@ A self-serve sari sari store interface that enables customers to interact with a
 
 - **Sari_Sari_System**: The complete self-serve store interface including agent, sensors, and payment processing
 - **Agent_Core**: The AI conversational component that handles customer interactions and product queries
+- **Bedrock_Agent**: AWS managed AI agent service that orchestrates conversations and tool usage using Claude models
+- **pgvector_Search_Tool**: Lambda-based tool that performs semantic search using PostgreSQL with pgvector extension
 - **Inventory_Service**: The existing farm produce tracking system that manages stock and product information
 - **Sensor_Module**: Future hardware component for detecting customer presence (not implemented in initial version)
 - **Price_Calculator**: Component that computes product pricing based on quantity, promotions, and inventory data
 - **Voice_Interface**: Speech-to-text and text-to-speech capabilities for verbal customer interactions
 - **Language_Service**: Multilingual translation and localization component
 - **Semantic_Search_Service**: Vector-based search system that understands product descriptions and customer queries semantically rather than through exact text matching
+- **BedrockExecutionRole**: IAM role that allows Bedrock Agent to invoke Lambda functions and access required AWS services
+- **CDK_Infrastructure**: AWS Cloud Development Kit templates for deploying Lambda functions, IAM roles, and database resources
 
 ## Requirements
 
@@ -150,3 +154,43 @@ A self-serve sari sari store interface that enables customers to interact with a
 3. WHEN adding payment methods THEN the system SHALL support multiple payment processors through modular integration
 4. WHEN expanding to multiple locations THEN the architecture SHALL support distributed deployment with centralized management
 5. WHEN third-party services are integrated THEN the system SHALL maintain loose coupling through well-defined APIs
+
+### Requirement 12
+
+**User Story:** As a farm owner, I want to deploy the system using AWS Bedrock Agent service with a conversational personality, so that customers have engaging dialogs with product suggestions rather than just filtered search results.
+
+#### Acceptance Criteria
+
+1. WHEN the system is deployed THEN the Bedrock_Agent SHALL be configured with Claude 3 Haiku model and a friendly sari-sari store personality
+2. WHEN customers interact with the system THEN the Bedrock_Agent SHALL engage in natural dialog and provide 2-3 personalized product suggestions based on customer queries
+3. WHEN the agent needs to search products THEN the pgvector_Search_Tool SHALL execute semantic searches and the agent SHALL format results as conversational recommendations with reasons
+4. WHEN customers ask vague questions like "something hot" THEN the agent SHALL ask clarifying questions and suggest specific products with descriptions and benefits
+5. WHEN Lambda functions are deployed THEN they SHALL have appropriate IAM roles including BedrockExecutionRole and LambdaBasicExecution permissions
+6. WHEN the agent is configured THEN it SHALL include detailed personality instructions for engaging conversations, product storytelling, and cultural context
+7. WHEN testing the deployment THEN queries like "Noodles under 30 pesos" SHALL return conversational responses with 2-3 specific product suggestions and reasons for each recommendation
+
+### Requirement 13
+
+**User Story:** As a developer, I want to deploy the Bedrock Agent system quickly and reliably, so that I can get the sari-sari store operational within 15 minutes.
+
+#### Acceptance Criteria
+
+1. WHEN deploying infrastructure THEN CDK SHALL deploy Lambda functions and IAM roles in under 5 minutes
+2. WHEN creating the agent THEN the AWS Console SHALL allow agent creation, Lambda tool attachment, and personality configuration in under 5 minutes
+3. WHEN testing functionality THEN queries like "Noodles under 30 pesos" SHALL return conversational responses with 2-3 specific product suggestions in under 2 minutes
+4. WHEN integrating with frontend THEN Amplify SHALL successfully call the Bedrock API and display agent responses in under 3 minutes
+5. WHEN the deployment is complete THEN the entire system SHALL be functional and ready for customer interactions within 15 minutes total
+
+### Requirement 14
+
+**User Story:** As a customer, I want to have engaging conversations with the sari-sari agent that feels personal and helpful, so that I enjoy the shopping experience and discover products I might not have found otherwise.
+
+#### Acceptance Criteria
+
+1. WHEN I ask about products THEN the agent SHALL respond conversationally with personality, not just list search results
+2. WHEN I make vague requests like "something for cooking" THEN the agent SHALL ask follow-up questions to understand my needs better
+3. WHEN the agent suggests products THEN it SHALL provide 2-3 specific recommendations with reasons why each product suits my request
+4. WHEN I ask about price ranges THEN the agent SHALL suggest products within my budget and explain the value proposition of each
+5. WHEN products are unavailable THEN the agent SHALL conversationally suggest alternatives and explain why they're good substitutes
+6. WHEN I negotiate prices THEN the agent SHALL engage in friendly bargaining with personality while respecting business rules
+7. WHEN I seem unsure THEN the agent SHALL offer to tell me more about products, their uses, or suggest complementary items

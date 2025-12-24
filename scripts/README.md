@@ -1,4 +1,41 @@
-# API Gateway Scripts
+# Scripts
+
+## Lambda Deployment
+
+### `deploy-lambda-generic.sh`
+
+Generic Lambda deployment script that automatically includes the `shared/` directory.
+
+**Usage:**
+```bash
+./scripts/deploy-lambda-generic.sh <lambda-dir> <function-name>
+```
+
+**Examples:**
+```bash
+# Deploy core Lambda
+./scripts/deploy-lambda-generic.sh core cwf-core-lambda
+
+# Deploy sari-sari chat Lambda
+./scripts/deploy-lambda-generic.sh sari-sari-chat cwf-sari-sari-chat
+```
+
+**What it does:**
+1. Copies `lambda/shared/` into the Lambda directory
+2. Packages `index.js`, `shared/`, and `node_modules/`
+3. Deploys to AWS Lambda
+4. Cleans up temporary files
+
+### `deploy-lambda.sh`
+
+Shortcut for deploying the core Lambda:
+```bash
+./scripts/deploy-lambda.sh
+```
+
+Equivalent to: `./scripts/deploy-lambda-generic.sh core cwf-core-lambda`
+
+## API Gateway Scripts
 
 ## Automatic CORS Setup
 

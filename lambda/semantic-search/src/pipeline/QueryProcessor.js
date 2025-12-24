@@ -169,7 +169,6 @@ class QueryProcessor {
         minimum_quantity,
         unit,
         cost_per_unit,
-        price,
         search_text,
         (search_embedding <=> $1::vector) as distance,
         (1 - (search_embedding <=> $1::vector)) as similarity
@@ -182,13 +181,20 @@ class QueryProcessor {
       `organization_id = '${organizationId.replace(/'/g, "''")}'`
     ];
 
-    // Add price filtering for parts table (assuming it has price column)
+    // Add price filtering for parts table (using cost_per_unit column)
     if (table === 'parts') {
+      // Always filter by sellable = true for parts
+      whereConditions.push('sellable = true');
+      
+      // Exclude items with NULL or zero cost_per_unit
+      whereConditions.push('cost_per_unit IS NOT NULL');
+      whereConditions.push('cost_per_unit > 0');
+      
       if (price_min !== null) {
-        whereConditions.push(`price >= ${price_min}`);
+        whereConditions.push(`cost_per_unit >= ${price_min}`);
       }
       if (price_max !== null) {
-        whereConditions.push(`price <= ${price_max}`);
+        whereConditions.push(`cost_per_unit <= ${price_max}`);
       }
     }
 

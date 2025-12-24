@@ -391,3 +391,226 @@
   - **DOCUMENT**: Log analysis procedures and troubleshooting workflows
   - Ensure all tests pass, ask the user if questions arise.
   - **HUMAN APPROVAL REQUIRED** for production deployment
+
+- [ ] 16. Implement AWS Bedrock Agent infrastructure
+  - [ ] 16.1 Create CDK templates for Bedrock Agent deployment
+    - Create CDK stack for Lambda functions with proper IAM roles
+    - Define BedrockExecutionRole with Lambda invoke permissions
+    - Set up LambdaBasicExecution roles for each tool function
+    - Configure RDS connection permissions for Lambda functions
+    - **ADD**: CloudWatch log groups and monitoring configuration
+    - _Requirements: 12.4, 13.1_
+
+  - [ ]* 16.2 Write property test for infrastructure deployment speed
+    - **Property 48: Infrastructure deployment speed**
+    - **Validates: Requirements 13.1**
+
+  - [x] 16.3 Implement conversational pgvector Search Tool Lambda function
+    - Create Lambda function that connects to RDS with pgvector
+    - Implement semantic search with conversational result formatting
+    - Add product context, selling points, and relevance reasons to results
+    - Include product stories, origins, and complementary item suggestions
+    - Add sellability filtering (sellable=true) to all customer queries
+    - Return ConversationalSearchResult format for agent storytelling
+    - **ADD**: Comprehensive logging for search queries, results, and conversation context
+    - _Requirements: 12.3, 14.3, 11.1, 11.3_
+
+  - [ ]* 16.4 Write property test for Bedrock Agent tool invocation
+    - **Property 41: Bedrock Agent tool invocation**
+    - **Validates: Requirements 12.3**
+
+  - [ ] 16.5 Implement conversational Inventory Tool Lambda function
+    - Create Lambda function for product availability with storytelling context
+    - Add detailed product information including freshness, origin, and tips
+    - Implement alternative product recommendations with similarity reasons
+    - Include stock descriptions ("plenty in stock", "only a few left")
+    - Add upsell opportunities and complementary product suggestions
+    - Integrate with existing RDS inventory tables
+    - **ADD**: Detailed logging for inventory operations and recommendation logic
+    - _Requirements: 12.2, 14.5, 14.7, 5.1, 5.2_
+
+  - [ ] 16.6 Implement conversational Pricing Tool Lambda function
+    - Create Lambda function for dynamic pricing with value explanations
+    - Add conversational negotiation responses and friendly bargaining
+    - Include value proposition explanations for each price point
+    - Implement budget-based product recommendations
+    - Add alternative offers and bundle suggestions for negotiations
+    - Integrate with existing pricing rules and promotions
+    - **ADD**: Logging for pricing calculations, negotiations, and conversation context
+    - _Requirements: 12.2, 14.4, 14.6, 6.1, 6.2_
+
+  - [ ]* 16.7 Write property test for Lambda tool execution
+    - **Property 43: Lambda tool execution**
+    - **Validates: Requirements 12.2**
+
+- [ ] 17. Configure AWS Bedrock Agent
+  - [ ] 17.1 Create Bedrock Agent with Claude 3 Haiku model
+    - Set up agent in AWS Console with anthropic.claude-3-haiku model
+    - Configure agent name, description, and basic settings
+    - Set up agent IAM role with proper permissions
+    - **ADD**: Agent configuration logging and validation
+    - _Requirements: 12.1, 12.4_
+
+  - [ ]* 17.2 Write property test for Claude model integration
+    - **Property 42: Claude model integration**
+    - **Validates: Requirements 12.1**
+
+  - [ ] 17.3 Configure agent personality and conversational instructions
+    - Add detailed "Aling Maria" personality instructions to agent
+    - Configure conversational dialog patterns and storytelling approach
+    - Set up product recommendation guidelines with reasoning explanations
+    - Add follow-up question templates for vague customer requests
+    - Configure friendly negotiation and alternative suggestion patterns
+    - **ADD**: Personality validation and conversation flow testing
+    - _Requirements: 12.6, 14.1, 14.2, 14.3_
+
+  - [ ] 17.4 Create and attach action groups
+    - Create ProductSearch action group linked to pgvector Search Tool
+    - Create InventoryManagement action group linked to Inventory Tool
+    - Create PricingCalculation action group linked to Pricing Tool
+    - Configure action group descriptions and parameters
+    - **ADD**: Action group validation and testing
+    - _Requirements: 12.5_
+
+  - [ ]* 17.5 Write property test for agent configuration completeness
+    - **Property 45: Agent configuration completeness**
+    - **Validates: Requirements 12.5**
+
+  - [ ]* 17.6 Write property test for IAM permission validation
+    - **Property 44: IAM permission validation**
+    - **Validates: Requirements 12.4**
+
+- [ ] 18. Test and validate Bedrock Agent functionality
+  - [ ] 18.1 Test basic agent responses and tool invocation
+    - Test simple queries like "What products do you have?"
+    - Verify agent can invoke search tools correctly
+    - Test inventory checking and pricing calculations
+    - **ADD**: Comprehensive test logging and result validation
+    - _Requirements: 12.2, 12.3_
+
+  - [ ] 18.2 Test semantic search with specific queries
+    - Test "Noodles under 30 pesos" query for price filtering
+    - Test "hot items" query for semantic search functionality
+    - Test negation queries like "no spicy items"
+    - Verify sellability filtering works correctly
+    - **ADD**: Query analysis logging and result verification
+    - _Requirements: 12.6, 8.3, 10.3, 11.1_
+
+  - [ ]* 18.3 Write property test for API functionality verification
+    - **Property 46: API functionality verification**
+    - **Validates: Requirements 12.6**
+
+  - [ ] 18.4 Test negotiation and pricing functionality
+    - Test price negotiation scenarios with different products
+    - Verify counter-offer logic and minimum price protection
+    - Test bulk pricing and promotional discounts
+    - **ADD**: Negotiation logging and decision tracking
+    - _Requirements: 6.1, 6.2, 6.3_
+
+  - [ ] 18.5 Validate monitoring and tracing
+    - Verify CloudWatch logs capture all agent interactions
+    - Test Bedrock traces for tool invocations and responses
+    - Set up alerts for errors and performance issues
+    - **ADD**: Monitoring dashboard and alert configuration
+    - _Requirements: 12.7_
+
+  - [ ]* 18.7 Write property test for conversational product suggestions
+    - **Property 53: Conversational product suggestions**
+    - **Validates: Requirements 12.2, 14.3**
+
+  - [ ]* 18.8 Write property test for follow-up question engagement
+    - **Property 54: Follow-up question engagement**
+    - **Validates: Requirements 14.2**
+
+  - [ ]* 18.9 Write property test for personality-driven responses
+    - **Property 55: Personality-driven responses**
+    - **Validates: Requirements 14.1**
+
+  - [ ]* 18.10 Write property test for conversational test responses
+    - **Property 60: Conversational test responses**
+    - **Validates: Requirements 13.3**
+
+- [ ] 19. Integrate Bedrock Agent with frontend
+  - [ ] 19.1 Update React chat interface for Bedrock API
+    - Modify chat component to use Bedrock retrieveAndGenerate API
+    - Add proper error handling for agent responses
+    - Implement session management for conversation continuity
+    - **ADD**: Frontend logging for API calls and responses
+    - _Requirements: 13.4, 1.1, 1.2_
+
+  - [ ] 19.2 Configure Amplify for Bedrock integration
+    - Set up AWS Amplify configuration for Bedrock access
+    - Configure authentication and authorization for agent access
+    - Add environment variables for agent ID and region
+    - **ADD**: Amplify deployment logging and validation
+    - _Requirements: 13.4_
+
+  - [ ]* 19.3 Write property test for frontend integration speed
+    - **Property 51: Frontend integration speed**
+    - **Validates: Requirements 13.4**
+
+  - [ ] 19.4 Test end-to-end customer journey
+    - Test complete customer interaction from greeting to purchase
+    - Verify product search, selection, and pricing flows
+    - Test negotiation and alternative product suggestions
+    - **ADD**: End-to-end journey logging and analytics
+    - _Requirements: 1.1, 2.1, 2.2, 2.3_
+
+- [ ] 20. Performance optimization and deployment validation
+  - [ ] 20.1 Optimize Lambda function performance
+    - Implement connection pooling for RDS connections
+    - Add response caching for frequently accessed data
+    - Optimize vector search queries for better performance
+    - **ADD**: Performance metrics logging and optimization tracking
+    - _Requirements: 7.1, 7.4_
+
+  - [ ] 20.2 Validate deployment timing requirements
+    - Measure and document actual deployment times for each phase
+    - Optimize CDK templates for faster deployment
+    - Create deployment automation scripts
+    - **ADD**: Deployment timing logs and optimization recommendations
+    - _Requirements: 13.1, 13.2, 13.3_
+
+  - [ ]* 20.3 Write property test for query response performance
+    - **Property 50: Query response performance**
+    - **Validates: Requirements 13.3**
+
+  - [ ]* 20.4 Write property test for agent creation efficiency
+    - **Property 49: Agent creation efficiency**
+    - **Validates: Requirements 13.2**
+
+  - [ ]* 20.5 Write property test for total deployment time
+    - **Property 52: Total deployment time**
+    - **Validates: Requirements 13.5**
+
+- [ ] 21. Final Bedrock Agent deployment and documentation
+  - [ ] 21.1 Create deployment automation and documentation
+    - Create step-by-step deployment guide for 15-minute setup
+    - Document CDK deployment commands and configuration
+    - Create troubleshooting guide for common issues
+    - **ADD**: Deployment checklist and validation procedures
+    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5_
+
+  - [ ] 21.2 Set up production monitoring and alerts
+    - Configure CloudWatch dashboards for agent performance
+    - Set up cost monitoring alerts for budget management
+    - Create operational runbooks for maintenance
+    - **ADD**: Monitoring configuration documentation
+    - _Requirements: 12.7, 7.4_
+
+  - [ ] 21.3 Validate complete system functionality
+    - Test all customer interaction scenarios end-to-end
+    - Verify integration with existing farm inventory systems
+    - Confirm cost optimization and budget compliance
+    - **ADD**: System validation checklist and test results
+    - _Requirements: 7.1, 5.1, 5.2_
+
+- [ ] 22. Final checkpoint - Bedrock Agent system complete
+  - **VERIFY**: Bedrock Agent fully functional with all Lambda tools
+  - **TEST**: 15-minute deployment process works reliably
+  - **VERIFY**: "Noodles under 30 pesos" query returns proper filtered results
+  - **VERIFY**: All monitoring and logging systems operational
+  - **DOCUMENT**: Complete deployment guide and troubleshooting procedures
+  - **DOCUMENT**: Cost optimization strategies and budget monitoring
+  - Ensure all tests pass, ask the user if questions arise.
+  - **HUMAN APPROVAL REQUIRED** for production deployment

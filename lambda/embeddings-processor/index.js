@@ -1,40 +1,7 @@
-const { BedrockRuntimeClient, InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime');
+const { generateEmbeddingV1, generateEmbeddingV2 } = require('../shared/embeddings');
 const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
 
-const bedrock = new BedrockRuntimeClient({ region: 'us-west-2' });
 const lambda = new LambdaClient({ region: 'us-west-2' });
-
-async function generateEmbeddingV1(text) {
-  const command = new InvokeModelCommand({
-    modelId: 'amazon.titan-embed-text-v1',
-    contentType: 'application/json',
-    accept: 'application/json',
-    body: JSON.stringify({ 
-      inputText: text
-    })
-  });
-  
-  const response = await bedrock.send(command);
-  const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-  return responseBody.embedding;
-}
-
-async function generateEmbeddingV2(text) {
-  const command = new InvokeModelCommand({
-    modelId: 'amazon.titan-embed-text-v2:0',
-    contentType: 'application/json',
-    accept: 'application/json',
-    body: JSON.stringify({ 
-      inputText: text,
-      dimensions: 1024,
-      normalize: true
-    })
-  });
-  
-  const response = await bedrock.send(command);
-  const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-  return responseBody.embedding;
-}
 
 async function updateAssetEmbedding(table, id, searchText, embeddingV1, embeddingV2) {
   const embeddingV1Array = `[${embeddingV1.join(',')}]`;

@@ -524,34 +524,6 @@ exports.handler = async (event) => {
     
     // GET /parts/sellable - List sellable parts only
     if (path.endsWith('/parts/sellable') && httpMethod === 'GET') {
-      const sql = `SELECT json_agg(row_to_json(t)) FROM (
-        SELECT 
-          parts.id, parts.name, parts.description, parts.category, 
-          parts.current_quantity, parts.minimum_quantity, parts.cost_per_unit,
-          parts.unit, parts.sellable,
-          CASE 
-            WHEN parts.image_url LIKE '%supabase.co%' THEN 
-              REPLACE(parts.image_url, 'https://oskwnlhuuxjfuwnjuavn.supabase.co/storage/v1/object/public/', 'https://cwf-dev-assets.s3.us-west-2.amazonaws.com/')
-            ELSE parts.image_url 
-          END as image_url,
-          parts.created_at, parts.updated_at 
-        FROM parts
-        WHERE parts.sellable = true 
-          AND parts.current_quantity > 0
-          AND (parts.cost_per_unit > 0 OR parts.description ILIKE '%free%' OR parts.description ILIKE '%customer%')
-        ORDER BY parts.name
-      ) t;`;
-      
-      const result = await queryJSON(sql);
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
-      };
-    }
-
-    // GET /parts/sellable - List sellable parts only
-    if (path.endsWith('/parts/sellable') && httpMethod === 'GET') {
       const { limit = 50, offset = 0 } = event.queryStringParameters || {};
       const sql = `SELECT json_agg(row_to_json(t)) FROM (
         SELECT 
@@ -1422,7 +1394,7 @@ exports.handler = async (event) => {
           
           const sql = `SELECT json_agg(row_to_json(t)) FROM (
             SELECT p.* FROM profiles p
-            INNER JOIN organization_members om ON p.user_id = om.user_id
+            INNER JOIN organization_members om ON p.user_id::text = om.cognito_user_id::text
             ${whereClause}
             ORDER BY p.full_name
           ) t;`;

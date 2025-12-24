@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@aws-amplify/ui-react": "^6.13.1",
+    "@aws-sdk/client-bedrock-runtime": "^3.956.0",
     "@aws-sdk/client-s3": "^3.932.0",
     "@aws-sdk/s3-request-presigner": "^3.932.0",
     "@hookform/resolvers": "^3.9.0",

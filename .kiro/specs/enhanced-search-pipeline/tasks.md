@@ -14,7 +14,7 @@
     - Add validation for price constraints (non-negative values, min <= max)
     - _Requirements: 12.1, 12.2_
 
-  - [ ]* 2.2 Write property test for QueryComponents validation
+  - [x]* 2.2 Write property test for QueryComponents validation
     - **Property 2: Query rewriting consistency**
     - **Validates: Requirements 1.2, 12.1, 12.2**
 
@@ -29,7 +29,7 @@
     - Add FiltersApplied and DebugInfo models
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
 
-  - [ ]* 2.5 Write property test for response model completeness
+  - [x]* 2.5 Write property test for response model completeness
     - **Property 17: Complete product information**
     - **Validates: Requirements 7.2**
 
@@ -87,14 +87,14 @@
     - **Property 3: Filter mapping reliability**
     - **Validates: Requirements 1.3, 12.3**
 
-- [ ] 5. Implement database service and connection management
-  - [ ] 5.1 Create DatabaseService class
+- [x] 5. Implement database service and connection management
+  - [x] 5.1 Create DatabaseService class
     - Implement PostgreSQL connection with pgvector support
     - Add connection pooling for Lambda environment
     - Create parameterized query execution methods
     - _Requirements: 11.1, 11.2, 11.3_
 
-  - [ ] 5.2 Add database schema validation
+  - [x] 5.2 Add database schema validation
     - Verify existing products table structure
     - Check for required columns (id, name, description, price, stock_level, is_active, embedding)
     - Validate pgvector extension availability
@@ -105,7 +105,7 @@
     - **Validates: Requirements 11.1, 11.2, 11.4**
 
 - [ ] 6. Implement embedding service
-  - [ ] 6.1 Create EmbeddingService class
+  - [x] 6.1 Create EmbeddingService class
     - Implement embedding generation using Amazon Bedrock Titan or similar
     - Add caching for frequently used queries
     - Handle embedding service failures gracefully
@@ -116,7 +116,7 @@
     - **Validates: Requirements 6.1**
 
 - [ ] 7. Implement HybridRetriever component
-  - [ ] 7.1 Create HybridRetriever class with SQL generation
+  - [x] 7.1 Create HybridRetriever class with SQL generation
     - Implement parameterized SQL query generation with vector similarity
     - Add mandatory is_active = TRUE filter to all queries
     - Implement price filtering with NULL-safe conditions
@@ -131,7 +131,7 @@
     - **Property 13: SQL active filter inclusion**
     - **Validates: Requirements 5.3**
 
-  - [ ] 7.4 Implement vector similarity search
+  - [x] 7.4 Implement vector similarity search
     - Add pgvector cosine similarity using <=> operator
     - Implement proper index usage for performance
     - Add similarity score calculation (1 - distance)

@@ -8,7 +8,7 @@ The architecture prioritizes modularity and extensibility, allowing future integ
 
 ## Architecture
 
-### High-Level Architecture
+### High-Level Architecture with Bedrock Agent
 
 ```mermaid
 graph TB
@@ -17,45 +17,83 @@ graph TB
         Chat[Chat Component]
     end
     
-    subgraph "Core Services"
-        Agent[Agent Core]
-        NLP[NLP Service]
-        Session[Session Manager]
+    subgraph "AWS Bedrock Agent"
+        Agent[Bedrock Agent]
+        Claude[Claude 3 Haiku]
+        ActionGroup[Action Groups]
     end
     
-    subgraph "Business Logic"
-        Inventory[Inventory Service]
-        Pricing[Price Calculator]
-        Analytics[Analytics Service]
+    subgraph "Lambda Tools"
+        SearchTool[pgvector Search Tool]
+        InventoryTool[Inventory Tool]
+        PricingTool[Pricing Tool]
     end
     
     subgraph "Data Layer"
-        DB[(Database)]
+        RDS[(RDS with pgvector)]
         Cache[(Redis Cache)]
     end
     
-    subgraph "Future Extensions"
-        Voice[Voice Interface]
-        ML[Multilingual Service]
-        Sensor[Sensor Module]
+    subgraph "Infrastructure"
+        CDK[CDK Templates]
+        IAM[IAM Roles]
+        CloudWatch[Monitoring]
     end
     
     UI --> Chat
     Chat --> Agent
-    Agent --> NLP
-    Agent --> Session
-    Agent --> Inventory
-    Agent --> Pricing
-    Agent --> Analytics
+    Agent --> Claude
+    Agent --> ActionGroup
+    ActionGroup --> SearchTool
+    ActionGroup --> InventoryTool
+    ActionGroup --> PricingTool
     
-    Inventory --> DB
-    Pricing --> DB
-    Analytics --> DB
-    Session --> Cache
+    SearchTool --> RDS
+    InventoryTool --> RDS
+    PricingTool --> RDS
     
-    Voice -.-> Chat
-    ML -.-> NLP
-    Sensor -.-> UI
+    CDK --> IAM
+    CDK --> SearchTool
+    CDK --> InventoryTool
+    CDK --> PricingTool
+    
+    Agent --> CloudWatch
+    SearchTool --> CloudWatch
+```
+
+### Bedrock Agent Architecture
+
+**Core Components:**
+
+1. **AWS Bedrock Agent**: Managed AI service that orchestrates conversations
+   - Uses Claude 3 Haiku for cost-effective processing
+   - Handles conversation state and context management
+   - Routes tool calls based on customer queries
+
+2. **Lambda Tools**: Serverless functions that provide business capabilities
+   - **pgvector Search Tool**: Semantic product search using vector embeddings
+   - **Inventory Tool**: Product availability and stock management
+   - **Pricing Tool**: Dynamic pricing with negotiation support
+
+3. **Action Groups**: Define how the agent can use tools
+   - Product search actions for semantic queries
+   - Inventory management actions for stock checking
+   - Pricing actions for cost calculations and negotiations
+
+**Deployment Architecture:**
+
+```mermaid
+graph TB
+    subgraph "15-Minute Deployment Process"
+        CDK_Deploy[CDK Deploy<br/>Lambda + IAM<br/>5 minutes]
+        Console_Config[Console Setup<br/>Agent + Tools + Personality<br/>5 minutes]
+        Test_Verify[Test & Verify<br/>Query Testing<br/>2 minutes]
+        Frontend_Integration[Frontend Integration<br/>Amplify + Bedrock API<br/>3 minutes]
+    end
+    
+    CDK_Deploy --> Console_Config
+    Console_Config --> Test_Verify
+    Test_Verify --> Frontend_Integration
 ```
 
 ### Cost-Optimized AWS Architecture
@@ -91,6 +129,222 @@ graph TB
 *Note: Local AI setup requires initial investment in Ollama/LM Studio setup but provides long-term cost benefits and data privacy.*
 
 ## Components and Interfaces
+
+### Bedrock Agent Configuration
+
+The AWS Bedrock Agent serves as the central orchestration layer, managing conversations and tool invocations.
+
+**Agent Configuration:**
+```json
+{
+  "agentName": "SariSariAgent",
+  "modelId": "anthropic.claude-3-haiku-20240307-v1:0",
+  "instruction": "You are Aling Maria, a warm and knowledgeable sari-sari store owner who loves helping customers find exactly what they need. You have a friendly, conversational personality and deep knowledge about your products.\n\nYour conversation style:\n- Always greet customers warmly and ask how you can help\n- When customers ask vague questions, ask follow-up questions to understand their needs better\n- Provide 2-3 specific product suggestions with reasons why each is perfect for their needs\n- Tell stories about your products - where they come from, how to use them, what makes them special\n- Use Filipino cultural context when appropriate (but keep it accessible)\n- Engage in friendly price negotiations while respecting your business needs\n- Suggest complementary items that would be useful\n- If something is unavailable, enthusiastically suggest alternatives and explain why they're great substitutes\n\nExample responses:\n- Instead of 'Here are noodles under 30 pesos:', say 'Ah, looking for affordable noodles! I have three perfect options for you...'\n- Instead of listing features, tell stories: 'This pancit canton is my customers' favorite because it cooks so quickly and the flavor is just right for busy families'\n- Ask engaging questions: 'Are you cooking for the family tonight? Or maybe preparing something special?'\n\nAlways be helpful, engaging, and make customers feel like they're talking to a real person who cares about their needs.",
+  "actionGroups": [
+    {
+      "actionGroupName": "ProductSearch",
+      "description": "Search for products using semantic search and return results for conversational recommendations",
+      "actionGroupExecutor": {
+        "lambda": "arn:aws:lambda:region:account:function:pgvector-search-tool"
+      }
+    },
+    {
+      "actionGroupName": "InventoryManagement", 
+      "description": "Check product availability and get detailed product information for storytelling",
+      "actionGroupExecutor": {
+        "lambda": "arn:aws:lambda:region:account:function:inventory-tool"
+      }
+    },
+    {
+      "actionGroupName": "PricingCalculation",
+      "description": "Calculate prices and handle friendly negotiations with personality",
+      "actionGroupExecutor": {
+        "lambda": "arn:aws:lambda:region:account:function:pricing-tool"
+      }
+    }
+  ]
+}
+```
+
+### Lambda Tool Interfaces
+
+**pgvector Search Tool:**
+```typescript
+interface PgvectorSearchTool {
+  searchProducts(query: string, filters?: SearchFilters): Promise<ConversationalSearchResult>
+  getSimilarProducts(productId: string, limit?: number): Promise<Product[]>
+  getProductStories(productIds: string[]): Promise<ProductStory[]>
+}
+
+interface SearchFilters {
+  priceRange?: [number, number]
+  category?: string
+  sellableOnly?: boolean
+  excludeTerms?: string[]
+}
+
+interface ConversationalSearchResult {
+  products: ProductWithContext[]
+  searchContext: {
+    originalQuery: string
+    interpretedIntent: string
+    suggestedFollowUp?: string
+  }
+  totalFound: number
+}
+
+interface ProductWithContext {
+  product: Product
+  similarity: number
+  relevanceReason: string // Why this product matches the customer's need
+  sellingPoints: string[] // Key benefits to highlight in conversation
+  complementaryItems?: string[] // Products that go well with this one
+}
+
+interface ProductStory {
+  productId: string
+  origin: string
+  bestUses: string[]
+  customerFavorites: string
+  preparationTips?: string
+}
+```
+
+**Inventory Tool:**
+```typescript
+interface InventoryTool {
+  checkAvailability(productId: string): Promise<ConversationalAvailabilityInfo>
+  getProductDetails(productId: string): Promise<DetailedProductInfo>
+  reserveProduct(productId: string, quantity: number): Promise<ReservationResult>
+  updateStock(productId: string, quantity: number): Promise<void>
+  suggestAlternatives(unavailableProductId: string): Promise<AlternativeRecommendation[]>
+}
+
+interface ConversationalAvailabilityInfo {
+  available: boolean
+  stockLevel: number
+  stockDescription: string // "plenty in stock", "only a few left", "just restocked"
+  estimatedRestockDate?: Date
+  alternatives?: AlternativeRecommendation[]
+  upsellOpportunities?: Product[]
+}
+
+interface AlternativeRecommendation {
+  product: Product
+  similarityReason: string
+  advantagesOverOriginal?: string[]
+  priceComparison: 'cheaper' | 'similar' | 'premium'
+}
+
+interface DetailedProductInfo {
+  product: Product
+  freshness: string
+  origin: string
+  nutritionalHighlights?: string[]
+  cookingTips?: string[]
+  customerReviews?: string
+  seasonalNotes?: string
+}
+```
+
+**Pricing Tool:**
+```typescript
+interface PricingTool {
+  calculatePrice(productId: string, quantity: number): Promise<ConversationalPriceInfo>
+  evaluateNegotiation(productId: string, customerOffer: number, context: NegotiationContext): Promise<NegotiationResponse>
+  applyPromotions(cart: CartItem[]): Promise<PromotionResult>
+  suggestBudgetOptions(budget: number, category?: string): Promise<BudgetRecommendation[]>
+}
+
+interface ConversationalPriceInfo {
+  basePrice: number
+  finalPrice: number
+  discounts: Discount[]
+  valueProposition: string // Why this price is fair/good value
+  negotiable: boolean
+  minAcceptablePrice?: number
+  bulkDiscountAvailable?: boolean
+  seasonalPricing?: string
+}
+
+interface NegotiationContext {
+  customerPersonality: 'friendly' | 'serious' | 'price-conscious' | 'quality-focused'
+  previousPurchases?: number
+  currentCartValue?: number
+  timeOfDay: string
+}
+
+interface NegotiationResponse {
+  accept: boolean
+  counterOffer?: number
+  reason: string
+  conversationalResponse: string // Friendly response for the customer
+  finalOffer: boolean
+  alternativeOffers?: string[] // "Buy 2 get discount", "Bundle with X for better price"
+}
+
+interface BudgetRecommendation {
+  product: Product
+  whyGoodValue: string
+  quantityForBudget: number
+  alternativeUses?: string[]
+}
+```
+
+### IAM Role Configuration
+
+**BedrockExecutionRole:**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "lambda:InvokeFunction"
+      ],
+      "Resource": [
+        "arn:aws:lambda:*:*:function:pgvector-search-tool",
+        "arn:aws:lambda:*:*:function:inventory-tool", 
+        "arn:aws:lambda:*:*:function:pricing-tool"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel"
+      ],
+      "Resource": "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-haiku-20240307-v1:0"
+    }
+  ]
+}
+```
+
+**Lambda Execution Roles:**
+```json
+{
+  "Version": "2012-10-17", 
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "rds:DescribeDBInstances",
+        "rds-db:connect"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream", 
+        "logs:PutLogEvents"
+      ],
+      "Resource": "arn:aws:logs:*:*:*"
+    }
+  ]
+}
+```
 
 ### Agent Core
 
@@ -659,6 +913,86 @@ Property 39: Customer-facing sellability filtering
 Property 40: Sellability filter logging
 *For any* search operation, the system should log whether sellability filtering was applied and how many products were excluded
 **Validates: Requirements 11.5**
+
+Property 41: Bedrock Agent tool invocation
+*For any* customer query requiring product search, the Bedrock_Agent should correctly invoke the pgvector_Search_Tool with appropriate parameters
+**Validates: Requirements 12.3**
+
+Property 42: Claude model integration
+*For any* customer interaction, the Bedrock_Agent should use Claude 3 Haiku model to generate contextually appropriate responses
+**Validates: Requirements 12.1**
+
+Property 43: Lambda tool execution
+*For any* tool invocation from Bedrock Agent, the Lambda functions should execute successfully and return properly formatted responses
+**Validates: Requirements 12.2**
+
+Property 44: IAM permission validation
+*For any* Bedrock Agent operation, the system should have appropriate IAM permissions including BedrockExecutionRole and LambdaBasicExecution
+**Validates: Requirements 12.4**
+
+Property 45: Agent configuration completeness
+*For any* deployed Bedrock Agent, the configuration should include personality instructions and properly defined action groups
+**Validates: Requirements 12.5**
+
+Property 46: API functionality verification
+*For any* test query like "Noodles under 30 pesos", the retrieveAndGenerate() API should return filtered results with appropriate sari-sari responses
+**Validates: Requirements 12.6**
+
+Property 47: Monitoring and tracing
+*For any* agent invocation, CloudWatch and Bedrock traces should capture comprehensive logging information
+**Validates: Requirements 12.7**
+
+Property 48: Infrastructure deployment speed
+*For any* CDK deployment, Lambda functions and IAM roles should be created and configured within 5 minutes
+**Validates: Requirements 13.1**
+
+Property 49: Agent creation efficiency
+*For any* agent setup process, creating the agent, attaching tools, and configuring personality should complete within 5 minutes
+**Validates: Requirements 13.2**
+
+Property 50: Query response performance
+*For any* test query, the system should return SQL-filtered results with sari-sari responses within 2 minutes
+**Validates: Requirements 13.3**
+
+Property 51: Frontend integration speed
+*For any* Amplify integration, connecting to Bedrock API and displaying responses should complete within 3 minutes
+**Validates: Requirements 13.4**
+
+Property 52: Total deployment time
+*For any* complete system deployment, the entire process should be functional within 15 minutes total
+**Validates: Requirements 13.5**
+
+Property 53: Conversational product suggestions
+*For any* customer product query, the Bedrock_Agent should provide 2-3 specific product recommendations with reasons rather than just listing search results
+**Validates: Requirements 12.2, 14.3**
+
+Property 54: Follow-up question engagement
+*For any* vague customer request, the agent should ask clarifying questions to better understand customer needs
+**Validates: Requirements 14.2**
+
+Property 55: Personality-driven responses
+*For any* customer interaction, the agent should respond with conversational personality rather than robotic or filtered responses
+**Validates: Requirements 14.1**
+
+Property 56: Value proposition explanations
+*For any* price inquiry, the agent should explain the value proposition and benefits of each suggested product
+**Validates: Requirements 14.4**
+
+Property 57: Alternative product storytelling
+*For any* unavailable product, the agent should conversationally suggest alternatives with explanations of why they're good substitutes
+**Validates: Requirements 14.5**
+
+Property 58: Friendly price negotiation
+*For any* price negotiation attempt, the agent should engage in friendly bargaining while maintaining business rules
+**Validates: Requirements 14.6**
+
+Property 59: Proactive product education
+*For any* customer uncertainty, the agent should offer to provide more information about products, uses, or complementary items
+**Validates: Requirements 14.7**
+
+Property 60: Conversational test responses
+*For any* test query like "Noodles under 30 pesos", the system should return conversational responses with specific product suggestions and reasons
+**Validates: Requirements 13.3**
 
 <function_calls>
 <invoke name="prework">

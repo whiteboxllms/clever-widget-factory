@@ -1,0 +1,25 @@
+{
+  "name": "bedrock-tools-cdk",
+  "version": "1.0.0",
+  "description": "CDK deployment for Bedrock Agent tools",
+  "main": "app.js",
+  "scripts": {
+    "build": "echo 'No build needed'",
+    "watch": "cdk watch",
+    "test": "jest",
+    "cdk": "cdk",
+    "deploy": "cdk deploy",
+    "destroy": "cdk destroy",
+    "diff": "cdk diff",
+    "synth": "cdk synth"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.100.0",
+    "constructs": "^10.3.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.5",
+    "aws-cdk": "^2.100.0"
+  }
+}

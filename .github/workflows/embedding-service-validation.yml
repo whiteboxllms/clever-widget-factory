@@ -1,0 +1,126 @@
+name: Embedding Service Validation
+
+on:
+  push:
+    paths:
+      - 'lambda/shared/embeddings.js'
+      - 'lambda/embeddings-processor/**'
+      - 'lambda/semantic-search/**'
+  pull_request:
+    paths:
+      - 'lambda/shared/embeddings.js'
+      - 'lambda/embeddings-processor/**'
+      - 'lambda/semantic-search/**'
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Install dependencies
+        run: |
+          cd lambda/semantic-search
+          npm ci
+          cd ../shared
+          npm ci
+          
+      - name: Run unit tests
+        run: |
+          cd lambda/semantic-search
+          npm test
+          
+      - name: Run coverage
+        run: |
+          cd lambda/semantic-search
+          npm run test:coverage
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+          
+      - name: Install dependencies
+        run: |
+          cd lambda/semantic-search
+          npm ci
+          cd ../shared
+          npm ci
+          
+      - name: Run integration tests
+        run: |
+          cd lambda/semantic-search
+          npm run test:integration
+          
+      - name: Run semantic search integration tests
+        run: |
+          cd lambda/semantic-search
+          npm run test:semantic
+          
+      - name: Run end-to-end pipeline tests
+        run: |
+          cd lambda/semantic-search
+          npm run test:e2e
+          
+      - name: Run contract tests
+        run: |
+          cd lambda/semantic-search
+          npm run test:contract
+          
+      - name: Validate deployment readiness
+        run: |
+          npm run validate:deployment -- --environment=staging
+
+  deployment-validation:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [unit-tests, integration-tests]
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+          
+      - name: Install dependencies
+        run: |
+          cd lambda/semantic-search
+          npm ci
+          cd ../shared
+          npm ci
+          
+      - name: Pre-deployment validation
+        run: |
+          node scripts/validate-embedding-deployment.js --environment=production
+          
+      - name: Health check
+        run: |
+          cd lambda/semantic-search
+          npm run health:check

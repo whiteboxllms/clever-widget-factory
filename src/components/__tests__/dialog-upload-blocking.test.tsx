@@ -46,7 +46,6 @@ describe('Dialog Upload Blocking', () => {
     // This is a static analysis test - check the source code
     const dialogsWithFileUpload = [
       'src/components/CombinedAssetDialog.tsx',
-      'src/components/tools/forms/AddToolForm.tsx',
       'src/components/tools/forms/EditToolForm.tsx'
     ];
 

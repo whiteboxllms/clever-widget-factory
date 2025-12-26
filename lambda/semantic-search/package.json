@@ -1,16 +1,48 @@
 {
   "name": "cwf-semantic-search-lambda",
   "version": "1.0.0",
-  "description": "Semantic search Lambda using Bedrock embeddings",
+  "description": "Semantic search Lambda using Bedrock embeddings with enhanced pipeline support",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:integration": "RUN_INTEGRATION_TESTS=true jest --testPathPattern=integration",
+    "test:contract": "RUN_INTEGRATION_TESTS=true jest --testPathPattern=contract",
+    "test:current-state": "RUN_INTEGRATION_TESTS=true jest --testPathPattern=CurrentState.integration",
+    "test:semantic": "RUN_INTEGRATION_TESTS=true jest --testPathPattern=SemanticSearch.integration",
+    "test:e2e": "RUN_INTEGRATION_TESTS=true jest --testPathPattern=SearchPipeline.e2e",
+    "test:all-integration": "RUN_INTEGRATION_TESTS=true jest --testPathPattern='(integration|e2e)'",
+    "validate:deployment": "node ../../scripts/validate-embedding-deployment.js",
+    "health:check": "node -e \"require('../shared/health-check').performHealthCheck({includeBenchmark:true}).then(r=>console.log(JSON.stringify(r,null,2)))\""
   },
-  "keywords": ["semantic-search", "bedrock", "embeddings"],
+  "keywords": [
+    "semantic-search",
+    "bedrock",
+    "embeddings",
+    "nlp",
+    "pipeline"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "pg": "^8.11.3",
-    "@aws-sdk/client-bedrock-runtime": "^3.0.0"
+    "@aws-sdk/client-bedrock-runtime": "^3.0.0",
+    "dotenv": "^17.2.3",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "fast-check": "^3.15.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/__tests__/**/*.test.js"
+    ],
+    "moduleDirectories": [
+      "node_modules",
+      "../node_modules",
+      "../../node_modules"
+    ]
   }
 }

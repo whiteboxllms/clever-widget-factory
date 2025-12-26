@@ -37,7 +37,8 @@ exports.handler = async (event) => {
       body: JSON.stringify({ 
         success: true,
         rowCount: result.rowCount,
-        command: result.command
+        command: result.command,
+        rows: result.rows
       })
     };
   } catch (error) {

@@ -122,7 +122,7 @@ export function DocumentationQualityDetailsDialog({
   };
 
   const handleEditPart = (partId: string) => {
-    navigate(`/inventory?edit=${partId}`);
+    navigate(`/combined-assets?view=stock&edit=${partId}`);
     onOpenChange(false);
   };
 

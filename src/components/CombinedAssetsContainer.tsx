@@ -18,7 +18,7 @@ import { IssueReportDialog } from "./IssueReportDialog";
 import { CreateIssueDialog } from "./CreateIssueDialog";
 import { ToolRemovalDialog } from "./tools/ToolRemovalDialog";
 import { EditToolForm } from "./tools/forms/EditToolForm";
-import { InventoryItemForm } from "./InventoryItemForm";
+
 import { ToolDetails } from "./tools/ToolDetails";
 import { StockDetails } from "./StockDetails";
 import { OrderDialog } from "./OrderDialog";
@@ -32,11 +32,18 @@ import { useInventoryIssues } from "@/hooks/useGenericIssues";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
+import { InventoryItemForm } from "./InventoryItemForm";
 
 
 export const CombinedAssetsContainer = () => {
   const navigate = useNavigate();
   const { user, canEditTools, isAdmin } = useAuth();
+  
+  // Handle URL parameters for backward compatibility
+  const urlParams = new URLSearchParams(window.location.search);
+  const viewParam = urlParams.get('view');
+  const showLowStockParam = urlParams.get('showLowStock') === 'true';
+  const editParam = urlParams.get('edit');
   const { toast } = useToast();
   const { updatePart, updateTool, createPartsHistory, deletePart } = useAssetMutations();
   const organizationId = useOrganizationId();
@@ -46,9 +53,9 @@ export const CombinedAssetsContainer = () => {
   const [isSemanticSearching, setIsSemanticSearching] = useState(false);
   const [showMyCheckedOut, setShowMyCheckedOut] = useState(false);
   const [showWithIssues, setShowWithIssues] = useState(false);
-  const [showLowStock, setShowLowStock] = useState(false);
+  const [showLowStock, setShowLowStock] = useState(showLowStockParam);
   const [showOnlyAssets, setShowOnlyAssets] = useState(false);
-  const [showOnlyStock, setShowOnlyStock] = useState(false);
+  const [showOnlyStock, setShowOnlyStock] = useState(viewParam === 'stock');
   const [showRemovedItems, setShowRemovedItems] = useState(false);
   const [searchDescriptions, setSearchDescriptions] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -60,6 +67,10 @@ export const CombinedAssetsContainer = () => {
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [selectedAssetForDetails, setSelectedAssetForDetails] = useState<CombinedAsset | null>(null);
+  
+  // Image state for stock editing
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [stockAttachments, setStockAttachments] = useState<string[]>([]);
   
   // Stock dialog states
   const [showQuantityDialog, setShowQuantityDialog] = useState(false);
@@ -74,9 +85,7 @@ export const CombinedAssetsContainer = () => {
     supplierUrl: ''
   });
 
-  // Image state for stock editing
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [stockAttachments, setStockAttachments] = useState<string[]>([]);
+
 
   const [page, setPage] = useState(0);
   const [limit] = useState(50);
@@ -282,9 +291,7 @@ export const CombinedAssetsContainer = () => {
 
   const handleCreateAsset = async (assetData: any, isAsset: boolean) => {
     const result = await createAsset(assetData, isAsset);
-    if (result) {
-      await refetch();
-    }
+    // TanStack Query will automatically update the cache via invalidateQueries
     return result;
   };
 
@@ -308,6 +315,20 @@ export const CombinedAssetsContainer = () => {
     }
     setShowEditDialog(true);
   }, []);
+
+  // Handle edit parameter from URL (backward compatibility)
+  useEffect(() => {
+    if (editParam && assets.length > 0) {
+      const assetToEdit = assets.find(asset => asset.id === editParam);
+      if (assetToEdit) {
+        handleEdit(assetToEdit);
+        // Clear URL parameter
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('edit');
+        window.history.replaceState({}, '', newUrl.toString());
+      }
+    }
+  }, [editParam, assets, handleEdit]);
 
   const handleRemove = useCallback((asset: CombinedAsset) => {
     setSelectedAssetId(asset.id);
@@ -418,7 +439,6 @@ export const CombinedAssetsContainer = () => {
       setShowQuantityDialog(false);
       setSelectedAssetId(null);
       setQuantityChange({ amount: '', reason: '', supplierName: '', supplierUrl: '' });
-      refetch();
     } catch (error) {
       console.error('Error updating quantity:', error);
       toast({
@@ -441,7 +461,6 @@ export const CombinedAssetsContainer = () => {
         await deletePart.mutateAsync(selectedAsset.id);
       }
 
-      await refetch();
       setShowRemovalDialog(false);
       setSelectedAssetId(null);
       
@@ -462,11 +481,23 @@ export const CombinedAssetsContainer = () => {
   const handleEditSubmit = async (toolId: string, toolData: any) => {
     if (!selectedAsset) return;
 
+    // Close dialog immediately for better UX
+    setShowEditDialog(false);
+    setSelectedAssetId(null);
+
+    // Show optimistic success toast
+    toast({
+      title: "Updating...",
+      description: `${selectedAsset.type === 'asset' ? 'Asset' : 'Stock item'} is being updated`,
+    });
+
     try {
-      await updateAsset(toolId, toolData, selectedAsset.type === 'asset');
-      await refetch();
-      setShowEditDialog(false);
-      setSelectedAssetId(null);
+      if (selectedAsset.type === 'asset') {
+        await updateTool.mutateAsync({ id: toolId, data: toolData });
+      } else {
+        await updatePart.mutateAsync({ id: toolId, data: toolData });
+      }
+      
       toast({
         title: "Success",
         description: `${selectedAsset.type === 'asset' ? 'Asset' : 'Stock item'} updated successfully`,
@@ -475,39 +506,48 @@ export const CombinedAssetsContainer = () => {
       console.error('Error updating item:', error);
       toast({
         title: "Error",
-        description: `Failed to update ${selectedAsset.type === 'asset' ? 'asset' : 'stock item'}`,
+        description: `Failed to update ${selectedAsset.type === 'asset' ? 'asset' : 'stock item'}. Please try again.`,
         variant: "destructive"
       });
     }
   };
 
-  // Reuse the exact data conversion logic from the original Inventory page
+  // Optimistic stock edit handler - close immediately, update in background
   const handleStockEditSubmit = async (formData: any, useMinimumQuantity: boolean) => {
     if (!selectedAsset || selectedAsset.type !== 'stock') return;
 
+    const imageUrl = stockAttachments.length > 0 ? stockAttachments[0] : selectedAsset.image_url;
+
+    const updateData = {
+      name: formData.name,
+      description: formData.description,
+      current_quantity: formData.current_quantity,
+      minimum_quantity: useMinimumQuantity ? formData.minimum_quantity : null,
+      cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
+      unit: formData.unit,
+      parent_structure_id: formData.parent_structure_id,
+      storage_location: formData.storage_location,
+      accountable_person_id: formData.accountable_person_id === "none" ? null : formData.accountable_person_id,
+      sellable: formData.sellable,
+      image_url: imageUrl
+    };
+
+    // Close dialog immediately for better UX
+    setShowEditDialog(false);
+    setSelectedAssetId(null);
+    setStockAttachments([]);
+
+    // Show optimistic success toast
+    toast({
+      title: "Updating...",
+      description: "Stock item is being updated",
+    });
+
     try {
-      // Convert attachments array to image_url for database compatibility
-      const imageUrl = stockAttachments.length > 0 ? stockAttachments[0] : selectedAsset.image_url;
-
-      // Same data conversion as original Inventory page updatePart function
-      const updateData = {
-        name: formData.name,
-        description: formData.description,
-        current_quantity: formData.current_quantity,
-        minimum_quantity: useMinimumQuantity ? formData.minimum_quantity : null,
-        cost_per_unit: formData.cost_per_unit ? parseFloat(formData.cost_per_unit) : null,
-        unit: formData.unit,
-        parent_structure_id: formData.parent_structure_id,
-        storage_location: formData.storage_location,
-        accountable_person_id: formData.accountable_person_id === "none" ? null : formData.accountable_person_id,
-        image_url: imageUrl
-      };
-
-      await updateAsset(selectedAsset.id, updateData, false);
-      await refetch();
-      setShowEditDialog(false);
-      setSelectedImage(null); // Reset image state
-      setSelectedAssetId(null);
+      // Use mutation with optimistic updates - TanStack Query handles cache updates
+      await updatePart.mutateAsync({ id: selectedAsset.id, data: updateData });
+      
+      // Show success toast
       toast({
         title: "Success",
         description: "Stock item updated successfully",
@@ -515,8 +555,8 @@ export const CombinedAssetsContainer = () => {
     } catch (error) {
       console.error('Error updating stock item:', error);
       toast({
-        title: "Error",
-        description: "Failed to update stock item",
+        title: "Error", 
+        description: "Failed to update stock item. Please try again.",
         variant: "destructive"
       });
     }
@@ -569,7 +609,9 @@ export const CombinedAssetsContainer = () => {
             Back to Dashboard
           </Button>
           <div>
-            <h1 className="text-3xl font-bold">Combined Assets</h1>
+            <h1 className="text-3xl font-bold">
+              {viewParam === 'stock' ? 'Inventory Management' : 'Combined Assets'}
+            </h1>
             <p className="text-muted-foreground">
               {filteredAssets.length} items ({assets.filter(a => a.type === 'asset').length} assets, {assets.filter(a => a.type === 'stock').length} stock items)
             </p>
@@ -670,7 +712,6 @@ export const CombinedAssetsContainer = () => {
           }}
           tool={selectedAsset as any}
           onSuccess={() => {
-            refetch();
             setShowCheckoutDialog(false);
             setSelectedAssetId(null);
           }}
@@ -687,7 +728,6 @@ export const CombinedAssetsContainer = () => {
           }}
           tool={selectedAsset as any}
           onSuccess={() => {
-            refetch();
             setShowCheckinDialog(false);
             setSelectedAssetId(null);
           }}
@@ -704,7 +744,6 @@ export const CombinedAssetsContainer = () => {
           }}
           asset={selectedAsset}
           onSuccess={() => {
-            refetch();
             setShowIssueDialog(false);
             setSelectedAssetId(null);
           }}
@@ -794,7 +833,8 @@ export const CombinedAssetsContainer = () => {
                 cost_per_unit: (selectedAsset.cost_per_unit || 0).toString(),
                 parent_structure_id: selectedAsset.parent_structure_id || '',
                 storage_location: selectedAsset.storage_location || '',
-                accountable_person_id: selectedAsset.accountable_person_id || ''
+                accountable_person_id: selectedAsset.accountable_person_id || '',
+                sellable: (selectedAsset as any).sellable ?? false
               }}
               editingPart={selectedAsset as any}
               attachments={stockAttachments}
@@ -803,7 +843,7 @@ export const CombinedAssetsContainer = () => {
               onCancel={() => {
                 setShowEditDialog(false);
                 setSelectedAssetId(null);
-                setStockAttachments([]); // Reset attachments when canceling
+                setStockAttachments([]);
               }}
               isLoading={isUploading}
               submitButtonText="Update Stock Item"
@@ -994,8 +1034,7 @@ export const CombinedAssetsContainer = () => {
           partId={selectedAsset.id}
           partName={selectedAsset.name}
           onOrderCreated={() => {
-            // Refresh pending orders after creating an order
-            refetch();
+            // TanStack Query will automatically update the cache
           }}
         />
       )}
@@ -1011,7 +1050,6 @@ export const CombinedAssetsContainer = () => {
           order={pendingOrders[selectedAsset.id]?.[0] || null}
           part={selectedAsset as any}
           onSuccess={() => {
-            refetch();
             setShowReceivingDialog(false);
             setSelectedAssetId(null);
           }}

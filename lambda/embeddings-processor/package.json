@@ -4,6 +4,7 @@
   "description": "Processes asset events and generates embeddings",
   "main": "index.js",
   "dependencies": {
-    "@aws-sdk/client-bedrock-runtime": "^3.709.0"
+    "@aws-sdk/client-bedrock-runtime": "^3.709.0",
+    "@aws-sdk/client-lambda": "^3.0.0"
   }
 }

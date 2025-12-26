@@ -35,6 +35,7 @@ export interface CombinedAsset {
   accountable_person_id?: string;
   accountable_person_name?: string; // Resolved name from accountable_person_id
   accountable_person_color?: string; // Favorite color of accountable person
+  sellable?: boolean; // For stock items - whether available in Sari Sari store
   created_at: string;
   updated_at: string;
 }

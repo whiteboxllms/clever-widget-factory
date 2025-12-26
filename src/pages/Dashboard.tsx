@@ -2,7 +2,7 @@ import { useAuth } from "@/hooks/useCognitoAuth";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Search, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, ClipboardList, BarChart3, Building2, Settings } from 'lucide-react';
+import { LogOut, Search, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, ClipboardList, BarChart3, Building2, Settings, Bot } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DebugModeToggle } from '@/components/DebugModeToggle';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
@@ -67,6 +67,13 @@ export default function Dashboard() {
       icon: ClipboardList,
       path: "/audit",
       color: "bg-purple-500"
+    },
+    {
+      title: "Sari Sari Store",
+      description: "Chat with AI assistant for farm produce",
+      icon: Bot,
+      path: "/sari-sari-chat",
+      color: "bg-orange-500"
     },
     {
       title: "Analytics",

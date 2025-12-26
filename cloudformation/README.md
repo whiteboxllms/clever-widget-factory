@@ -161,7 +161,7 @@ npm install @aws-sdk/client-sqs
 ```bash
 aws lambda update-function-configuration \
   --function-name cwf-core-lambda \
-  --environment Variables="{DB_PASSWORD=CWF_Dev_2025!,EMBEDDINGS_QUEUE_URL=https://sqs.us-west-2.amazonaws.com/131745734428/cwf-embeddings-queue}" \
+  --environment Variables="{DB_PASSWORD=<actual_password>,EMBEDDINGS_QUEUE_URL=https://sqs.us-west-2.amazonaws.com/131745734428/cwf-embeddings-queue}" \
   --region us-west-2
 ```
 

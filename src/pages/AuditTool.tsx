@@ -439,7 +439,7 @@ const AuditTool = () => {
               {/* Action Buttons */}
               <div className="flex flex-wrap gap-2 pt-4 border-t">
                 <Button
-                  onClick={() => navigate(`/tools/${toolId}/edit`)}
+                  onClick={() => navigate(`/combined-assets?edit=${toolId}`)}
                   variant="outline"
                   className="flex items-center gap-2"
                 >

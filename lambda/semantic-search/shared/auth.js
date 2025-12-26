@@ -1,8 +1,14 @@
-function getAuthorizerContext(event) {
-  return {
-    user_id: event.requestContext?.authorizer?.cognito_user_id || event.requestContext?.authorizer?.claims?.sub,
-    organization_id: event.requestContext?.authorizer?.organization_id || event.requestContext?.authorizer?.claims?.['custom:organization_id']
-  };
-}
+// Re-export from authorizerContext for backwards compatibility
+const { 
+  getAuthorizerContext, 
+  buildOrganizationFilter, 
+  hasPermission, 
+  canAccessOrganization 
+} = require('./authorizerContext');
 
-module.exports = { getAuthorizerContext };
+module.exports = {
+  getAuthorizerContext,
+  buildOrganizationFilter,
+  hasPermission,
+  canAccessOrganization
+};

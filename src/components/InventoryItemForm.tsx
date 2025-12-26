@@ -31,6 +31,7 @@ interface Part {
   storage_location: string | null;
   image_url: string | null;
   accountable_person_id: string | null;
+  sellable: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -45,6 +46,7 @@ interface FormData {
   parent_structure_id: string | null;
   storage_location: string;
   accountable_person_id: string;
+  sellable: boolean;
 }
 
 interface InventoryItemFormProps {
@@ -86,16 +88,19 @@ export function InventoryItemForm({
     parent_structure_id: '',
     storage_location: '',
     accountable_person_id: 'none',
+    sellable: false,
     ...initialData
   });
 
-  const [useMinimumQuantity, setUseMinimumQuantity] = useState(false);
+  // Debug logging removed for performance
 
+  const [useMinimumQuantity, setUseMinimumQuantity] = useState(false);
+  const [isFormInitialized, setIsFormInitialized] = useState(false);
 
   // Initialize form data when editing
   useEffect(() => {
-    if (editingPart) {
-      setFormData({
+    if (editingPart && !isFormInitialized) {
+      const newFormData = {
         name: editingPart.name,
         description: editingPart.description || '',
         current_quantity: editingPart.current_quantity,
@@ -104,17 +109,26 @@ export function InventoryItemForm({
         unit: editingPart.unit || 'pieces',
         parent_structure_id: editingPart.parent_structure_id,
         storage_location: editingPart.storage_location || '',
-        accountable_person_id: editingPart.accountable_person_id || 'none'
-      });
+        accountable_person_id: editingPart.accountable_person_id || 'none',
+        sellable: editingPart.sellable ?? false
+      };
+      
+      setFormData(newFormData);
       setUseMinimumQuantity(editingPart.minimum_quantity !== null && editingPart.minimum_quantity > 0);
+      setIsFormInitialized(true);
     }
-  }, [editingPart]);
+  }, [editingPart, isFormInitialized]);
+
+  // Reset initialization flag when editingPart changes (new item being edited)
+  useEffect(() => {
+    setIsFormInitialized(false);
+  }, [editingPart?.id]);
 
   const handleSubmit = () => {
     onSubmit(formData, useMinimumQuantity);
   };
 
-  const updateFormData = (field: keyof FormData, value: string | number) => {
+  const updateFormData = (field: keyof FormData, value: string | number | boolean | null) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -203,9 +217,32 @@ export function InventoryItemForm({
           </Select>
         </div>
 
+        <div className="col-span-2">
+          <div className="flex items-center space-x-2 mb-4">
+            <Checkbox 
+              id="sellable"
+              checked={formData.sellable}
+              onCheckedChange={(checked) => updateFormData('sellable', checked === true)}
+            />
+            <Label htmlFor="sellable" className="text-sm font-medium">
+              Available for sale in Sari Sari Store
+            </Label>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>When enabled, this item will be visible to customers in the Sari Sari store chat interface</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        </div>
+
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <Label htmlFor="cost_per_unit">Cost per unit (php)</Label>
+            <Label htmlFor="cost_per_unit">Cost per unit (₱)</Label>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>

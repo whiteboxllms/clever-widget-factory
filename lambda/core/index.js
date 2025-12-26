@@ -371,7 +371,8 @@ exports.handler = async (event) => {
         INSERT INTO parts (
           id, name, description, category, current_quantity, minimum_quantity,
           unit, parent_structure_id, storage_location, legacy_storage_vicinity,
-          accountable_person_id, image_url, organization_id, created_at, updated_at
+          accountable_person_id, image_url, organization_id, sellable, cost_per_unit,
+          created_at, updated_at
         ) VALUES (
           '${partId}',
           ${formatSqlValue(body.name)},
@@ -386,6 +387,8 @@ exports.handler = async (event) => {
           ${formatSqlValue(body.accountable_person_id)},
           ${formatSqlValue(body.image_url)},
           ${formatSqlValue(organizationId)},
+          ${body.sellable !== undefined ? body.sellable : false},
+          ${body.cost_per_unit !== undefined ? body.cost_per_unit : 'NULL'},
           NOW(),
           NOW()
         ) RETURNING *
@@ -463,6 +466,9 @@ exports.handler = async (event) => {
       if (body.image_url !== undefined) {
         updates.push(`image_url = ${formatSqlValue(body.image_url)}`);
       }
+      if (body.sellable !== undefined) {
+        updates.push(`sellable = ${formatSqlValue(body.sellable)}`);
+      }
       
       if (updates.length === 0) {
         return {
@@ -516,15 +522,47 @@ exports.handler = async (event) => {
       };
     }
     
+    // GET /parts/sellable - List sellable parts only
+    if (path.endsWith('/parts/sellable') && httpMethod === 'GET') {
+      const { limit = 50, offset = 0 } = event.queryStringParameters || {};
+      const sql = `SELECT json_agg(row_to_json(t)) FROM (
+        SELECT 
+          parts.id, parts.name, parts.description, parts.category, 
+          parts.current_quantity, parts.minimum_quantity, parts.cost_per_unit,
+          parts.unit, parts.parent_structure_id, parts.storage_location, 
+          parts.accountable_person_id, parts.sellable,
+          parent_tool.name as parent_structure_name,
+          parent_tool.name as area_display,
+          CASE 
+            WHEN parts.image_url LIKE '%supabase.co%' THEN 
+              REPLACE(parts.image_url, 'https://oskwnlhuuxjfuwnjuavn.supabase.co/storage/v1/object/public/', 'https://cwf-dev-assets.s3.us-west-2.amazonaws.com/')
+            ELSE parts.image_url 
+          END as image_url,
+          parts.created_at, parts.updated_at 
+        FROM parts
+        LEFT JOIN tools parent_tool ON parts.parent_structure_id = parent_tool.id
+        WHERE parts.sellable = true
+        ORDER BY parts.name 
+        LIMIT ${limit} OFFSET ${offset}
+      ) t;`;
+      
+      const result = await queryJSON(sql);
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
+      };
+    }
+    
     // GET /parts - List parts
     if (path.endsWith('/parts') && httpMethod === 'GET') {
       const { limit = 50, offset = 0 } = event.queryStringParameters || {};
       const sql = `SELECT json_agg(row_to_json(t)) FROM (
         SELECT 
           parts.id, parts.name, parts.description, parts.category, 
-          parts.current_quantity, parts.minimum_quantity, 
+          parts.current_quantity, parts.minimum_quantity, parts.cost_per_unit,
           parts.unit, parts.parent_structure_id, parts.storage_location, 
-          parts.accountable_person_id,
+          parts.accountable_person_id, parts.sellable,
           parent_tool.name as parent_structure_name,
           parent_tool.name as area_display,
           CASE 
@@ -1356,7 +1394,7 @@ exports.handler = async (event) => {
           
           const sql = `SELECT json_agg(row_to_json(t)) FROM (
             SELECT p.* FROM profiles p
-            INNER JOIN organization_members om ON p.user_id = om.user_id
+            INNER JOIN organization_members om ON p.user_id::text = om.cognito_user_id::text
             ${whereClause}
             ORDER BY p.full_name
           ) t;`;

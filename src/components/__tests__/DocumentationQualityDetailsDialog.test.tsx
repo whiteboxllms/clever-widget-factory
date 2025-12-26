@@ -577,8 +577,8 @@ describe('DocumentationQualityDetailsDialog', () => {
       
       fireEvent.click(partCard!);
 
-      // Should navigate to inventory page with edit parameter
-      expect(mockNavigate).toHaveBeenCalledWith('/inventory?edit=part-123');
+      // Should navigate to combined assets page with edit parameter
+      expect(mockNavigate).toHaveBeenCalledWith('/combined-assets?view=stock&edit=part-123');
       
       // Should close the dialog
       expect(mockOnOpenChange).toHaveBeenCalledWith(false);

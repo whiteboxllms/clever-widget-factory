@@ -26,18 +26,10 @@ const Index = () => {
             className="w-full"
             size="lg"
           >
-            Combined Assets
+            Manage Assets
           </Button>
           <Button 
-            onClick={() => navigate('/tools')} 
-            variant="outline" 
-            className="w-full"
-            size="lg"
-          >
-            View Assets
-          </Button>
-          <Button 
-            onClick={() => navigate('/inventory')} 
+            onClick={() => navigate('/combined-assets?view=stock')} 
             variant="outline" 
             className="w-full"
             size="lg"

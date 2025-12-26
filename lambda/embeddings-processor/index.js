@@ -1,51 +1,24 @@
-const { BedrockRuntimeClient, InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime');
-const https = require('https');
+const { generateEmbeddingV1, generateEmbeddingV2 } = require('../shared/embeddings');
+const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
 
-const bedrock = new BedrockRuntimeClient({ region: 'us-west-2' });
-const API_BASE_URL = process.env.API_BASE_URL || 'https://0720au267k.execute-api.us-west-2.amazonaws.com/prod';
+const lambda = new LambdaClient({ region: 'us-west-2' });
 
-async function generateEmbedding(text) {
-  const command = new InvokeModelCommand({
-    modelId: 'amazon.titan-embed-text-v2:0',
-    contentType: 'application/json',
-    accept: 'application/json',
-    body: JSON.stringify({ inputText: text })
-  });
+async function updateAssetEmbedding(table, id, searchText, embeddingV1, embeddingV2) {
+  const embeddingV1Array = `[${embeddingV1.join(',')}]`;
+  const embeddingV2Array = `[${embeddingV2.join(',')}]`;
+  const escapedText = searchText.replace(/'/g, "''");
   
-  const response = await bedrock.send(command);
-  const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-  return responseBody.embedding;
-}
-
-async function updateAssetEmbedding(assetType, assetId, embedding) {
-  const tableName = assetType === 'part' ? 'parts' : 'tools';
-  const embeddingArray = `[${embedding.join(',')}]`;
+  const sql = `UPDATE ${table} SET search_text = '${escapedText}', search_embedding = '${embeddingV1Array}'::vector, search_embedding_v2 = '${embeddingV2Array}'::vector WHERE id = '${id}'`;
   
-  return new Promise((resolve, reject) => {
-    const data = JSON.stringify({
-      sql: `UPDATE ${tableName} SET search_embedding = '${embeddingArray}' WHERE id = '${assetId}'`
-    });
-    
-    const options = {
-      hostname: API_BASE_URL.replace('https://', '').split('/')[0],
-      path: '/prod/api/query',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': data.length
-      }
-    };
-    
-    const req = https.request(options, (res) => {
-      let body = '';
-      res.on('data', (chunk) => body += chunk);
-      res.on('end', () => resolve(JSON.parse(body)));
-    });
-    
-    req.on('error', reject);
-    req.write(data);
-    req.end();
-  });
+  // Call db-migration Lambda to execute SQL
+  const response = await lambda.send(new InvokeCommand({
+    FunctionName: 'cwf-db-migration',
+    Payload: JSON.stringify({ sql })
+  }));
+  
+  const result = JSON.parse(new TextDecoder().decode(response.Payload));
+  console.log('DB update result:', result);
+  return result;
 }
 
 exports.handler = async (event) => {
@@ -54,31 +27,31 @@ exports.handler = async (event) => {
   for (const record of event.Records) {
     try {
       const message = JSON.parse(record.body);
-      const snsMessage = JSON.parse(message.Message);
+      const { id, table, text } = message;
       
-      const { eventType, assetType, assetId, assetData } = snsMessage;
+      console.log(`Processing ${table} ${id}`);
       
-      console.log(`Processing ${eventType} for ${assetType} ${assetId}`);
-      
-      if (!['part', 'tool'].includes(assetType)) {
-        console.log(`Skipping ${assetType} - only processing parts and tools`);
+      if (!['parts', 'tools'].includes(table)) {
+        console.log(`Skipping ${table} - only processing parts and tools`);
         continue;
       }
       
-      const text = `${assetData.name || ''} ${assetData.description || ''} ${assetData.category || ''}`.trim();
-      
-      if (!text) {
-        console.log(`No text to embed for ${assetType} ${assetId}`);
+      if (!text || !text.trim()) {
+        console.log(`No text to embed for ${table} ${id}`);
         continue;
       }
       
-      console.log(`Generating embedding for: ${text.substring(0, 100)}...`);
-      const embedding = await generateEmbedding(text);
+      console.log(`Generating embeddings for: ${text.substring(0, 100)}...`);
+      const [embeddingV1, embeddingV2] = await Promise.all([
+        generateEmbeddingV1(text),
+        generateEmbeddingV2(text)
+      ]);
+      console.log(`Generated V1 (${embeddingV1.length} dims) and V2 (${embeddingV2.length} dims)`);
       
-      console.log(`Updating ${assetType} ${assetId} with embedding`);
-      await updateAssetEmbedding(assetType, assetId, embedding);
+      console.log(`Updating ${table} ${id} with both embeddings`);
+      await updateAssetEmbedding(table, id, text, embeddingV1, embeddingV2);
       
-      console.log(`Successfully processed ${assetType} ${assetId}`);
+      console.log(`Successfully processed ${table} ${id}`);
     } catch (error) {
       console.error('Error processing record:', error);
       throw error;

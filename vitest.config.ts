@@ -13,6 +13,7 @@ export default defineConfig({
       '**/node_modules/**',
       '**/dist/**',
       '**/lambda/**',
+      '**/sari-sari-agent/**',
     ],
     silent: false,
     onUnhandledError: (error, type) => {

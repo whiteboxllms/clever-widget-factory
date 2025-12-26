@@ -176,9 +176,10 @@ class QueryProcessor {
     `;
 
     // Build WHERE clause with enhanced filtering
+    const tableAlias = table === 'tools' ? 't.' : '';
     const whereConditions = [
-      'search_embedding IS NOT NULL',
-      `organization_id = '${organizationId.replace(/'/g, "''")}'`
+      `${tableAlias}search_embedding IS NOT NULL`,
+      `${tableAlias}organization_id = '${organizationId.replace(/'/g, "''")}'`
     ];
 
     // Add price filtering for parts table (using cost_per_unit column)

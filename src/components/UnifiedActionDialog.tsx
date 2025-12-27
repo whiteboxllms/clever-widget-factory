@@ -51,10 +51,13 @@ import { AssetSelector } from './AssetSelector';
 import { StockSelector } from './StockSelector';
 import { MultiParticipantSelector } from './MultiParticipantSelector';
 import { MissionSelector } from './MissionSelector';
+import { ToolDetails } from './tools/ToolDetails';
+import { StockDetails } from './StockDetails';
 import { cn, sanitizeRichText, getActionBorderStyle } from "@/lib/utils";
 import { BaseAction, Profile, ActionCreationContext } from "@/types/actions";
 import { autoCheckinToolsForAction, activatePlannedCheckoutsIfNeeded } from '@/lib/autoToolCheckout';
 import { generateActionUrl, copyToClipboard } from "@/lib/urlUtils";
+import { useComponentUnmountDebug } from '@/hooks/useComponentUnmountDebug';
 
 interface UnifiedActionDialogProps {
   open: boolean;
@@ -75,6 +78,9 @@ export function UnifiedActionDialog({
   onActionSaved,
   isCreating = false
 }: UnifiedActionDialogProps) {
+  // Debug: Track component lifecycle
+  useComponentUnmountDebug('UnifiedActionDialog', { open, actionId, isCreating });
+  
   const queryClient = useQueryClient();
   
   // Look up action from cache using ID
@@ -99,7 +105,22 @@ export function UnifiedActionDialog({
       }
     },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['actions'] });
+      // Update specific action in cache instead of invalidating all
+      const actionId = data?.id || action?.id;
+      if (actionId) {
+        queryClient.setQueryData(['actions'], (old: BaseAction[] | undefined) => {
+          if (!old) return old;
+          const index = old.findIndex(a => a.id === actionId);
+          if (index === -1) {
+            // New action - add to cache
+            return [...old, { ...variables, ...data, id: actionId }];
+          }
+          // Update existing action
+          const updated = [...old];
+          updated[index] = { ...old[index], ...variables, ...data, id: actionId };
+          return updated;
+        });
+      }
       // Also invalidate issue-specific actions cache if this action is linked to an issue
       if (variables.linked_issue_id) {
         queryClient.invalidateQueries({ queryKey: ['issue_actions', variables.linked_issue_id] });
@@ -140,6 +161,8 @@ export function UnifiedActionDialog({
   const [isInImplementationMode, setIsInImplementationMode] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [showMissionDialog, setShowMissionDialog] = useState(false);
+  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
+  const [selectedStockId, setSelectedStockId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Local uploading state set immediately when files are selected (before async operations)
   // This prevents dialog from closing on mobile before uploadImages sets its internal state
@@ -200,11 +223,6 @@ export function UnifiedActionDialog({
       
       // Check if we're opening the same action/context or a different one
       const isSameSession = currentActionId === storedActionId && contextType === currentContextType;
-      
-      // Invalidate cache only when opening a different action to get fresh data
-      if (actionId && !isCreating && !isSameSession) {
-        queryClient.invalidateQueries({ queryKey: ['actions'] });
-      }
       
       // Only reset form if it's a different action/context or first time opening
       if (!isSameSession || !isFormInitialized) {
@@ -1030,13 +1048,9 @@ export function UnifiedActionDialog({
                 Assets
               </Label>
               <AssetSelector
-                selectedAssets={[]}
-                onAssetsChange={() => {}}
-                actionId={action?.id}
-                organizationId={organizationId}
-                isInImplementationMode={isInImplementationMode}
                 formData={formData}
                 setFormData={setFormData}
+                onAssetClick={(assetId) => setSelectedAssetId(assetId)}
               />
             </div>
 
@@ -1052,6 +1066,7 @@ export function UnifiedActionDialog({
                   ...prev, 
                   required_stock: stock 
                 }))}
+                onStockClick={(partId) => setSelectedStockId(partId)}
               />
             </div>
           </div>
@@ -1215,6 +1230,47 @@ export function UnifiedActionDialog({
           </div>
         </div>
       </DialogContent>
+
+      {/* Asset Detail Dialog */}
+      <Dialog open={!!selectedAssetId} onOpenChange={(open) => !open && setSelectedAssetId(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Asset Details</DialogTitle>
+          </DialogHeader>
+          {selectedAssetId && (() => {
+            const tool = queryClient.getQueryData<any[]>(['tools'])?.find(t => t.id === selectedAssetId);
+            const allCheckouts = queryClient.getQueryData<any[]>(['checkouts']) || [];
+            const toolHistory = allCheckouts.filter((c: any) => c.tool_id === selectedAssetId);
+            const currentCheckout = toolHistory.find((c: any) => !c.is_returned);
+            
+            return (
+              <ToolDetails
+                tool={tool}
+                toolHistory={toolHistory}
+                currentCheckout={currentCheckout}
+                onBack={() => setSelectedAssetId(null)}
+              />
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Stock Detail Dialog */}
+      <Dialog open={!!selectedStockId} onOpenChange={(open) => !open && setSelectedStockId(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Stock Item Details</DialogTitle>
+          </DialogHeader>
+          {selectedStockId && (
+            <StockDetails
+              stock={queryClient.getQueryData<any[]>(['parts'])?.find(p => p.id === selectedStockId) as any}
+              issues={[]}
+              onBack={() => setSelectedStockId(null)}
+              onResolveIssue={() => {}}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Mission Selection Dialog */}
       <Dialog open={showMissionDialog} onOpenChange={setShowMissionDialog}>

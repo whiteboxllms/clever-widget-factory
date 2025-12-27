@@ -32,6 +32,7 @@ export interface CombinedAsset {
   checked_out_to?: string;
   checked_out_user_id?: string;
   checked_out_date?: string;
+  checkout_action_id?: string;
   accountable_person_id?: string;
   accountable_person_name?: string; // Resolved name from accountable_person_id
   accountable_person_color?: string; // Favorite color of accountable person
@@ -111,14 +112,15 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
 
       // Note: Asset will appear after refetch
       return data;
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error creating ${isAsset ? 'asset' : 'stock item'}:`, error);
+      const errorMessage = error?.message || error?.error || 'Unknown error';
       toast({
         title: "Error",
-        description: `Failed to create ${isAsset ? 'asset' : 'stock item'}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        description: `Failed to create ${isAsset ? 'asset' : 'stock item'}: ${errorMessage}`,
         variant: "destructive"
       });
-      return null;
+      throw error;
     }
   };
 
@@ -212,7 +214,8 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
         is_checked_out: Boolean(tool.is_checked_out),
         checked_out_user_id: tool.checked_out_user_id,
         checked_out_to: tool.checked_out_to,
-        checked_out_date: tool.checked_out_date
+        checked_out_date: tool.checked_out_date,
+        checkout_action_id: tool.checkout_action_id
       }))
     ];
     

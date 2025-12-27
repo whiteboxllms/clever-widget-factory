@@ -27,15 +27,33 @@ export interface ApiError {
 }
 
 /**
- * Get the current Cognito ID token with automatic refresh
+ * Get the current Cognito ID token with caching
  */
+let cachedToken: string | null = null;
+let tokenExpiry: number = 0;
+
 async function getIdToken(): Promise<string | null> {
   try {
-    const session = await fetchAuthSession({ forceRefresh: true });
+    // Return cached token if still valid (with 5 min buffer)
+    if (cachedToken && Date.now() < tokenExpiry - 300000) {
+      return cachedToken;
+    }
+    
+    const session = await fetchAuthSession({ forceRefresh: false });
     const idToken = session.tokens?.idToken?.toString();
+    
+    if (idToken) {
+      cachedToken = idToken;
+      // JWT exp is in seconds, convert to ms
+      const payload = JSON.parse(atob(idToken.split('.')[1]));
+      tokenExpiry = payload.exp * 1000;
+    }
+    
     return idToken || null;
   } catch (error) {
     console.error('Failed to get ID token:', error);
+    cachedToken = null;
+    tokenExpiry = 0;
     return null;
   }
 }

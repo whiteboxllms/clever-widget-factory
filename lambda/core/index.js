@@ -322,11 +322,12 @@ exports.handler = async (event) => {
             END as image_url,
             CASE WHEN active_checkouts.id IS NOT NULL THEN true ELSE false END as is_checked_out,
             active_checkouts.user_id as checked_out_user_id,
-            active_checkouts.user_name as checked_out_to,
+            om_checkout.full_name as checked_out_to,
             active_checkouts.checkout_date as checked_out_date,
             active_checkouts.expected_return_date,
             active_checkouts.intended_usage as checkout_intended_usage,
-            active_checkouts.notes as checkout_notes
+            active_checkouts.notes as checkout_notes,
+            active_checkouts.action_id as checkout_action_id
           FROM tools
           LEFT JOIN tools parent_tool ON tools.parent_structure_id = parent_tool.id
           LEFT JOIN LATERAL (
@@ -336,6 +337,7 @@ exports.handler = async (event) => {
             ORDER BY checkouts.checkout_date DESC NULLS LAST, checkouts.created_at DESC
             LIMIT 1
           ) active_checkouts ON true
+          LEFT JOIN organization_members om_checkout ON active_checkouts.user_id = om_checkout.cognito_user_id
           ${whereClause}
           ORDER BY tools.id, tools.name 
           LIMIT ${limit} OFFSET ${offset}
@@ -1549,7 +1551,6 @@ exports.handler = async (event) => {
               c.id::text,
               c.tool_id::text,
               c.user_id::text,
-              c.user_name,
               c.checkout_date,
               c.expected_return_date,
               c.is_returned,
@@ -1558,7 +1559,7 @@ exports.handler = async (event) => {
               c.action_id::text,
               c.organization_id::text,
               c.created_at,
-              COALESCE(om.full_name, c.user_name) as user_display_name
+              COALESCE(om.full_name, 'Unknown User') as user_display_name
             FROM checkouts c
             LEFT JOIN organization_members om ON c.user_id::text = om.cognito_user_id::text
             WHERE c.tool_id::text = '${escapeLiteral(toolId)}'
@@ -1863,7 +1864,7 @@ exports.handler = async (event) => {
           SELECT 
             c.*,
             t.serial_number as tool_serial_number,
-            COALESCE(om.full_name, c.user_name) as user_name,
+            om.full_name as user_name,
             a.title as action_title
           FROM checkouts c
           LEFT JOIN tools t ON c.tool_id = t.id

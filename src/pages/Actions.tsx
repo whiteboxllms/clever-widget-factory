@@ -19,10 +19,12 @@ import { BaseAction, Profile } from '@/types/actions';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { apiService } from '@/lib/apiService';
 import { actionsQueryKey } from '@/lib/queryKeys';
+import { useComponentUnmountDebug } from '@/hooks/useComponentUnmountDebug';
 
 // Using unified BaseAction interface from types/actions.ts
 
 export default function Actions() {
+  useComponentUnmountDebug('ActionsPage');
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -99,7 +101,7 @@ export default function Actions() {
   const queryClient = useQueryClient();
   
   const handleSaveAction = async () => {
-    queryClient.invalidateQueries({ queryKey: ['actions'] });
+    // Cache is already updated by saveActionMutation.onSuccess
     setIsEditDialogOpen(false);
     setEditingActionId(null);
     setIsCreating(false);

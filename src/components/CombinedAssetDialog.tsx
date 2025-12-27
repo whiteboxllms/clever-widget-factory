@@ -133,11 +133,12 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
         title: "Success",
         description: `${isAsset ? 'Asset' : 'Stock item'} added successfully`
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding item:', error);
+      const errorMessage = error?.message || error?.error || 'Unknown error';
       toast({
         title: "Error",
-        description: `Failed to add ${isAsset ? 'asset' : 'stock item'}`,
+        description: `Failed to add ${isAsset ? 'asset' : 'stock item'}: ${errorMessage}`,
         variant: "destructive"
       });
     } finally {
@@ -331,8 +332,6 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="available">Available</SelectItem>
-                    <SelectItem value="in_use">In Use</SelectItem>
-                    <SelectItem value="unavailable">Unavailable</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

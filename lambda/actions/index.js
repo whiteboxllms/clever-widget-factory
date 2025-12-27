@@ -154,6 +154,26 @@ exports.handler = async (event) => {
       const { created_by, updated_by, updated_at, completed_at, ...actionData } = body;
       
       const userId = updated_by || authContext.cognito_user_id || require('crypto').randomUUID();
+      const orgId = accessibleOrgIds[0];
+      
+      // Get current action state before update
+      const orgFilter = buildOrganizationFilter(authContext, 'actions');
+      const currentActionSql = `SELECT * FROM actions WHERE id = '${actionId}' ${orgFilter.condition ? 'AND ' + orgFilter.condition : ''}`;
+      const currentActionResult = await queryJSON(currentActionSql);
+      
+      if (!currentActionResult || currentActionResult.length === 0) {
+        return {
+          statusCode: 404,
+          headers,
+          body: JSON.stringify({ error: 'Action not found' })
+        };
+      }
+      
+      const currentAction = currentActionResult[0];
+      const oldTools = currentAction.required_tools || [];
+      const newTools = actionData.required_tools || oldTools;
+      const actionStatus = actionData.status || currentAction.status;
+      const assignedTo = actionData.assigned_to || currentAction.assigned_to;
       
       const updates = [];
       for (const [key, val] of Object.entries(actionData)) {
@@ -179,16 +199,53 @@ exports.handler = async (event) => {
       updates.push(`updated_by = '${userId}'`);
       if (completed_at) updates.push(`completed_at = '${completed_at}'`);
       
-      const orgFilter = buildOrganizationFilter(authContext, 'actions');
       const sql = `UPDATE actions SET ${updates.join(', ')}, updated_at = NOW() WHERE id = '${actionId}' ${orgFilter.condition ? 'AND ' + orgFilter.condition : ''} RETURNING *`;
       const result = await queryJSON(sql);
       
-      if (!result || result.length === 0) {
-        return {
-          statusCode: 404,
-          headers,
-          body: JSON.stringify({ error: 'Action not found' })
-        };
+      // Manage checkouts based on required_tools changes
+      if (actionStatus === 'in_progress') {
+        const addedTools = newTools.filter(t => !oldTools.includes(t));
+        const removedTools = oldTools.filter(t => !newTools.includes(t));
+        
+        // Create checkouts for newly added tools
+        for (const toolId of addedTools) {
+          // Check if tool already has active checkout
+          const existingCheckoutSql = `SELECT id FROM checkouts WHERE tool_id = '${toolId}' AND is_returned = false LIMIT 1`;
+          const existingCheckout = await queryJSON(existingCheckoutSql);
+          
+          if (existingCheckout && existingCheckout.length > 0) {
+            console.log(`Tool ${toolId} already checked out, skipping`);
+            continue;
+          }
+          
+          const checkoutId = require('crypto').randomUUID();
+          const checkoutSql = `INSERT INTO checkouts (id, tool_id, user_id, action_id, checkout_date, is_returned, organization_id, created_at) VALUES ('${checkoutId}', '${toolId}', '${assignedTo}', '${actionId}', NOW(), false, '${orgId}', NOW())`;
+          await queryJSON(checkoutSql);
+        }
+        
+        // Delete checkouts for removed tools (they never used it)
+        for (const toolId of removedTools) {
+          const deleteSql = `DELETE FROM checkouts WHERE tool_id = '${toolId}' AND action_id = '${actionId}' AND is_returned = false`;
+          await queryJSON(deleteSql);
+        }
+      }
+      
+      // If action completed, create checkins and mark checkouts as returned
+      if (actionStatus === 'completed' && currentAction.status !== 'completed') {
+        // Get all unreturned checkouts for this action
+        const checkoutsSql = `SELECT id, tool_id, user_id FROM checkouts WHERE action_id = '${actionId}' AND is_returned = false`;
+        const checkouts = await queryJSON(checkoutsSql);
+        
+        // Create checkin records
+        for (const checkout of checkouts) {
+          const checkinId = require('crypto').randomUUID();
+          const checkinSql = `INSERT INTO checkins (id, checkout_id, tool_id, checkin_date, checkin_reason, notes, organization_id, created_at) VALUES ('${checkinId}', '${checkout.id}', '${checkout.tool_id}', NOW(), 'Action completed', 'Automatically checked in when action was completed', '${orgId}', NOW())`;
+          await queryJSON(checkinSql);
+        }
+        
+        // Mark checkouts as returned
+        const returnAllSql = `UPDATE checkouts SET is_returned = true WHERE action_id = '${actionId}' AND is_returned = false`;
+        await queryJSON(returnAllSql);
       }
       
       return { statusCode: 200, headers, body: JSON.stringify({ data: result[0] }) };

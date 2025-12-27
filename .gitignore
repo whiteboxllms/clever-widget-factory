@@ -78,3 +78,4 @@ prototype/
 html.meta.json.gz
 response.json
 data/embedding-texts/
+lambda/core/shared/

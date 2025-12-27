@@ -92,13 +92,17 @@ export const CombinedAssetsContainer = () => {
   const searchRef = useRef(searchTerm);
   const debounceTimerRef = useRef<number | undefined>(undefined);
   const semanticDebounceTimerRef = useRef<number | undefined>(undefined);
-  const { assets, loading, createAsset, updateAsset, refetch, fetchAssets } = useCombinedAssets(showRemovedItems, {
+  
+  // Memoize options to prevent unnecessary re-renders
+  const assetsQueryOptions = useMemo(() => ({
     search: searchTerm,
     limit,
     page,
     searchDescriptions,
     showLowStock
-  });
+  }), [searchTerm, limit, page, searchDescriptions, showLowStock]);
+  
+  const { assets, loading, createAsset, updateAsset, refetch, fetchAssets } = useCombinedAssets(showRemovedItems, assetsQueryOptions);
   const { members: organizationMembers } = useOrganizationMembers();
   const checkoutDisplayNameMap = useMemo(() => {
     const map = new Map<string, string>();

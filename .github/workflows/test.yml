@@ -65,6 +65,7 @@ jobs:
       env:
         CI: true
         SUPPRESS_JSDOM_URL_ERRORS: "false"
+        VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'https://0720au267k.execute-api.us-west-2.amazonaws.com/prod' }}
     
     - name: Publish Test Results
       uses: EnricoMi/publish-unit-test-result-action@v2

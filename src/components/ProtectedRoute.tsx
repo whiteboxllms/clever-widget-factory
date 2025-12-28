@@ -11,25 +11,14 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Only redirect if we've finished loading and there's no user
+    // Don't block rendering - let the UI show immediately
     if (!loading && !user) {
       navigate('/auth');
     }
   }, [user, loading, navigate]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null;
-  }
-
+  // Render children immediately - don't block on auth loading
+  // Individual pages can handle their own auth checks if needed
   return <>{children}</>;
 }

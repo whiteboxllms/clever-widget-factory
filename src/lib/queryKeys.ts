@@ -45,3 +45,9 @@ export const missionsQueryKey = () => ['missions'];
 
 export const missionQueryKey = (missionId: string) => ['mission', missionId];
 
+// Parts orders query key
+export const partsOrdersQueryKey = (status?: string) => [
+  'parts_orders',
+  status ?? 'all'
+];
+

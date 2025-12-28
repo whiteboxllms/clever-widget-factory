@@ -1,37 +1,35 @@
-import { useState, useEffect } from 'react';
-
-import { useToast } from '@/hooks/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { Tool } from './useToolsData';
-import { apiService } from '@/lib/apiService';
+import { toolsQueryKey } from '@/lib/queryKeys';
 
 export const useParentStructures = () => {
-  const [parentStructures, setParentStructures] = useState<Tool[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // Get tools directly from cache (already loaded by useCombinedAssets)
+  // This is instant - no query, no network call, just reading from memory
+  const toolsData = queryClient.getQueryData<Tool[]>(toolsQueryKey()) || [];
+  
+  // Filter client-side: Infrastructure or Container category, and not removed
+  // This is O(n) where n is typically < 2000, so it's extremely fast (< 1ms)
+  const parentStructures = useMemo(() => {
+    return toolsData.filter((tool: Tool) => {
+      const isInfrastructureOrContainer = tool.category === 'Infrastructure' || tool.category === 'Container';
+      const isNotRemoved = tool.status !== 'removed';
+      return isInfrastructureOrContainer && isNotRemoved;
+    });
+  }, [toolsData]);
 
-  const fetchParentStructures = async () => {
-    try {
-      const result = await apiService.get('/tools?category=Infrastructure,Container&status=!removed');
-      setParentStructures(result.data || []);
-    } catch (error) {
-      console.error('Error fetching parent structures:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load parent structures",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchParentStructures();
-  }, []);
+  // Check if tools query is still loading (from the query state)
+  const queryState = queryClient.getQueryState(toolsQueryKey());
+  const loading = queryState?.status === 'pending' || queryState?.isFetching || false;
 
   return {
     parentStructures,
     loading,
-    refetch: fetchParentStructures
+    refetch: () => {
+      // Invalidate the tools query to trigger a refetch
+      queryClient.invalidateQueries({ queryKey: toolsQueryKey() });
+    }
   };
 };

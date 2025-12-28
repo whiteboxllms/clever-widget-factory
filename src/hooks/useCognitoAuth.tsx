@@ -1,7 +1,8 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Amplify } from 'aws-amplify';
 import { signIn, signUp, signOut, getCurrentUser, fetchAuthSession, resetPassword, confirmResetPassword, confirmSignIn } from 'aws-amplify/auth';
 import { apiService, getApiData } from '@/lib/apiService';
+import { useQueryClient } from '@tanstack/react-query';
 
 // Configure Amplify
 Amplify.configure({
@@ -53,8 +54,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isContributor, setIsContributor] = useState(false);
   const [isLeadership, setIsLeadership] = useState(false);
   const [canEditTools, setCanEditTools] = useState(false);
+  const queryClient = useQueryClient();
 
-  const checkUserRole = async (userId: string) => {
+  const checkUserRole = useCallback(async (userId: string) => {
     try {
       console.log('Checking user role for:', userId);
       
@@ -63,6 +65,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await apiService.get(`/organization_members?cognito_user_id=${encodeURIComponent(userId)}`);
       const data = getApiData(response);
       const memberships = Array.isArray(data) ? data : [];
+      
+      // Update TanStack Query cache so useProfile can reuse this data
+      // This prevents duplicate API calls
+      queryClient.setQueryData(['organization_memberships', userId], memberships);
       
       // Check if user has any active memberships with admin or contributor roles
       const hasAdminRole = memberships.some((m: any) => m.role === 'admin' && m.is_active !== false);
@@ -90,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLeadership(false);
       setCanEditTools(false);
     }
-  };
+  }, [queryClient]);
 
   // Proactively refresh token every 50 minutes (tokens expire after 60 minutes)
   useEffect(() => {
@@ -118,32 +124,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const currentUser = await getCurrentUser();
         const session = await fetchAuthSession({ forceRefresh: false });
         
-        // Fetch user's full name from profiles table (the correct source)
-        let fullName: string | undefined = undefined;
-        try {
-          // Get ID token from session for authenticated request
-          const idToken = session.tokens?.idToken?.toString();
-          const headers: HeadersInit = { 'Content-Type': 'application/json' };
-          if (idToken) {
-            headers['Authorization'] = `Bearer ${idToken}`;
-          }
-          
-          // Use profiles endpoint instead of organization_members
-          // Profiles is the correct source for user display names
-          const response = await fetch(
+        // Get ID token from session for authenticated requests
+        const idToken = session.tokens?.idToken?.toString();
+        const headers: HeadersInit = { 'Content-Type': 'application/json' };
+        if (idToken) {
+          headers['Authorization'] = `Bearer ${idToken}`;
+        }
+        
+        // Fetch profiles and check user role in parallel using Promise.allSettled
+        // This ensures both API calls start simultaneously
+        const [profileResult, roleResult] = await Promise.allSettled([
+          // Fetch user's full name from profiles table
+          fetch(
             `${import.meta.env.VITE_API_BASE_URL}/api/profiles?user_id=${currentUser.userId}`,
             { headers }
-          );
-          if (response.ok) {
-            const result = await response.json();
-            const profiles = Array.isArray(result) ? result : (result?.data || []);
-            const profile = profiles[0]; // Get first profile
-            if (profile?.full_name) {
-              fullName = profile.full_name;
+          ).then(async (response) => {
+            if (response.ok) {
+              const result = await response.json();
+              const profiles = Array.isArray(result) ? result : (result?.data || []);
+              const profile = profiles[0]; // Get first profile
+              
+              // Update TanStack Query cache so useProfile can reuse this data
+              if (profile) {
+                queryClient.setQueryData(['profile', currentUser.userId], profile);
+              }
+              
+              return profile;
             }
-          }
-        } catch (error) {
-          console.warn('Could not fetch user full name from profiles:', error);
+            return null;
+          }).catch(() => null),
+          // Check user role (this also makes an API call) - run in parallel
+          checkUserRole(currentUser.userId).catch(() => {
+            // Error already handled in checkUserRole
+          })
+        ]);
+        
+        // Extract full name from profile result
+        let fullName: string | undefined = undefined;
+        if (profileResult.status === 'fulfilled' && profileResult.value?.full_name) {
+          fullName = profileResult.value.full_name;
         }
         
         // Use email as username if available, otherwise use Cognito username
@@ -160,8 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         setUser(userData);
         setSession(session);
-        setIdToken(session.tokens?.idToken?.toString() || null);
-        await checkUserRole(currentUser.userId);
+        setIdToken(idToken || null);
       } catch (error) {
         setUser(null);
         setSession(null);
@@ -176,7 +194,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     checkAuthState();
-  }, []);
+  }, [checkUserRole, queryClient]);
 
   const handleSignUp = async (email: string, password: string, fullName: string) => {
     try {

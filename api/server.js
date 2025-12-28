@@ -64,10 +64,9 @@ app.get('/api/organization_members', async (req, res) => {
     const { organization_id = '00000000-0000-0000-0000-000000000001' } = req.query;
     
     const sql = `SELECT json_agg(row_to_json(t)) FROM (
-      SELECT user_id, full_name, role, cognito_user_id
+      SELECT user_id, full_name, role, cognito_user_id, is_active
       FROM organization_members
-      WHERE is_active = true 
-        AND full_name IS NOT NULL 
+      WHERE full_name IS NOT NULL 
         AND trim(full_name) != ''
         AND organization_id = '${organization_id}'
       ORDER BY full_name

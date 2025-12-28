@@ -14,19 +14,14 @@ export function useOrganizationValues(org?: any) {
   const organization = org || contextOrg;
 
   const getOrganizationValues = useCallback(async (): Promise<string[]> => {
-    console.log('[useOrganizationValues] getOrganizationValues called', { organization });
-    
     // If organization already has settings, use them directly
     if (organization?.settings?.strategic_attributes) {
-      console.log('[useOrganizationValues] Using org settings directly:', organization.settings.strategic_attributes);
       return organization.settings.strategic_attributes;
     }
 
     try {
-      console.log('[useOrganizationValues] Fetching from API...');
       const response = await apiService.get('/organizations');
       const orgs = getApiData(response) || [];
-      console.log('[useOrganizationValues] API returned orgs:', orgs);
       
       // Use first org if no specific org ID
       const currentOrg = organization?.id 

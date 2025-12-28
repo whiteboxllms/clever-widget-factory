@@ -93,7 +93,6 @@ async function apiRequest<T = any>(
     }
     
     url = `${baseUrl}${normalizedEndpoint}`;
-    console.log('🔗 API Request:', { baseUrl, endpoint, normalizedEndpoint, url });
   }
 
   // Get ID token for Authorization header

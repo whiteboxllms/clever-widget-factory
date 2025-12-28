@@ -80,14 +80,9 @@ const Organization = () => {
 
     setIsLoadingOrg(true);
     setOrgLoadError(null);
-    console.log('[Organization] loadOrganizationData start', { targetOrgId, isSuperAdmin });
-
     try {
-      console.log('[Organization] Calling API: /organizations');
       const response = await apiService.get('/organizations');
-      console.log('[Organization] Organizations response:', response);
       const organizations = getApiData(response) || [];
-      console.log('[Organization] Parsed organizations:', organizations);
 
       if (!organizations.length) {
         console.warn('[Organization] No organizations found');
@@ -104,9 +99,6 @@ const Organization = () => {
 
       if (!selectedOrganization) {
         selectedOrganization = organizations[0];
-        console.log('[Organization] Using first organization:', selectedOrganization);
-      } else {
-        console.log('[Organization] Found target organization:', selectedOrganization);
       }
 
       if (selectedOrganization) {

@@ -25,9 +25,9 @@ import {
 } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
-import { apiService } from '@/lib/apiService';
-import { useOrganizationMembers } from '@/hooks/useOrganizationMembers';
-import { missionsQueryKey } from '@/lib/queryKeys';
+import { apiService, getApiData } from '@/lib/apiService';
+import { missionsQueryKey, actionImplementationUpdatesQueryKey } from '@/lib/queryKeys';
+import { ImplementationUpdate } from '@/types/actions';
 import { 
   Paperclip, 
   Calendar as CalendarIcon, 
@@ -51,8 +51,6 @@ import { AssetSelector } from './AssetSelector';
 import { StockSelector } from './StockSelector';
 import { MultiParticipantSelector } from './MultiParticipantSelector';
 import { MissionSelector } from './MissionSelector';
-import { ToolDetails } from './tools/ToolDetails';
-import { StockDetails } from './StockDetails';
 import { cn, sanitizeRichText, getActionBorderStyle } from "@/lib/utils";
 import { BaseAction, Profile, ActionCreationContext } from "@/types/actions";
 import { autoCheckinToolsForAction, activatePlannedCheckoutsIfNeeded } from '@/lib/autoToolCheckout';
@@ -77,8 +75,6 @@ export function UnifiedActionDialog({
   onActionSaved,
   isCreating = false
 }: UnifiedActionDialogProps) {
-  // Debug: Track component lifecycle
-  
   const queryClient = useQueryClient();
   
   // Look up action from cache using ID
@@ -87,7 +83,6 @@ export function UnifiedActionDialog({
   const { toast } = useToast();
   const { isLeadership, user } = useAuth();
   const organizationId = useOrganizationId();
-  const { members: organizationMembers = [] } = useOrganizationMembers();
   
   const saveActionMutation = useMutation({
     mutationFn: async (actionData: any) => {
@@ -96,45 +91,120 @@ export function UnifiedActionDialog({
         // For PUT requests, exclude id from body since it's in the URL path
         const { id, ...updateData } = actionData;
         const result = await apiService.put(`/actions/${id}`, updateData);
-        return result.data;
+        return result;
       } else {
         const result = await apiService.post('/actions', actionData);
-        return result.data;
+        return result;
       }
     },
-    onSuccess: (data, variables) => {
-      // Update specific action in cache instead of invalidating all
-      const actionId = data?.id || action?.id;
-      if (actionId) {
-        queryClient.setQueryData(['actions'], (old: BaseAction[] | undefined) => {
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches to prevent race conditions
+      await queryClient.cancelQueries({ queryKey: ['actions'] });
+      
+      // Snapshot previous state for rollback
+      const previousActions = queryClient.getQueryData<BaseAction[]>(['actions']);
+      
+      // Optimistic update for immediate UI feedback (offline-first)
+      if (variables.id) {
+        // Update existing action
+        queryClient.setQueryData<BaseAction[]>(['actions'], (old) => {
           if (!old) return old;
-          const index = old.findIndex(a => a.id === actionId);
-          if (index === -1) {
-            // New action - add to cache
-            return [...old, { ...variables, ...data, id: actionId }];
-          }
-          // Update existing action
-          const updated = [...old];
-          updated[index] = { ...old[index], ...variables, ...data, id: actionId };
-          return updated;
+          return old.map(action => 
+            action.id === variables.id 
+              ? { ...action, ...variables }
+              : action
+          );
+        });
+      } else {
+        // Add new action optimistically (will be replaced with server response)
+        queryClient.setQueryData<BaseAction[]>(['actions'], (old) => {
+          const newAction = { ...variables } as BaseAction;
+          return old ? [...old, newAction] : [newAction];
         });
       }
+      
+      return { previousActions };
+    },
+    onSuccess: (data, variables) => {
+      // Update cache with server response (no invalidation needed)
+      const updatedAction = getApiData<BaseAction>(data);
+      let previousAction: BaseAction | undefined;
+      
+      if (updatedAction) {
+        queryClient.setQueryData<BaseAction[]>(['actions'], (old) => {
+          if (!old) return old;
+          const actionId = updatedAction.id || (variables as BaseAction).id;
+          const existingIndex = old.findIndex(a => a.id === actionId);
+          
+          if (existingIndex >= 0) {
+            // Store previous action for invalidation check
+            previousAction = old[existingIndex];
+            
+            // Update existing action - prioritize server response values, fallback to what we sent
+            const finalRequiredTools = updatedAction.required_tools !== undefined 
+              ? updatedAction.required_tools 
+              : (variables.required_tools !== undefined ? variables.required_tools : old[existingIndex].required_tools);
+            
+            const updated = [...old];
+            updated[existingIndex] = { 
+              ...old[existingIndex], 
+              ...updatedAction,
+              // Ensure required_tools and required_stock are explicitly set from server response or variables
+              required_tools: finalRequiredTools,
+              required_stock: updatedAction.required_stock !== undefined 
+                ? updatedAction.required_stock 
+                : (variables.required_stock !== undefined ? variables.required_stock : old[existingIndex].required_stock),
+              attachments: updatedAction.attachments !== undefined 
+                ? updatedAction.attachments 
+                : (variables.attachments !== undefined ? variables.attachments : old[existingIndex].attachments)
+            };
+            return updated;
+          } else {
+            // Add new action
+            return [...old, updatedAction];
+          }
+        });
+      }
+      
+      // Invalidate related resources that might need background refresh (server-computed data)
+      // Only invalidate if the action actually uses tools (required_tools changed)
+      // This prevents unnecessary refetches when saving actions without tools
+      const hasTools = variables.required_tools && Array.isArray(variables.required_tools) && variables.required_tools.length > 0;
+      const hadTools = previousAction?.required_tools && Array.isArray(previousAction.required_tools) && previousAction.required_tools.length > 0;
+      const toolsChanged = hasTools || hadTools; // Invalidate if action has or had tools
+      
+      if (toolsChanged) {
+        // Invalidate checkouts and tools in background (non-blocking)
+        // These will refetch when components need them, not immediately
+        queryClient.invalidateQueries({ queryKey: ['checkouts'] });
+        queryClient.invalidateQueries({ queryKey: ['tools'] });
+      }
+      
       // Also invalidate issue-specific actions cache if this action is linked to an issue
       if (variables.linked_issue_id) {
         queryClient.invalidateQueries({ queryKey: ['issue_actions', variables.linked_issue_id] });
       }
-      const optimisticData = { ...variables, ...data, id: data?.id || action?.id };
+      
+      // Show appropriate toast message based on action status
+      const isCompleting = variables.status === 'completed' || updatedAction?.status === 'completed';
       toast({
-        title: "Success",
-        description: isCreating || !action?.id ? "Action created successfully" : "Action updated successfully"
+        title: isCompleting ? "Action Completed!" : "Success",
+        description: isCompleting 
+          ? "The action has been marked as complete and stock consumption recorded."
+          : (isCreating || !action?.id ? "Action created successfully" : "Action updated successfully")
       });
-      onActionSaved(optimisticData as unknown as BaseAction);
+      onActionSaved(updatedAction as BaseAction);
       // Don't close dialog if uploads are in progress or just completed
       if (!isUploading && !isLocalUploading && !uploadJustCompletedRef.current) {
         onOpenChange(false);
       }
     },
-    onError: (error) => {
+    onError: (error, variables, context) => {
+      // Rollback on error
+      if (context?.previousActions) {
+        queryClient.setQueryData(['actions'], context.previousActions);
+      }
+      
       console.error('Error saving action:', error);
       toast({
         title: "Error",
@@ -159,8 +229,6 @@ export function UnifiedActionDialog({
   const [isInImplementationMode, setIsInImplementationMode] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [showMissionDialog, setShowMissionDialog] = useState(false);
-  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
-  const [selectedStockId, setSelectedStockId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Local uploading state set immediately when files are selected (before async operations)
   // This prevents dialog from closing on mobile before uploadImages sets its internal state
@@ -181,8 +249,9 @@ export function UnifiedActionDialog({
     if (metadataName) return metadataName;
     const cognitoName = preferName((user as any)?.name);
     if (cognitoName) return cognitoName;
-    const member = organizationMembers.find(
-      (m) => m.cognito_user_id === user.id || m.user_id === user.id
+    // Use profiles prop instead of fetching organizationMembers again
+    const member = profiles.find(
+      (m: any) => m.cognito_user_id === user.id || m.user_id === user.id
     );
     const memberName = preferName(member?.full_name);
     if (memberName) return memberName;
@@ -222,13 +291,21 @@ export function UnifiedActionDialog({
       // Check if we're opening the same action/context or a different one
       const isSameSession = currentActionId === storedActionId && contextType === currentContextType;
       
+      // Don't invalidate cache - use cached data instead (prevents 639KB refetch)
+      // The cache is already up-to-date from mutations and initial load
+      // Only fetch if action is truly not in cache (handled by Actions.tsx)
+      
       // Only reset form if it's a different action/context or first time opening
       if (!isSameSession || !isFormInitialized) {
         if (action && !isCreating) {
           // Editing existing action - update formData when action changes from cache
           setFormData(prev => {
-            // Only update if this is a new session or attachments changed
-            if (!isSameSession || (action.attachments?.length !== prev.attachments?.length)) {
+            // Only update if this is a new session or attachments/required_tools/required_stock changed
+            const attachmentsChanged = action.attachments?.length !== prev.attachments?.length;
+            const requiredToolsChanged = JSON.stringify([...(action.required_tools || [])].sort()) !== JSON.stringify([...(prev.required_tools || [])].sort());
+            const requiredStockChanged = JSON.stringify([...(action.required_stock || [])].sort()) !== JSON.stringify([...(prev.required_stock || [])].sort());
+            
+            if (!isSameSession || attachmentsChanged || requiredToolsChanged || requiredStockChanged) {
               return {
                 ...action,
                 plan_commitment: action.plan_commitment || false,
@@ -244,7 +321,13 @@ export function UnifiedActionDialog({
           // Initialize implementation update count from action
           setImplementationUpdateCount(action.implementation_update_count || 0);
           if (action.estimated_duration) {
-            setEstimatedDate(new Date(action.estimated_duration));
+            const parsedDate = new Date(action.estimated_duration);
+            // Only set if date is valid
+            if (!isNaN(parsedDate.getTime())) {
+              setEstimatedDate(parsedDate);
+            } else {
+              setEstimatedDate(undefined);
+            }
           } else {
             // Explicitly set to undefined if no estimated_duration exists
             setEstimatedDate(undefined);
@@ -294,14 +377,18 @@ export function UnifiedActionDialog({
       setStoredActionId(null);
       setCurrentContextType(null);
     }
-  }, [open, actionId, context?.type, isCreating]);
+  }, [open, actionId, context?.type, isCreating, action]);
 
   // Update formData when action changes from cache (after refetch)
   useEffect(() => {
     if (action && !isCreating && isFormInitialized && !isUploading && !isLocalUploading && !uploadJustCompletedRef.current) {
       setFormData(prev => {
-        // Update if attachment count changed (additions or removals from cache)
-        if (action.attachments?.length !== prev.attachments?.length) {
+        // Update if attachment count, required_tools, or required_stock changed (additions or removals from cache)
+        const attachmentsChanged = action.attachments?.length !== prev.attachments?.length;
+        const requiredToolsChanged = JSON.stringify([...(action.required_tools || [])].sort()) !== JSON.stringify([...(prev.required_tools || [])].sort());
+        const requiredStockChanged = JSON.stringify([...(action.required_stock || [])].sort()) !== JSON.stringify([...(prev.required_stock || [])].sort());
+        
+        if (attachmentsChanged || requiredToolsChanged || requiredStockChanged) {
           return {
             ...action,
             plan_commitment: action.plan_commitment || false,
@@ -315,7 +402,7 @@ export function UnifiedActionDialog({
         return prev;
       });
     }
-  }, [action?.attachments?.length, action?.implementation_update_count, isCreating, isFormInitialized, isUploading, isLocalUploading]);
+  }, [action?.attachments?.length, action?.required_tools, action?.required_stock, action?.implementation_update_count, isCreating, isFormInitialized, isUploading, isLocalUploading]);
 
   // Fetch mission data when action has mission_id - use TanStack Query cache
   const { data: missions = [] } = useQuery({
@@ -348,8 +435,9 @@ export function UnifiedActionDialog({
   }, [action?.id, action?.implementation_update_count]);
 
   const getDialogTitle = () => {
-    if (!isCreating && action) {
-      return action.title || 'Untitled Action';
+    // If we have an actionId, we're editing (even if action not in cache yet)
+    if (!isCreating && (action || actionId)) {
+      return action?.title || 'Edit Action';
     }
     
     if (context?.type === 'issue') {
@@ -432,8 +520,8 @@ export function UnifiedActionDialog({
         await processStockConsumption(requiredStock, action.id);
       }
 
-      // Update action to completed status
-      await apiService.post('/actions', {
+      // Update action to completed status using saveActionMutation to ensure cache is updated
+      const actionData = {
         id: action.id,
         title: formData.title,
         description: formData.description,
@@ -441,11 +529,15 @@ export function UnifiedActionDialog({
         assigned_to: formData.assigned_to,
         estimated_duration: formData.estimated_duration,
         required_stock: formData.required_stock,
+        required_tools: formData.required_tools,
         attachments: formData.attachments,
         status: 'completed',
         completed_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
-      });
+      };
+      
+      // Use the mutation to ensure cache is properly updated
+      await saveActionMutation.mutateAsync(actionData);
 
       // Auto-checkin tools
       try {
@@ -458,18 +550,32 @@ export function UnifiedActionDialog({
         console.error('Auto-checkin failed:', checkinError);
       }
 
-      toast({
-        title: "Success",
-        description: "Action completed and stock consumption recorded"
-      });
-
-      onActionSaved();
-      onOpenChange(false);
-    } catch (error) {
+      // The mutation's onSuccess handler will update the cache with the completed status,
+      // show toast, call onActionSaved, and close the dialog
+      // No need to do anything else here - the mutation handles everything
+    } catch (error: any) {
       console.error('Error completing action:', error);
+      
+      // Provide more specific error messages
+      let errorMessage = "Failed to complete action and record stock usage";
+      if (error?.message) {
+        if (error.message.includes('no longer exists in inventory')) {
+          // This is the specific error for missing parts - show the full message
+          errorMessage = error.message;
+        } else if (error.message.includes('Part with ID') && error.message.includes('not found')) {
+          errorMessage = `Stock item not found. Please check that all required stock items still exist.`;
+        } else if (error.message.includes('stock consumption')) {
+          errorMessage = `Failed to process stock consumption: ${error.message}`;
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = "Network error. Please check your connection and try again.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to complete action and record stock usage",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
@@ -532,13 +638,30 @@ export function UnifiedActionDialog({
         actionId,
         user.id,
         formData.title || action?.title || 'Unknown Action',
-        action?.mission_id
+        action?.mission_id,
+        queryClient // Pass queryClient to use cached parts data
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error processing stock consumption:', error);
+      
+      // Provide more specific error message
+      let errorMessage = "Failed to process stock consumption";
+      if (error?.message) {
+        if (error.message.includes('no longer exists in inventory')) {
+          // This is the specific error for missing parts - show the full message
+          errorMessage = error.message;
+        } else if (error.message.includes('Part with ID') && error.message.includes('not found')) {
+          errorMessage = `Stock item not found: ${error.message}`;
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = "Network error while processing stock. Please check your connection.";
+        } else {
+          errorMessage = `Stock processing error: ${error.message}`;
+        }
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to process stock consumption. Please try again.",
+        description: errorMessage,
         variant: "destructive"
       });
       throw error; // Re-throw so calling function can handle it
@@ -662,7 +785,7 @@ export function UnifiedActionDialog({
         participants: formData.participants || [],
         estimated_duration: estimatedDuration,
         required_stock: formData.required_stock || [],
-        required_tools: formData.required_tools || [],
+        required_tools: Array.isArray(formData.required_tools) ? formData.required_tools : [],
         // Always include attachments array, even if empty, so removals are properly saved
         attachments: Array.isArray(formData.attachments) ? formData.attachments : [],
         mission_id: formData.mission_id || null,
@@ -912,7 +1035,7 @@ export function UnifiedActionDialog({
                   >
                     <CalendarIcon className="mr-2 h-4 w-4 flex-shrink-0" />
                     <span className="break-words">
-                      {estimatedDate ? (
+                      {estimatedDate && !isNaN(estimatedDate.getTime()) ? (
                         format(estimatedDate, "PPP")
                       ) : (
                         "Pick a completion date"
@@ -1048,7 +1171,6 @@ export function UnifiedActionDialog({
               <AssetSelector
                 formData={formData}
                 setFormData={setFormData}
-                onAssetClick={(assetId) => setSelectedAssetId(assetId)}
               />
             </div>
 
@@ -1064,7 +1186,6 @@ export function UnifiedActionDialog({
                   ...prev, 
                   required_stock: stock 
                 }))}
-                onStockClick={(partId) => setSelectedStockId(partId)}
               />
             </div>
           </div>
@@ -1095,14 +1216,11 @@ export function UnifiedActionDialog({
                 <ActionImplementationUpdates
                   actionId={action.id}
                   profiles={profiles}
-                  onUpdate={async () => {
-                    // Update local implementation update count immediately for border color
-                    try {
-                      const result = await apiService.get(`/action_implementation_updates?action_id=${action.id}`);
-                      const updates = result.data || [];
-                      setImplementationUpdateCount(updates.length);
-                    } catch (error) {
-                      console.error('Error fetching update count:', error);
+                  onUpdate={() => {
+                    // Update local implementation update count from cache (no API call needed)
+                    const cachedUpdates = queryClient.getQueryData<ImplementationUpdate[]>(actionImplementationUpdatesQueryKey(action.id));
+                    if (cachedUpdates) {
+                      setImplementationUpdateCount(cachedUpdates.length);
                     }
                   }}
                 />
@@ -1228,47 +1346,6 @@ export function UnifiedActionDialog({
           </div>
         </div>
       </DialogContent>
-
-      {/* Asset Detail Dialog */}
-      <Dialog open={!!selectedAssetId} onOpenChange={(open) => !open && setSelectedAssetId(null)}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Asset Details</DialogTitle>
-          </DialogHeader>
-          {selectedAssetId && (() => {
-            const tool = queryClient.getQueryData<any[]>(['tools'])?.find(t => t.id === selectedAssetId);
-            const allCheckouts = queryClient.getQueryData<any[]>(['checkouts']) || [];
-            const toolHistory = allCheckouts.filter((c: any) => c.tool_id === selectedAssetId);
-            const currentCheckout = toolHistory.find((c: any) => !c.is_returned);
-            
-            return (
-              <ToolDetails
-                tool={tool}
-                toolHistory={toolHistory}
-                currentCheckout={currentCheckout}
-                onBack={() => setSelectedAssetId(null)}
-              />
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
-
-      {/* Stock Detail Dialog */}
-      <Dialog open={!!selectedStockId} onOpenChange={(open) => !open && setSelectedStockId(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Stock Item Details</DialogTitle>
-          </DialogHeader>
-          {selectedStockId && (
-            <StockDetails
-              stock={queryClient.getQueryData<any[]>(['parts'])?.find(p => p.id === selectedStockId) as any}
-              issues={[]}
-              onBack={() => setSelectedStockId(null)}
-              onResolveIssue={() => {}}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* Mission Selection Dialog */}
       <Dialog open={showMissionDialog} onOpenChange={setShowMissionDialog}>

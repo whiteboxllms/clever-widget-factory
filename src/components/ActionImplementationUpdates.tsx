@@ -12,6 +12,10 @@ import { activatePlannedCheckoutsIfNeeded } from '@/lib/autoToolCheckout';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
 import { useAuth } from '@/hooks/useCognitoAuth';
 import { useOrganizationMembers } from '@/hooks/useOrganizationMembers';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { actionsQueryKey, actionImplementationUpdatesQueryKey } from '@/lib/queryKeys';
+import { BaseAction } from '@/types/actions';
+import { offlineQueryConfig } from '@/lib/queryConfig';
 
 interface ActionImplementationUpdatesProps {
   actionId: string;
@@ -31,77 +35,32 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
   const { user } = useAuth();
   const organizationId = useOrganizationId();
   const { members: orgMembers } = useOrganizationMembers();
-  const [updates, setUpdates] = useState<ImplementationUpdate[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newUpdateText, setNewUpdateText] = useState('');
   const [editingUpdateId, setEditingUpdateId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
-  const [allProfiles, setAllProfiles] = useState(profiles);
   const [hoveredUpdateId, setHoveredUpdateId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchUpdates();
-  }, [actionId]);
-
-  useEffect(() => {
-    setAllProfiles(profiles);
-  }, [profiles]);
-
-
-  const getCurrentUser = async () => {
-    // This will be handled by the useAuth hook
-  };
-
-  const fetchUpdates = async () => {
-    try {
+  // Use TanStack Query to fetch implementation updates
+  const { data: updatesData = [], isLoading: loading } = useQuery({
+    queryKey: actionImplementationUpdatesQueryKey(actionId),
+    queryFn: async () => {
       const result = await apiService.get(`/action_implementation_updates?action_id=${actionId}`);
-      const data = result.data || [];
-      console.log('Fetched updates from server:', data.length, 'updates');
+      return result.data || [];
+    },
+    ...offlineQueryConfig,
+  });
 
-      // Fetch missing user profiles
-      const userIds = [...new Set(data.map(update => update.updated_by))];
-      const missingUserIds = userIds.filter(userId => 
-        !allProfiles.some(profile => profile.user_id === userId)
-      );
-
-      if (missingUserIds.length > 0) {
-        try {
-          const profilePromises = missingUserIds.map(async (userId) => {
-            const result = await apiService.get(`/profiles?user_id=${userId}`);
-            return result.data?.[0] || null;
-          });
-          
-          const newProfiles = (await Promise.all(profilePromises)).filter(Boolean);
-          const updatedProfiles = [...allProfiles, ...newProfiles];
-          setAllProfiles(updatedProfiles);
-        } catch (error) {
-          console.error('Error fetching missing profiles:', error);
-        }
-      }
-
-      const updatesWithProfiles = (data || []).map(update => {
-        const profile = allProfiles.find(p => p.user_id === update.updated_by);
-        return {
-          ...update,
-          updated_by_profile: profile
-        };
-      });
-
-      console.log('Setting updates in state:', updatesWithProfiles.length, 'updates');
-      setUpdates(updatesWithProfiles);
-    } catch (error) {
-      console.error('Error fetching implementation updates:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load implementation updates",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Map updates with profiles (profiles are already available from props)
+  const updates = (updatesData || []).map(update => {
+    const profile = profiles.find(p => p.user_id === update.updated_by);
+    return {
+      ...update,
+      updated_by_profile: profile
+    };
+  });
 
   const handleAddUpdate = async () => {
     if (!newUpdateText.trim()) return;
@@ -110,7 +69,17 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
     try {
       if (!user) throw new Error('Not authenticated');
 
-      await apiService.post('/action_implementation_updates', {
+      // Optimistically update the action's implementation_update_count in cache
+      queryClient.setQueryData<BaseAction[]>(actionsQueryKey(), (old) => {
+        if (!old) return old;
+        return old.map(action => 
+          action.id === actionId 
+            ? { ...action, implementation_update_count: (action.implementation_update_count || 0) + 1 }
+            : action
+        );
+      });
+
+      const response = await apiService.post('/action_implementation_updates', {
         action_id: actionId,
         update_text: newUpdateText,
         updated_by: user.userId
@@ -118,23 +87,51 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
 
       setNewUpdateText('');
       
-      // Refresh updates to show the new one immediately
-      await fetchUpdates();
+      // Update cache with new update from response (no refetch needed)
+      if (response.data) {
+        queryClient.setQueryData<ImplementationUpdate[]>(actionImplementationUpdatesQueryKey(actionId), (old) => {
+          if (!old) return [response.data];
+          return [response.data, ...old];
+        });
+      }
       
       // Activate planned checkouts if plan is committed and this is the first implementation update
       if (updates.length === 0) {
         try {
-          // Check if action has plan_commitment
-          const actionResult = await apiService.get('/actions');
-          const action = actionResult.data?.find((a: any) => a.id === actionId);
+          // Get action from cache instead of fetching all actions
+          const cachedActions = queryClient.getQueryData<BaseAction[]>(actionsQueryKey());
+          const action = cachedActions?.find((a: any) => a.id === actionId);
           
-          if (action?.plan_commitment === true) {
+          // If not in cache, fetch just this single action
+          if (!action) {
+            const singleActionResult = await apiService.get(`/actions?id=${actionId}`);
+            const singleAction = singleActionResult.data?.[0];
+            if (singleAction?.plan_commitment === true) {
+              await activatePlannedCheckoutsIfNeeded(actionId, organizationId);
+            }
+          } else if (action?.plan_commitment === true) {
             await activatePlannedCheckoutsIfNeeded(actionId, organizationId);
           }
         } catch (checkoutError) {
-          console.error('Error activating planned checkouts:', checkoutError);
           // Don't fail the update if checkout fails - this is a background operation
         }
+      }
+      
+      // Update cache with server response (in case server computed implementation_update_count)
+      const newUpdate = response.data;
+      if (newUpdate) {
+        // The server might return updated implementation_update_count, update cache
+        queryClient.setQueryData<BaseAction[]>(actionsQueryKey(), (old) => {
+          if (!old) return old;
+          return old.map(action => {
+            if (action.id === actionId) {
+              // Get current count from updates array length or use optimistic value
+              const newCount = updates.length + 1;
+              return { ...action, implementation_update_count: newCount };
+            }
+            return action;
+          });
+        });
       }
       
       // Call onUpdate to update border color immediately
@@ -147,7 +144,16 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
         });
       }
     } catch (error) {
-      console.error('Error adding update:', error);
+      // Rollback optimistic update on error
+      queryClient.setQueryData<BaseAction[]>(actionsQueryKey(), (old) => {
+        if (!old) return old;
+        return old.map(action => 
+          action.id === actionId 
+            ? { ...action, implementation_update_count: Math.max(0, (action.implementation_update_count || 0) - 1) }
+            : action
+        );
+      });
+      
       toast({
         title: "Error",
         description: "Failed to add implementation update",
@@ -173,14 +179,31 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
 
     setIsSubmitting(true);
     try {
-      await apiService.put('/action_implementation_updates', {
+      // Optimistically update cache
+      queryClient.setQueryData<ImplementationUpdate[]>(actionImplementationUpdatesQueryKey(actionId), (old) => {
+        if (!old) return old;
+        return old.map(u => 
+          u.id === editingUpdateId 
+            ? { ...u, update_text: editingText }
+            : u
+        );
+      });
+
+      const response = await apiService.put('/action_implementation_updates', {
         id: editingUpdateId,
         update_text: editingText
       });
 
       setEditingUpdateId(null);
       setEditingText('');
-      await fetchUpdates();
+      
+      // Update cache with server response (in case server modified the update)
+      if (response.data) {
+        queryClient.setQueryData<ImplementationUpdate[]>(actionImplementationUpdatesQueryKey(actionId), (old) => {
+          if (!old) return old;
+          return old.map(u => u.id === editingUpdateId ? response.data : u);
+        });
+      }
       
       // Don't call onUpdate for edit operations to keep action open
       // onUpdate?.();
@@ -190,7 +213,6 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
         description: "Implementation update has been updated",
       });
     } catch (error) {
-      console.error('Error editing update:', error);
       toast({
         title: "Error",
         description: "Failed to edit implementation update",
@@ -215,13 +237,30 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
     setIsDeleting(updateId);
     
     try {
+      // Store update for potential rollback
+      const updateToDelete = updates.find(u => u.id === updateId);
+      
+      // Optimistically remove from cache
+      queryClient.setQueryData<ImplementationUpdate[]>(actionImplementationUpdatesQueryKey(actionId), (old) => {
+        if (!old) return old;
+        return old.filter(u => u.id !== updateId);
+      });
+      
+      // Optimistically update the action's implementation_update_count in cache
+      queryClient.setQueryData<BaseAction[]>(actionsQueryKey(), (old) => {
+        if (!old) return old;
+        return old.map(action => 
+          action.id === actionId 
+            ? { ...action, implementation_update_count: Math.max(0, (action.implementation_update_count || 0) - 1) }
+            : action
+        );
+      });
+
       await apiService.delete(`/action_implementation_updates/${updateId}`);
 
+      // Cache already updated optimistically above - no refetch needed
       
-      // Refresh from server to get updated list
-      await fetchUpdates();
-      
-      // Show success message after refresh
+      // Show success message
       toast({
         title: "Update deleted",
         description: "Implementation update has been removed",
@@ -230,7 +269,26 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
       // Call onUpdate to update border color immediately
       onUpdate?.();
     } catch (error) {
-      console.error('Error deleting update:', error);
+      // Rollback optimistic update on error
+      if (updateToDelete) {
+        queryClient.setQueryData<ImplementationUpdate[]>(actionImplementationUpdatesQueryKey(actionId), (old) => {
+          if (!old) return [updateToDelete];
+          return [...old, updateToDelete].sort((a, b) => 
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+        });
+      }
+      
+      // Rollback cache update
+      queryClient.setQueryData<BaseAction[]>(actionsQueryKey(), (old) => {
+        if (!old) return old;
+        return old.map(action => 
+          action.id === actionId 
+            ? { ...action, implementation_update_count: (action.implementation_update_count || 0) + 1 }
+            : action
+        );
+      });
+      
       toast({
         title: "Error",
         description: "Failed to delete implementation update",

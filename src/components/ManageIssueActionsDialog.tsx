@@ -15,7 +15,7 @@ import { ActionListItemCard } from "./ActionListItemCard";
 import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
 import { issueActionsQueryKey } from '@/lib/queryKeys';
 import { offlineQueryConfig } from '@/lib/queryConfig';
-import { apiService } from '@/lib/apiService';
+import { apiService, getApiData } from '@/lib/apiService';
 import { toast } from "@/hooks/use-toast";
 
 interface ToolIssue {
@@ -109,21 +109,64 @@ export function ManageIssueActionsDialog({
 
   const handleToggleComplete = async (action: BaseAction) => {
     const isCompleted = action.status === 'completed';
+    
+    // Optimistic update
+    const previousActions = queryClient.getQueryData<BaseAction[]>(issueActionsQueryKey(issue.id));
+    queryClient.setQueryData<BaseAction[]>(issueActionsQueryKey(issue.id), (old) => {
+      if (!old) return old;
+      return old.map(a => 
+        a.id === action.id 
+          ? { ...a, status: isCompleted ? 'in_progress' : 'completed', completed_at: isCompleted ? null : new Date().toISOString() }
+          : a
+      );
+    });
+    
+    // Also update main actions cache
+    queryClient.setQueryData<BaseAction[]>(['actions'], (old) => {
+      if (!old) return old;
+      return old.map(a => 
+        a.id === action.id 
+          ? { ...a, status: isCompleted ? 'in_progress' : 'completed', completed_at: isCompleted ? null : new Date().toISOString() }
+          : a
+      );
+    });
+    
     const success = isCompleted 
       ? await markActionIncomplete(action.id)
       : await markActionComplete(action);
     
     if (success) {
-      // Invalidate the actions query to refetch
-      queryClient.invalidateQueries({ queryKey: issueActionsQueryKey(issue.id) });
+      // Invalidate only related computed data (checkouts, tools)
+      queryClient.invalidateQueries({ queryKey: ['checkouts'] });
+      queryClient.invalidateQueries({ queryKey: ['tools'] });
       onRefresh();
+    } else {
+      // Rollback on error
+      if (previousActions) {
+        queryClient.setQueryData(issueActionsQueryKey(issue.id), previousActions);
+      }
     }
   };
 
-  const handleActionCreated = () => {
-    // Invalidate both the issue-specific and general actions queries
-    queryClient.invalidateQueries({ queryKey: issueActionsQueryKey(issue.id) });
-    queryClient.invalidateQueries({ queryKey: ['actions'] });
+  const handleActionCreated = (newAction: BaseAction) => {
+    // Update issue-specific cache with new action (no invalidation needed)
+    queryClient.setQueryData<BaseAction[]>(issueActionsQueryKey(issue.id), (old) => {
+      if (!old) return [newAction];
+      // Check if action already exists (from optimistic update)
+      const existingIndex = old.findIndex(a => a.id === newAction.id);
+      if (existingIndex >= 0) {
+        const updated = [...old];
+        updated[existingIndex] = newAction;
+        return updated;
+      }
+      return [...old, newAction];
+    });
+    
+    // Main actions cache is already updated by UnifiedActionDialog's optimistic update
+    // Just invalidate related computed data
+    queryClient.invalidateQueries({ queryKey: ['checkouts'] });
+    queryClient.invalidateQueries({ queryKey: ['tools'] });
+    
     onRefresh();
     toast({
       title: "Success",
@@ -236,10 +279,12 @@ export function ManageIssueActionsDialog({
           ) : undefined
         }}
         profiles={profiles}
-        onActionSaved={() => {
+        onActionSaved={(savedAction) => {
           setShowCreateDialog(false);
           setEditingActionId(null);
-          handleActionCreated();
+          if (savedAction) {
+            handleActionCreated(savedAction);
+          }
         }}
         isCreating={showCreateDialog}
       />

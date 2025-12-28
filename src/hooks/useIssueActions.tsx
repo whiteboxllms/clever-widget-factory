@@ -57,7 +57,8 @@ export const useIssueActions = () => {
           action.id, 
           currentUser.userId, 
           action.title, 
-          action.mission_id
+          action.mission_id,
+          queryClient // Pass queryClient to use cached parts data
         );
       }
 

@@ -67,8 +67,6 @@ export function useInventoryAnalytics() {
   return useQuery({
     queryKey: ["inventory-analytics"],
     queryFn: async (): Promise<InventoryAnalyticsData> => {
-      console.log("Fetching inventory analytics...");
-
       // Total items with non-zero quantity
       const { data: totalItemsData, error: totalError } = await supabase
         .from("parts")
@@ -392,14 +390,6 @@ export function useInventoryAnalytics() {
         Object.entries(users).forEach(([user, count]) => {
           additionsTrend.push({ date, user, count });
         });
-      });
-
-      console.log("Analytics data fetched successfully:", {
-        totalItems: totalItemsData?.length || 0,
-        lowStockCount,
-        recentAdditions: recentAdditionsData?.length || 0,
-        userActivityCount: userActivity.length,
-        trendPointsCount: additionsTrend.length
       });
 
       return {

@@ -132,7 +132,8 @@ export async function processStockConsumption(
   actionId: string,
   userId: string,
   actionTitle: string,
-  missionId?: string
+  missionId: string | undefined,
+  queryClient: any // TanStack QueryClient - required, parts should already be in cache
 ): Promise<void> {
   if (!requiredStock || requiredStock.length === 0) {
     return; // No stock to process
@@ -143,14 +144,34 @@ export async function processStockConsumption(
 
   for (const stockItem of requiredStock) {
     try {
-      // Get current quantity using apiService (includes auth token)
-      const fetchResult = await apiService.get('/parts');
-      const parts = fetchResult.data || [];
-      const partData = parts.find((p: any) => p.id === stockItem.part_id);
+      // Parts should already be loaded into TanStack Query cache
+      // via useOfflineData, useCombinedAssets, or StockSelector hooks
+      // If they're not in cache, that's an error condition
+      const cachedParts = queryClient.getQueryData(['parts']) as any[] | undefined;
+      
+      if (!cachedParts || !Array.isArray(cachedParts)) {
+        throw new Error(
+          `Parts data not found in TanStack Query cache. ` +
+          `This indicates parts haven't been loaded yet. ` +
+          `Ensure useOfflineData, useCombinedAssets, or StockSelector is used in the component tree.`
+        );
+      }
+      
+      const partData = cachedParts.find((p: any) => p.id === stockItem.part_id);
       
       if (!partData) {
-        console.error(`Part ${stockItem.part_id} not found`);
-        throw new Error(`Part with ID ${stockItem.part_id} not found`);
+        const partName = stockItem.part_name || 'Unknown part';
+        console.error(`Part not found:`, {
+          part_id: stockItem.part_id,
+          part_name: partName,
+          quantity: stockItem.quantity,
+          action_id: actionId,
+          action_title: actionTitle
+        });
+        throw new Error(
+          `Stock item "${partName}" (ID: ${stockItem.part_id}) no longer exists in inventory. ` +
+          `Please remove this item from the action's required stock before completing.`
+        );
       }
 
       const oldQuantity = partData.current_quantity || 0;

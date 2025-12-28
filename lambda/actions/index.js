@@ -207,27 +207,46 @@ exports.handler = async (event) => {
         const addedTools = newTools.filter(t => !oldTools.includes(t));
         const removedTools = oldTools.filter(t => !newTools.includes(t));
         
-        // Create checkouts for newly added tools
-        for (const toolId of addedTools) {
-          // Check if tool already has active checkout
+        // Check if status changed to 'in_progress' (need to checkout all tools, not just newly added)
+        const statusChangedToInProgress = currentAction.status !== 'in_progress' && actionStatus === 'in_progress';
+        
+        // If status changed to in_progress, checkout ALL tools in required_tools
+        // Otherwise, only checkout newly added tools
+        const toolsToCheckout = statusChangedToInProgress ? newTools : addedTools;
+        
+        // Parallelize checkout creation
+        const checkoutPromises = toolsToCheckout.map(async (toolId) => {
+          // Check if tool already has active checkout (for any action)
           const existingCheckoutSql = `SELECT id FROM checkouts WHERE tool_id = '${toolId}' AND is_returned = false LIMIT 1`;
           const existingCheckout = await queryJSON(existingCheckoutSql);
           
           if (existingCheckout && existingCheckout.length > 0) {
-            console.log(`Tool ${toolId} already checked out, skipping`);
-            continue;
+            // Tool already checked out - check if it's for this action
+            const actionCheckoutSql = `SELECT id FROM checkouts WHERE tool_id = '${toolId}' AND action_id = '${actionId}' AND is_returned = false LIMIT 1`;
+            const actionCheckout = await queryJSON(actionCheckoutSql);
+            
+            if (actionCheckout && actionCheckout.length > 0) {
+              // Already checked out for this action, skip
+              return;
+            }
+            // Tool checked out for different action - skip (don't create duplicate)
+            return;
           }
           
+          // Create checkout for this tool
           const checkoutId = require('crypto').randomUUID();
           const checkoutSql = `INSERT INTO checkouts (id, tool_id, user_id, action_id, checkout_date, is_returned, organization_id, created_at) VALUES ('${checkoutId}', '${toolId}', '${assignedTo}', '${actionId}', NOW(), false, '${orgId}', NOW())`;
           await queryJSON(checkoutSql);
-        }
+        });
         
-        // Delete checkouts for removed tools (they never used it)
-        for (const toolId of removedTools) {
+        // Parallelize checkout deletion for removed tools
+        const deletePromises = removedTools.map(async (toolId) => {
           const deleteSql = `DELETE FROM checkouts WHERE tool_id = '${toolId}' AND action_id = '${actionId}' AND is_returned = false`;
           await queryJSON(deleteSql);
-        }
+        });
+        
+        // Execute all checkout operations in parallel
+        await Promise.all([...checkoutPromises, ...deletePromises]);
       }
       
       // If action completed, create checkins and mark checkouts as returned
@@ -236,16 +255,18 @@ exports.handler = async (event) => {
         const checkoutsSql = `SELECT id, tool_id, user_id FROM checkouts WHERE action_id = '${actionId}' AND is_returned = false`;
         const checkouts = await queryJSON(checkoutsSql);
         
-        // Create checkin records
-        for (const checkout of checkouts) {
+        // Parallelize checkin creation
+        const checkinPromises = checkouts.map(async (checkout) => {
           const checkinId = require('crypto').randomUUID();
           const checkinSql = `INSERT INTO checkins (id, checkout_id, tool_id, user_id, checkin_date, checkin_reason, notes, organization_id, created_at) VALUES ('${checkinId}', '${checkout.id}', '${checkout.tool_id}', '${checkout.user_id}', NOW(), 'Action completed', 'Automatically checked in when action was completed', '${orgId}', NOW())`;
           await queryJSON(checkinSql);
-        }
+        });
         
-        // Mark checkouts as returned
-        const returnAllSql = `UPDATE checkouts SET is_returned = true WHERE action_id = '${actionId}' AND is_returned = false`;
-        await queryJSON(returnAllSql);
+        // Execute checkin creation and checkout update in parallel
+        await Promise.all([
+          ...checkinPromises,
+          queryJSON(`UPDATE checkouts SET is_returned = true WHERE action_id = '${actionId}' AND is_returned = false`)
+        ]);
       }
       
       // Query affected tools with checkout state
@@ -354,7 +375,32 @@ exports.handler = async (event) => {
         
         const sql = `INSERT INTO actions (${fields.join(', ')}, created_at, updated_at) VALUES (${values.join(', ')}, NOW(), NOW()) RETURNING *`;
         const result = await queryJSON(sql);
-        return { statusCode: 201, headers, body: JSON.stringify({ data: result[0] }) };
+        const newAction = result[0];
+        
+        // If action is created with status 'in_progress' and has required_tools, create checkouts
+        if (newAction.status === 'in_progress' && newAction.required_tools && newAction.required_tools.length > 0) {
+          const assignedTo = newAction.assigned_to || userId;
+          const checkoutPromises = newAction.required_tools.map(async (toolId) => {
+            // Check if tool already has active checkout
+            const existingCheckoutSql = `SELECT id FROM checkouts WHERE tool_id = '${toolId}' AND is_returned = false LIMIT 1`;
+            const existingCheckout = await queryJSON(existingCheckoutSql);
+            
+            if (existingCheckout && existingCheckout.length > 0) {
+              // Tool already checked out, skip
+              return;
+            }
+            
+            // Create checkout for this tool
+            const checkoutId = require('crypto').randomUUID();
+            const checkoutSql = `INSERT INTO checkouts (id, tool_id, user_id, action_id, checkout_date, is_returned, organization_id, created_at) VALUES ('${checkoutId}', '${toolId}', '${assignedTo}', '${newAction.id}', NOW(), false, '${orgId}', NOW())`;
+            await queryJSON(checkoutSql);
+          });
+          
+          // Execute checkout creation in parallel
+          await Promise.all(checkoutPromises);
+        }
+        
+        return { statusCode: 201, headers, body: JSON.stringify({ data: newAction }) };
       }
     }
 

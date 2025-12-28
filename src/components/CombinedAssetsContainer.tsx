@@ -185,8 +185,6 @@ export const CombinedAssetsContainer = () => {
         })
       ]);
       
-      console.log('RAW API:', { parts: partsResponse, tools: toolsResponse });
-      
       // CRITICAL: Extract results from API response structure
       // API returns { data: { results: [...] } } NOT just { results: [...] }
       // DO NOT change this without testing semantic search display

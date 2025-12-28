@@ -58,7 +58,6 @@ const fetchTools = async () => {
 const fetchParts = async () => {
   try {
     const result = await apiService.get('/parts?limit=2000');
-    console.log('✅ Parts fetched:', result.data?.length || 0, 'items');
     return result.data || [];
   } catch (error) {
     console.error('❌ Parts fetch error:', error);

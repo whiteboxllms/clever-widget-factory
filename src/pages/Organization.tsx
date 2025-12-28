@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,7 +20,8 @@ import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { useProfile } from '@/hooks/useProfile';
 import { OrganizationValuesSection } from '@/components/OrganizationValuesSection';
 import { apiService, getApiData } from '@/lib/apiService';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
+import { useOrganizationMembersByOrg } from '@/hooks/useOrganizationMembers';
 
 
 interface OrganizationMember {
@@ -42,7 +43,6 @@ const Organization = () => {
   const { user } = useAuth();
   const { organizationId } = useParams();
   const { organization: currentOrg } = useOrganization();
-  const { sendInvitation, loading } = useInvitations();
   const { updateOrganization } = useOrganizations();
   const { isSuperAdmin, loading: superAdminLoading } = useSuperAdmin();
   const { allMemberships, isLoading: profileLoading } = useProfile();
@@ -53,44 +53,48 @@ const Organization = () => {
   const targetOrgId = organizationId || currentOrg?.id;
   const [targetOrganization, setTargetOrganization] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isLoadingOrg, setIsLoadingOrg] = useState(true);
+  const [orgLoadError, setOrgLoadError] = useState<string | null>(null);
   
-  const [members, setMembers] = useState<OrganizationMember[]>([]);
-  const [pendingMembers, setPendingMembers] = useState<OrganizationMember[]>([]);
   const [newInviteEmail, setNewInviteEmail] = useState('');
   const [newInviteRole, setNewInviteRole] = useState('user');
-
+  
+  // Track which member is currently being updated
+  const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
+  
+  // Use TanStack Query for organization members
   const resolvedOrgId = targetOrganization?.id || targetOrgId;
+  const { members, pendingMembers, loading: membersLoading, refetch: refetchMembers } = useOrganizationMembersByOrg(resolvedOrgId);
+
   const targetMembership = useMemo(() => {
-    if (!resolvedOrgId) return null;
-    return allMemberships?.find((membership) => membership.organization_id === resolvedOrgId) || null;
+    if (!resolvedOrgId || !Array.isArray(allMemberships)) return null;
+    return allMemberships.find((membership) => membership.organization_id === resolvedOrgId) || null;
   }, [allMemberships, resolvedOrgId]);
 
-  useEffect(() => {
-    if (!superAdminLoading && !profileLoading) {
-      loadOrganizationData();
+
+  const loadOrganizationData = useCallback(async () => {
+    if (superAdminLoading || profileLoading) {
+      console.log('[Organization] Waiting for profile/superAdmin to load...');
+      return;
     }
-  }, [targetOrgId, isSuperAdmin, superAdminLoading, profileLoading]);
 
-  useEffect(() => {
-    if (isAdmin && targetOrganization?.id) {
-      loadMembers(targetOrganization.id);
-    }
-  }, [isAdmin, targetOrganization?.id]);
-
-  const invalidateOrgMembersCache = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['organization_members'] });
-  }, [queryClient]);
-
-  const loadOrganizationData = async () => {
-    if (superAdminLoading || profileLoading) return;
+    setIsLoadingOrg(true);
+    setOrgLoadError(null);
+    console.log('[Organization] loadOrganizationData start', { targetOrgId, isSuperAdmin });
 
     try {
+      console.log('[Organization] Calling API: /organizations');
       const response = await apiService.get('/organizations');
+      console.log('[Organization] Organizations response:', response);
       const organizations = getApiData(response) || [];
+      console.log('[Organization] Parsed organizations:', organizations);
 
       if (!organizations.length) {
+        console.warn('[Organization] No organizations found');
         setTargetOrganization(null);
-        setIsAdmin(isSuperAdmin);
+        setIsAdmin(isSuperAdmin || false);
+        setOrgLoadError('No organizations found');
+        setIsLoadingOrg(false);
         return;
       }
 
@@ -100,84 +104,71 @@ const Organization = () => {
 
       if (!selectedOrganization) {
         selectedOrganization = organizations[0];
-      }
-
-      setTargetOrganization(selectedOrganization);
-
-      const membershipForOrg = allMemberships?.find(
-        (membership) => membership.organization_id === selectedOrganization.id
-      );
-
-      if (isSuperAdmin) {
-        setIsAdmin(true);
+        console.log('[Organization] Using first organization:', selectedOrganization);
       } else {
-        const isOrgAdmin = membershipForOrg?.role === 'admin';
-        setIsAdmin(!!isOrgAdmin);
+        console.log('[Organization] Found target organization:', selectedOrganization);
       }
-    } catch (error) {
-      console.error('Error in loadOrganizationData:', error);
-      setIsAdmin(isSuperAdmin);
-    }
-  };
 
+      if (selectedOrganization) {
+        setTargetOrganization(selectedOrganization);
 
-  const loadMembers = async (orgId?: string) => {
-    const effectiveOrgId = orgId || targetOrganization?.id || targetOrgId;
-    console.log('[Organization] loadMembers start', { effectiveOrgId });
-    if (!effectiveOrgId) return;
-    
-    try {
-      let membersWithAuth: OrganizationMember[] = [];
+        const membershipForOrg = Array.isArray(allMemberships) 
+          ? allMemberships.find(
+              (membership) => membership.organization_id === selectedOrganization.id
+            )
+          : null;
 
-      try {
-        const response = await apiService.post('/api/organization-members-with-auth', {
-          organizationId: effectiveOrgId
-        });
-
-        if (response?.members) {
-          membersWithAuth = response.members;
+        if (isSuperAdmin) {
+          setIsAdmin(true);
+        } else {
+          const isOrgAdmin = membershipForOrg?.role === 'admin';
+          setIsAdmin(!!isOrgAdmin);
         }
-      } catch (functionError) {
-        // Fall through to API fallback
+        console.log('[Organization] Set organization and admin status', { 
+          orgId: selectedOrganization.id, 
+          isAdmin: isSuperAdmin || membershipForOrg?.role === 'admin' 
+        });
       }
-
-      if (membersWithAuth.length === 0) {
-        const fallbackResponse = await apiService.get('/organization_members');
-        const fallbackData = getApiData(fallbackResponse) || [];
-        membersWithAuth = fallbackData
-          .filter((member: any) => member.organization_id === effectiveOrgId)
-          .map((member: any) => ({
-            id: member.id || member.user_id,
-            user_id: member.user_id,
-            role: member.role,
-            is_active: member.is_active !== false,
-            organization_id: member.organization_id,
-            full_name: member.full_name || member.user_id,
-            auth_data: {
-              email: member.cognito_user_id || member.user_id || 'Unknown',
-              last_sign_in_at: member.last_sign_in_at || null,
-              created_at: member.created_at || member.updated_at || new Date().toISOString()
-            }
-          }));
-      }
-      
-      // Split members: those who have signed in vs those who haven't
-      const signedInMembers = membersWithAuth.filter((m: any) => m.auth_data?.last_sign_in_at !== null);
-      const pendingSignIn = membersWithAuth.filter((m: any) => m.auth_data?.last_sign_in_at === null);
-      
-      // Sort signed-in members: active members first, then inactive
-      const sortedSignedInMembers = signedInMembers.sort((a: any, b: any) => {
-        if (a.is_active && !b.is_active) return -1;
-        if (!a.is_active && b.is_active) return 1;
-        return (a.full_name || '').localeCompare(b.full_name || '');
+    } catch (error: any) {
+      console.error('[Organization] Error in loadOrganizationData:', error);
+      const errorMessage = error?.message || error?.error?.message || 'Failed to load organizations';
+      setOrgLoadError(errorMessage);
+      setIsAdmin(isSuperAdmin || false);
+      toast({
+        title: "Error",
+        description: `Failed to load organization data: ${errorMessage}`,
+        variant: "destructive",
       });
-      
-      setMembers(sortedSignedInMembers);
-      setPendingMembers(pendingSignIn);
-    } catch (error) {
-      console.error('Error in loadMembers:', error);
+    } finally {
+      setIsLoadingOrg(false);
     }
-  };
+  }, [targetOrgId, isSuperAdmin, superAdminLoading, profileLoading, allMemberships, toast]);
+
+  // Members are now loaded via TanStack Query hook above
+
+  // Pass target organization and admin status to useInvitations
+  const { sendInvitation, loading } = useInvitations({
+    organization: targetOrganization,
+    isAdmin: isAdmin,
+  });
+
+  useEffect(() => {
+    console.log('[Organization] useEffect triggered', { 
+      superAdminLoading, 
+      profileLoading, 
+      targetOrgId,
+      hasLoadOrgData: !!loadOrganizationData 
+    });
+    if (!superAdminLoading && !profileLoading) {
+      console.log('[Organization] Calling loadOrganizationData');
+      loadOrganizationData();
+    } else {
+      console.log('[Organization] Skipping load - still loading:', { superAdminLoading, profileLoading });
+    }
+  }, [loadOrganizationData, superAdminLoading, profileLoading]);
+
+  // Members are now automatically loaded via useOrganizationMembersByOrg hook
+  // No need for useEffect - TanStack Query handles fetching when resolvedOrgId changes
 
   const handleSendInvitation = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,8 +177,7 @@ const Organization = () => {
     if (result) {
       setNewInviteEmail('');
       setNewInviteRole('user');
-      loadMembers(targetOrganization?.id); // Refresh to show new pending invitation
-      invalidateOrgMembersCache();
+      refetchMembers(); // Refresh to show new pending invitation
     }
   };
 
@@ -203,8 +193,9 @@ const Organization = () => {
         description: "Pending invitation revoked",
       });
       
-      loadMembers(targetOrganization?.id);
-      invalidateOrgMembersCache();
+      // Invalidate cache to refetch and update UI
+      queryClient.invalidateQueries({ queryKey: ['organization_members', resolvedOrgId] });
+      queryClient.invalidateQueries({ queryKey: ['organization_members'] });
     } catch (error) {
       console.error('Error revoking pending membership:', error);
       toast({
@@ -216,28 +207,90 @@ const Organization = () => {
   };
 
 
-  const toggleMemberStatus = async (memberId: string, currentStatus: boolean) => {
-    try {
-      await apiService.put('/organization_members', {
+  const toggleMemberStatusMutation = useMutation({
+    mutationFn: async ({ memberId, currentStatus }: { memberId: string; currentStatus: boolean }) => {
+      console.log('[toggleMemberStatus] Starting mutation', { memberId, currentStatus, newStatus: !currentStatus });
+      const response = await apiService.put('/organization_members', {
         id: memberId,
         is_active: !currentStatus
       });
-
+      console.log('[toggleMemberStatus] Response received', response);
+      return response;
+    },
+    onMutate: async ({ memberId, currentStatus }) => {
+      console.log('[toggleMemberStatus] onMutate', { memberId, currentStatus });
+      setUpdatingMemberId(memberId);
+      
+      // Cancel any outgoing refetches to avoid overwriting optimistic update
+      await queryClient.cancelQueries({ queryKey: ['organization_members', resolvedOrgId] });
+      
+      // Snapshot the previous value for rollback
+      const previousData = queryClient.getQueryData(['organization_members', resolvedOrgId]);
+      
+      // Optimistically update the TanStack Query cache
+      const newStatus = !currentStatus;
+      queryClient.setQueryData(['organization_members', resolvedOrgId], (old: any) => {
+        if (!old || !Array.isArray(old)) return old;
+        return old.map((member: any) => 
+          (member.id === memberId || member.user_id === memberId)
+            ? { ...member, is_active: newStatus }
+            : member
+        );
+      });
+      
+      return { previousData };
+    },
+    onSuccess: (response, variables) => {
+      console.log('[toggleMemberStatus] onSuccess', { response, variables });
+      setUpdatingMemberId(null);
+      
+      // Update cache with server response
+      const updatedMemberData = getApiData(response) as any;
+      if (updatedMemberData && resolvedOrgId) {
+        const memberId = updatedMemberData.id || updatedMemberData.user_id;
+        queryClient.setQueryData(['organization_members', resolvedOrgId], (old: any) => {
+          if (!old || !Array.isArray(old)) return old;
+          return old.map((member: any) => 
+            (member.id === memberId || member.user_id === memberId)
+              ? { ...member, ...updatedMemberData, is_active: updatedMemberData.is_active }
+              : member
+          );
+        });
+        // Also update general cache for backwards compatibility
+        queryClient.setQueryData(['organization_members'], (old: any) => {
+          if (!old || !Array.isArray(old)) return old;
+          return old.map((member: any) => 
+            (member.id === memberId || member.user_id === memberId)
+              ? { ...member, ...updatedMemberData, is_active: updatedMemberData.is_active }
+              : member
+          );
+        });
+      }
+      
       toast({
         title: "Success",
-        description: `Member ${!currentStatus ? 'activated' : 'deactivated'} successfully`,
+        description: `Member ${!variables.currentStatus ? 'activated' : 'deactivated'} successfully`,
       });
-
-      loadMembers(targetOrganization?.id);
-      invalidateOrgMembersCache();
-    } catch (error) {
-      console.error('Error toggling member status:', error);
+    },
+    onError: (error, variables, context) => {
+      console.error('[toggleMemberStatus] onError', { error, variables, context });
+      setUpdatingMemberId(null);
+      
+      // Rollback to previous cache state
+      if (context?.previousData) {
+        queryClient.setQueryData(['organization_members', resolvedOrgId], context.previousData);
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to update member status",
+        description: `Failed to update member status: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive",
       });
-    }
+    },
+  });
+
+  const toggleMemberStatus = (memberId: string, currentStatus: boolean) => {
+    toggleMemberStatusMutation.mutate({ memberId, currentStatus });
   };
 
   const handleRemoveMember = async (memberId: string, memberName: string) => {
@@ -254,8 +307,9 @@ const Organization = () => {
         description: `${memberName} has been removed`,
       });
       
-      loadMembers(targetOrganization?.id);
-      invalidateOrgMembersCache();
+      // Invalidate cache to refetch and update UI
+      queryClient.invalidateQueries({ queryKey: ['organization_members', resolvedOrgId] });
+      queryClient.invalidateQueries({ queryKey: ['organization_members'] });
     } catch (error) {
       console.error('Error removing member:', error);
       toast({
@@ -266,38 +320,122 @@ const Organization = () => {
     }
   };
 
-  const handleRoleChange = async (memberId: string, newRole: string, memberName: string) => {
-    if (!isAdmin) return;
-
-    try {
-      await apiService.put('/organization_members', {
+  const handleRoleChangeMutation = useMutation({
+    mutationFn: async ({ memberId, newRole }: { memberId: string; newRole: string }) => {
+      return await apiService.put('/organization_members', {
         id: memberId,
         role: newRole
       });
-
-      toast({
-        title: "Success",
-        description: `${memberName}'s role has been updated to ${newRole}`,
+    },
+    onMutate: async ({ memberId, newRole }) => {
+      await queryClient.cancelQueries({ queryKey: ['organization_members', resolvedOrgId] });
+      
+      // Snapshot the previous value for rollback
+      const previousData = queryClient.getQueryData(['organization_members', resolvedOrgId]);
+      
+      // Optimistically update the TanStack Query cache
+      queryClient.setQueryData(['organization_members', resolvedOrgId], (old: any) => {
+        if (!old || !Array.isArray(old)) return old;
+        return old.map((member: any) => 
+          (member.id === memberId || member.user_id === memberId)
+            ? { ...member, role: newRole }
+            : member
+        );
       });
       
-      loadMembers(targetOrganization?.id);
-      invalidateOrgMembersCache();
-    } catch (error) {
+      return { previousData };
+    },
+    onSuccess: (response, variables) => {
+      // Update cache with server response
+      const updatedMemberData = getApiData(response) as any;
+      if (updatedMemberData && resolvedOrgId) {
+        const memberId = updatedMemberData.id || updatedMemberData.user_id;
+        queryClient.setQueryData(['organization_members', resolvedOrgId], (old: any) => {
+          if (!old || !Array.isArray(old)) return old;
+          return old.map((member: any) => 
+            (member.id === memberId || member.user_id === memberId)
+              ? { ...member, ...updatedMemberData, role: updatedMemberData.role }
+              : member
+          );
+        });
+        // Also update general cache for backwards compatibility
+        queryClient.setQueryData(['organization_members'], (old: any) => {
+          if (!old || !Array.isArray(old)) return old;
+          return old.map((member: any) => 
+            (member.id === memberId || member.user_id === memberId)
+              ? { ...member, ...updatedMemberData, role: updatedMemberData.role }
+              : member
+          );
+        });
+      }
+      
+      toast({
+        title: "Success",
+        description: `Member's role has been updated to ${variables.newRole}`,
+      });
+    },
+    onError: (error, variables, context) => {
       console.error('Error updating member role:', error);
+      
+      // Rollback to previous cache state
+      if (context?.previousData) {
+        queryClient.setQueryData(['organization_members', resolvedOrgId], context.previousData);
+      }
+      
       toast({
         title: "Error",
         description: "Failed to update member role",
         variant: "destructive",
       });
-    }
+    },
+  });
+
+  const handleRoleChange = (memberId: string, newRole: string, memberName: string) => {
+    if (!isAdmin) return;
+    handleRoleChangeMutation.mutate({ memberId, newRole });
   };
 
-  if (!targetOrganization) {
+  if (isLoadingOrg || !targetOrganization) {
     return (
       <div className="container mx-auto p-6">
         <Card>
           <CardContent className="p-6">
-            <p>Loading organization data...</p>
+            {isLoadingOrg ? (
+              <div className="space-y-2">
+                <p>Loading organization data...</p>
+                {superAdminLoading && <p className="text-sm text-muted-foreground">Loading admin status...</p>}
+                {profileLoading && <p className="text-sm text-muted-foreground">Loading profile...</p>}
+              </div>
+            ) : orgLoadError ? (
+              <div className="space-y-4">
+                <p className="text-destructive font-semibold">Error loading organization data</p>
+                <p className="text-sm text-muted-foreground">{orgLoadError}</p>
+                {orgLoadError.includes('403') || orgLoadError.includes('Forbidden') || orgLoadError.includes('not authorized') ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      This might be a permissions issue. Please check:
+                    </p>
+                    <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
+                      <li>You are logged in with the correct account</li>
+                      <li>Your account has organization memberships</li>
+                      <li>Your organization memberships are active</li>
+                    </ul>
+                  </div>
+                ) : null}
+                <Button onClick={() => {
+                  setIsLoadingOrg(true);
+                  setOrgLoadError(null);
+                  loadOrganizationData();
+                }}>Retry</Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p>No organization found</p>
+                <p className="text-sm text-muted-foreground">
+                  You may need to be added to an organization first.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -527,7 +665,7 @@ const Organization = () => {
                              memberId={member.id}
                              currentName={member.full_name}
                              email={member.auth_data?.email || 'No email available'}
-                             onNameUpdated={loadMembers}
+                             onNameUpdated={refetchMembers}
                            />
                            <div className="text-sm text-muted-foreground">{member.auth_data?.email || 'No email available'}</div>
                            <div className="flex items-center gap-2 text-sm">
@@ -559,9 +697,12 @@ const Organization = () => {
                             variant="outline"
                             size="sm"
                             onClick={() => toggleMemberStatus(member.id, member.is_active)}
+                            disabled={updatingMemberId === member.id}
                             className="text-xs"
                           >
-                            {member.is_active ? (
+                            {updatingMemberId === member.id ? (
+                              <>Updating...</>
+                            ) : member.is_active ? (
                               <>
                                 <ToggleLeft className="w-4 h-4 mr-1" />
                                 Deactivate
@@ -605,7 +746,7 @@ const Organization = () => {
                              memberId={member.id}
                              currentName={member.full_name}
                              email={member.auth_data?.email || 'No email available'}
-                             onNameUpdated={loadMembers}
+                             onNameUpdated={refetchMembers}
                            />
                           <div className="text-sm text-muted-foreground capitalize">
                             {member.role} • Invitation pending

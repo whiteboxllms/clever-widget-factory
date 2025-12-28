@@ -239,7 +239,7 @@ exports.handler = async (event) => {
         // Create checkin records
         for (const checkout of checkouts) {
           const checkinId = require('crypto').randomUUID();
-          const checkinSql = `INSERT INTO checkins (id, checkout_id, tool_id, checkin_date, checkin_reason, notes, organization_id, created_at) VALUES ('${checkinId}', '${checkout.id}', '${checkout.tool_id}', NOW(), 'Action completed', 'Automatically checked in when action was completed', '${orgId}', NOW())`;
+          const checkinSql = `INSERT INTO checkins (id, checkout_id, tool_id, user_id, checkin_date, checkin_reason, notes, organization_id, created_at) VALUES ('${checkinId}', '${checkout.id}', '${checkout.tool_id}', '${checkout.user_id}', NOW(), 'Action completed', 'Automatically checked in when action was completed', '${orgId}', NOW())`;
           await queryJSON(checkinSql);
         }
         
@@ -248,7 +248,43 @@ exports.handler = async (event) => {
         await queryJSON(returnAllSql);
       }
       
-      return { statusCode: 200, headers, body: JSON.stringify({ data: result[0] }) };
+      // Query affected tools with checkout state
+      const affectedToolIds = [...new Set([...oldTools, ...newTools])];
+      let affectedTools = [];
+      if (affectedToolIds.length > 0) {
+        const toolsSql = `
+          SELECT 
+            t.id, t.name,
+            CASE 
+              WHEN c.id IS NOT NULL THEN 'checked_out'
+              ELSE t.status
+            END as status,
+            CASE WHEN c.id IS NOT NULL THEN true ELSE false END as is_checked_out,
+            c.user_id as checked_out_user_id,
+            om.full_name as checked_out_to,
+            c.checkout_date as checked_out_date
+          FROM tools t
+          LEFT JOIN LATERAL (
+            SELECT * FROM checkouts
+            WHERE checkouts.tool_id = t.id AND checkouts.is_returned = false
+            ORDER BY checkouts.checkout_date DESC LIMIT 1
+          ) c ON true
+          LEFT JOIN organization_members om ON c.user_id = om.cognito_user_id
+          WHERE t.id IN (${affectedToolIds.map(id => `'${id}'`).join(',')})
+        `;
+        affectedTools = await queryJSON(toolsSql);
+      }
+      
+      return { 
+        statusCode: 200, 
+        headers, 
+        body: JSON.stringify({ 
+          data: result[0],
+          affectedResources: {
+            tools: affectedTools
+          }
+        }) 
+      };
     }
 
     // POST/PUT action (create/update)

@@ -3,7 +3,8 @@ import { Edit2, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { apiService } from '@/lib/apiService';
+import { useQueryClient } from '@tanstack/react-query';
+import { apiService, getApiData } from '@/lib/apiService';
 
 interface EditableMemberNameProps {
   memberId: string;
@@ -14,6 +15,7 @@ interface EditableMemberNameProps {
 
 export function EditableMemberName({ memberId, currentName, email, onNameUpdated }: EditableMemberNameProps) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -33,10 +35,28 @@ export function EditableMemberName({ memberId, currentName, email, onNameUpdated
 
     setIsLoading(true);
     try {
-      await apiService.put('/organization_members', {
+      const response = await apiService.put('/organization_members', {
         id: memberId,
         full_name: editValue.trim()
       });
+
+      // Update cache with server response
+      const updatedMemberData = getApiData(response) as any;
+      if (updatedMemberData) {
+        const memberId = updatedMemberData.id || updatedMemberData.user_id;
+        // Update all organization_members caches
+        queryClient.setQueriesData(
+          { queryKey: ['organization_members'] },
+          (old: any) => {
+            if (!old || !Array.isArray(old)) return old;
+            return old.map((member: any) => 
+              (member.id === memberId || member.user_id === memberId)
+                ? { ...member, ...updatedMemberData, full_name: updatedMemberData.full_name }
+                : member
+            );
+          }
+        );
+      }
 
       toast({
         title: "Success",

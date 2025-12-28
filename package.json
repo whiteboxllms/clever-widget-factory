@@ -19,7 +19,10 @@
     "test:coverage": "vitest run --coverage",
     "test:verbose": "vitest --reporter=verbose",
     "test:five-whys": "vitest run src/hooks/useFiveWhysAgent.test.ts",
-    "test:cors": "vitest run src/lib/apiService.cors.test.ts"
+    "test:cors": "vitest run src/lib/apiService.cors.test.ts",
+    "test:integration": "INTEGRATION_TESTS=true NODE_ENV=test vitest run src/hooks/__tests__/integration/ --reporter=verbose",
+    "test:integration:watch": "INTEGRATION_TESTS=true NODE_ENV=test vitest src/hooks/__tests__/integration/ --reporter=verbose",
+    "setup:test-user": "node scripts/setup-test-user.js"
   },
   "dependencies": {
     "@aws-amplify/ui-react": "^6.13.1",
@@ -94,7 +97,9 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.958.0",
     "@aws-sdk/client-lambda": "^3.946.0",
+    "@aws-sdk/credential-providers": "^3.958.0",
     "@eslint/js": "^9.9.0",
     "@tailwindcss/typography": "^0.5.15",
     "@testing-library/jest-dom": "^6.9.1",
@@ -109,6 +114,7 @@
     "eslint": "^9.9.0",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.9",
+    "fast-check": "^4.5.2",
     "globals": "^15.9.0",
     "jsdom": "^27.0.1",
     "lovable-tagger": "^1.1.7",

@@ -57,7 +57,6 @@ import { cn, sanitizeRichText, getActionBorderStyle } from "@/lib/utils";
 import { BaseAction, Profile, ActionCreationContext } from "@/types/actions";
 import { autoCheckinToolsForAction, activatePlannedCheckoutsIfNeeded } from '@/lib/autoToolCheckout';
 import { generateActionUrl, copyToClipboard } from "@/lib/urlUtils";
-import { useComponentUnmountDebug } from '@/hooks/useComponentUnmountDebug';
 
 interface UnifiedActionDialogProps {
   open: boolean;
@@ -79,7 +78,6 @@ export function UnifiedActionDialog({
   isCreating = false
 }: UnifiedActionDialogProps) {
   // Debug: Track component lifecycle
-  useComponentUnmountDebug('UnifiedActionDialog', { open, actionId, isCreating });
   
   const queryClient = useQueryClient();
   

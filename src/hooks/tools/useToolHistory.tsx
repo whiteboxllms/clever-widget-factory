@@ -9,6 +9,7 @@ export interface CheckoutHistory {
   created_at: string;
   expected_return_date?: string;
   user_name: string;
+  user_display_name?: string;  // From API JOIN with organization_members
   intended_usage?: string;
   notes?: string;
   is_returned: boolean;
@@ -140,7 +141,8 @@ export const useToolHistory = () => {
               id: entry.id,
               checkout_date: entry.date,
               created_at: entry.date,
-              user_name: entry.user_name || 'Unknown',
+              user_name: entry.user_display_name || entry.user_name || 'Unknown',
+              user_display_name: entry.user_display_name,
               is_returned: entry.is_returned || false,
               intended_usage: entry.intended_usage,
               notes: entry.notes,

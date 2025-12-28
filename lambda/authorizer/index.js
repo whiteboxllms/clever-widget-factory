@@ -164,7 +164,32 @@ async function getUserOrganizationData(cognitoUserId) {
   try {
     await dbClient.connect();
     
+    // First, check ALL memberships (active and inactive) for debugging
+    const allMembershipsQuery = `
+      SELECT 
+        organization_id,
+        role,
+        is_active,
+        created_at
+      FROM organization_members
+      WHERE cognito_user_id = $1
+      ORDER BY created_at ASC;
+    `;
+    const allMembershipsResult = await dbClient.query(allMembershipsQuery, [cognitoUserId]);
+    
+    console.log('🔍 [AUTHORIZER] ALL memberships (active + inactive) for user:', {
+      cognito_user_id: cognitoUserId,
+      total_memberships: allMembershipsResult.rows.length,
+      memberships: allMembershipsResult.rows.map(m => ({
+        organization_id: m.organization_id,
+        role: m.role,
+        is_active: m.is_active,
+        created_at: m.created_at
+      }))
+    });
+    
     // Get ALL organization memberships (user can belong to multiple orgs)
+    // Only include ACTIVE memberships for authorization
     const membershipsQuery = `
       SELECT 
         organization_id,
@@ -175,10 +200,10 @@ async function getUserOrganizationData(cognitoUserId) {
       ORDER BY created_at ASC;
     `;
     
-    console.log('Querying organization memberships for:', cognitoUserId);
+    console.log('🔍 [AUTHORIZER] Querying ACTIVE organization memberships for:', cognitoUserId);
     const membershipsResult = await dbClient.query(membershipsQuery, [cognitoUserId]);
     
-    console.log('Memberships query result:', {
+    console.log('🔍 [AUTHORIZER] ACTIVE memberships query result:', {
       cognito_user_id: cognitoUserId,
       rows_found: membershipsResult.rows.length,
       memberships: membershipsResult.rows
@@ -194,6 +219,12 @@ async function getUserOrganizationData(cognitoUserId) {
     const primary = membershipsResult.rows[0];
     const primaryOrgId = primary.organization_id;
     
+    console.log('🔍 [AUTHORIZER] Selected PRIMARY organization:', {
+      primary_org_id: primaryOrgId,
+      primary_role: primary.role,
+      note: 'This is the oldest active membership and will be used as the default organization_id'
+    });
+    
     // All direct organization memberships (user is a direct member of these orgs)
     const directMemberships = membershipsResult.rows.map(row => ({
       organization_id: row.organization_id,
@@ -203,11 +234,12 @@ async function getUserOrganizationData(cognitoUserId) {
     // Build accessible org IDs from direct memberships
     const directOrgIds = directMemberships.map(m => m.organization_id);
     
-    console.log('Building accessible organization IDs:', {
+    console.log('🔍 [AUTHORIZER] Building accessible organization IDs:', {
       cognito_user_id: cognitoUserId,
       direct_memberships: directMemberships,
       direct_org_ids: directOrgIds,
-      direct_org_ids_count: directOrgIds.length
+      direct_org_ids_count: directOrgIds.length,
+      primary_org_id: primaryOrgId
     });
     
     // Validate that we have at least one organization membership
@@ -287,13 +319,17 @@ async function getUserOrganizationData(cognitoUserId) {
     }
     
     // Log for debugging
-    console.log('User organization data:', {
+    console.log('🔍 [AUTHORIZER] Final user organization data being returned:', {
       cognito_user_id: cognitoUserId,
       primary_org_id: primaryOrgId,
+      primary_role: primary.role,
+      direct_memberships: directMemberships,
       direct_memberships_count: directMemberships.length,
       accessible_org_ids: accessibleOrgIds,
       accessible_org_ids_count: accessibleOrgIds.length,
-      permissions: permissions
+      permissions: permissions,
+      has_data_read_all: permissions.includes('data:read:all'),
+      note: 'This data will be available in authContext in Lambda functions'
     });
     
     return {

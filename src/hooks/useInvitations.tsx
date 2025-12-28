@@ -15,10 +15,29 @@ interface PendingInvitation {
   email_confirmed_at: string | null;
 }
 
-export function useInvitations() {
+interface Organization {
+  id: string;
+  name: string;
+  subdomain?: string | null;
+  settings?: any;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface UseInvitationsOptions {
+  organization?: Organization | null;
+  isAdmin?: boolean;
+}
+
+export function useInvitations(options?: UseInvitationsOptions) {
   const { toast } = useToast();
-  const { organization, isAdmin } = useOrganization();
+  const { organization: defaultOrganization, isAdmin: defaultIsAdmin } = useOrganization();
   const [loading, setLoading] = useState(false);
+
+  // Use provided organization/admin or fall back to context
+  const organization = options?.organization ?? defaultOrganization;
+  const isAdmin = options?.isAdmin ?? defaultIsAdmin;
 
   const sendInvitation = async (email: string, role: string = 'user') => {
     if (!organization || !isAdmin) {

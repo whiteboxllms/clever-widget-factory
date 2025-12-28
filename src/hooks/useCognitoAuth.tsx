@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Amplify } from 'aws-amplify';
 import { signIn, signUp, signOut, getCurrentUser, fetchAuthSession, resetPassword, confirmResetPassword, confirmSignIn } from 'aws-amplify/auth';
+import { apiService, getApiData } from '@/lib/apiService';
 
 // Configure Amplify
 Amplify.configure({
@@ -55,15 +56,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkUserRole = async (userId: string) => {
     try {
-      // TODO: Replace with actual database query to organization_members table
-      // For now, set admin role for testing
-      console.log('Setting admin role for user:', userId);
-      setIsAdmin(true);
-      setIsContributor(true);
-      setIsLeadership(true);
-      setCanEditTools(true);
+      console.log('Checking user role for:', userId);
+      
+      // Fetch user's organization memberships to determine role
+      // apiService automatically handles authentication
+      const response = await apiService.get(`/organization_members?cognito_user_id=${encodeURIComponent(userId)}`);
+      const data = getApiData(response);
+      const memberships = Array.isArray(data) ? data : [];
+      
+      // Check if user has any active memberships with admin or contributor roles
+      const hasAdminRole = memberships.some((m: any) => m.role === 'admin' && m.is_active !== false);
+      const hasContributorRole = memberships.some((m: any) => m.role === 'contributor' && m.is_active !== false);
+      
+      // Leadership = admin only (not contributors)
+      const isLeadershipRole = hasAdminRole;
+      
+      console.log('User role check result:', {
+        hasAdminRole,
+        hasContributorRole,
+        isLeadershipRole,
+        membershipsCount: memberships.length
+      });
+      
+      setIsAdmin(hasAdminRole);
+      setIsContributor(hasContributorRole || hasAdminRole);
+      setIsLeadership(isLeadershipRole);
+      setCanEditTools(hasContributorRole || hasAdminRole);
     } catch (error) {
       console.error('Failed to check user role:', error);
+      // On error, default to no permissions for security
+      setIsAdmin(false);
+      setIsContributor(false);
+      setIsLeadership(false);
+      setCanEditTools(false);
     }
   };
 

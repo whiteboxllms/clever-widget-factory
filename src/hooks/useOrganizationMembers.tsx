@@ -1,5 +1,6 @@
+import { useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchOrganizationMembers } from '@/lib/queryFetchers';
+import { apiService, getApiData } from '@/lib/apiService';
 import { offlineQueryConfig } from '@/lib/queryConfig';
 
 export interface OrganizationMember {
@@ -9,15 +10,111 @@ export interface OrganizationMember {
   role: string;
   favorite_color?: string;
   cognito_user_id?: string;
+  is_active?: boolean;
+  organization_id?: string;
+  auth_data?: {
+    email: string;
+    last_sign_in_at: string | null;
+    created_at: string;
+  };
 }
 
+/**
+ * Fetch organization members for a specific organization
+ */
+async function fetchOrganizationMembersByOrg(organizationId: string) {
+  const response = await apiService.get(`/organization_members?organization_id=${organizationId}`);
+  const memberData = getApiData(response) || [];
+  return memberData;
+}
+
+/**
+ * Hook to fetch organization members for a specific organization
+ * Uses TanStack Query for caching and automatic updates
+ */
+export function useOrganizationMembersByOrg(organizationId: string | null | undefined) {
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
+    queryKey: ['organization_members', organizationId],
+    queryFn: async () => {
+      if (!organizationId) return [];
+      const memberData = await fetchOrganizationMembersByOrg(organizationId);
+      
+      // Transform the data to match the expected structure
+      return memberData.map((member: any) => {
+        const hasAccount = !!member.cognito_user_id;
+        return {
+          id: member.id || member.user_id || member.cognito_user_id,
+          user_id: member.user_id || member.cognito_user_id,
+          role: member.role,
+          is_active: member.is_active ?? true, // Default to true if not specified
+          organization_id: organizationId,
+          full_name: member.full_name || member.user_id || 'Unknown',
+          favorite_color: member.favorite_color,
+          cognito_user_id: member.cognito_user_id,
+          auth_data: {
+            email: member.cognito_user_id || member.user_id || 'Unknown',
+            last_sign_in_at: hasAccount ? new Date().toISOString() : null,
+            created_at: member.created_at || new Date().toISOString()
+          }
+        } as OrganizationMember;
+      });
+    },
+    enabled: !!organizationId,
+    staleTime: Infinity,
+    gcTime: 24 * 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    placeholderData: offlineQueryConfig.placeholderData,
+    networkMode: offlineQueryConfig.networkMode,
+  });
+
+  // Split members into signed-in and pending using select
+  const signedInMembers = useMemo(() => {
+    return (query.data ?? []).filter((m) => m.auth_data?.last_sign_in_at !== null);
+  }, [query.data]);
+
+  const pendingMembers = useMemo(() => {
+    return (query.data ?? []).filter((m) => m.auth_data?.last_sign_in_at === null);
+  }, [query.data]);
+
+  // Sort signed-in members: active first, then by name
+  const sortedSignedInMembers = useMemo(() => {
+    return [...signedInMembers].sort((a, b) => {
+      if (a.is_active && !b.is_active) return -1;
+      if (!a.is_active && b.is_active) return 1;
+      return (a.full_name || '').localeCompare(b.full_name || '');
+    });
+  }, [signedInMembers]);
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['organization_members', organizationId] });
+    // Also invalidate the general cache for backwards compatibility
+    queryClient.invalidateQueries({ queryKey: ['organization_members'] });
+  };
+
+  return {
+    members: sortedSignedInMembers,
+    pendingMembers,
+    allMembers: query.data ?? [],
+    loading: query.isLoading,
+    error: query.error,
+    refetch: invalidate,
+  };
+}
+
+/**
+ * Legacy hook for backwards compatibility
+ * Fetches all organization members (no organization filter)
+ */
 export function useOrganizationMembers() {
   const queryClient = useQueryClient();
 
   const query = useQuery({
     queryKey: ['organization_members'],
     queryFn: async () => {
-      const members = await fetchOrganizationMembers();
+      const response = await apiService.get('/organization_members');
+      const members = getApiData(response) || [];
       return members.map((member: any) => ({
         id: member.user_id,
         user_id: member.user_id,

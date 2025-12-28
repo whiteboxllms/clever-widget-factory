@@ -2,13 +2,14 @@ import { useAuth } from "@/hooks/useCognitoAuth";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Search, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, ClipboardList, BarChart3, Building2, Settings, Bot } from 'lucide-react';
+import { LogOut, Search, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, ClipboardList, BarChart3, Building2, Settings, Bot, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DebugModeToggle } from '@/components/DebugModeToggle';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { EditableDisplayName } from '@/components/EditableDisplayName';
 import { useOrganization } from '@/hooks/useOrganization';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function Dashboard() {
   const { user, signOut, isAdmin, isLeadership } = useAuth();
@@ -16,6 +17,7 @@ export default function Dashboard() {
   const { organization, loading: orgLoading } = useOrganization();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const appTitle = orgLoading 
     ? "Asset Tracker" 
@@ -37,6 +39,15 @@ export default function Dashboard() {
         description: "You have been signed out.",
       });
     }
+  };
+
+  const handleClearCache = () => {
+    queryClient.clear();
+    toast({
+      title: "Cache cleared",
+      description: "All cached data has been cleared. Refreshing...",
+    });
+    setTimeout(() => window.location.reload(), 500);
   };
 
   const menuItems = [
@@ -108,6 +119,16 @@ export default function Dashboard() {
             <EditableDisplayName />
           </div>
           <div className="flex items-center gap-4">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={handleClearCache} variant="outline" size="sm" className="p-2">
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Clear Cache</p>
+              </TooltipContent>
+            </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button onClick={() => navigate('/settings')} variant="outline" size="sm" className="p-2">

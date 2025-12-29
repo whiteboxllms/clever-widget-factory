@@ -32,6 +32,14 @@ export interface ApiError {
 let cachedToken: string | null = null;
 let tokenExpiry: number = 0;
 
+/**
+ * Clear the token cache (useful for testing)
+ */
+export function clearTokenCache() {
+  cachedToken = null;
+  tokenExpiry = 0;
+}
+
 async function getIdToken(): Promise<string | null> {
   try {
     // Return cached token if still valid (with 5 min buffer)

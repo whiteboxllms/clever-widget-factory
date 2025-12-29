@@ -906,13 +906,11 @@ describe('useActionMutations', () => {
         return originalInvalidateQueries.call(queryClient, options);
       });
       
-      // Create server response
+      // Create server response WITHOUT affectedResources to trigger invalidation
       const updatedAction = { ...testAction, ...updates };
       const serverResponse = {
-        data: updatedAction,
-        affectedResources: {
-          actions: [updatedAction]
-        }
+        data: updatedAction
+        // No affectedResources - this will trigger invalidation fallback
       };
       
       // Mock the API call

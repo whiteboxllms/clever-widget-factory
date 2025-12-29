@@ -13,14 +13,18 @@ import { apiService } from '../../../lib/apiService';
 import React from 'react';
 
 // Mock the API service
-vi.mock('../../../lib/apiService', () => ({
-  apiService: {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn(),
-  }
-}));
+vi.mock('../../../lib/apiService', async () => {
+  const actual = await vi.importActual('../../../lib/apiService');
+  return {
+    ...actual,
+    apiService: {
+      get: vi.fn(),
+      post: vi.fn(),
+      put: vi.fn(),
+      delete: vi.fn(),
+    }
+  };
+});
 
 describe('Mock Integration Tests - Asset Checkout Validation', () => {
   let queryClient: QueryClient;
@@ -117,6 +121,9 @@ describe('Mock Integration Tests - Asset Checkout Validation', () => {
 
     // Wait for the mutation to complete
     await waitFor(() => {
+      if (result.current.updateAction.isError) {
+        console.error('Mutation error:', result.current.updateAction.error);
+      }
       expect(result.current.updateAction.isSuccess).toBe(true);
     }, { timeout: 5000 });
 
@@ -300,8 +307,17 @@ describe('Mock Integration Tests - Asset Checkout Validation', () => {
       expect(result.current.updateAction.isSuccess).toBe(true);
     }, { timeout: 5000 });
 
+    // Wait a bit for cache updates to complete
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     // Reset for second assignment
     result.current.updateAction.reset();
+
+    // Wait for reset to complete
+    await waitFor(() => {
+      expect(result.current.updateAction.isSuccess).toBe(false);
+      expect(result.current.updateAction.isPending).toBe(false);
+    }, { timeout: 1000 });
 
     // Second assignment
     result.current.updateAction.mutate({

@@ -18,7 +18,7 @@ import { useActionScores, ActionScore } from '@/hooks/useActionScores';
 import { BaseAction, Profile } from '@/types/actions';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { apiService } from '@/lib/apiService';
-import { actionsQueryKey } from '@/lib/queryKeys';
+import { actionsQueryKey, actionQueryKey } from '@/lib/queryKeys';
 
 // Using unified BaseAction interface from types/actions.ts
 
@@ -56,37 +56,98 @@ export default function Actions() {
     return result.data || [];
   };
 
-  // Use shared query key to share cache with other parts of the app (like useEnhancedStrategicAttributes)
-  // This prevents duplicate queries and uses the default 15 minute staleTime from offlineQueryConfig
-  const { data: actions = [], isLoading: loading } = useQuery({
+  const fetchSingleAction = async (id: string) => {
+    const result = await apiService.get(`/actions?id=${id}`);
+    const actions = result.data || [];
+    return actions[0] || null;
+  };
+
+  const queryClient = useQueryClient();
+
+  // If we have an actionId in URL, check cache first, then fetch only if needed
+  const hasActionIdInUrl = !!actionId || !!searchParams.get('action');
+  const targetActionId = actionId || searchParams.get('action') || '';
+  
+  // Check if action is already in cache (from save mutation or previous fetch)
+  const cachedActionsForLookup = queryClient.getQueryData<BaseAction[]>(actionsQueryKey());
+  const cachedAction = targetActionId ? cachedActionsForLookup?.find(a => a.id === targetActionId) : undefined;
+  
+  // Only fetch single action if we have an actionId AND it's not in cache
+  const { data: singleAction, isLoading: singleActionLoading } = useQuery({
+    queryKey: actionQueryKey(targetActionId),
+    queryFn: () => fetchSingleAction(targetActionId),
+    enabled: hasActionIdInUrl && !!targetActionId && !cachedAction, // Only fetch if not in cache
+    ...offlineQueryConfig,
+    onSuccess: (action) => {
+      // Update the actions list cache with this single action
+      if (action) {
+        queryClient.setQueryData<BaseAction[]>(actionsQueryKey(), (old) => {
+          if (!old) return [action];
+          const existingIndex = old.findIndex(a => a.id === action.id);
+          if (existingIndex >= 0) {
+            // Update existing action in cache
+            const updated = [...old];
+            updated[existingIndex] = action;
+            return updated;
+          }
+          // Add new action to cache
+          return [...old, action];
+        });
+      }
+    },
+  });
+  
+  // Use cached action if available, otherwise use fetched single action
+  const singleActionData = cachedAction || singleAction;
+
+  // Fetch all actions - but NOT when dialog is open (actions are already in cache from initial load/mutations)
+  // Also check if we already have cached data to avoid unnecessary fetches
+  // This prevents the 639KB refetch when clicking edit on an action
+  const hasCachedActionsData = cachedActionsForLookup && cachedActionsForLookup.length > 0;
+  const shouldFetchAllActions = !isEditDialogOpen && !hasCachedActionsData;
+  
+  const { data: actions = [], isLoading: allActionsLoading } = useQuery({
     queryKey: actionsQueryKey(),
     queryFn: fetchActions,
+    enabled: shouldFetchAllActions,
     ...offlineQueryConfig,
+    // Override refetchOnMount to prevent refetch when we have cached data
+    refetchOnMount: !hasCachedActionsData,
+    // Prevent refetch on window focus or reconnect when we have cached data
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
+  
+  // Get cached actions (will be available even when query is disabled)
+  const cachedActionsList = queryClient.getQueryData<BaseAction[]>(actionsQueryKey()) || actions;
 
-  const fetchSpecificAction = useCallback(async (id: string) => {
-    if (!organizationId) return;
+  // Combine actions from both sources
+  // Priority: use cached actions (they're up-to-date from mutations), merge single action if needed
+  const allActions = useMemo(() => {
+    // Use cached actions if available (they're already up-to-date from mutations)
+    const actionsToUse = cachedActionsList && cachedActionsList.length > 0 ? cachedActionsList : actions;
     
-    try {
-      const action = actions.find((a: any) => a.id === id);
-      
-      if (!action) {
-        throw new Error('Action not found');
+    // If we have a single action (from URL fetch), merge it with cached actions
+    if (hasActionIdInUrl && singleActionData) {
+      const existingIndex = actionsToUse.findIndex(a => a.id === singleActionData.id);
+      if (existingIndex >= 0) {
+        const updated = [...actionsToUse];
+        updated[existingIndex] = singleActionData;
+        return updated;
       }
-
-      setEditingActionId(id);
-      setIsEditDialogOpen(true);
-      setIsCreating(false);
-    } catch (error) {
-      console.error('Error fetching specific action:', error);
-      toast({
-        title: "Error",
-        description: "Action not found",
-        variant: "destructive",
-      });
-      navigate('/actions');
+      return [...actionsToUse, singleActionData];
     }
-  }, [organizationId, navigate, actions]);
+    
+    return actionsToUse;
+  }, [hasActionIdInUrl, singleActionData, actions, cachedActionsList]);
+
+  // Loading state: if we have actionId and dialog is open, check if we're loading the single action
+  // But if action is in cache, we're not loading
+  const loading = hasActionIdInUrl && isEditDialogOpen 
+    ? (!cachedAction && singleActionLoading) 
+    : allActionsLoading;
+
+  // Removed fetchSpecificAction - now handled by useQuery above
 
   // Profiles are now handled by useActionProfiles hook for consistency
 
@@ -96,10 +157,10 @@ export default function Actions() {
     setIsEditDialogOpen(true);
   };
 
-  const queryClient = useQueryClient();
-  
   const handleSaveAction = async () => {
-    queryClient.invalidateQueries({ queryKey: ['actions'] });
+    // Cache is already updated by saveActionMutation.onSuccess
+    // Don't close dialog immediately - let the mutation's onSuccess handle it
+    // This prevents navigation/reload issues
     setIsEditDialogOpen(false);
     setEditingActionId(null);
     setIsCreating(false);
@@ -109,6 +170,10 @@ export default function Actions() {
     setIsEditDialogOpen(false);
     setEditingActionId(null);
     setIsCreating(false);
+    // If we navigated here with an actionId, go back to main actions page
+    if (actionId) {
+      navigate('/actions');
+    }
   };
 
   const handleCreateAction = () => {
@@ -152,13 +217,15 @@ export default function Actions() {
     const urlActionId = actionId;
     const currentId = searchActionId || urlActionId;
     
-    // Skip if we've already processed this ID or no actions loaded yet
-    if (!currentId || processedUrlRef.current === currentId || actions.length === 0) {
+    // Skip if we've already processed this ID
+    if (!currentId || processedUrlRef.current === currentId) {
       return;
     }
     
-    if (searchActionId && actions.length > 0) {
-      const action = actions.find(a => a.id === searchActionId);
+    // Wait for the action to be loaded (from cache, single fetch, or all actions)
+    const action = singleActionData || allActions.find(a => a.id === currentId);
+    
+    if (searchActionId) {
       if (action) {
         setEditingActionId(searchActionId);
         setIsEditDialogOpen(true);
@@ -166,17 +233,24 @@ export default function Actions() {
         processedUrlRef.current = searchActionId;
         // Clear the URL parameter after opening the action
         setSearchParams({});
+      } else if (!singleActionLoading && !allActionsLoading && !cachedAction) {
+        // Action not found after loading completed and not in cache
+        toast({
+          title: "Error",
+          description: "Action not found",
+          variant: "destructive",
+        });
+        navigate('/actions');
+        processedUrlRef.current = searchActionId;
       }
-    } else if (urlActionId && organizationId && actions.length > 0) {
-      // Find the action in the current actions list
-      const action = actions.find(a => a.id === urlActionId);
+    } else if (urlActionId && organizationId) {
       if (action) {
         setEditingActionId(urlActionId);
         setIsEditDialogOpen(true);
         setIsCreating(false);
         processedUrlRef.current = urlActionId;
-      } else {
-        // If action not found in current list, show error
+      } else if (!singleActionLoading && !allActionsLoading && !cachedAction) {
+        // Action not found after loading completed and not in cache
         toast({
           title: "Error",
           description: "Action not found",
@@ -186,7 +260,7 @@ export default function Actions() {
         processedUrlRef.current = urlActionId;
       }
     }
-  }, [actions.length, actionId, organizationId, searchParams]);
+  }, [actionId, organizationId, searchParams, singleActionData, allActions, singleActionLoading, allActionsLoading, cachedAction, navigate, setSearchParams]);
 
   // Reset assignee filter if the selected assignee is not in active profiles
   useEffect(() => {
@@ -204,7 +278,7 @@ export default function Actions() {
   }, [profiles, assigneeFilter]);
 
   const filteredActions = useMemo(() => {
-    let filtered = actions;
+    let filtered = allActions;
 
     // Search filter
     if (searchTerm) {
@@ -253,7 +327,7 @@ export default function Actions() {
     }
 
     return filtered;
-  }, [actions, searchTerm, statusFilter, assigneeFilter, user?.userId, profiles.length]);
+  }, [allActions, searchTerm, statusFilter, assigneeFilter, user?.userId, profiles.length]);
 
   // Sort actions: in-progress first, then by updated_at (most recent first)
   const sortedFilteredActions = [...filteredActions].sort((a, b) => {
@@ -414,9 +488,9 @@ export default function Actions() {
             </Card>
           ) : (
             <div className="grid gap-4">
-              {unresolved.map(action => (
+              {unresolved.map((action, index) => (
                 <ActionListItemCard
-                  key={action.id}
+                  key={action.id || `unresolved-${index}`}
                   action={action}
                   profiles={profiles}
                   onClick={handleEditAction}
@@ -440,9 +514,9 @@ export default function Actions() {
             </Card>
           ) : (
             <div className="grid gap-4">
-              {completed.map(action => (
+              {completed.map((action, index) => (
                 <ActionListItemCard
-                  key={action.id}
+                  key={action.id || `completed-${index}`}
                   action={action}
                   profiles={profiles}
                   onClick={handleEditAction}

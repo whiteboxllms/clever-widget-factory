@@ -212,7 +212,7 @@ export function ToolCheckInDialog({ tool, open, onOpenChange, onSuccess }: ToolC
       const checkinData: any = {
         checkout_id: checkout.id,
         tool_id: checkout.tool_id,
-        user_name: user?.user_metadata?.full_name || user?.username || user?.email || 'Unknown User',
+        user_id: user?.id,
         problems_reported: form.tool_issues || null,
         notes: form.notes || null,
         sop_best_practices: form.reflection,

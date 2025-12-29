@@ -62,7 +62,6 @@ export default function SariSariChat() {
   } = useQuery({
     queryKey: ['parts', 'sellable'],
     queryFn: async (): Promise<Part[]> => {
-      console.log('🔄 Fetching sellable products...');
       const response = await apiService.get<{ data: Part[] }>('/parts/sellable');
       const sellableProducts = getApiData(response) || [];
       

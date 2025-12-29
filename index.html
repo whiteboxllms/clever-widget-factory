@@ -19,6 +19,42 @@
   </head>
 
   <body>
+    <!-- Immediate loading state - shows instantly while React loads -->
+    <div id="initial-loading" style="min-height: 100vh; background: hsl(0 0% 100%); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999;">
+      <header style="border-bottom: 1px solid hsl(214.3 31.8% 91.4%); background: hsl(0 0% 100%); padding: 1rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <h1 style="font-size: 1.5rem; font-weight: 700; margin: 0;">Asset Tracker</h1>
+          </div>
+        </div>
+      </header>
+      <main style="padding: 1.5rem; flex: 1; overflow-y: auto;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
+          <!-- Menu item skeletons -->
+          <div style="border: 1px solid hsl(214.3 31.8% 91.4%); border-radius: 0.5rem; padding: 1.5rem; background: hsl(0 0% 100%);">
+            <div style="width: 64px; height: 64px; border-radius: 50%; background: hsl(142.1 76.2% 36.3%); margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center;"></div>
+            <div style="text-align: center;">
+              <h3 style="font-size: 1.25rem; font-weight: 600; margin: 0 0 0.5rem;">Assets</h3>
+              <p style="color: hsl(215.4 16.3% 46.9%); margin: 0 0 1rem; font-size: 0.875rem;">Unified view of assets and stock</p>
+            </div>
+          </div>
+          <div style="border: 1px solid hsl(214.3 31.8% 91.4%); border-radius: 0.5rem; padding: 1.5rem; background: hsl(0 0% 100%);">
+            <div style="width: 64px; height: 64px; border-radius: 50%; background: hsl(47.9 95.8% 53.1%); margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center;"></div>
+            <div style="text-align: center;">
+              <h3 style="font-size: 1.25rem; font-weight: 600; margin: 0 0 0.5rem;">Actions</h3>
+              <p style="color: hsl(215.4 16.3% 46.9%); margin: 0 0 1rem; font-size: 0.875rem;">Track and manage policy actions</p>
+            </div>
+          </div>
+          <div style="border: 1px solid hsl(214.3 31.8% 91.4%); border-radius: 0.5rem; padding: 1.5rem; background: hsl(0 0% 100%);">
+            <div style="width: 64px; height: 64px; border-radius: 50%; background: hsl(217.2 91.2% 59.8%); margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center;"></div>
+            <div style="text-align: center;">
+              <h3 style="font-size: 1.25rem; font-weight: 600; margin: 0 0 0.5rem;">Stargazer Projects</h3>
+              <p style="color: hsl(215.4 16.3% 46.9%); margin: 0 0 1rem; font-size: 0.875rem;">Manage objectives and track progress</p>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
     <div id="root"></div>
     <script>
       (function(){

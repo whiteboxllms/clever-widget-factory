@@ -56,29 +56,41 @@ export function ActionListItemCard({
               <div className="text-xs text-muted-foreground mt-1">
                 <div className="flex flex-col sm:flex-row sm:flex-wrap gap-x-4 gap-y-1">
                   <span>
-                    Updated: {new Date(action.updated_at).toLocaleDateString('en-US', {
-                      year: '2-digit',
-                      month: 'numeric',
-                      day: 'numeric'
-                    }) + ' ' + new Date(action.updated_at).toLocaleTimeString('en-US', {
-                      hour: 'numeric',
-                      minute: '2-digit',
-                      hour12: true
-                    })}
-                  </span>
-                  {action.estimated_completion_date && (
-                    <span>
-                      Expected: {new Date(action.estimated_completion_date).toLocaleDateString('en-US', {
+                    Updated: {(() => {
+                      const updatedDate = new Date(action.updated_at);
+                      if (isNaN(updatedDate.getTime())) {
+                        return 'Unknown';
+                      }
+                      return updatedDate.toLocaleDateString('en-US', {
                         year: '2-digit',
                         month: 'numeric',
                         day: 'numeric'
-                      }) + ' ' + new Date(action.estimated_completion_date).toLocaleTimeString('en-US', {
+                      }) + ' ' + updatedDate.toLocaleTimeString('en-US', {
                         hour: 'numeric',
                         minute: '2-digit',
                         hour12: true
-                      })}
-                    </span>
-                  )}
+                      });
+                    })()}
+                  </span>
+                  {action.estimated_completion_date && (() => {
+                    const expectedDate = new Date(action.estimated_completion_date);
+                    if (isNaN(expectedDate.getTime())) {
+                      return null;
+                    }
+                    return (
+                      <span>
+                        Expected: {expectedDate.toLocaleDateString('en-US', {
+                          year: '2-digit',
+                          month: 'numeric',
+                          day: 'numeric'
+                        }) + ' ' + expectedDate.toLocaleTimeString('en-US', {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true
+                        })}
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

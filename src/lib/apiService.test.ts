@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { apiService, getApiData, hasApiData, ApiError } from './apiService';
+import { apiService, getApiData, hasApiData, ApiError, clearTokenCache } from './apiService';
 import { fetchAuthSession } from 'aws-amplify/auth';
 
 // Mock aws-amplify/auth
@@ -15,22 +15,30 @@ vi.mock('aws-amplify/auth', () => ({
 global.fetch = vi.fn();
 
 describe('apiService', () => {
-  const mockIdToken = 'mock-id-token-123';
+  // Create a valid JWT token with future expiry
+  const futureExp = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
+  const payload = btoa(JSON.stringify({ exp: futureExp }));
+  const mockIdToken = `header.${payload}.signature`;
   const API_BASE_URL = 'https://api.example.com';
 
   beforeEach(() => {
     vi.clearAllMocks();
     
-    // Mock environment variable - need to set it before importing
-    // Since the module is already loaded, we'll test with actual env or mock differently
-    // For now, tests will use the actual VITE_API_BASE_URL from .env
-    // In a real scenario, you'd use vi.stubEnv or similar
+    // Clear token cache before each test
+    clearTokenCache();
+    
+    // Create a valid JWT token with future expiry to avoid cache issues
+    // JWT format: header.payload.signature
+    // Payload: { exp: future_timestamp_in_seconds }
+    const futureExp = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
+    const payload = btoa(JSON.stringify({ exp: futureExp }));
+    const validJWT = `header.${payload}.signature`;
     
     // Mock fetchAuthSession to return a token
     vi.mocked(fetchAuthSession).mockResolvedValue({
       tokens: {
         idToken: {
-          toString: () => mockIdToken,
+          toString: () => validJWT,
         },
       },
     } as any);
@@ -270,7 +278,8 @@ describe('apiService', () => {
     });
 
     it('should work without token (for public endpoints)', async () => {
-      vi.mocked(fetchAuthSession).mockResolvedValueOnce({
+      // Mock fetchAuthSession to return null tokens (no token available)
+      vi.mocked(fetchAuthSession).mockResolvedValue({
         tokens: null,
       } as any);
 
@@ -281,14 +290,20 @@ describe('apiService', () => {
 
       await apiService.get('/api/health');
 
-      expect(fetch).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          headers: expect.not.objectContaining({
-            'Authorization': expect.anything(),
-          }),
-        })
-      );
+      // Verify the request was made
+      expect(fetch).toHaveBeenCalled();
+      
+      // Check that Authorization header is not present
+      const callArgs = vi.mocked(fetch).mock.calls[0];
+      const options = callArgs[1] as RequestInit;
+      const headers = options.headers as Record<string, string> | Headers;
+      
+      // Headers might be a Headers object or plain object
+      if (headers instanceof Headers) {
+        expect(headers.get('Authorization')).toBeNull();
+      } else {
+        expect(headers).not.toHaveProperty('Authorization');
+      }
     });
   });
 

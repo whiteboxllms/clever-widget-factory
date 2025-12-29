@@ -13,6 +13,7 @@ import { InventoryHistoryDialog } from '../InventoryHistoryDialog';
 import { mockApiResponse, setupFetchMock } from '@/test-utils/mocks';
 import { useToast } from '@/hooks/use-toast';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import { clearTokenCache } from '@/lib/apiService';
 
 // Mock the toast hook
 vi.mock('@/hooks/use-toast', () => ({
@@ -33,6 +34,8 @@ beforeEach(() => {
     ...originalEnv,
     VITE_API_BASE_URL: 'https://test-api.example.com',
   };
+  // Clear token cache before each test
+  clearTokenCache();
 });
 
 afterEach(() => {
@@ -247,10 +250,14 @@ describe('InventoryHistoryDialog', () => {
     });
 
     it('should include Authorization header with Bearer token in API requests', async () => {
-      const mockIdToken = 'mock-cognito-id-token-12345';
+      // Create a valid JWT token with future expiry
+      const futureExp = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
+      const payload = btoa(JSON.stringify({ exp: futureExp }));
+      const mockIdToken = `header.${payload}.signature`;
       const fetchCalls: any[] = [];
       
-      // Mock fetchAuthSession to return a token
+      // Clear token cache and mock fetchAuthSession to return a token
+      clearTokenCache();
       vi.mocked(fetchAuthSession).mockResolvedValue({
         tokens: {
           idToken: {
@@ -309,10 +316,14 @@ describe('InventoryHistoryDialog', () => {
     });
 
     it('should NOT have duplicate /api/ in the URL path', async () => {
-      const mockIdToken = 'mock-cognito-id-token-12345';
+      // Create a valid JWT token with future expiry
+      const futureExp = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
+      const payload = btoa(JSON.stringify({ exp: futureExp }));
+      const mockIdToken = `header.${payload}.signature`;
       const fetchCalls: any[] = [];
       
-      // Mock fetchAuthSession to return a token
+      // Clear token cache and mock fetchAuthSession to return a token
+      clearTokenCache();
       vi.mocked(fetchAuthSession).mockResolvedValue({
         tokens: {
           idToken: {
@@ -375,11 +386,15 @@ describe('InventoryHistoryDialog', () => {
     });
 
     it('should construct URL with query parameters matching the exact curl format', async () => {
-      const mockIdToken = 'mock-cognito-id-token-12345';
+      // Create a valid JWT token with future expiry
+      const futureExp = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
+      const payload = btoa(JSON.stringify({ exp: futureExp }));
+      const mockIdToken = `header.${payload}.signature`;
       const realPartId = '0c08ac5b-8ac9-464c-b585-27be3e0a5165'; // Real UUID from curl
       const fetchCalls: any[] = [];
       
-      // Mock fetchAuthSession to return a token
+      // Clear token cache and mock fetchAuthSession to return a token
+      clearTokenCache();
       vi.mocked(fetchAuthSession).mockResolvedValue({
         tokens: {
           idToken: {

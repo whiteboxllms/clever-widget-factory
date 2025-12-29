@@ -155,7 +155,12 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">{entry.user_name}</span>
+                          <span className="font-medium">
+                            {isCheckoutHistory(entry) 
+                              ? (entry.user_display_name || <span className="text-red-600">ERROR: User not found</span>)
+                              : (entry.user_name || 'System')
+                            }
+                          </span>
                           <Badge variant="outline" className="text-xs">
                             {getChangeBadge(entry)}
                           </Badge>

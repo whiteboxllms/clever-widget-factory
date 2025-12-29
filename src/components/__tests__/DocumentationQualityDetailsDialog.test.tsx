@@ -15,6 +15,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DocumentationQualityDetailsDialog } from '../DocumentationQualityDetailsDialog';
 import { mockApiResponse, setupFetchMock } from '@/test-utils/mocks';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import { clearTokenCache } from '@/lib/apiService';
 
 // Mock AWS Amplify auth
 vi.mock('aws-amplify/auth', () => ({
@@ -37,6 +38,9 @@ beforeEach(() => {
     VITE_API_BASE_URL: 'https://test-api.example.com',
   };
   mockNavigate.mockClear();
+  
+  // Clear token cache before each test
+  clearTokenCache();
   
   // Create a fresh QueryClient for each test
   queryClient = new QueryClient({
@@ -224,10 +228,14 @@ describe('DocumentationQualityDetailsDialog', () => {
     });
 
     it('should include Authorization header with Bearer token in API requests', async () => {
-      const mockIdToken = 'mock-cognito-id-token-12345';
+      // Create a valid JWT token with future expiry
+      const futureExp = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
+      const payload = btoa(JSON.stringify({ exp: futureExp }));
+      const mockIdToken = `header.${payload}.signature`;
       const fetchCalls: any[] = [];
       
-      // Mock fetchAuthSession to return a token
+      // Clear token cache and mock fetchAuthSession to return a token
+      clearTokenCache();
       vi.mocked(fetchAuthSession).mockResolvedValue({
         tokens: {
           idToken: {

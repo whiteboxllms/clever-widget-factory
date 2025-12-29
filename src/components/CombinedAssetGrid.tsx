@@ -63,6 +63,18 @@ export const CombinedAssetGrid = ({
       ? resolvedCheckoutName
       : asset.checked_out_to || undefined;
 
+    // Debug: Log checkout info for Digital Kitchen Scale
+    if (asset.name?.toLowerCase().includes('digital kitchen scale')) {
+      console.log('Digital Kitchen Scale checkout data:', {
+        is_checked_out: asset.is_checked_out,
+        checked_out_user_id: asset.checked_out_user_id,
+        checked_out_to: asset.checked_out_to,
+        checked_out_date: asset.checked_out_date,
+        checkoutDisplayName,
+        status: asset.status
+      });
+    }
+
     return (
       <div>
         <CombinedAssetCard

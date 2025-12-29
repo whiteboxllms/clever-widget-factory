@@ -1,6 +1,29 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react-swc';
 import path from 'path';
+import { readFileSync, existsSync } from 'fs';
+
+// Function to load environment variables from a file
+function loadEnvFile(filePath: string): Record<string, string> {
+  if (!existsSync(filePath)) {
+    return {};
+  }
+  
+  const envContent = readFileSync(filePath, 'utf8');
+  const envVars: Record<string, string> = {};
+  
+  const lines = envContent.split('\n').filter(line => line.trim() && !line.startsWith('#'));
+  
+  for (const line of lines) {
+    const [key, ...valueParts] = line.split('=');
+    if (key && valueParts.length > 0) {
+      const value = valueParts.join('=').trim();
+      envVars[key.trim()] = value;
+    }
+  }
+  
+  return envVars;
+}
 
 export default defineConfig({
   plugins: [react()],
@@ -9,6 +32,10 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test-utils/setupTests.ts'],
     testTimeout: 10000,
+    env: {
+      // Load .env.test file for integration tests
+      ...(process.env.INTEGRATION_TESTS === 'true' ? loadEnvFile('.env.test') : {}),
+    },
     exclude: [
       '**/node_modules/**',
       '**/dist/**',

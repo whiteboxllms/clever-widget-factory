@@ -1,10 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Wrench, Package, Edit, Trash2, LogOut, LogIn, AlertTriangle, AlertCircle, Plus, Minus, ShoppingCart, History, Triangle, Info } from "lucide-react";
+import { Wrench, Package, Edit, Trash2, LogOut, LogIn, AlertTriangle, AlertCircle, Plus, Minus, ShoppingCart, History, Triangle, Info, ExternalLink } from "lucide-react";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { InventoryHistoryDialog } from "./InventoryHistoryDialog";
 import { AssetHistoryDialog } from "./AssetHistoryDialog";
+import { Link } from "react-router-dom";
 
 import { useMemo, memo, useRef } from "react";
 
@@ -33,6 +34,7 @@ interface CombinedAsset {
   created_at?: string;
   updated_at?: string;
   similarity_score?: number;
+  checkout_action_id?: string;
 }
 
 interface CheckoutInfo {
@@ -172,20 +174,13 @@ export const CombinedAssetCard = memo(({
   
   function getStatusBadge() {
     if (asset.type === 'asset') {
-      switch (asset.status) {
-        case 'available':
-          return <Badge variant="outline" className="text-green-600 border-green-600">Available</Badge>;
-        case 'checked_out':
-          return <Badge variant="outline" className="text-orange-600 border-orange-600">Checked Out</Badge>;
-        case 'in_use':
-          return <Badge variant="outline" className="text-blue-600 border-blue-600">In Use</Badge>;
-        case 'unavailable':
-          return <Badge variant="outline" className="text-red-600 border-red-600">Unavailable</Badge>;
-        case 'removed':
-          return <Badge variant="outline" className="text-gray-600 border-gray-600">Removed</Badge>;
-        default:
-          return <Badge variant="outline">Unknown</Badge>;
+      if (asset.is_checked_out) {
+        return <Badge variant="outline" className="text-orange-600 border-orange-600">Checked Out</Badge>;
       }
+      if (asset.status === 'removed') {
+        return <Badge variant="outline" className="text-gray-600 border-gray-600">Removed</Badge>;
+      }
+      return <Badge variant="outline" className="text-green-600 border-green-600">Available</Badge>;
     } else {
       const isLowStock = asset.minimum_quantity && asset.current_quantity && asset.current_quantity <= asset.minimum_quantity;
       if (isLowStock) {
@@ -193,7 +188,7 @@ export const CombinedAssetCard = memo(({
       }
       return <Badge variant="outline" className="text-green-600 border-green-600">In Stock</Badge>;
     }
-  };
+  }
 
   const getIconColor = () => {
     if (asset.type === 'asset') {
@@ -204,7 +199,7 @@ export const CombinedAssetCard = memo(({
 
   const statusBadge = useMemo(() => {
     return getStatusBadge();
-  }, [asset.type, asset.status, asset.minimum_quantity, asset.current_quantity]);
+  }, [asset.type, asset.is_checked_out, asset.status, asset.minimum_quantity, asset.current_quantity]);
   
   const iconColor = useMemo(() => {
     return getIconColor();
@@ -248,8 +243,8 @@ export const CombinedAssetCard = memo(({
         
         {(asset.type === 'asset' || asset.category) && (
           <div className="flex flex-wrap gap-1 -mt-1">
-            {asset.type === 'asset' && statusBadge}
-            {asset.category && (
+            {asset.type === 'asset' && asset.is_checked_out && statusBadge}
+            {asset.category && asset.category !== 'Electric Tool' && (
               <Badge variant="outline" className="text-xs">{asset.category}</Badge>
             )}
           </div>
@@ -303,6 +298,15 @@ export const CombinedAssetCard = memo(({
           {checkoutInfo && (
             <div>
               <span className="font-medium">Checked out to:</span> {checkoutInfo.user_name}
+              {asset.checkout_action_id && (
+                <Link 
+                  to={`/actions?id=${asset.checkout_action_id}`}
+                  className="inline-flex items-center gap-1 ml-2 text-xs text-primary hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  View Action <ExternalLink className="h-3 w-3" />
+                </Link>
+              )}
               <div className="text-xs text-muted-foreground mt-1">
                 {checkoutDateDisplay ? `Since ${checkoutDateDisplay}` : 'Checkout date unavailable'}
               </div>
@@ -321,7 +325,7 @@ export const CombinedAssetCard = memo(({
 
         <div className="flex gap-2 mt-2 mt-auto pt-2" onClick={(e) => e.stopPropagation()}>
           {/* Asset-specific buttons */}
-          {asset.type === 'asset' && asset.status === 'available' && !checkoutInfo && onCheckout && (
+          {asset.type === 'asset' && !asset.is_checked_out && !checkoutInfo && onCheckout && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -344,7 +348,7 @@ export const CombinedAssetCard = memo(({
             </TooltipProvider>
           )}
 
-          {asset.type === 'asset' && checkoutInfo && checkoutInfo.user_id === currentUserId && onCheckin && (
+          {asset.type === 'asset' && checkoutInfo && onCheckin && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>

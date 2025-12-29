@@ -1,4 +1,6 @@
 export const actionsQueryKey = () => ['actions'];
+export const actionQueryKey = (actionId: string) => ['action', actionId];
+export const actionImplementationUpdatesQueryKey = (actionId: string) => ['action_implementation_updates', actionId];
 
 export const toolsQueryKey = () => ['tools'];
 
@@ -42,4 +44,10 @@ export const issueActionsQueryKey = (issueId: string) => ['issue_actions', issue
 export const missionsQueryKey = () => ['missions'];
 
 export const missionQueryKey = (missionId: string) => ['mission', missionId];
+
+// Parts orders query key
+export const partsOrdersQueryKey = (status?: string) => [
+  'parts_orders',
+  status ?? 'all'
+];
 

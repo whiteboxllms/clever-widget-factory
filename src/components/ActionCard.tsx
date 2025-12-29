@@ -27,6 +27,7 @@ import { autoCheckinToolsForAction } from '@/lib/autoToolCheckout';
 import { generateActionUrl, copyToClipboard } from '@/lib/urlUtils';
 import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/hooks/useCognitoAuth';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface Profile {
   id: string;
@@ -69,6 +70,7 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
   const { getScoreForAction } = useAssetScores();
   const { favoriteColor } = useProfile();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const planTextareaRef = useRef<HTMLTextAreaElement>(null);
   const implementationTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [isExpanded, setIsExpanded] = useState(true);
@@ -438,7 +440,8 @@ export function ActionCard({ action, profiles, onUpdate, isEditing = false, onSa
           action.id, 
           currentUser.id, 
           action.title, 
-          action.mission_id
+          action.mission_id,
+          queryClient // Pass queryClient to use cached parts data
         );
       }
 

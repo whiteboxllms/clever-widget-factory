@@ -16,8 +16,6 @@ export function useDocumentationQuality() {
   return useQuery({
     queryKey: ["documentation-quality"],
     queryFn: async (): Promise<DocumentationQualityData> => {
-      console.log("Fetching documentation quality data...");
-
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 

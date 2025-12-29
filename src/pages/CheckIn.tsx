@@ -43,10 +43,6 @@ export default function CheckIn() {
 
   const fetchCheckouts = async () => {
     try {
-      console.log('=== FETCHING CHECKOUTS ===');
-      console.log('Network status:', navigator.onLine ? 'Online' : 'Offline');
-      console.log('Timestamp:', new Date().toISOString());
-      
       // Fetch checkouts from AWS API
       const checkoutsResult = await apiService.get('/checkouts?is_returned=false');
       const checkoutsData = checkoutsResult.data || [];
@@ -63,9 +59,6 @@ export default function CheckIn() {
         ...checkout,
         tools: toolsMap.get(checkout.tool_id)
       }));
-
-      console.log('Checkout fetch result:', { count: checkoutsWithTools.length });
-      console.log('Raw data:', checkoutsWithTools);
 
       setCheckouts(checkoutsWithTools);
       console.log('Successfully loaded checkouts:', checkoutsWithTools.length);

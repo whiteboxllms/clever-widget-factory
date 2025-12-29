@@ -27,8 +27,6 @@ export function DocumentationQualityDetailsDialog({
   const { data: details, isLoading } = useQuery({
     queryKey: ["documentation-quality-details", userId, activityType],
     queryFn: async () => {
-      console.log(`Fetching documentation quality details for ${userName} - ${activityType}`);
-      
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 

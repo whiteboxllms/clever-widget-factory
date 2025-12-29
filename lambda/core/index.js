@@ -93,6 +93,21 @@ exports.handler = async (event) => {
   const organizationId = authContext.organization_id;
   const hasDataReadAll = hasPermission(authContext, 'data:read:all');
   
+  // Log auth context for debugging (especially for organization_members endpoint)
+  if (path.includes('organization_members') || path.includes('organizations')) {
+    console.log('🔍 [CORE LAMBDA] Auth context received:', {
+      cognito_user_id: authContext.cognito_user_id,
+      organization_id: organizationId,
+      accessible_organization_ids: authContext.accessible_organization_ids,
+      accessible_organization_ids_count: authContext.accessible_organization_ids?.length || 0,
+      organization_memberships: authContext.organization_memberships,
+      organization_memberships_count: authContext.organization_memberships?.length || 0,
+      permissions: authContext.permissions,
+      has_data_read_all: hasDataReadAll,
+      user_role: authContext.user_role
+    });
+  }
+  
   // Log error if organization_id is missing - don't use fallback to hide problems
   if (!organizationId) {
     console.error('❌ ERROR: organization_id is missing from authorizer context!');
@@ -322,11 +337,12 @@ exports.handler = async (event) => {
             END as image_url,
             CASE WHEN active_checkouts.id IS NOT NULL THEN true ELSE false END as is_checked_out,
             active_checkouts.user_id as checked_out_user_id,
-            active_checkouts.user_name as checked_out_to,
+            om_checkout.full_name as checked_out_to,
             active_checkouts.checkout_date as checked_out_date,
             active_checkouts.expected_return_date,
             active_checkouts.intended_usage as checkout_intended_usage,
-            active_checkouts.notes as checkout_notes
+            active_checkouts.notes as checkout_notes,
+            active_checkouts.action_id as checkout_action_id
           FROM tools
           LEFT JOIN tools parent_tool ON tools.parent_structure_id = parent_tool.id
           LEFT JOIN LATERAL (
@@ -336,6 +352,7 @@ exports.handler = async (event) => {
             ORDER BY checkouts.checkout_date DESC NULLS LAST, checkouts.created_at DESC
             LIMIT 1
           ) active_checkouts ON true
+          LEFT JOIN organization_members om_checkout ON active_checkouts.user_id = om_checkout.cognito_user_id
           ${whereClause}
           ORDER BY tools.id, tools.name 
           LIMIT ${limit} OFFSET ${offset}
@@ -995,12 +1012,99 @@ exports.handler = async (event) => {
       }
       
       if (httpMethod === 'GET') {
-        const { cognito_user_id } = event.queryStringParameters || {};
+        const { cognito_user_id, organization_id } = event.queryStringParameters || {};
         const whereClauses = [];
 
-        const membersOrgFilter = buildOrganizationFilter(authContext, 'organization_members');
-        if (membersOrgFilter.condition) {
-          whereClauses.push(membersOrgFilter.condition);
+        // Log user identity and organization context for debugging
+        console.log('🔍 [organization_members GET] User identity and context:', {
+          cognito_user_id_from_auth: authContext.cognito_user_id,
+          cognito_user_id_from_query: cognito_user_id,
+          organization_id_from_auth: authContext.organization_id,
+          organization_id_from_query: organization_id,
+          accessible_organization_ids: authContext.accessible_organization_ids,
+          accessible_organization_ids_count: authContext.accessible_organization_ids?.length || 0,
+          organization_memberships: authContext.organization_memberships,
+          organization_memberships_count: authContext.organization_memberships?.length || 0,
+          permissions: authContext.permissions,
+          has_data_read_all: hasPermission(authContext, 'data:read:all')
+        });
+
+        // If organization_id is provided, check if user has access to it
+        if (organization_id) {
+          console.log('🔍 [organization_members GET] Checking access to organization:', organization_id);
+          // Users with data:read:all can access any organization
+          if (hasPermission(authContext, 'data:read:all')) {
+            whereClauses.push(`organization_members.organization_id = '${escapeLiteral(organization_id)}'`);
+          } 
+          // Check if user has access via accessible_organization_ids (active memberships)
+          else if (canAccessOrganization(authContext, organization_id)) {
+            whereClauses.push(`organization_members.organization_id = '${escapeLiteral(organization_id)}'`);
+          }
+          // Check if user has ANY membership in this organization (even if inactive)
+          // This allows users to see members of orgs they belong to, even if their membership is inactive
+          // We need to check the database because organization_memberships only includes active memberships
+          else {
+            const cognitoUserId = authContext.cognito_user_id;
+            console.log('🔍 [organization_members GET] Checking database for membership:', {
+              cognito_user_id: cognitoUserId,
+              requested_organization_id: organization_id,
+              accessible_orgs: authContext.accessible_organization_ids
+            });
+            
+            if (cognitoUserId) {
+              // Check for ANY membership (active or inactive) in the requested organization
+              const membershipCheckSql = `
+                SELECT 
+                  id,
+                  organization_id,
+                  role,
+                  is_active,
+                  created_at
+                FROM organization_members 
+                WHERE cognito_user_id = '${escapeLiteral(cognitoUserId)}' 
+                  AND organization_id = '${escapeLiteral(organization_id)}'
+              `;
+              const membershipResult = await queryJSON(membershipCheckSql);
+              console.log('🔍 [organization_members GET] Database membership check result:', {
+                found_memberships: membershipResult?.length || 0,
+                memberships: membershipResult
+              });
+              
+              const hasMembership = membershipResult && membershipResult.length > 0;
+              
+              if (hasMembership) {
+                // User has a membership in this org (even if inactive) - allow access
+                console.log('✅ [organization_members GET] User has membership in requested org, allowing access');
+                whereClauses.push(`organization_members.organization_id = '${escapeLiteral(organization_id)}'`);
+              } else {
+                // User doesn't have any membership in this organization
+                console.log('❌ [organization_members GET] User has no membership in requested org, denying access');
+                return {
+                  statusCode: 403,
+                  headers,
+                  body: JSON.stringify({ error: 'Access denied to this organization' })
+                };
+              }
+            } else {
+              console.log('❌ [organization_members GET] No cognito_user_id in auth context');
+              return {
+                statusCode: 403,
+                headers,
+                body: JSON.stringify({ error: 'Access denied - user context missing' })
+              };
+            }
+          }
+        } else {
+          // No organization_id specified - use organization filter from authorizer context
+          console.log('🔍 [organization_members GET] No organization_id in query, using authorizer context filter');
+          const membersOrgFilter = buildOrganizationFilter(authContext, 'organization_members');
+          console.log('🔍 [organization_members GET] Organization filter:', {
+            condition: membersOrgFilter.condition,
+            has_condition: !!membersOrgFilter.condition
+          });
+          if (membersOrgFilter.condition) {
+            whereClauses.push(membersOrgFilter.condition);
+          }
         }
 
         if (cognito_user_id) {
@@ -1012,7 +1116,18 @@ exports.handler = async (event) => {
           SELECT * FROM organization_members ${whereClause} ORDER BY created_at ASC
         ) t;`;
         
+        console.log('🔍 [organization_members GET] Final SQL query:', {
+          whereClause,
+          sql: sql.substring(0, 500) + (sql.length > 500 ? '...' : '')
+        });
+        
         const result = await queryJSON(sql);
+        const memberCount = result?.[0]?.json_agg?.length || 0;
+        console.log('🔍 [organization_members GET] Query result:', {
+          result_count: memberCount,
+          first_member_org_id: result?.[0]?.json_agg?.[0]?.organization_id
+        });
+        
         return {
           statusCode: 200,
           headers,
@@ -1378,17 +1493,105 @@ exports.handler = async (event) => {
       if (httpMethod === 'GET') {
         try {
           const { user_id } = event.queryStringParameters || {};
+          const cognitoUserId = authContext.cognito_user_id;
+          
+          console.log('🔍 [profiles GET] Request details:', {
+            requested_user_id: user_id,
+            cognito_user_id: cognitoUserId,
+            organization_id: organizationId,
+            has_data_read_all: hasDataReadAll
+          });
+          
+          // If querying a specific user_id, allow access if:
+          // 1. It's the current user's own profile (always allowed), OR
+          // 2. User has data:read:all permission, OR
+          // 3. User is in the same organization (via organization_members)
+          if (user_id) {
+            // Allow users to see their own profile even if not in organization_members
+            // Check if user_id matches cognitoUserId OR if there's a profile with that user_id
+            // that belongs to the current user (via organization_members lookup)
+            let isOwnProfile = false;
+            
+            if (user_id === cognitoUserId) {
+              isOwnProfile = true;
+            } else {
+              // Check if this user_id belongs to the current user via organization_members
+              // This handles cases where user_id is a database UUID but cognitoUserId is an email
+              const ownershipCheckSql = `
+                SELECT COUNT(*) as count 
+                FROM organization_members 
+                WHERE cognito_user_id = '${escapeLiteral(cognitoUserId)}' 
+                  AND user_id::text = '${escapeLiteral(user_id)}'
+              `;
+              const ownershipResult = await queryJSON(ownershipCheckSql);
+              isOwnProfile = ownershipResult?.[0]?.count > 0;
+            }
+            
+            if (isOwnProfile) {
+              const sql = `SELECT json_agg(row_to_json(t)) FROM (
+                SELECT * FROM profiles WHERE user_id = ${formatSqlValue(user_id)}
+              ) t;`;
+              
+              const result = await queryJSON(sql);
+              return {
+                statusCode: 200,
+                headers,
+                body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
+              };
+            }
+            
+            // For other users, require organization membership check
+            console.log('🔍 [profiles GET] Not own profile - checking organization membership...');
+            let whereConditions = [];
+            
+            if (!hasDataReadAll && organizationId) {
+              whereConditions.push(`om.organization_id::text = '${escapeLiteral(organizationId)}'`);
+            }
+            whereConditions.push(`om.is_active = true`);
+            whereConditions.push(`p.user_id = ${formatSqlValue(user_id)}`);
+            
+            const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+            
+            const sql = `SELECT json_agg(row_to_json(t)) FROM (
+              SELECT p.* FROM profiles p
+              INNER JOIN organization_members om ON p.user_id::text = om.cognito_user_id::text
+              ${whereClause}
+              ORDER BY p.full_name
+            ) t;`;
+            
+            const result = await queryJSON(sql);
+            return {
+              statusCode: 200,
+              headers,
+              body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
+            };
+          }
+          
+          // No user_id specified - return all profiles user has access to
+          // Use LEFT JOIN so users without org membership can still see profiles if they have data:read:all
+          let joinClause = '';
           let whereConditions = [];
           
+          if (hasDataReadAll) {
+            // Users with data:read:all can see all profiles
+            const sql = `SELECT json_agg(row_to_json(t)) FROM (
+              SELECT * FROM profiles
+              ORDER BY full_name
+            ) t;`;
+            
+            const result = await queryJSON(sql);
+            return {
+              statusCode: 200,
+              headers,
+              body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
+            };
+          }
+          
           // Filter by organization and only active members
-          if (!hasDataReadAll && organizationId) {
+          if (organizationId) {
             whereConditions.push(`om.organization_id::text = '${escapeLiteral(organizationId)}'`);
           }
           whereConditions.push(`om.is_active = true`);
-          
-          if (user_id) {
-            whereConditions.push(`p.user_id = ${formatSqlValue(user_id)}`);
-          }
           
           const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
           
@@ -1475,7 +1678,7 @@ exports.handler = async (event) => {
         const insertData = {
           checkout_id: body.checkout_id,
           tool_id: body.tool_id,
-          user_name: body.user_name || 'Unknown User',
+          user_id: body.user_id,
           problems_reported: body.problems_reported !== undefined ? body.problems_reported : null,
           notes: body.notes !== undefined ? body.notes : null,
           sop_best_practices: body.sop_best_practices !== undefined ? body.sop_best_practices : '',
@@ -1491,7 +1694,7 @@ exports.handler = async (event) => {
           })()
         };
 
-        const requiredFields = ['checkout_id', 'tool_id', 'user_name'];
+        const requiredFields = ['checkout_id', 'tool_id', 'user_id'];
         const missingFields = requiredFields.filter(field => !insertData[field]);
         if (missingFields.length > 0) {
           return {
@@ -1549,7 +1752,6 @@ exports.handler = async (event) => {
               c.id::text,
               c.tool_id::text,
               c.user_id::text,
-              c.user_name,
               c.checkout_date,
               c.expected_return_date,
               c.is_returned,
@@ -1558,7 +1760,7 @@ exports.handler = async (event) => {
               c.action_id::text,
               c.organization_id::text,
               c.created_at,
-              COALESCE(om.full_name, c.user_name) as user_display_name
+              COALESCE(om.full_name, 'Unknown User') as user_display_name
             FROM checkouts c
             LEFT JOIN organization_members om ON c.user_id::text = om.cognito_user_id::text
             WHERE c.tool_id::text = '${escapeLiteral(toolId)}'
@@ -1766,7 +1968,7 @@ exports.handler = async (event) => {
       
       if (httpMethod === 'POST') {
         const body = JSON.parse(event.body || '{}');
-        const { tool_id, user_id, user_name, intended_usage, notes, action_id, is_returned, checkout_date } = body;
+        const { tool_id, user_id, intended_usage, notes, action_id, is_returned, checkout_date } = body;
         // Always use organizationId from authorizer context (not from request body)
         if (!organizationId) {
           console.error('❌ ERROR: Cannot create checkout - organization_id is missing from authorizer context');
@@ -1781,7 +1983,7 @@ exports.handler = async (event) => {
         // Check for existing active checkout for this tool
         // An active checkout is one where is_returned = false
         const checkActiveCheckoutSql = `
-          SELECT id, user_name, checkout_date 
+          SELECT id, checkout_date 
           FROM checkouts 
           WHERE tool_id = '${tool_id}' 
             AND is_returned = false
@@ -1797,10 +1999,9 @@ exports.handler = async (event) => {
             headers,
             body: JSON.stringify({ 
               error: 'Tool already has an active checkout',
-              details: `This tool is currently checked out to ${existingCheckout.user_name || 'another user'}. Please return the tool before creating a new checkout.`,
+              details: 'This tool is currently checked out. Please return the tool before creating a new checkout.',
               existing_checkout: {
                 id: existingCheckout.id,
-                user_name: existingCheckout.user_name,
                 checkout_date: existingCheckout.checkout_date
               }
             })
@@ -1809,8 +2010,8 @@ exports.handler = async (event) => {
         
         const checkoutDateValue = checkout_date ? `'${checkout_date}'` : (is_returned ? 'NOW()' : 'NULL');
         const sql = `
-          INSERT INTO checkouts (tool_id, user_id, user_name, intended_usage, notes, action_id, organization_id, is_returned, checkout_date)
-          VALUES ('${tool_id}', '${user_id}', '${user_name.replace(/'/g, "''")}', ${intended_usage ? `'${intended_usage.replace(/'/g, "''")}'` : 'NULL'}, ${notes ? `'${notes.replace(/'/g, "''")}'` : 'NULL'}, ${action_id ? `'${action_id}'` : 'NULL'}, '${orgId}', ${is_returned}, ${checkoutDateValue})
+          INSERT INTO checkouts (tool_id, user_id, intended_usage, notes, action_id, organization_id, is_returned, checkout_date)
+          VALUES ('${tool_id}', '${user_id}', ${intended_usage ? `'${intended_usage.replace(/'/g, "''")}'` : 'NULL'}, ${notes ? `'${notes.replace(/'/g, "''")}'` : 'NULL'}, ${action_id ? `'${action_id}'` : 'NULL'}, '${orgId}', ${is_returned}, ${checkoutDateValue})
           RETURNING *
         `;
         
@@ -1863,7 +2064,7 @@ exports.handler = async (event) => {
           SELECT 
             c.*,
             t.serial_number as tool_serial_number,
-            COALESCE(om.full_name, c.user_name) as user_name,
+            om.full_name as user_name,
             a.title as action_title
           FROM checkouts c
           LEFT JOIN tools t ON c.tool_id = t.id

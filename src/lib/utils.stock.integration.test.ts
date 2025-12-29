@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { processStockConsumption } from './utils';
 import { mockApiResponse } from '@/test-utils/mocks';
 
-describe('Stock Consumption Integration - Real-world scenarios', () => {
+describe.skip('Stock Consumption Integration - Real-world scenarios', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

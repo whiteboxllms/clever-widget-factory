@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { apiService } from "@/lib/apiService";
-import { useAssetMutations } from '@/hooks/useAssetMutations';
+import { useCheckoutMutations } from '@/hooks/useCheckoutMutations';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -53,12 +53,11 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
     beforeImageFiles: []
   });
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [isCheckingIssues, setIsCheckingIssues] = useState(false);
   const [userFullName, setUserFullName] = useState<string>("");
   const { toast } = useToast();
-  const { updateTool } = useAssetMutations();
+  const { createCheckout } = useCheckoutMutations();
   const enhancedToast = useEnhancedToast();
   const { members: organizationMembers = [] } = useOrganizationMembers();
 
@@ -140,79 +139,49 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tool) return;
+    if (!tool || !user) return;
 
-    setIsSubmitting(true);
-
-    try {
-      // Check for existing active checkouts
-      const checkoutsResult = await apiService.get(`/checkouts?tool_id=${tool.id}&is_returned=false`);
-      const existingCheckouts = checkoutsResult.data || [];
-
-      if (existingCheckouts.length > 0) {
-        const checkout = existingCheckouts[0];
-        toast({
-          title: "Tool Already Checked Out",
-          description: `This tool is currently checked out to ${checkout.user_name}.`,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Create checkout record with immediate checkout_date
-      await apiService.post('/checkouts', {
+    createCheckout.mutate(
+      {
         tool_id: tool.id,
-        user_id: user?.id,
-        user_name: userFullName,
+        user_id: user.id,
         intended_usage: form.intendedUsage || null,
         notes: form.notes || null,
         action_id: taskId || null,
         is_returned: false,
         checkout_date: new Date().toISOString()
-      });
-
-      // Update tool status
-      await updateTool.mutateAsync({ id: tool.id, data: { status: 'checked_out' } });
-
-      toast({
-        title: "Success",
-        description: `${tool.name} has been checked out successfully`
-      });
-
-      // Reset form
-      setForm({
-        intendedUsage: "",
-        notes: "",
-        preCheckoutIssues: "",
-        beforeImageFiles: []
-      });
-      setImagePreviews([]);
-      onOpenChange(false);
-      onSuccess();
-
-    } catch (error: any) {
-      console.error('Error checking out tool:', error);
-      
-      // Handle duplicate key constraint violation
-      if (error.error?.includes('active checkout') || 
-          error.message?.includes('idx_unique_active_checkout_per_tool') ||
-          error.message?.includes('duplicate key')) {
-        const errorMessage = error.details || error.error || "This tool is already checked out";
-        toast({
-          title: "Tool Already Checked Out",
-          description: errorMessage,
-          variant: "destructive"
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: error.details || error.error || "Failed to check out tool",
-          variant: "destructive"
-        });
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Success",
+            description: `${tool.name} has been checked out successfully`
+          });
+          resetForm();
+          onOpenChange(false);
+          onSuccess();
+        },
+        onError: (error: any) => {
+          console.error('Error checking out tool:', error);
+          
+          if (error.error?.includes('active checkout') || 
+              error.message?.includes('idx_unique_active_checkout_per_tool') ||
+              error.message?.includes('duplicate key')) {
+            toast({
+              title: "Tool Already Checked Out",
+              description: error.details || error.error || "This tool is already checked out",
+              variant: "destructive"
+            });
+          } else {
+            toast({
+              title: "Error",
+              description: error.details || error.error || "Failed to check out tool",
+              variant: "destructive"
+            });
+          }
+        }
       }
-    } finally {
-      setIsSubmitting(false);
-    }
+    );
   };
 
 
@@ -368,15 +337,15 @@ export function ToolCheckoutDialog({ tool, open, onOpenChange, onSuccess, assign
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              disabled={isSubmitting}
+              disabled={createCheckout.isPending}
             >
               Cancel
             </Button>
             <Button 
               type="submit" 
-              disabled={isSubmitting || !form.intendedUsage || !userFullName}
+              disabled={createCheckout.isPending || !form.intendedUsage || !userFullName}
             >
-              {isSubmitting ? (
+              {createCheckout.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Checking Out...

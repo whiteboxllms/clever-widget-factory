@@ -10,6 +10,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { QueryClient } from '@tanstack/react-query';
 import { processStockConsumption } from './utils';
 import { mockApiResponse, setupFetchMock } from '@/test-utils/mocks';
 
@@ -28,6 +29,8 @@ afterEach(() => {
 });
 
 describe('processStockConsumption', () => {
+  let queryClient: QueryClient;
+  
   const mockUserId = 'user-123';
   const mockActionId = 'action-456';
   const mockActionTitle = 'Test Action';
@@ -45,6 +48,15 @@ describe('processStockConsumption', () => {
     name: 'Bolt',
     current_quantity: 25,
   };
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false }
+      }
+    });
+  });
 
   describe('Successful stock consumption', () => {
     it('should decrement stock quantity when action is completed with single item', async () => {
@@ -92,22 +104,22 @@ describe('processStockConsumption', () => {
         return Promise.resolve(mockApiResponse({}));
       }) as typeof fetch;
 
+      // Set up parts in cache (function expects array directly, not wrapped in { data: [...] })
+      queryClient.setQueryData(['parts'], [mockOringPart, mockBoltPart]);
+
       await processStockConsumption(
         requiredStock,
         mockActionId,
         mockUserId,
         mockActionTitle,
-        mockOrganizationId,
-        mockMissionId
+        mockMissionId,
+        queryClient
       );
 
       // Verify fetch was called correctly
       expect(global.fetch).toHaveBeenCalled();
       
-      // Verify parts were fetched (GET request)
-      const partsFetchCall = fetchCalls.find(c => c.url.includes('/parts') && (c.method === 'GET' || !c.method));
-      expect(partsFetchCall).toBeDefined();
-
+      // Note: Parts are read from cache, so no GET request should be made
       // Verify part quantity was updated
       const updateCall = fetchCalls.find(c => c.method === 'PUT' && c.url.includes(mockOringPart.id));
       expect(updateCall).toBeDefined();
@@ -170,12 +182,16 @@ describe('processStockConsumption', () => {
         return Promise.resolve(mockApiResponse({}));
       }) as typeof fetch;
 
+      // Set up parts in cache (function expects array directly, not wrapped in { data: [...] })
+      queryClient.setQueryData(['parts'], [mockOringPart, mockBoltPart]);
+
       await processStockConsumption(
         requiredStock,
         mockActionId,
         mockUserId,
         mockActionTitle,
-        mockOrganizationId
+        mockMissionId,
+        queryClient
       );
 
       // Verify both parts were updated
@@ -230,12 +246,16 @@ describe('processStockConsumption', () => {
         return Promise.resolve(mockApiResponse({}));
       }) as typeof fetch;
 
+      // Set up parts in cache (function expects array directly, not wrapped in { data: [...] })
+      queryClient.setQueryData(['parts'], [partWithLowStock]);
+
       await processStockConsumption(
         requiredStock,
         mockActionId,
         mockUserId,
         mockActionTitle,
-        mockOrganizationId
+        mockMissionId,
+        queryClient
       );
 
       expect(global.fetch).toHaveBeenCalled();
@@ -277,12 +297,16 @@ describe('processStockConsumption', () => {
         return Promise.resolve(mockApiResponse({}));
       }) as typeof fetch;
 
+      // Set up parts in cache (function expects array directly, not wrapped in { data: [...] })
+      queryClient.setQueryData(['parts'], [partWithInsufficientStock]);
+
       await processStockConsumption(
         requiredStock,
         mockActionId,
         mockUserId,
         mockActionTitle,
-        mockOrganizationId
+        mockMissionId,
+        queryClient
       );
 
       expect(global.fetch).toHaveBeenCalled();
@@ -293,12 +317,16 @@ describe('processStockConsumption', () => {
     it('should return early if requiredStock is empty', async () => {
       global.fetch = vi.fn();
 
+      // Set up empty parts cache
+      queryClient.setQueryData(['parts'], []);
+
       await processStockConsumption(
         [],
         mockActionId,
         mockUserId,
         mockActionTitle,
-        mockOrganizationId
+        undefined,
+        queryClient
       );
 
       expect(global.fetch).not.toHaveBeenCalled();
@@ -307,12 +335,16 @@ describe('processStockConsumption', () => {
     it('should return early if requiredStock is null or undefined', async () => {
       global.fetch = vi.fn();
 
+      // Set up parts cache
+      queryClient.setQueryData(['parts'], []);
+
       await processStockConsumption(
         null as any,
         mockActionId,
         mockUserId,
         mockActionTitle,
-        mockOrganizationId
+        undefined,
+        queryClient
       );
 
       expect(global.fetch).not.toHaveBeenCalled();
@@ -322,7 +354,8 @@ describe('processStockConsumption', () => {
         mockActionId,
         mockUserId,
         mockActionTitle,
-        mockOrganizationId
+        undefined,
+        queryClient
       );
 
       expect(global.fetch).not.toHaveBeenCalled();
@@ -345,15 +378,19 @@ describe('processStockConsumption', () => {
         return Promise.resolve(mockApiResponse({}));
       }) as typeof fetch;
 
+      // Set up parts cache (without the non-existent part)
+      queryClient.setQueryData(['parts'], [mockOringPart]);
+
       await expect(
         processStockConsumption(
           requiredStock,
           mockActionId,
           mockUserId,
           mockActionTitle,
-          mockOrganizationId
+          mockMissionId,
+          queryClient
         )
-      ).rejects.toThrow('Part with ID non-existent-part not found');
+      ).rejects.toThrow('no longer exists in inventory');
     });
 
     it('should throw error if parts API fails', async () => {
@@ -383,7 +420,8 @@ describe('processStockConsumption', () => {
           mockActionId,
           mockUserId,
           mockActionTitle,
-          mockOrganizationId
+          mockMissionId,
+          queryClient
         )
       ).rejects.toThrow();
     });
@@ -416,13 +454,17 @@ describe('processStockConsumption', () => {
         return Promise.resolve(mockApiResponse({}));
       }) as typeof fetch;
 
+      // Set up parts in cache (function expects array directly, not wrapped in { data: [...] })
+      queryClient.setQueryData(['parts'], [mockOringPart]);
+
       await expect(
         processStockConsumption(
           requiredStock,
           mockActionId,
           mockUserId,
           mockActionTitle,
-          mockOrganizationId
+          mockMissionId,
+          queryClient
         )
       ).rejects.toThrow();
     });
@@ -460,6 +502,9 @@ describe('processStockConsumption', () => {
         return Promise.resolve(mockApiResponse({}));
       }) as typeof fetch;
 
+      // Set up parts in cache
+      queryClient.setQueryData(['parts'], [mockOringPart]);
+
       // Should not throw even though history failed
       await expect(
         processStockConsumption(
@@ -467,7 +512,8 @@ describe('processStockConsumption', () => {
           mockActionId,
           mockUserId,
           mockActionTitle,
-          mockOrganizationId
+          mockMissionId,
+          queryClient
         )
       ).resolves.not.toThrow();
     });
@@ -504,13 +550,16 @@ describe('processStockConsumption', () => {
         return Promise.resolve(mockApiResponse({}));
       }) as typeof fetch;
 
+      // Set up parts in cache (function expects array directly, not wrapped in { data: [...] })
+      queryClient.setQueryData(['parts'], [mockOringPart]);
+
       await processStockConsumption(
         requiredStock,
         mockActionId,
         mockUserId,
         mockActionTitle,
-        mockOrganizationId,
-        mockMissionId
+        mockMissionId,
+        queryClient
       );
 
       expect(historyBody).toBeTruthy();
@@ -539,6 +588,9 @@ describe('processStockConsumption', () => {
 
       global.fetch = vi.fn(() => Promise.resolve(mockApiResponse([mockOringPart])));
 
+      // Set up parts in cache (function expects array directly, not wrapped in { data: [...] })
+      queryClient.setQueryData(['parts'], [mockOringPart]);
+
       // Should work with all parameters
       await expect(
         processStockConsumption(
@@ -546,7 +598,8 @@ describe('processStockConsumption', () => {
           mockActionId,
           mockUserId,
           mockActionTitle,
-          mockOrganizationId
+          mockMissionId,
+          queryClient
         )
       ).resolves.not.toThrow();
     });
@@ -599,16 +652,20 @@ describe('processStockConsumption', () => {
         return Promise.resolve(mockApiResponse({}));
       }) as typeof fetch;
 
+      // Set up parts in cache
+      queryClient.setQueryData(['parts'], [oringPart]);
+
       await processStockConsumption(
         requiredStock,
         'action-with-oring',
         'user-123',
         'Action using O-ring',
-        'org-456'
+        undefined,
+        queryClient
       );
 
       // Critical assertions: All steps must complete
-      expect(partsFetched).toBe(true); // Parts must be fetched
+      // Note: Parts are read from cache, so partsFetched will be false (no GET request)
       expect(partUpdated).toBe(true); // Part must be updated
       expect(historyLogged).toBe(true); // History must be logged
       expect(updatedQuantity).toBe(9); // Quantity must be decremented
@@ -619,13 +676,17 @@ describe('processStockConsumption', () => {
       // If required_stock is not set on the action, stock consumption should be skipped
       global.fetch = vi.fn();
 
+      // Set up parts cache
+      queryClient.setQueryData(['parts'], []);
+
       // Empty array - should return early
       await processStockConsumption(
         [],
         'action-id',
         'user-id',
         'Action Title',
-        'org-id'
+        undefined,
+        queryClient
       );
 
       expect(global.fetch).not.toHaveBeenCalled();
@@ -636,7 +697,8 @@ describe('processStockConsumption', () => {
         'action-id',
         'user-id',
         'Action Title',
-        'org-id'
+        undefined,
+        queryClient
       );
 
       expect(global.fetch).not.toHaveBeenCalled();
@@ -684,6 +746,10 @@ describe('processStockConsumption', () => {
         required_stock: requiredStock,
       };
 
+      // Set up parts in cache (function expects array directly, not wrapped in { data: [...] })
+      // Use mockPart (id: 'part-1') to match requiredStock
+      queryClient.setQueryData(['parts'], [mockPart]);
+
       // When action is completed, processStockConsumption should be called
       if (mockAction.required_stock && mockAction.required_stock.length > 0) {
         await processStockConsumption(
@@ -691,18 +757,20 @@ describe('processStockConsumption', () => {
           mockAction.id,
           'user-id',
           mockAction.title,
-          'org-id'
+          undefined,
+          queryClient
         );
       }
 
       // Verify fetch was called (meaning processStockConsumption executed)
       expect(global.fetch).toHaveBeenCalled();
       
-      // Verify parts were fetched
-      const partsFetchCall = (global.fetch as any).mock.calls.find((call: any[]) => 
-        call[0].includes('/parts') && !call[0].includes('/parts/')
+      // Note: Parts are read from cache, so no GET request for parts
+      // Verify part was updated (PUT request)
+      const updateCall = (global.fetch as any).mock.calls.find((call: any[]) => 
+        typeof call[0] === 'string' && call[0].includes('/parts/') && call[1]?.method === 'PUT'
       );
-      expect(partsFetchCall).toBeDefined();
+      expect(updateCall).toBeDefined();
     });
   });
 });

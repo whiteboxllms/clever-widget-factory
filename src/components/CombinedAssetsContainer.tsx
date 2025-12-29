@@ -1,7 +1,10 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
-import { apiService } from '@/lib/apiService';
+import { apiService, getApiData } from '@/lib/apiService';
+import { partsOrdersQueryKey } from '@/lib/queryKeys';
+import { offlineQueryConfig } from '@/lib/queryConfig';
 import { useAssetMutations } from '@/hooks/useAssetMutations';
 import { ArrowLeft, Plus, BarChart3 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -77,7 +80,6 @@ export const CombinedAssetsContainer = () => {
   const [quantityOperation, setQuantityOperation] = useState<'add' | 'remove'>('add');
   const [showOrderDialog, setShowOrderDialog] = useState(false);
   const [showReceivingDialog, setShowReceivingDialog] = useState(false);
-  const [pendingOrders, setPendingOrders] = useState<Record<string, any[]>>({});
   const [quantityChange, setQuantityChange] = useState({
     amount: '',
     reason: '',
@@ -92,13 +94,17 @@ export const CombinedAssetsContainer = () => {
   const searchRef = useRef(searchTerm);
   const debounceTimerRef = useRef<number | undefined>(undefined);
   const semanticDebounceTimerRef = useRef<number | undefined>(undefined);
-  const { assets, loading, createAsset, updateAsset, refetch, fetchAssets } = useCombinedAssets(showRemovedItems, {
+  
+  // Memoize options to prevent unnecessary re-renders
+  const assetsQueryOptions = useMemo(() => ({
     search: searchTerm,
     limit,
     page,
     searchDescriptions,
     showLowStock
-  });
+  }), [searchTerm, limit, page, searchDescriptions, showLowStock]);
+  
+  const { assets, loading, createAsset, updateAsset, refetch, fetchAssets } = useCombinedAssets(showRemovedItems, assetsQueryOptions);
   const { members: organizationMembers } = useOrganizationMembers();
   const checkoutDisplayNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -131,32 +137,29 @@ export const CombinedAssetsContainer = () => {
   // Get appropriate issues based on selected asset type
   const issues = selectedAssetForDetails?.type === 'asset' ? assetIssues : stockIssues;
 
-  // Fetch pending orders for stock items
-  useEffect(() => {
-    const fetchPendingOrders = async () => {
-      try {
-        const result = await apiService.get('/parts_orders');
+  // Fetch pending orders for stock items using TanStack Query for caching
+  const fetchPartsOrders = async () => {
+    const result = await apiService.get('/parts_orders');
+    return getApiData(result) || [];
+  };
 
-        // Ensure orders is an array
-        const orders = Array.isArray(result) ? result : (result?.data || []);
+  const { data: partsOrders = [] } = useQuery({
+    queryKey: partsOrdersQueryKey(),
+    queryFn: fetchPartsOrders,
+    ...offlineQueryConfig,
+  });
 
-        // Group orders by part_id
-        const ordersByPart: Record<string, any[]> = {};
-        orders.forEach(order => {
-          if (!ordersByPart[order.part_id]) {
-            ordersByPart[order.part_id] = [];
-          }
-          ordersByPart[order.part_id].push(order);
-        });
-
-        setPendingOrders(ordersByPart);
-      } catch (error) {
-        console.error('Error fetching pending orders:', error);
+  // Group orders by part_id - memoized to avoid recalculation
+  const pendingOrders = useMemo(() => {
+    const ordersByPart: Record<string, any[]> = {};
+    partsOrders.forEach((order: any) => {
+      if (!ordersByPart[order.part_id]) {
+        ordersByPart[order.part_id] = [];
       }
-    };
-
-    fetchPendingOrders();
-  }, []);
+      ordersByPart[order.part_id].push(order);
+    });
+    return ordersByPart;
+  }, [partsOrders]);
 
   // Semantic search handler
   const performSemanticSearch = useCallback(async (query: string) => {
@@ -180,8 +183,6 @@ export const CombinedAssetsContainer = () => {
           limit: 10
         })
       ]);
-      
-      console.log('RAW API:', { parts: partsResponse, tools: toolsResponse });
       
       // CRITICAL: Extract results from API response structure
       // API returns { data: { results: [...] } } NOT just { results: [...] }

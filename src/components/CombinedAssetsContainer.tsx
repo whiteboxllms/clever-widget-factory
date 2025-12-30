@@ -60,6 +60,13 @@ export const CombinedAssetsContainer = () => {
   const [showOnlyAssets, setShowOnlyAssets] = useState(false);
   const [showOnlyStock, setShowOnlyStock] = useState(viewParam === 'stock');
   const [showOnlyAreas, setShowOnlyAreas] = useState(false);
+  
+  // Clear semantic results when area filter is toggled
+  useEffect(() => {
+    if (showOnlyAreas && semanticResults.length > 0) {
+      setSemanticResults([]);
+    }
+  }, [showOnlyAreas]);
   const [showRemovedItems, setShowRemovedItems] = useState(false);
   const [searchDescriptions, setSearchDescriptions] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -97,13 +104,15 @@ export const CombinedAssetsContainer = () => {
   const semanticDebounceTimerRef = useRef<number | undefined>(undefined);
   
   // Memoize options to prevent unnecessary re-renders
+  // When showOnlyAreas is enabled, skip search in useCombinedAssets and do it in component instead
   const assetsQueryOptions = useMemo(() => ({
-    search: searchTerm,
+    search: showOnlyAreas ? '' : searchTerm, // Skip search in useCombinedAssets when showing areas
     limit,
-    page,
+    page: showOnlyAreas ? 0 : page, // Reset to page 0 when showing areas
     searchDescriptions,
-    showLowStock
-  }), [searchTerm, limit, page, searchDescriptions, showLowStock]);
+    showLowStock,
+    skipPagination: showOnlyAreas // Get all assets when showing areas (needed for proper filtering)
+  }), [searchTerm, limit, page, searchDescriptions, showLowStock, showOnlyAreas]);
   
   const { assets, loading, createAsset, updateAsset, refetch, fetchAssets } = useCombinedAssets(showRemovedItems, assetsQueryOptions);
   const { members: organizationMembers } = useOrganizationMembers();
@@ -271,16 +280,16 @@ export const CombinedAssetsContainer = () => {
 
   // Filter assets based on current filters
   const filteredAssets = useMemo(() => {
-    // If semantic search is active, return those results directly
-    if (semanticResults.length > 0) {
-      console.log('🔍 DISPLAYING SEMANTIC RESULTS:', semanticResults.length, 'items');
-      return semanticResults;
-    }
-    
     // Skip filtering during loading to prevent flicker
     if (loading && assets.length === 0) return [];
     
-    let filtered = assets.filter(asset => {
+    // Use semantic results if active, but clear them if type/area filters are enabled
+    // (semantic search and type filters are mutually exclusive)
+    const assetsToFilter = (semanticResults.length > 0 && !showOnlyAreas && !showOnlyAssets && !showOnlyStock) 
+      ? semanticResults 
+      : assets;
+    
+    let filtered = assetsToFilter.filter(asset => {
       // Areas filter - show only Infrastructure/Container tools
       if (showOnlyAreas) {
         if (asset.type !== 'asset') return false;
@@ -301,7 +310,19 @@ export const CombinedAssetsContainer = () => {
       // Issues filter
       if (showWithIssues && !asset.has_issues) return false;
 
-      // Note: Search and low stock filters are handled in useCombinedAssets hook
+      // Apply search filter when Areas Only is enabled (since we skip search in useCombinedAssets)
+      if (showOnlyAreas && searchTerm && searchTerm.trim()) {
+        const searchLower = searchTerm.trim().toLowerCase();
+        const matchesSearch = 
+          asset.name?.toLowerCase().includes(searchLower) ||
+          asset.serial_number?.toLowerCase().includes(searchLower) ||
+          asset.category?.toLowerCase().includes(searchLower) ||
+          asset.storage_location?.toLowerCase().includes(searchLower) ||
+          (searchDescriptions && asset.description?.toLowerCase().includes(searchLower));
+        if (!matchesSearch) return false;
+      }
+
+      // Note: Search and low stock filters are handled in useCombinedAssets hook (unless Areas Only is enabled)
 
       return true;
     });
@@ -321,7 +342,7 @@ export const CombinedAssetsContainer = () => {
     }
 
     return filtered;
-  }, [assets, showOnlyAssets, showOnlyStock, showOnlyAreas, showMyCheckedOut, showWithIssues, user?.id, loading, semanticResults, areaItemCounts]);
+  }, [assets, showOnlyAssets, showOnlyStock, showOnlyAreas, showMyCheckedOut, showWithIssues, user?.id, loading, semanticResults, areaItemCounts, searchTerm, searchDescriptions]);
 
   const handleCreateAsset = async (assetData: any, isAsset: boolean) => {
     const result = await createAsset(assetData, isAsset);

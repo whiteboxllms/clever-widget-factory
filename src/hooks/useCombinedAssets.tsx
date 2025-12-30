@@ -3,8 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useUserNames } from '@/hooks/useUserNames';
 import { offlineQueryConfig } from '@/lib/queryConfig';
-import { apiService } from '@/lib/apiService';
-import { toolsQueryKey } from '@/lib/queryKeys';
+import { apiService, getApiData } from '@/lib/apiService';
+import { toolsQueryKey, issuesQueryKey } from '@/lib/queryKeys';
 
 export interface CombinedAsset {
   id: string;
@@ -91,8 +91,39 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
     queryFn: fetchParts,
     ...offlineQueryConfig,
   });
+
+  // Fetch all active issues for tools and parts to determine has_issues
+  const fetchActiveIssues = async () => {
+    try {
+      const params = new URLSearchParams();
+      params.append('status', 'active');
+      const response = await apiService.get(`/issues?${params}`);
+      return getApiData(response) || [];
+    } catch (error) {
+      console.error('Error fetching active issues:', error);
+      return [];
+    }
+  };
+
+  const { data: activeIssues = [], isLoading: issuesLoading } = useQuery({
+    queryKey: issuesQueryKey({ status: 'active' }),
+    queryFn: fetchActiveIssues,
+    ...offlineQueryConfig,
+    staleTime: 5 * 60 * 1000, // 5 minutes - issues don't change frequently
+  });
+
+  // Create a Set of asset IDs that have active issues
+  const assetsWithIssues = useMemo(() => {
+    const set = new Set<string>();
+    activeIssues.forEach((issue: any) => {
+      if (issue.context_id && (issue.context_type === 'tool' || issue.context_type === 'part')) {
+        set.add(issue.context_id);
+      }
+    });
+    return set;
+  }, [activeIssues]);
   
-  const loading = toolsLoading || partsLoading;
+  const loading = toolsLoading || partsLoading || issuesLoading;
   
   const { getUserName, getUserColor } = useUserNames([]);
 
@@ -150,11 +181,36 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
     
     // Process data directly from TanStack Query
     let filteredToolsData = toolsData || [];
-    if (!showRemovedItems) {
+    if (showRemovedItems) {
+      // Show only removed items
+      // Note: Tools that are checked out have status 'checked_out' even if they were removed
+      // We need to check if the tool was removed by looking at tools that are not checked out
+      // and have status 'removed', OR tools that are checked out but we can't determine original status
+      // For now, we'll filter by status === 'removed' (checked-out removed tools will be excluded)
+      filteredToolsData = filteredToolsData.filter(tool => {
+        // Check if status is explicitly 'removed'
+        if (tool.status === 'removed') return true;
+        // If checked out, we can't determine original status from current data
+        // So we only show explicitly removed (not checked out) items
+        return false;
+      });
+      console.log('🔍 Show Removed filter:', {
+        totalTools: toolsData.length,
+        removedTools: filteredToolsData.length,
+        removedToolNames: filteredToolsData.map(t => `${t.name} (${t.status})`),
+        allStatuses: [...new Set(toolsData.map(t => t.status))]
+      });
+    } else {
+      // Show only active items (exclude removed)
       filteredToolsData = filteredToolsData.filter(tool => tool.status !== 'removed');
     }
     
     let filteredPartsData = partsData || [];
+    // Note: Parts don't have a 'removed' status - they are deleted instead
+    // When showRemovedItems is true, hide all stock items since deleted parts can't be retrieved
+    if (showRemovedItems) {
+      filteredPartsData = [];
+    }
     
     // Apply low stock filter
     if (options?.showLowStock) {
@@ -203,13 +259,13 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
       ...paginatedParts.map(part => ({
         ...part,
         type: 'stock' as const,
-        has_issues: false,
+        has_issues: assetsWithIssues.has(part.id),
         is_checked_out: false
       })),
       ...paginatedTools.map(tool => ({
         ...tool,
         type: 'asset' as const,
-        has_issues: false,
+        has_issues: assetsWithIssues.has(tool.id),
         is_checked_out: Boolean(tool.is_checked_out),
         checked_out_user_id: tool.checked_out_user_id,
         checked_out_to: tool.checked_out_to,
@@ -219,7 +275,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
     ];
     
     return allAssets;
-  }, [showRemovedItems, toolsData, partsData, loading, options?.search, options?.searchDescriptions, options?.showLowStock, options?.limit, options?.page, options?.skipPagination]);
+  }, [showRemovedItems, toolsData, partsData, assetsWithIssues, loading, options?.search, options?.searchDescriptions, options?.showLowStock, options?.limit, options?.page, options?.skipPagination]);
   
   return {
     assets: processedAssets,

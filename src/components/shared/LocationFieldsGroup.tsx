@@ -32,6 +32,7 @@ interface LocationFieldsGroupProps {
   
   // Data - pass parent structures from parent component
   parentStructures?: ParentStructure[];
+  areaItemCounts?: Map<string, number>;
 }
 
 export const LocationFieldsGroup: React.FC<LocationFieldsGroupProps> = ({
@@ -44,7 +45,8 @@ export const LocationFieldsGroup: React.FC<LocationFieldsGroupProps> = ({
   areaRequired = false,
   specificLocationRequired = false,
   isLoadingAreas = false,
-  parentStructures = []
+  parentStructures = [],
+  areaItemCounts
 }) => {
 
   return (
@@ -64,11 +66,15 @@ export const LocationFieldsGroup: React.FC<LocationFieldsGroupProps> = ({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="none">None</SelectItem>
-            {Array.isArray(parentStructures) ? parentStructures.map((structure) => (
-              <SelectItem key={structure.id} value={structure.id}>
-                {structure.name}{structure.serial_number ? ` (${structure.serial_number})` : ''}
-              </SelectItem>
-            )) : null}
+            {Array.isArray(parentStructures) ? parentStructures.map((structure) => {
+              const itemCount = areaItemCounts?.get(structure.id);
+              const countDisplay = itemCount !== undefined ? ` (${itemCount})` : '';
+              return (
+                <SelectItem key={structure.id} value={structure.id}>
+                  {structure.name}{countDisplay}{structure.serial_number ? ` - ${structure.serial_number}` : ''}
+                </SelectItem>
+              );
+            }) : null}
           </SelectContent>
         </Select>
       </div>

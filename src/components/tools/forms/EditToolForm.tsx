@@ -37,7 +37,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, isLeadership = f
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   const { toast } = useToast();
-  const { parentStructures, loading: isLoadingParentStructures } = useParentStructures();
+  const { parentStructures, areaItemCounts, loading: isLoadingParentStructures } = useParentStructures();
   const { isAdmin } = useAuth();
   const { profiles } = useActionProfiles();
 
@@ -172,6 +172,7 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, isLeadership = f
             specificLocationPlaceholder="e.g., Shelf A2, Drawer 3"
             isLoadingAreas={isLoadingParentStructures}
             parentStructures={parentStructures}
+            areaItemCounts={areaItemCounts}
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

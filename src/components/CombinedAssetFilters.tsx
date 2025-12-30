@@ -25,6 +25,8 @@ interface CombinedAssetFiltersProps {
   setShowOnlyAssets: (show: boolean) => void;
   showOnlyStock: boolean;
   setShowOnlyStock: (show: boolean) => void;
+  showOnlyAreas: boolean;
+  setShowOnlyAreas: (show: boolean) => void;
   showRemovedItems: boolean;
   setShowRemovedItems: (show: boolean) => void;
   actionButton?: React.ReactNode;
@@ -48,6 +50,8 @@ export const CombinedAssetFilters = ({
   setShowOnlyAssets,
   showOnlyStock,
   setShowOnlyStock,
+  showOnlyAreas,
+  setShowOnlyAreas,
   showRemovedItems,
   setShowRemovedItems,
   actionButton
@@ -191,7 +195,10 @@ export const CombinedAssetFilters = ({
                       checked={showOnlyAssets}
                       onCheckedChange={(checked) => {
                         setShowOnlyAssets(checked);
-                        if (checked) setShowOnlyStock(false);
+                        if (checked) {
+                          setShowOnlyStock(false);
+                          setShowOnlyAreas(false);
+                        }
                       }}
                     />
                     <Label htmlFor="only-assets" className="text-sm">
@@ -214,7 +221,10 @@ export const CombinedAssetFilters = ({
                       checked={showOnlyStock}
                       onCheckedChange={(checked) => {
                         setShowOnlyStock(checked);
-                        if (checked) setShowOnlyAssets(false);
+                        if (checked) {
+                          setShowOnlyAssets(false);
+                          setShowOnlyAreas(false);
+                        }
                       }}
                     />
                     <Label htmlFor="only-stock" className="text-sm">
@@ -224,6 +234,32 @@ export const CombinedAssetFilters = ({
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>Show only consumable stock items</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="only-areas"
+                      checked={showOnlyAreas}
+                      onCheckedChange={(checked) => {
+                        setShowOnlyAreas(checked);
+                        if (checked) {
+                          setShowOnlyAssets(false);
+                          setShowOnlyStock(false);
+                        }
+                      }}
+                    />
+                    <Label htmlFor="only-areas" className="text-sm">
+                      Areas Only
+                    </Label>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Show only Infrastructure/Container areas (parent structures), sorted by item count</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

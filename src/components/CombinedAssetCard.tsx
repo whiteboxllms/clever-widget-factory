@@ -63,6 +63,7 @@ interface CombinedAssetCardProps {
   onReceiveOrder?: (asset: CombinedAsset) => void;
   hasPendingOrders?: boolean;
   onShowHistory?: (asset: CombinedAsset) => void;
+  itemCount?: number;
 }
 
 // Custom comparison function for memo to prevent unnecessary re-renders
@@ -73,6 +74,7 @@ const arePropsEqual = (prevProps: CombinedAssetCardProps, nextProps: CombinedAss
       prevProps.currentUserId !== nextProps.currentUserId ||
       prevProps.currentUserEmail !== nextProps.currentUserEmail ||
       prevProps.hasPendingOrders !== nextProps.hasPendingOrders ||
+      prevProps.itemCount !== nextProps.itemCount ||
       prevProps.checkoutInfo?.user_id !== nextProps.checkoutInfo?.user_id) {
     return false;
   }
@@ -151,7 +153,8 @@ export const CombinedAssetCard = memo(({
   onOrderStock,
   onReceiveOrder,
   hasPendingOrders,
-  onShowHistory
+  onShowHistory,
+  itemCount
 }: CombinedAssetCardProps) => {
   const checkoutDateDisplay = useMemo(() => {
     if (!checkoutInfo?.checkout_date) return null;
@@ -211,6 +214,11 @@ export const CombinedAssetCard = memo(({
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-lg line-clamp-2 flex-1 leading-tight">
             {asset.name}
+            {itemCount !== undefined && (
+              <Badge variant="secondary" className="ml-2 text-xs font-normal">
+                {itemCount} {itemCount === 1 ? 'item' : 'items'}
+              </Badge>
+            )}
             {asset.similarity_score !== undefined && (
               <TooltipProvider>
                 <Tooltip>

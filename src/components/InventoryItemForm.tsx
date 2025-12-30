@@ -76,7 +76,7 @@ export function InventoryItemForm({
   editingPart,
   isLeadership = false
 }: InventoryItemFormProps) {
-  const { parentStructures, loading: isLoadingParentStructures } = useParentStructures();
+  const { parentStructures, areaItemCounts, loading: isLoadingParentStructures } = useParentStructures();
   const { profiles } = useActionProfiles();
   const [formData, setFormData] = useState<FormData>({
     name: '',
@@ -278,6 +278,7 @@ export function InventoryItemForm({
             areaRequired={true}
             isLoadingAreas={isLoadingParentStructures}
             parentStructures={parentStructures}
+            areaItemCounts={areaItemCounts}
           />
         </div>
 

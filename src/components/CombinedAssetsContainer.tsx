@@ -59,6 +59,7 @@ export const CombinedAssetsContainer = () => {
   const [showLowStock, setShowLowStock] = useState(showLowStockParam);
   const [showOnlyAssets, setShowOnlyAssets] = useState(false);
   const [showOnlyStock, setShowOnlyStock] = useState(viewParam === 'stock');
+  const [showOnlyAreas, setShowOnlyAreas] = useState(false);
   const [showRemovedItems, setShowRemovedItems] = useState(false);
   const [searchDescriptions, setSearchDescriptions] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -257,6 +258,17 @@ export const CombinedAssetsContainer = () => {
     ? (semanticResults.find(a => a.id === selectedAssetId) || assets.find(a => a.id === selectedAssetId))
     : null;
 
+  // Compute item counts per area once (efficient - only recalculates when assets change)
+  const areaItemCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    assets.forEach(asset => {
+      if (asset.parent_structure_id) {
+        counts.set(asset.parent_structure_id, (counts.get(asset.parent_structure_id) || 0) + 1);
+      }
+    });
+    return counts;
+  }, [assets]);
+
   // Filter assets based on current filters
   const filteredAssets = useMemo(() => {
     // If semantic search is active, return those results directly
@@ -269,6 +281,13 @@ export const CombinedAssetsContainer = () => {
     if (loading && assets.length === 0) return [];
     
     let filtered = assets.filter(asset => {
+      // Areas filter - show only Infrastructure/Container tools
+      if (showOnlyAreas) {
+        if (asset.type !== 'asset') return false;
+        const isArea = asset.category === 'Infrastructure' || asset.category === 'Container';
+        if (!isArea) return false;
+      }
+
       // Type filters
       if (showOnlyAssets && asset.type !== 'asset') return false;
       if (showOnlyStock && asset.type !== 'stock') return false;
@@ -287,8 +306,22 @@ export const CombinedAssetsContainer = () => {
       return true;
     });
 
+    // Sort by item count if showing areas
+    if (showOnlyAreas) {
+      filtered = filtered.sort((a, b) => {
+        const countA = areaItemCounts.get(a.id) || 0;
+        const countB = areaItemCounts.get(b.id) || 0;
+        
+        // Sort by count descending, then alphabetically by name
+        if (countB !== countA) {
+          return countB - countA; // Descending by count
+        }
+        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }); // Alphabetical tiebreaker
+      });
+    }
+
     return filtered;
-  }, [assets, showOnlyAssets, showOnlyStock, showMyCheckedOut, showWithIssues, user?.id, loading, semanticResults]);
+  }, [assets, showOnlyAssets, showOnlyStock, showOnlyAreas, showMyCheckedOut, showWithIssues, user?.id, loading, semanticResults, areaItemCounts]);
 
   const handleCreateAsset = async (assetData: any, isAsset: boolean) => {
     const result = await createAsset(assetData, isAsset);
@@ -651,6 +684,8 @@ export const CombinedAssetsContainer = () => {
         setShowOnlyAssets={setShowOnlyAssets}
         showOnlyStock={showOnlyStock}
         setShowOnlyStock={setShowOnlyStock}
+        showOnlyAreas={showOnlyAreas}
+        setShowOnlyAreas={setShowOnlyAreas}
         showRemovedItems={showRemovedItems}
         setShowRemovedItems={setShowRemovedItems}
         actionButton={
@@ -683,6 +718,7 @@ export const CombinedAssetsContainer = () => {
             onOrderStock={handleOrderStock}
             onReceiveOrder={handleReceiveOrder}
         pendingOrders={pendingOrders}
+        areaItemCounts={showOnlyAreas ? areaItemCounts : undefined}
         // Infinite scroll props
         onLoadMore={() => {
           if (!loading) {

@@ -57,7 +57,7 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   const [useMinimumQuantity, setUseMinimumQuantity] = useState(false);
   const { toast } = useToast();
-  const { parentStructures, loading: isLoadingParentStructures } = useParentStructures();
+  const { parentStructures, areaItemCounts, loading: isLoadingParentStructures } = useParentStructures();
 
   // Determine if this is an asset based on serial number
   const isAsset = formData.serial_number.trim().length > 0;
@@ -348,6 +348,7 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
                 specificLocationPlaceholder="e.g., Shelf A2, Drawer 3"
                 isLoadingAreas={isLoadingParentStructures}
                 parentStructures={parentStructures}
+                areaItemCounts={areaItemCounts}
                 areaRequired={!isAsset} // Required for stock items
               />
             </div>

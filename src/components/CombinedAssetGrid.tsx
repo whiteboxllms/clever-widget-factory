@@ -22,6 +22,7 @@ interface CombinedAssetGridProps {
   onOrderStock?: (asset: CombinedAsset) => void;
   onReceiveOrder?: (asset: CombinedAsset) => void;
   pendingOrders?: Record<string, unknown[]>;
+  areaItemCounts?: Map<string, number>;
   // Infinite scroll props
   onLoadMore?: () => void;
   hasMore?: boolean;
@@ -47,6 +48,7 @@ export const CombinedAssetGrid = ({
   onOrderStock,
   onReceiveOrder,
   pendingOrders,
+  areaItemCounts,
   // Infinite scroll props
   onLoadMore,
   hasMore = false,
@@ -75,6 +77,8 @@ export const CombinedAssetGrid = ({
       });
     }
 
+    const itemCount = areaItemCounts?.get(asset.id);
+
     return (
       <div>
         <CombinedAssetCard
@@ -101,10 +105,11 @@ export const CombinedAssetGrid = ({
           onOrderStock={onOrderStock}
           onReceiveOrder={onReceiveOrder}
           hasPendingOrders={pendingOrders?.[asset.id]?.length > 0}
+          itemCount={itemCount}
         />
       </div>
     );
-  }, [assets, canEdit, isAdmin, currentUserId, currentUserEmail, onView, onEdit, onRemove, onCheckout, onCheckin, onReportIssue, onManageIssues, onAddQuantity, onUseQuantity, onOrderStock, onReceiveOrder, pendingOrders, userNameMap]);
+  }, [assets, canEdit, isAdmin, currentUserId, currentUserEmail, onView, onEdit, onRemove, onCheckout, onCheckin, onReportIssue, onManageIssues, onAddQuantity, onUseQuantity, onOrderStock, onReceiveOrder, pendingOrders, userNameMap, areaItemCounts]);
 
   if (assets.length === 0) {
     return (

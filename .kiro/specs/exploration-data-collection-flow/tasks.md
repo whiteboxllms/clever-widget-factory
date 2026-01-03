@@ -13,15 +13,15 @@ This implementation plan converts the exploration data collection flow design in
   - Map logical field names to existing action schema columns where appropriate
   - _Requirements: 1.4, 1.5, 2.4, 7.1, 7.2, 7.3, 7.4_
 
-- [ ]* 1.1 Write property test for database constraints
+- [ ] 1.1 Write property test for database constraints
   - **Property 4: Exploration-Action Relationship**
   - **Validates: Requirements 2.4**
 
-- [ ]* 1.2 Write property test for exploration code uniqueness
+- [ ] 1.2 Write property test for exploration code uniqueness
   - **Property 18: Exploration Code Uniqueness**
   - **Validates: Requirements 7.2**
 
-- [ ]* 1.3 Write property test for referential integrity
+- [ ] 1.3 Write property test for referential integrity
   - **Property 19: Referential Integrity**
   - **Validates: Requirements 7.3**
 
@@ -32,7 +32,7 @@ This implementation plan converts the exploration data collection flow design in
     - Ensure uniqueness validation
     - _Requirements: 2.2, 2.3, 7.2_
 
-  - [ ]* 2.2 Write property test for exploration code format
+  - [ ] 2.2 Write property test for exploration code format
     - **Property 3: Exploration Code Generation**
     - **Validates: Requirements 2.2, 2.3**
 
@@ -48,11 +48,11 @@ This implementation plan converts the exploration data collection flow design in
     - Maintain backward compatibility with existing action creation
     - _Requirements: 2.1, 2.2, 6.1_
 
-  - [ ]* 3.2 Write property test for action data persistence
+  - [ ] 3.2 Write property test for action data persistence
     - **Property 1: Action Data Persistence**
     - **Validates: Requirements 1.4**
 
-  - [ ]* 3.3 Write property test for backward compatibility
+  - [ ] 3.3 Write property test for backward compatibility
     - **Property 16: Backward Compatibility**
     - **Validates: Requirements 6.1**
 
@@ -68,7 +68,7 @@ This implementation plan converts the exploration data collection flow design in
     - Support exploration_notes_text, metrics_text, public_flag fields
     - _Requirements: 2.4, 2.6, 2.7, 2.8, 6.6_
 
-  - [ ]* 4.2 Write property test for exploration data mutability
+  - [ ] 4.2 Write property test for exploration data mutability
     - **Property 17: Data Mutability**
     - **Validates: Requirements 6.6**
 
@@ -77,11 +77,11 @@ This implementation plan converts the exploration data collection flow design in
     - Return exploration data with associated action information
     - _Requirements: 5.1, 5.2, 5.3_
 
-  - [ ]* 4.4 Write property test for exploration filtering
+  - [ ] 4.4 Write property test for exploration filtering
     - **Property 13: Exploration Filtering**
     - **Validates: Requirements 5.2**
 
-  - [ ]* 4.5 Write property test for exploration display data
+  - [ ] 4.5 Write property test for exploration display data
     - **Property 14: Exploration Display Data**
     - **Validates: Requirements 5.3**
 
@@ -92,15 +92,15 @@ This implementation plan converts the exploration data collection flow design in
     - Handle effective date ranges and validation
     - _Requirements: 3.1, 3.3, 3.4, 3.6, 7.5_
 
-  - [ ]* 5.2 Write property test for policy status validation
+  - [ ] 5.2 Write property test for policy status validation
     - **Property 7: Policy Status Validation**
     - **Validates: Requirements 3.3**
 
-  - [ ]* 5.3 Write property test for policy lifecycle management
+  - [ ] 5.3 Write property test for policy lifecycle management
     - **Property 21: Policy Lifecycle Management**
     - **Validates: Requirements 7.5**
 
-  - [ ]* 5.4 Write property test for metadata population
+  - [ ] 5.4 Write property test for metadata population
     - **Property 9: Metadata Population**
     - **Validates: Requirements 3.6**
 
@@ -110,11 +110,11 @@ This implementation plan converts the exploration data collection flow design in
     - Maintain referential integrity
     - _Requirements: 3.5, 7.3_
 
-  - [ ]* 5.6 Write property test for policy linking operations
+  - [ ] 5.6 Write property test for policy linking operations
     - **Property 8: Policy Linking Operation**
     - **Validates: Requirements 3.5**
 
-  - [ ]* 5.7 Write property test for policy linking integrity
+  - [ ] 5.7 Write property test for policy linking integrity
     - **Property 2: Policy Linking Integrity**
     - **Validates: Requirements 1.5**
 
@@ -128,11 +128,11 @@ This implementation plan converts the exploration data collection flow design in
     - Ensure jobs are enqueued after DB transaction commits
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-  - [ ]* 7.2 Write property test for embedding generation
+  - [ ] 7.2 Write property test for embedding generation
     - **Property 10: Embedding Generation**
     - **Validates: Requirements 4.1, 4.2, 4.3, 4.4**
 
-  - [ ]* 7.3 Write property test for embedding table structure
+  - [ ] 7.3 Write property test for embedding table structure
     - **Property 20: Embedding Table Structure**
     - **Validates: Requirements 7.4**
 
@@ -142,7 +142,7 @@ This implementation plan converts the exploration data collection flow design in
     - Store embeddings in separate tables with proper foreign keys
     - _Requirements: 4.4, 4.5, 7.4_
 
-  - [ ]* 7.5 Write property test for embedding type support
+  - [ ] 7.5 Write property test for embedding type support
     - **Property 11: Embedding Type Support**
     - **Validates: Requirements 4.5**
 
@@ -153,7 +153,7 @@ This implementation plan converts the exploration data collection flow design in
     - Enable entity type filtering (actions vs explorations vs policies)
     - _Requirements: 4.6, 5.6_
 
-  - [ ]* 8.2 Write property test for semantic search coverage
+  - [ ] 8.2 Write property test for semantic search coverage
     - **Property 12: Semantic Search Coverage**
     - **Validates: Requirements 4.6, 5.6**
 
@@ -163,7 +163,7 @@ This implementation plan converts the exploration data collection flow design in
     - Note: Analytics are non-RL focused - numeric reward functions are out of scope
     - _Requirements: 5.5_
 
-  - [ ]* 8.4 Write property test for analytics queries
+  - [ ] 8.4 Write property test for analytics queries
     - **Property 15: Analytics Query Support**
     - **Validates: Requirements 5.5**
 
@@ -174,11 +174,11 @@ This implementation plan converts the exploration data collection flow design in
     - Handle AI service unavailability gracefully
     - _Requirements: 8.1, 8.6_
 
-  - [ ]* 9.2 Write property test for AI content generation
+  - [ ] 9.2 Write property test for AI content generation
     - **Property 22: AI Content Generation**
     - **Validates: Requirements 8.1**
 
-  - [ ]* 9.3 Write property test for AI feature optionality
+  - [ ] 9.3 Write property test for AI feature optionality
     - **Property 26: AI Feature Optionality**
     - **Validates: Requirements 8.6**
 
@@ -187,11 +187,11 @@ This implementation plan converts the exploration data collection flow design in
     - Use action context for relevant suggestions
     - _Requirements: 8.2, 8.5_
 
-  - [ ]* 9.5 Write property test for AI exploration suggestions
+  - [ ] 9.5 Write property test for AI exploration suggestions
     - **Property 23: AI Exploration Suggestions**
     - **Validates: Requirements 8.2**
 
-  - [ ]* 9.6 Write property test for AI context utilization
+  - [ ] 9.6 Write property test for AI context utilization
     - **Property 25: AI Context Utilization**
     - **Validates: Requirements 8.5**
 
@@ -200,11 +200,11 @@ This implementation plan converts the exploration data collection flow design in
     - Support policy promotion workflow
     - _Requirements: 3.2, 8.3_
 
-  - [ ]* 9.8 Write property test for policy draft generation
+  - [ ] 9.8 Write property test for policy draft generation
     - **Property 6: Policy Draft Generation**
     - **Validates: Requirements 3.2**
 
-  - [ ]* 9.9 Write property test for AI policy promotion
+  - [ ] 9.9 Write property test for AI policy promotion
     - **Property 24: AI Policy Promotion**
     - **Validates: Requirements 8.3**
 
@@ -227,7 +227,7 @@ This implementation plan converts the exploration data collection flow design in
     - Validate code uniqueness in real-time
     - _Requirements: 2.2, 2.3_
 
-  - [ ]* 11.3 Write unit tests for action creation form
+  - [ ] 11.3 Write unit tests for action creation form
     - Test form validation and submission
     - Test exploration checkbox behavior
     - Test AI assist button functionality
@@ -240,7 +240,7 @@ This implementation plan converts the exploration data collection flow design in
     - Support editing without changing exploration status
     - _Requirements: 2.5, 2.6, 2.7, 2.8, 6.3_
 
-  - [ ]* 12.2 Write property test for conditional UI display
+  - [ ] 12.2 Write property test for conditional UI display
     - **Property 5: Conditional UI Display**
     - **Validates: Requirements 2.5, 6.3**
 
@@ -250,7 +250,7 @@ This implementation plan converts the exploration data collection flow design in
     - Allow user to accept, edit, or discard suggestions
     - _Requirements: 8.2, 8.4_
 
-  - [ ]* 12.4 Write unit tests for exploration tab
+  - [ ] 12.4 Write unit tests for exploration tab
     - Test field editing and saving
     - Test AI suggestion functionality
     - Test conditional display logic
@@ -269,7 +269,7 @@ This implementation plan converts the exploration data collection flow design in
     - Integrate with policy promotion workflow
     - _Requirements: 3.1, 3.5, 5.4_
 
-  - [ ]* 13.3 Write unit tests for review page
+  - [ ] 13.3 Write unit tests for review page
     - Test filtering functionality
     - Test policy action buttons
     - Test exploration list display
@@ -289,7 +289,7 @@ This implementation plan converts the exploration data collection flow design in
     - Maintain referential integrity
     - _Requirements: 3.5, 7.3_
 
-  - [ ]* 14.3 Write unit tests for policy promotion
+  - [ ] 14.3 Write unit tests for policy promotion
     - Test policy draft generation
     - Test policy creation workflow
     - Test existing policy linking
@@ -302,7 +302,7 @@ This implementation plan converts the exploration data collection flow design in
     - Allow photo updates after initial creation
     - _Requirements: 6.5, 6.6_
 
-  - [ ]* 15.2 Write unit tests for photo management
+  - [ ] 15.2 Write unit tests for photo management
     - Test photo upload functionality
     - Test photo display in exploration lists
     - Test photo updates
@@ -316,7 +316,7 @@ This implementation plan converts the exploration data collection flow design in
     - Verify backward compatibility with existing actions
     - _Requirements: All requirements_
 
-  - [ ]* 16.2 Write integration tests
+  - [ ] 16.2 Write integration tests
     - Test cross-component workflows
     - Test error handling and edge cases
     - Test AI service integration and fallbacks
@@ -327,7 +327,6 @@ This implementation plan converts the exploration data collection flow design in
 
 ## Notes
 
-- Tasks marked with `*` are optional and can be skipped for faster MVP
 - Each task references specific requirements for traceability
 - Property tests validate universal correctness properties with minimum 100 iterations
 - Unit tests validate specific examples and edge cases

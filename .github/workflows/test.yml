@@ -60,8 +60,8 @@ jobs:
     - name: Install dependencies
       run: npm ci
     
-    - name: Run tests with coverage
-      run: npm run test:run -- --coverage
+    - name: Run tests
+      run: npm run test:run
       env:
         CI: true
         SUPPRESS_JSDOM_URL_ERRORS: "false"
@@ -87,15 +87,6 @@ jobs:
           test-results.xml
           test-results.html
           test-results.json
-          coverage/
         retention-days: 30
     
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      if: always()
-      with:
-        file: ./coverage/lcov.info
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false
 

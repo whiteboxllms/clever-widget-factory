@@ -16,6 +16,14 @@ import { actionService } from '@/services/actionService';
 import { explorationService } from '@/services/explorationService';
 import { apiService } from '@/lib/apiService';
 
+// Skip integration tests unless explicitly enabled
+const isIntegrationTest = process.env.INTEGRATION_TESTS === 'true';
+
+if (!isIntegrationTest) {
+  console.log('⏭️  Skipping integration tests - set INTEGRATION_TESTS=true to run');
+  describe.skip('Exploration Flag Consistency - Property Tests (Integration)', () => {});
+} else {
+
 // Test data generators for property-based testing
 class TestDataGenerator {
   static generateRandomAction(overrides: any = {}) {
@@ -402,3 +410,4 @@ describe('Exploration Flag Consistency - Property Tests', () => {
     });
   });
 });
+}

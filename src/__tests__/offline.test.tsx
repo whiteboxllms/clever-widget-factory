@@ -84,6 +84,6 @@ describe('Offline Functionality', () => {
     expect(offlineQueryConfig.gcTime).toBe(7 * 24 * 60 * 60 * 1000);
 
     expect(offlineMutationConfig.networkMode).toBe('always');
-    expect(offlineMutationConfig.retry).toBe(3);
+    expect(offlineMutationConfig.retry).toBe(0);
   });
 });

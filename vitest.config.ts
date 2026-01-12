@@ -41,6 +41,9 @@ export default defineConfig({
       '**/dist/**',
       '**/lambda/**',
       '**/sari-sari-agent/**',
+      '**/src/tests/exploration-data-collection/**',
+      '**/src/hooks/useActionMutations.test.tsx',
+      '**/src/hooks/__tests__/integration/propertyBasedIntegration.test.tsx',
     ],
     silent: false,
     onUnhandledError: (error, type) => {

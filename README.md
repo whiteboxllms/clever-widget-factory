@@ -168,6 +168,19 @@ npm run test:ui             # UI mode
 npm run test:coverage       # With coverage
 ```
 
+### API Endpoint Tests
+
+Test specific API endpoints:
+```bash
+# Get auth token from browser (copy from Network tab)
+TOKEN="Bearer eyJraWQ..."
+
+# Test action_implementation_updates endpoint
+./tests/api/action-implementation-updates-502.test.sh "$TOKEN"
+```
+
+See `docs/502-ERROR-ACTION-IMPLEMENTATION-UPDATES.md` for troubleshooting 502 errors.
+
 ### Legacy Files (To Be Removed)
 The following files are legacy from the Supabase era and should be ignored:
 - `supabase/` directory

@@ -1,0 +1,9 @@
+{
+  "name": "examine-schema",
+  "version": "1.0.0",
+  "description": "Lambda function to examine database schema for exploration data collection flow",
+  "main": "index.js",
+  "dependencies": {
+    "pg": "^8.11.0"
+  }
+}

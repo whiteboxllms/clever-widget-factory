@@ -151,7 +151,7 @@ exports.handler = async (event) => {
     if (httpMethod === 'PUT' && path.includes('/actions/')) {
       const actionId = path.split('/actions/')[1].split('/')[0]; // Extract ID, handle trailing slashes
       const body = JSON.parse(event.body || '{}');
-      const { created_by, updated_by, updated_at, completed_at, ...actionData } = body;
+      const { created_by, updated_by, updated_at, completed_at, is_exploration, exploration_code, ...actionData } = body;
       
       const userId = updated_by || authContext.cognito_user_id || require('crypto').randomUUID();
       const orgId = accessibleOrgIds[0];
@@ -196,11 +196,20 @@ exports.handler = async (event) => {
         } else if (typeof val === 'object') updates.push(`${key} = '${JSON.stringify(val).replace(/'/g, "''")}'::jsonb`);
         else updates.push(`${key} = ${val}`);
       }
+      
+      // Handle is_exploration flag
+      if (is_exploration !== undefined) {
+        updates.push(`is_exploration = ${is_exploration}`);
+      }
+      
       updates.push(`updated_by = '${userId}'`);
       if (completed_at) updates.push(`completed_at = '${completed_at}'`);
       
       const sql = `UPDATE actions SET ${updates.join(', ')}, updated_at = NOW() WHERE id = '${actionId}' ${orgFilter.condition ? 'AND ' + orgFilter.condition : ''} RETURNING *`;
       const result = await queryJSON(sql);
+      // Handle exploration record if is_exploration is true
+      // Note: Exploration records are created/updated via separate API endpoint
+      // This prevents database constraint violations during action updates
       
       // Manage checkouts based on required_tools changes
       if (actionStatus === 'in_progress') {
@@ -311,7 +320,7 @@ exports.handler = async (event) => {
     // POST/PUT action (create/update)
     if ((httpMethod === 'POST' || httpMethod === 'PUT') && path.endsWith('/actions')) {
       const body = JSON.parse(event.body || '{}');
-      const { id, created_by, updated_by, updated_at, completed_at, ...actionData } = body;
+      const { id, created_by, updated_by, updated_at, completed_at, is_exploration, exploration_code, ...actionData } = body;
       
       const userId = created_by || updated_by || require('crypto').randomUUID();
       
@@ -334,11 +343,18 @@ exports.handler = async (event) => {
           } else if (typeof val === 'object') updates.push(`${key} = '${JSON.stringify(val).replace(/'/g, "''")}'::jsonb`);
           else updates.push(`${key} = ${val}`);
         }
+        
+        // Handle is_exploration flag
+        if (is_exploration !== undefined) {
+          updates.push(`is_exploration = ${is_exploration}`);
+        }
+        
         updates.push(`updated_by = '${userId}'`);
         if (completed_at) updates.push(`completed_at = '${completed_at}'`);
         
         const sql = `UPDATE actions SET ${updates.join(', ')}, updated_at = NOW() WHERE id = '${id}' RETURNING *`;
         const result = await queryJSON(sql);
+        
         return { statusCode: 200, headers, body: JSON.stringify({ data: result[0] }) };
       } else {
         // Create
@@ -373,6 +389,12 @@ exports.handler = async (event) => {
           }
         }
         
+        // Handle is_exploration flag
+        if (is_exploration !== undefined) {
+          fields.push('is_exploration');
+          values.push(is_exploration);
+        }
+        
         const sql = `INSERT INTO actions (${fields.join(', ')}, created_at, updated_at) VALUES (${values.join(', ')}, NOW(), NOW()) RETURNING *`;
         const result = await queryJSON(sql);
         const newAction = result[0];
@@ -402,6 +424,30 @@ exports.handler = async (event) => {
         
         return { statusCode: 201, headers, body: JSON.stringify({ data: newAction }) };
       }
+    }
+
+    // Exploration code validation endpoints
+    if (httpMethod === 'GET' && path.includes('/explorations/check-code/')) {
+      const code = decodeURIComponent(path.split('/explorations/check-code/')[1]);
+      const sql = `SELECT EXISTS(SELECT 1 FROM exploration WHERE exploration_code = '${code.replace(/'/g, "''")}'::text) as exists`;
+      const result = await queryJSON(sql);
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ exists: result[0]?.exists || false })
+      };
+    }
+
+    // Get exploration codes by prefix
+    if (httpMethod === 'GET' && path.includes('/explorations/codes-by-prefix/')) {
+      const prefix = decodeURIComponent(path.split('/explorations/codes-by-prefix/')[1]);
+      const sql = `SELECT exploration_code FROM exploration WHERE exploration_code LIKE '${prefix.replace(/'/g, "''")}%' ORDER BY exploration_code`;
+      const result = await queryJSON(sql);
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ codes: result.map(r => r.exploration_code) || [] })
+      };
     }
 
     // Actions endpoint

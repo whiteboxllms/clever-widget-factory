@@ -2084,6 +2084,676 @@ exports.handler = async (event) => {
 
 
 
+    // Exploration endpoints
+    if (path.endsWith('/explorations') || path.match(/\/explorations\/[0-9]+$/)) {
+      if (httpMethod === 'POST' && path.endsWith('/explorations')) {
+        const body = JSON.parse(event.body || '{}');
+        const { action_id, exploration_code, exploration_notes_text, metrics_text, public_flag } = body;
+        
+        if (!action_id) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'action_id is required' })
+          };
+        }
+        
+        // Check if exploration already exists for this action
+        const existingCheckSql = `SELECT id FROM exploration WHERE action_id = '${escapeLiteral(action_id)}' LIMIT 1;`;
+        const existing = await queryJSON(existingCheckSql);
+        
+        if (existing && existing.length > 0) {
+          return {
+            statusCode: 409,
+            headers,
+            body: JSON.stringify({ error: 'Exploration already exists for this action' })
+          };
+        }
+        
+        // Validate exploration_code uniqueness if provided
+        if (exploration_code) {
+          const codeCheckSql = `SELECT id FROM exploration WHERE exploration_code = '${escapeLiteral(exploration_code)}' LIMIT 1;`;
+          const codeExists = await queryJSON(codeCheckSql);
+          
+          if (codeExists && codeExists.length > 0) {
+            return {
+              statusCode: 409,
+              headers,
+              body: JSON.stringify({ error: 'Exploration code already exists' })
+            };
+          }
+        }
+        
+        const sql = `
+          INSERT INTO exploration (
+            action_id, exploration_code, exploration_notes_text, metrics_text, public_flag, created_at, updated_at
+          ) VALUES (
+            '${escapeLiteral(action_id)}',
+            ${exploration_code ? `'${escapeLiteral(exploration_code)}'` : 'NULL'},
+            ${exploration_notes_text ? `'${escapeLiteral(exploration_notes_text)}'` : 'NULL'},
+            ${metrics_text ? `'${escapeLiteral(metrics_text)}'` : 'NULL'},
+            ${public_flag !== undefined ? public_flag : false},
+            NOW(),
+            NOW()
+          )
+          RETURNING *;
+        `;
+        
+        try {
+          const result = await queryJSON(sql);
+          return {
+            statusCode: 201,
+            headers,
+            body: JSON.stringify({ data: result[0] })
+          };
+        } catch (error) {
+          console.error('Error creating exploration:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to create exploration' })
+          };
+        }
+      }
+      
+      if (httpMethod === 'PUT') {
+        const explorationId = path.split('/').pop();
+        const body = JSON.parse(event.body || '{}');
+        
+        const updates = [];
+        if (body.exploration_notes_text !== undefined) {
+          updates.push(`exploration_notes_text = ${body.exploration_notes_text ? `'${escapeLiteral(body.exploration_notes_text)}'` : 'NULL'}`);
+        }
+        if (body.metrics_text !== undefined) {
+          updates.push(`metrics_text = ${body.metrics_text ? `'${escapeLiteral(body.metrics_text)}'` : 'NULL'}`);
+        }
+        if (body.public_flag !== undefined) {
+          updates.push(`public_flag = ${body.public_flag}`);
+        }
+        
+        if (updates.length === 0) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'No fields to update' })
+          };
+        }
+        
+        updates.push('updated_at = NOW()');
+        
+        const sql = `UPDATE exploration SET ${updates.join(', ')} WHERE id = ${parseInt(explorationId)} RETURNING *;`;
+        
+        try {
+          const result = await queryJSON(sql);
+          if (!result || result.length === 0) {
+            return {
+              statusCode: 404,
+              headers,
+              body: JSON.stringify({ error: 'Exploration not found' })
+            };
+          }
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ data: result[0] })
+          };
+        } catch (error) {
+          console.error('Error updating exploration:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to update exploration' })
+          };
+        }
+      }
+      
+      if (httpMethod === 'GET') {
+        if (path.match(/\/explorations\/[0-9]+$/)) {
+          // Get single exploration by ID
+          const explorationId = path.split('/').pop();
+          const sql = `SELECT * FROM exploration WHERE id = ${parseInt(explorationId)} LIMIT 1;`;
+          
+          try {
+            const result = await queryJSON(sql);
+            if (!result || result.length === 0) {
+              return {
+                statusCode: 404,
+                headers,
+                body: JSON.stringify({ error: 'Exploration not found' })
+              };
+            }
+            return {
+              statusCode: 200,
+              headers,
+              body: JSON.stringify({ data: result[0] })
+            };
+          } catch (error) {
+            console.error('Error fetching exploration:', error);
+            return {
+              statusCode: 500,
+              headers,
+              body: JSON.stringify({ error: 'Failed to fetch exploration' })
+            };
+          }
+        } else {
+          // List explorations with optional filters
+          const { action_id, public_flag, limit = 50, offset = 0 } = event.queryStringParameters || {};
+          
+          const whereConditions = [];
+          if (action_id) {
+            whereConditions.push(`e.action_id = '${escapeLiteral(action_id)}'`);
+          }
+          if (public_flag !== undefined) {
+            whereConditions.push(`e.public_flag = ${public_flag === 'true'}`);
+          }
+          
+          const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+          
+          const sql = `SELECT json_agg(row_to_json(t)) FROM (
+            SELECT 
+              e.*,
+              a.title as action_title,
+              a.description as action_description,
+              a.status as action_status,
+              a.created_at as action_created_at
+            FROM exploration e
+            LEFT JOIN actions a ON e.action_id = a.id
+            ${whereClause}
+            ORDER BY e.created_at DESC
+            LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
+          ) t;`;
+          
+          try {
+            const result = await queryJSON(sql);
+            return {
+              statusCode: 200,
+              headers,
+              body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
+            };
+          } catch (error) {
+            console.error('Error listing explorations:', error);
+            return {
+              statusCode: 500,
+              headers,
+              body: JSON.stringify({ error: 'Failed to list explorations' })
+            };
+          }
+        }
+      }
+      
+      if (httpMethod === 'DELETE') {
+        const explorationId = path.split('/').pop();
+        const sql = `DELETE FROM exploration WHERE id = ${parseInt(explorationId)} RETURNING *;`;
+        
+        try {
+          const result = await queryJSON(sql);
+          if (!result || result.length === 0) {
+            return {
+              statusCode: 404,
+              headers,
+              body: JSON.stringify({ error: 'Exploration not found' })
+            };
+          }
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ data: result[0] })
+          };
+        } catch (error) {
+          console.error('Error deleting exploration:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to delete exploration' })
+          };
+        }
+      }
+    }
+
+    // Exploration list endpoint with advanced filtering
+    if (path.endsWith('/explorations/list')) {
+      if (httpMethod === 'GET') {
+        const { 
+          start_date, 
+          end_date, 
+          location, 
+          explorer, 
+          public_flag, 
+          limit = 50, 
+          offset = 0 
+        } = event.queryStringParameters || {};
+        
+        const whereConditions = ['a.is_exploration = true'];
+        
+        // Date range filter
+        if (start_date) {
+          whereConditions.push(`a.created_at >= '${start_date}'`);
+        }
+        if (end_date) {
+          whereConditions.push(`a.created_at <= '${end_date}'`);
+        }
+        
+        // Location filter
+        if (location) {
+          whereConditions.push(`a.location = '${escapeLiteral(location)}'`);
+        }
+        
+        // Explorer filter (user who created the action)
+        if (explorer) {
+          whereConditions.push(`a.created_by = '${escapeLiteral(explorer)}'`);
+        }
+        
+        const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
+        
+        const sql = `SELECT json_agg(row_to_json(t)) FROM (
+          SELECT 
+            a.id as action_id,
+            a.title as action_title,
+            a.description as state_text,
+            a.policy as policy_text,
+            a.attachments as key_photos,
+            a.created_at,
+            a.created_by as explorer_id,
+            om.full_name as explorer_name,
+            e.exploration_code,
+            e.id as exploration_id,
+            e.exploration_notes_text,
+            e.metrics_text,
+            e.public_flag
+          FROM actions a
+          LEFT JOIN exploration e ON a.id = e.action_id
+          LEFT JOIN organization_members om ON a.created_by::text = om.cognito_user_id::text
+          ${whereClause}
+          ORDER BY a.created_at DESC
+          LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
+        ) t;`;
+        
+        try {
+          const result = await queryJSON(sql);
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
+          };
+        } catch (error) {
+          console.error('Error listing explorations with filters:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to list explorations' })
+          };
+        }
+      }
+    }
+
+    if (path.match(/\/explorations\/check-code\/(.+)$/)) {
+      if (httpMethod === 'GET') {
+        const code = decodeURIComponent(path.split('/').pop());
+        
+        const sql = `SELECT EXISTS(SELECT 1 FROM exploration WHERE exploration_code = '${escapeLiteral(code)}') as exists;`;
+        
+        try {
+          const result = await queryJSON(sql);
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ exists: result[0]?.exists || false })
+          };
+        } catch (error) {
+          console.error('Error checking exploration code:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to check exploration code' })
+          };
+        }
+      }
+    }
+
+    if (path.match(/\/explorations\/codes-by-prefix\/(.+)$/)) {
+      if (httpMethod === 'GET') {
+        const prefix = decodeURIComponent(path.split('/').pop());
+        
+        const sql = `SELECT exploration_code FROM exploration WHERE exploration_code LIKE '${escapeLiteral(prefix)}%' ORDER BY exploration_code;`;
+        
+        try {
+          const result = await queryJSON(sql);
+          const codes = result.map(row => row.exploration_code);
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ codes })
+          };
+        } catch (error) {
+          console.error('Error fetching exploration codes by prefix:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to fetch exploration codes' })
+          };
+        }
+      }
+    }
+
+    // Policy endpoints
+    if (path.endsWith('/policies') || path.match(/\/policies\/[0-9]+$/)) {
+      if (httpMethod === 'POST' && path.endsWith('/policies')) {
+        const body = JSON.parse(event.body || '{}');
+        const { title, description_text, status, effective_from, effective_to } = body;
+        
+        if (!title || !description_text) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'title and description_text are required' })
+          };
+        }
+        
+        // Validate status
+        const validStatuses = ['draft', 'active', 'deprecated'];
+        if (status && !validStatuses.includes(status)) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'status must be one of: draft, active, deprecated' })
+          };
+        }
+        
+        // Validate date range
+        if (effective_from && effective_to && new Date(effective_from) > new Date(effective_to)) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'effective_from must be before effective_to' })
+          };
+        }
+        
+        const userId = authContext.cognito_user_id;
+        if (!userId) {
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'User context not available' })
+          };
+        }
+        
+        const sql = `
+          INSERT INTO policy (
+            title, description_text, status, effective_from, effective_to, created_by_user_id, created_at, updated_at
+          ) VALUES (
+            '${escapeLiteral(title)}',
+            '${escapeLiteral(description_text)}',
+            '${status || 'draft'}',
+            ${effective_from ? `'${effective_from}'` : 'NULL'},
+            ${effective_to ? `'${effective_to}'` : 'NULL'},
+            '${userId}',
+            NOW(),
+            NOW()
+          )
+          RETURNING *;
+        `;
+        
+        try {
+          const result = await queryJSON(sql);
+          return {
+            statusCode: 201,
+            headers,
+            body: JSON.stringify({ data: result[0] })
+          };
+        } catch (error) {
+          console.error('Error creating policy:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to create policy' })
+          };
+        }
+      }
+      
+      if (httpMethod === 'PUT') {
+        const policyId = path.split('/').pop();
+        const body = JSON.parse(event.body || '{}');
+        
+        const updates = [];
+        if (body.title !== undefined) {
+          updates.push(`title = '${escapeLiteral(body.title)}'`);
+        }
+        if (body.description_text !== undefined) {
+          updates.push(`description_text = '${escapeLiteral(body.description_text)}'`);
+        }
+        if (body.status !== undefined) {
+          const validStatuses = ['draft', 'active', 'deprecated'];
+          if (!validStatuses.includes(body.status)) {
+            return {
+              statusCode: 400,
+              headers,
+              body: JSON.stringify({ error: 'status must be one of: draft, active, deprecated' })
+            };
+          }
+          updates.push(`status = '${body.status}'`);
+        }
+        if (body.effective_from !== undefined) {
+          updates.push(`effective_from = ${body.effective_from ? `'${body.effective_from}'` : 'NULL'}`);
+        }
+        if (body.effective_to !== undefined) {
+          updates.push(`effective_to = ${body.effective_to ? `'${body.effective_to}'` : 'NULL'}`);
+        }
+        
+        if (updates.length === 0) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'No fields to update' })
+          };
+        }
+        
+        updates.push('updated_at = NOW()');
+        
+        const sql = `UPDATE policy SET ${updates.join(', ')} WHERE id = ${parseInt(policyId)} RETURNING *;`;
+        
+        try {
+          const result = await queryJSON(sql);
+          if (!result || result.length === 0) {
+            return {
+              statusCode: 404,
+              headers,
+              body: JSON.stringify({ error: 'Policy not found' })
+            };
+          }
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ data: result[0] })
+          };
+        } catch (error) {
+          console.error('Error updating policy:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to update policy' })
+          };
+        }
+      }
+      
+      if (httpMethod === 'GET') {
+        if (path.match(/\/policies\/[0-9]+$/)) {
+          // Get single policy by ID
+          const policyId = path.split('/').pop();
+          const sql = `SELECT * FROM policy WHERE id = ${parseInt(policyId)} LIMIT 1;`;
+          
+          try {
+            const result = await queryJSON(sql);
+            if (!result || result.length === 0) {
+              return {
+                statusCode: 404,
+                headers,
+                body: JSON.stringify({ error: 'Policy not found' })
+              };
+            }
+            return {
+              statusCode: 200,
+              headers,
+              body: JSON.stringify({ data: result[0] })
+            };
+          } catch (error) {
+            console.error('Error fetching policy:', error);
+            return {
+              statusCode: 500,
+              headers,
+              body: JSON.stringify({ error: 'Failed to fetch policy' })
+            };
+          }
+        } else {
+          // List policies with optional filters
+          const { status, created_by, limit = 50, offset = 0 } = event.queryStringParameters || {};
+          
+          const whereConditions = [];
+          if (status) {
+            whereConditions.push(`p.status = '${escapeLiteral(status)}'`);
+          }
+          if (created_by) {
+            whereConditions.push(`p.created_by_user_id = '${escapeLiteral(created_by)}'`);
+          }
+          
+          const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+          
+          const sql = `SELECT json_agg(row_to_json(t)) FROM (
+            SELECT 
+              p.*,
+              om.full_name as created_by_name
+            FROM policy p
+            LEFT JOIN organization_members om ON p.created_by_user_id = om.cognito_user_id
+            ${whereClause}
+            ORDER BY p.created_at DESC
+            LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
+          ) t;`;
+          
+          try {
+            const result = await queryJSON(sql);
+            return {
+              statusCode: 200,
+              headers,
+              body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
+            };
+          } catch (error) {
+            console.error('Error listing policies:', error);
+            return {
+              statusCode: 500,
+              headers,
+              body: JSON.stringify({ error: 'Failed to list policies' })
+            };
+          }
+        }
+      }
+      
+      if (httpMethod === 'DELETE') {
+        const policyId = path.split('/').pop();
+        
+        // Check if policy is linked to any actions
+        const linkedCheckSql = `SELECT COUNT(*) as count FROM actions WHERE policy_id = ${parseInt(policyId)};`;
+        const linkedResult = await queryJSON(linkedCheckSql);
+        
+        if (linkedResult && linkedResult[0]?.count > 0) {
+          return {
+            statusCode: 409,
+            headers,
+            body: JSON.stringify({ 
+              error: `Cannot delete policy: ${linkedResult[0].count} actions are linked to this policy` 
+            })
+          };
+        }
+        
+        const sql = `DELETE FROM policy WHERE id = ${parseInt(policyId)} RETURNING *;`;
+        
+        try {
+          const result = await queryJSON(sql);
+          if (!result || result.length === 0) {
+            return {
+              statusCode: 404,
+              headers,
+              body: JSON.stringify({ error: 'Policy not found' })
+            };
+          }
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ data: result[0] })
+          };
+        } catch (error) {
+          console.error('Error deleting policy:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to delete policy' })
+          };
+        }
+      }
+    }
+
+    // Policy search endpoint
+    if (path.endsWith('/policies/search')) {
+      if (httpMethod === 'GET') {
+        const { q, status, created_by, limit = 50, offset = 0 } = event.queryStringParameters || {};
+        
+        if (!q) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'q parameter is required for search' })
+          };
+        }
+        
+        const whereConditions = [`(p.title ILIKE '%${escapeLiteral(q)}%' OR p.description_text ILIKE '%${escapeLiteral(q)}%')`];
+        
+        if (status) {
+          whereConditions.push(`p.status = '${escapeLiteral(status)}'`);
+        }
+        if (created_by) {
+          whereConditions.push(`p.created_by_user_id = '${escapeLiteral(created_by)}'`);
+        }
+        
+        const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
+        
+        // Get total count
+        const countSql = `SELECT COUNT(*) as total FROM policy p ${whereClause};`;
+        
+        // Get results
+        const resultSql = `SELECT json_agg(row_to_json(t)) FROM (
+          SELECT 
+            p.*,
+            om.full_name as created_by_name
+          FROM policy p
+          LEFT JOIN organization_members om ON p.created_by_user_id = om.cognito_user_id
+          ${whereClause}
+          ORDER BY p.created_at DESC
+          LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
+        ) t;`;
+        
+        try {
+          const [countResult, dataResult] = await Promise.all([
+            queryJSON(countSql),
+            queryJSON(resultSql)
+          ]);
+          
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ 
+              data: dataResult?.[0]?.json_agg || [],
+              total: countResult?.[0]?.total || 0
+            })
+          };
+        } catch (error) {
+          console.error('Error searching policies:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to search policies' })
+          };
+        }
+      }
+    }
+
     // Missions endpoint
     if (path.endsWith('/missions')) {
       if (httpMethod === 'GET') {
@@ -2350,7 +3020,7 @@ exports.handler = async (event) => {
 
     // Actions endpoint with full details
     if (httpMethod === 'GET' && path.endsWith('/actions')) {
-      const { limit, offset = 0, assigned_to, status, id } = event.queryStringParameters || {};
+      const { limit, offset = 0, assigned_to, status, id, is_exploration } = event.queryStringParameters || {};
       
       let whereConditions = [];
       if (id) {
@@ -2366,6 +3036,14 @@ exports.handler = async (event) => {
           whereConditions.push(`a.status = '${status}'`);
         }
       }
+      if (is_exploration !== undefined) {
+        // Support filtering by is_exploration flag - explicitly check for true/false to exclude NULLs
+        if (is_exploration === 'true' || is_exploration === true) {
+          whereConditions.push(`a.is_exploration IS TRUE`);
+        } else {
+          whereConditions.push(`(a.is_exploration IS FALSE OR a.is_exploration IS NULL)`);
+        }
+      }
       
       const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
       const limitClause = limit ? `LIMIT ${limit} OFFSET ${offset}` : '';
@@ -2373,8 +3051,8 @@ exports.handler = async (event) => {
       const sql = `SELECT json_agg(row_to_json(t)) FROM (
         SELECT 
           a.*,
-          om.full_name as assigned_to_name,
-          om.favorite_color as assigned_to_color,
+          COALESCE(om.full_name, p.full_name) as assigned_to_name,
+          COALESCE(p.favorite_color, om.favorite_color) as assigned_to_color,
           CASE WHEN scores.action_id IS NOT NULL THEN true ELSE false END as has_score,
           CASE WHEN updates.action_id IS NOT NULL THEN true ELSE false END as has_implementation_updates,
           COALESCE(update_counts.count, 0) as implementation_update_count,
@@ -2386,8 +3064,8 @@ exports.handler = async (event) => {
               'category', assets.category
             )
           END as asset,
-          -- Issue tool details  
-          CASE WHEN a.issue_tool_id IS NOT NULL THEN
+          -- Issue tool details (derived from linked issue's context)
+          CASE WHEN a.linked_issue_id IS NOT NULL AND linked_issue.context_type = 'tool' THEN
             json_build_object(
               'id', issue_tools.id,
               'name', issue_tools.name,
@@ -2401,13 +3079,10 @@ exports.handler = async (event) => {
               'title', missions.title,
               'mission_number', missions.mission_number
             )
-          END as mission,
-          -- Participants details
-          CASE WHEN participants.participants IS NOT NULL THEN
-            participants.participants
-          END as participants_details
+          END as mission
         FROM actions a
-        LEFT JOIN profiles om ON a.assigned_to = om.user_id
+        LEFT JOIN organization_members om ON a.assigned_to::text = om.cognito_user_id::text
+        LEFT JOIN profiles p ON a.assigned_to::text = p.user_id::text
         LEFT JOIN action_scores scores ON a.id = scores.action_id
         LEFT JOIN (
           SELECT DISTINCT action_id 
@@ -2421,22 +3096,9 @@ exports.handler = async (event) => {
           GROUP BY action_id
         ) update_counts ON a.id = update_counts.action_id
         LEFT JOIN tools assets ON a.asset_id = assets.id
-        LEFT JOIN tools issue_tools ON a.issue_tool_id = issue_tools.id
+        LEFT JOIN issues linked_issue ON a.linked_issue_id = linked_issue.id
+        LEFT JOIN tools issue_tools ON linked_issue.context_id = issue_tools.id AND linked_issue.context_type = 'tool'
         LEFT JOIN missions ON a.mission_id = missions.id
-        LEFT JOIN (
-          SELECT 
-            ap.action_id,
-            json_agg(
-              json_build_object(
-                'user_id', om_part.user_id,
-                'full_name', om_part.full_name,
-                'favorite_color', om_part.favorite_color
-              )
-            ) as participants
-          FROM action_participants ap
-          LEFT JOIN profiles om_part ON ap.user_id = om_part.user_id
-          GROUP BY ap.action_id
-        ) participants ON a.id = participants.action_id
         ${whereClause} 
         ORDER BY a.updated_at DESC 
         ${limitClause}
@@ -2487,7 +3149,9 @@ exports.handler = async (event) => {
         'created_by',
         'updated_by',
         'created_at',
-        'updated_at'
+        'updated_at',
+        'is_exploration',
+        'summary_policy_text'
       ];
 
       const insertValues = [
@@ -2517,7 +3181,9 @@ exports.handler = async (event) => {
         formatSqlValue(body.created_by),
         formatSqlValue(body.updated_by),
         formatSqlValue(now),
-        formatSqlValue(now)
+        formatSqlValue(now),
+        formatSqlValue(Boolean(body.is_exploration)),
+        formatSqlValue(body.summary_policy_text)
       ];
 
       const client = new Client(dbConfig);
@@ -2622,6 +3288,164 @@ exports.handler = async (event) => {
       }
     }
 
+    // PUT /actions/{id} - Update action
+    if (httpMethod === 'PUT' && path.match(/\/actions\/[a-f0-9-]+$/)) {
+      const actionId = path.split('/').pop();
+      const body = JSON.parse(event.body || '{}');
+      
+      // Define allowed fields for update
+      const allowedFields = [
+        'title', 'description', 'policy', 'assigned_to', 'status',
+        'estimated_duration', 'required_stock', 'attachments',
+        'mission_id', 'asset_id', 'linked_issue_id', 'issue_reference',
+        'plan_commitment', 'policy_agreed_at', 'policy_agreed_by',
+        'is_exploration', 'summary_policy_text'
+      ];
+      
+      const updates = buildUpdateClauses(body, allowedFields);
+      
+      if (updates.length === 0) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'No fields to update' })
+        };
+      }
+      
+      // Add updated_at timestamp
+      updates.push(`updated_at = '${new Date().toISOString()}'`);
+      
+      const client = new Client(dbConfig);
+      try {
+        await client.connect();
+        await client.query('BEGIN');
+        
+        // Update the action
+        const updateSql = `
+          UPDATE actions 
+          SET ${updates.join(', ')}
+          WHERE id = '${escapeLiteral(actionId)}'
+          RETURNING id
+        `;
+        
+        const updateResult = await client.query(updateSql);
+        
+        if (updateResult.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return {
+            statusCode: 404,
+            headers,
+            body: JSON.stringify({ error: 'Action not found' })
+          };
+        }
+        
+        await client.query('COMMIT');
+        
+        // Fetch and return the updated action with full details
+        const fetchSql = `SELECT json_agg(row_to_json(t)) FROM (
+          SELECT 
+            a.*,
+            om.full_name as assigned_to_name,
+            om.favorite_color as assigned_to_color,
+            CASE WHEN scores.action_id IS NOT NULL THEN true ELSE false END as has_score,
+            CASE WHEN updates.action_id IS NOT NULL THEN true ELSE false END as has_implementation_updates,
+            COALESCE(update_counts.count, 0) as implementation_update_count,
+            -- Asset details
+            CASE WHEN a.asset_id IS NOT NULL THEN
+              json_build_object(
+                'id', assets.id,
+                'name', assets.name,
+                'category', assets.category
+              )
+            END as asset,
+            -- Mission details
+            CASE WHEN a.mission_id IS NOT NULL THEN
+              json_build_object(
+                'id', missions.id,
+                'title', missions.title,
+                'mission_number', missions.mission_number
+              )
+            END as mission,
+            -- Participants details
+            CASE WHEN participants.participants IS NOT NULL THEN
+              participants.participants
+            END as participants_details
+          FROM actions a
+          LEFT JOIN profiles om ON a.assigned_to = om.user_id
+          LEFT JOIN action_scores scores ON a.id = scores.action_id
+          LEFT JOIN (
+            SELECT DISTINCT action_id 
+            FROM action_implementation_updates
+            WHERE update_type != 'policy_agreement' OR update_type IS NULL
+          ) updates ON a.id = updates.action_id
+          LEFT JOIN (
+            SELECT action_id, COUNT(*) as count
+            FROM action_implementation_updates
+            WHERE update_type != 'policy_agreement' OR update_type IS NULL
+            GROUP BY action_id
+          ) update_counts ON a.id = update_counts.action_id
+          LEFT JOIN tools assets ON a.asset_id = assets.id
+          LEFT JOIN missions ON a.mission_id = missions.id
+          LEFT JOIN (
+            SELECT 
+              ap.action_id,
+              json_agg(
+                json_build_object(
+                  'user_id', om_part.user_id,
+                  'full_name', om_part.full_name,
+                  'favorite_color', om_part.favorite_color
+                )
+              ) as participants
+            FROM action_participants ap
+            LEFT JOIN profiles om_part ON ap.user_id = om_part.user_id
+            WHERE ap.action_id = '${escapeLiteral(actionId)}'
+            GROUP BY ap.action_id
+          ) participants ON a.id = participants.action_id
+          WHERE a.id = '${escapeLiteral(actionId)}'
+        ) t;`;
+        
+        const fetchResult = await queryJSON(fetchSql);
+        
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ data: fetchResult?.[0]?.json_agg?.[0] || null })
+        };
+      } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error updating action:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: error.message })
+        };
+      } finally {
+        await client.end();
+      }
+    }
+
+    // Admin endpoint for exploration consistency validation
+    if (httpMethod === 'GET' && path === '/admin/validate-exploration-consistency') {
+      // This endpoint calls the database validation function
+      const sql = `SELECT * FROM validate_exploration_consistency()`;
+      
+      try {
+        const result = await queryJSON(sql);
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ data: result })
+        };
+      } catch (error) {
+        console.error('Error validating exploration consistency:', error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ error: error.message })
+        };
+      }
+    }
+
     // Action implementation updates endpoint
     if (path.endsWith('/action_implementation_updates') || path.match(/\/action_implementation_updates\/[a-f0-9-]+$/)) {
       // DELETE by ID
@@ -2712,22 +3536,1288 @@ exports.handler = async (event) => {
         const sql = `SELECT json_agg(row_to_json(t)) FROM (
           SELECT 
             aiu.*,
-            om.full_name as updated_by_name,
-            om.favorite_color as updated_by_color
+            COALESCE(om.full_name, p.full_name, aiu.updated_by::text) as updated_by_name,
+            COALESCE(p.favorite_color, om.favorite_color) as updated_by_color
           FROM action_implementation_updates aiu
           LEFT JOIN actions a ON aiu.action_id = a.id
-          LEFT JOIN profiles om ON aiu.updated_by = om.user_id
+          LEFT JOIN organization_members om ON aiu.updated_by::text = om.cognito_user_id::text
+          LEFT JOIN profiles p ON aiu.updated_by::text = p.user_id::text
           ${whereClause}
           ORDER BY aiu.created_at DESC 
-          LIMIT ${limit}
+          LIMIT ${parseInt(limit)}
         ) t;`;
         
-        const result = await queryJSON(sql);
+        console.log('action_implementation_updates GET SQL:', sql);
+        
+        try {
+          const result = await queryJSON(sql);
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
+          };
+        } catch (error) {
+          console.error('Error fetching action_implementation_updates:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to fetch updates', details: error.message })
+          };
+        }
+      }
+    }
+
+    // Analytics endpoints
+    if (path.startsWith('/analytics/')) {
+      // Exploration percentages
+      if (httpMethod === 'GET' && path.endsWith('/analytics/exploration-percentages')) {
+        const { 
+          start_date, 
+          end_date, 
+          location, 
+          explorer, 
+          status, 
+          organization_id 
+        } = event.queryStringParameters || {};
+        
+        if (!start_date || !end_date) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'start_date and end_date are required' })
+          };
+        }
+        
+        try {
+          let whereConditions = [
+            `a.created_at >= '${start_date}'`,
+            `a.created_at <= '${end_date}'`
+          ];
+          
+          if (location) {
+            whereConditions.push(`a.location = '${escapeLiteral(location)}'`);
+          }
+          if (explorer) {
+            whereConditions.push(`a.created_by = '${escapeLiteral(explorer)}'`);
+          }
+          if (status) {
+            whereConditions.push(`a.status = '${escapeLiteral(status)}'`);
+          }
+          if (organization_id) {
+            whereConditions.push(`a.organization_id = '${escapeLiteral(organization_id)}'`);
+          }
+          
+          const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
+          
+          const sql = `
+            SELECT 
+              COUNT(*) as total_actions,
+              COUNT(e.id) as total_explorations,
+              CASE 
+                WHEN COUNT(*) > 0 THEN ROUND((COUNT(e.id)::numeric / COUNT(*)::numeric) * 100, 2)
+                ELSE 0 
+              END as exploration_percentage
+            FROM actions a
+            LEFT JOIN exploration e ON a.id = e.action_id
+            ${whereClause};
+          `;
+          
+          const result = await queryJSON(sql);
+          const data = result[0] || { total_actions: 0, total_explorations: 0, exploration_percentage: 0 };
+          
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({
+              data: {
+                ...data,
+                date_range: {
+                  start: start_date,
+                  end: end_date
+                }
+              }
+            })
+          };
+        } catch (error) {
+          console.error('Failed to get exploration percentages:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to get exploration percentages' })
+          };
+        }
+      }
+      
+      // Exploration percentages with breakdown
+      if (httpMethod === 'GET' && path.endsWith('/analytics/exploration-percentages-breakdown')) {
+        const { 
+          start_date, 
+          end_date, 
+          period = 'week',
+          location, 
+          explorer, 
+          status, 
+          organization_id 
+        } = event.queryStringParameters || {};
+        
+        if (!start_date || !end_date) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'start_date and end_date are required' })
+          };
+        }
+        
+        try {
+          let whereConditions = [
+            `a.created_at >= '${start_date}'`,
+            `a.created_at <= '${end_date}'`
+          ];
+          
+          if (location) whereConditions.push(`a.location = '${escapeLiteral(location)}'`);
+          if (explorer) whereConditions.push(`a.created_by = '${escapeLiteral(explorer)}'`);
+          if (status) whereConditions.push(`a.status = '${escapeLiteral(status)}'`);
+          if (organization_id) whereConditions.push(`a.organization_id = '${escapeLiteral(organization_id)}'`);
+          
+          const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
+          
+          // Determine date truncation based on period
+          const dateTrunc = period === 'day' ? 'day' : 
+                           period === 'month' ? 'month' : 'week';
+          
+          const sql = `
+            WITH period_data AS (
+              SELECT 
+                DATE_TRUNC('${dateTrunc}', a.created_at) as period_start,
+                COUNT(*) as total_actions,
+                COUNT(e.id) as total_explorations
+              FROM actions a
+              LEFT JOIN exploration e ON a.id = e.action_id
+              ${whereClause}
+              GROUP BY DATE_TRUNC('${dateTrunc}', a.created_at)
+              ORDER BY period_start
+            )
+            SELECT 
+              period_start,
+              period_start + INTERVAL '1 ${dateTrunc}' - INTERVAL '1 day' as period_end,
+              total_actions,
+              total_explorations,
+              CASE 
+                WHEN total_actions > 0 THEN ROUND((total_explorations::numeric / total_actions::numeric) * 100, 2)
+                ELSE 0 
+              END as exploration_percentage
+            FROM period_data;
+          `;
+          
+          const breakdownResult = await queryJSON(sql);
+          
+          // Get overall totals
+          const totalsSql = `
+            SELECT 
+              COUNT(*) as total_actions,
+              COUNT(e.id) as total_explorations,
+              CASE 
+                WHEN COUNT(*) > 0 THEN ROUND((COUNT(e.id)::numeric / COUNT(*)::numeric) * 100, 2)
+                ELSE 0 
+              END as exploration_percentage
+            FROM actions a
+            LEFT JOIN exploration e ON a.id = e.action_id
+            ${whereClause};
+          `;
+          
+          const totalsResult = await queryJSON(totalsSql);
+          const totals = totalsResult[0] || { total_actions: 0, total_explorations: 0, exploration_percentage: 0 };
+          
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({
+              data: {
+                ...totals,
+                date_range: {
+                  start: start_date,
+                  end: end_date
+                },
+                breakdown_by_period: {
+                  period: period,
+                  data: breakdownResult
+                }
+              }
+            })
+          };
+        } catch (error) {
+          console.error('Failed to get exploration percentages breakdown:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to get exploration percentages breakdown' })
+          };
+        }
+      }
+      
+      // Pattern analysis
+      if (httpMethod === 'GET' && path.endsWith('/analytics/pattern-analysis')) {
+        const { 
+          start_date, 
+          end_date, 
+          location, 
+          explorer, 
+          public_flag, 
+          organization_id 
+        } = event.queryStringParameters || {};
+        
+        if (!start_date || !end_date) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'start_date and end_date are required' })
+          };
+        }
+        
+        try {
+          // Exploration code patterns
+          let explorationWhereConditions = [`e.created_at >= '${start_date}'`, `e.created_at <= '${end_date}'`];
+          if (public_flag !== undefined) {
+            explorationWhereConditions.push(`e.public_flag = ${public_flag === 'true'}`);
+          }
+          
+          const explorationTrendsSql = `
+            SELECT 
+              SUBSTRING(exploration_code FROM '^[A-Z]{2}\\d{6}EX') as exploration_code_pattern,
+              COUNT(*) as count,
+              MIN(e.created_at) as earliest_date,
+              MAX(e.created_at) as latest_date
+            FROM exploration e
+            WHERE ${explorationWhereConditions.join(' AND ')}
+              AND exploration_code IS NOT NULL
+            GROUP BY SUBSTRING(exploration_code FROM '^[A-Z]{2}\\d{6}EX')
+            ORDER BY count DESC
+            LIMIT 10;
+          `;
+          
+          const explorationTrends = await queryJSON(explorationTrendsSql);
+          
+          // Policy adoption
+          const policyAdoptionSql = `
+            SELECT 
+              p.id as policy_id,
+              p.title as policy_title,
+              COUNT(a.id) as linked_actions_count,
+              ROUND((COUNT(a.id)::numeric / total_actions.count::numeric) * 100, 2) as adoption_percentage
+            FROM policy p
+            LEFT JOIN actions a ON a.policy_id = p.id 
+              AND a.created_at >= '${start_date}' 
+              AND a.created_at <= '${end_date}'
+            CROSS JOIN (
+              SELECT COUNT(*) as count 
+              FROM actions 
+              WHERE created_at >= '${start_date}' 
+                AND created_at <= '${end_date}'
+            ) total_actions
+            WHERE p.status = 'active'
+            GROUP BY p.id, p.title, total_actions.count
+            ORDER BY linked_actions_count DESC
+            LIMIT 10;
+          `;
+          
+          const policyAdoption = await queryJSON(policyAdoptionSql);
+          
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({
+              data: {
+                common_themes: [], // Would require more sophisticated text analysis
+                exploration_trends: explorationTrends.map(trend => ({
+                  exploration_code_pattern: trend.exploration_code_pattern,
+                  count: trend.count,
+                  date_range: {
+                    start: trend.earliest_date,
+                    end: trend.latest_date
+                  }
+                })),
+                policy_adoption: policyAdoption
+              }
+            })
+          };
+        } catch (error) {
+          console.error('Failed to analyze patterns:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to analyze patterns' })
+          };
+        }
+      }
+      
+      // Exploration trends
+      if (httpMethod === 'GET' && path.endsWith('/analytics/exploration-trends')) {
+        const { 
+          start_date, 
+          end_date, 
+          group_by = 'week',
+          location, 
+          explorer, 
+          organization_id 
+        } = event.queryStringParameters || {};
+        
+        if (!start_date || !end_date) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'start_date and end_date are required' })
+          };
+        }
+        
+        try {
+          let whereConditions = [
+            `a.created_at >= '${start_date}'`,
+            `a.created_at <= '${end_date}'`
+          ];
+          
+          if (location) whereConditions.push(`a.location = '${escapeLiteral(location)}'`);
+          if (explorer) whereConditions.push(`a.created_by = '${escapeLiteral(explorer)}'`);
+          if (organization_id) whereConditions.push(`a.organization_id = '${escapeLiteral(organization_id)}'`);
+          
+          const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
+          const dateTrunc = group_by === 'day' ? 'day' : group_by === 'month' ? 'month' : 'week';
+          
+          const sql = `
+            WITH period_data AS (
+              SELECT 
+                DATE_TRUNC('${dateTrunc}', a.created_at) as period_start,
+                COUNT(*) as action_count,
+                COUNT(e.id) as exploration_count,
+                ARRAY_AGG(e.exploration_code) FILTER (WHERE e.exploration_code IS NOT NULL) as exploration_codes
+              FROM actions a
+              LEFT JOIN exploration e ON a.id = e.action_id
+              ${whereClause}
+              GROUP BY DATE_TRUNC('${dateTrunc}', a.created_at)
+              ORDER BY period_start
+            )
+            SELECT 
+              period_start,
+              period_start + INTERVAL '1 ${dateTrunc}' - INTERVAL '1 day' as period_end,
+              action_count,
+              exploration_count,
+              CASE 
+                WHEN action_count > 0 THEN ROUND((exploration_count::numeric / action_count::numeric) * 100, 2)
+                ELSE 0 
+              END as exploration_percentage,
+              COALESCE(exploration_codes, ARRAY[]::text[]) as top_exploration_codes
+            FROM period_data;
+          `;
+          
+          const result = await queryJSON(sql);
+          
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ data: result })
+          };
+        } catch (error) {
+          console.error('Failed to get exploration trends:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to get exploration trends' })
+          };
+        }
+      }
+      
+      // Policy adoption analysis
+      if (httpMethod === 'GET' && path.endsWith('/analytics/policy-adoption')) {
+        const { 
+          start_date, 
+          end_date, 
+          status = 'active', 
+          organization_id 
+        } = event.queryStringParameters || {};
+        
+        if (!start_date || !end_date) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'start_date and end_date are required' })
+          };
+        }
+        
+        try {
+          let policyWhereConditions = [`p.status = '${escapeLiteral(status)}'`];
+          let actionWhereConditions = [
+            `a.created_at >= '${start_date}'`,
+            `a.created_at <= '${end_date}'`
+          ];
+          
+          if (organization_id) {
+            actionWhereConditions.push(`a.organization_id = '${escapeLiteral(organization_id)}'`);
+          }
+          
+          const sql = `
+            WITH policy_stats AS (
+              SELECT 
+                COUNT(DISTINCT p.id) as total_policies,
+                COUNT(DISTINCT CASE WHEN p.status = 'active' THEN p.id END) as active_policies,
+                COUNT(DISTINCT a.id) as total_linked_actions
+              FROM policy p
+              LEFT JOIN actions a ON a.policy_id = p.id 
+                AND ${actionWhereConditions.join(' AND ')}
+              WHERE ${policyWhereConditions.join(' AND ')}
+            ),
+            top_policies AS (
+              SELECT 
+                p.id as policy_id,
+                p.title as policy_title,
+                COUNT(a.id) as linked_actions_count,
+                p.created_at
+              FROM policy p
+              LEFT JOIN actions a ON a.policy_id = p.id 
+                AND ${actionWhereConditions.join(' AND ')}
+              WHERE ${policyWhereConditions.join(' AND ')}
+              GROUP BY p.id, p.title, p.created_at
+              ORDER BY linked_actions_count DESC
+              LIMIT 10
+            ),
+            total_actions AS (
+              SELECT COUNT(*) as count 
+              FROM actions 
+              WHERE ${actionWhereConditions.join(' AND ')}
+            )
+            SELECT 
+              ps.total_policies,
+              ps.active_policies,
+              ps.total_linked_actions,
+              CASE 
+                WHEN ta.count > 0 THEN ROUND((ps.total_linked_actions::numeric / ta.count::numeric) * 100, 2)
+                ELSE 0 
+              END as policy_adoption_rate,
+              json_agg(
+                json_build_object(
+                  'policy_id', tp.policy_id,
+                  'policy_title', tp.policy_title,
+                  'linked_actions_count', tp.linked_actions_count,
+                  'adoption_percentage', CASE 
+                    WHEN ta.count > 0 THEN ROUND((tp.linked_actions_count::numeric / ta.count::numeric) * 100, 2)
+                    ELSE 0 
+                  END,
+                  'created_at', tp.created_at
+                )
+              ) as top_policies
+            FROM policy_stats ps
+            CROSS JOIN total_actions ta
+            CROSS JOIN top_policies tp
+            GROUP BY ps.total_policies, ps.active_policies, ps.total_linked_actions, ta.count;
+          `;
+          
+          const result = await queryJSON(sql);
+          const data = result[0] || {
+            total_policies: 0,
+            active_policies: 0,
+            total_linked_actions: 0,
+            policy_adoption_rate: 0,
+            top_policies: []
+          };
+          
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ data })
+          };
+        } catch (error) {
+          console.error('Failed to analyze policy adoption:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to analyze policy adoption' })
+          };
+        }
+      }
+    }
+
+    // Semantic Search endpoints
+    if (path.startsWith('/search/')) {
+      // Cross-entity semantic search
+      if (httpMethod === 'POST' && path.endsWith('/search/semantic')) {
+        const body = JSON.parse(event.body || '{}');
+        const { query, filters = {} } = body;
+        
+        if (!query || !query.text) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'query.text is required' })
+          };
+        }
+        
+        try {
+          // Generate embedding for the query
+          const embeddingResponse = await apiService.post('/ai/generate-embedding', {
+            text: query.text,
+            model: query.model || 'text-embedding-3-small'
+          });
+          
+          const queryEmbedding = embeddingResponse.embedding || embeddingResponse.data?.embedding;
+          
+          if (!queryEmbedding) {
+            throw new Error('Failed to generate query embedding');
+          }
+          
+          const startTime = Date.now();
+          const limit = query.limit || 10;
+          const threshold = query.threshold || 0.7;
+          
+          // Search across entity types
+          const entityTypes = filters.entity_types || ['actions', 'explorations', 'policies'];
+          const searchPromises = [];
+          
+          if (entityTypes.includes('actions')) {
+            const actionSearchParams = new URLSearchParams({
+              limit: limit.toString(),
+              threshold: threshold.toString()
+            });
+            
+            if (filters.embedding_types) {
+              const actionTypes = filters.embedding_types.filter(t => 
+                ['state', 'policy_text', 'summary_policy_text'].includes(t)
+              );
+              if (actionTypes.length > 0) {
+                actionSearchParams.append('embedding_types', actionTypes.join(','));
+              }
+            }
+            
+            searchPromises.push(
+              apiService.post(`/embeddings/action_embedding/search?${actionSearchParams.toString()}`, {
+                query_embedding: queryEmbedding
+              }).then(response => ({ type: 'actions', results: response.data || [] }))
+            );
+          }
+          
+          if (entityTypes.includes('explorations')) {
+            const explorationSearchParams = new URLSearchParams({
+              limit: limit.toString(),
+              threshold: threshold.toString()
+            });
+            
+            if (filters.embedding_types) {
+              const explorationTypes = filters.embedding_types.filter(t => 
+                ['exploration_notes', 'metrics'].includes(t)
+              );
+              if (explorationTypes.length > 0) {
+                explorationSearchParams.append('embedding_types', explorationTypes.join(','));
+              }
+            }
+            
+            searchPromises.push(
+              apiService.post(`/embeddings/exploration_embedding/search?${explorationSearchParams.toString()}`, {
+                query_embedding: queryEmbedding
+              }).then(response => ({ type: 'explorations', results: response.data || [] }))
+            );
+          }
+          
+          if (entityTypes.includes('policies')) {
+            const policySearchParams = new URLSearchParams({
+              limit: limit.toString(),
+              threshold: threshold.toString()
+            });
+            
+            if (filters.embedding_types) {
+              const policyTypes = filters.embedding_types.filter(t => t === 'policy_description');
+              if (policyTypes.length > 0) {
+                policySearchParams.append('embedding_types', policyTypes.join(','));
+              }
+            }
+            
+            searchPromises.push(
+              apiService.post(`/embeddings/policy_embedding/search?${policySearchParams.toString()}`, {
+                query_embedding: queryEmbedding
+              }).then(response => ({ type: 'policies', results: response.data || [] }))
+            );
+          }
+          
+          const searchResults = await Promise.all(searchPromises);
+          const searchTime = Date.now() - startTime;
+          
+          // Organize results by entity type
+          const organizedResults = {
+            actions: [],
+            explorations: [],
+            policies: [],
+            total_results: 0,
+            search_metadata: {
+              query_text: query.text,
+              model_used: query.model || 'text-embedding-3-small',
+              threshold,
+              search_time_ms: searchTime
+            }
+          };
+          
+          searchResults.forEach(({ type, results }) => {
+            organizedResults[type] = results.map(result => ({
+              ...result,
+              entity_type: type.slice(0, -1) // Remove 's' from plural
+            }));
+            organizedResults.total_results += results.length;
+          });
+          
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ data: organizedResults })
+          };
+        } catch (error) {
+          console.error('Failed to perform semantic search:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to perform semantic search' })
+          };
+        }
+      }
+      
+      // Find similar entities
+      if (httpMethod === 'GET' && path.match(/\/search\/similar\/(actions|explorations|policies)\/(.+)$/)) {
+        const matches = path.match(/\/search\/similar\/(actions|explorations|policies)\/(.+)$/);
+        const entityType = matches[1];
+        const entityId = matches[2];
+        
+        const { 
+          embedding_type = entityType === 'actions' ? 'state' : 
+                          entityType === 'explorations' ? 'exploration_notes' : 
+                          'policy_description',
+          limit = 10,
+          threshold = 0.7,
+          exclude_self = 'true'
+        } = event.queryStringParameters || {};
+        
+        try {
+          // Get the source entity's embedding
+          const embeddingTable = entityType === 'actions' ? 'action_embedding' :
+                               entityType === 'explorations' ? 'exploration_embedding' :
+                               'policy_embedding';
+          
+          const embeddingsSql = `
+            SELECT embedding FROM ${embeddingTable} 
+            WHERE entity_id = '${escapeLiteral(entityId)}' 
+              AND embedding_type = '${escapeLiteral(embedding_type)}'
+            ORDER BY created_at DESC 
+            LIMIT 1;
+          `;
+          
+          const embeddingResult = await queryJSON(embeddingsSql);
+          
+          if (!embeddingResult || embeddingResult.length === 0) {
+            return {
+              statusCode: 404,
+              headers,
+              body: JSON.stringify({ error: `No ${embedding_type} embedding found for ${entityType.slice(0, -1)} ${entityId}` })
+            };
+          }
+          
+          const sourceEmbedding = embeddingResult[0].embedding;
+          
+          // Search for similar entities
+          const searchParams = new URLSearchParams({
+            limit: (parseInt(limit) + (exclude_self === 'true' ? 1 : 0)).toString(),
+            threshold: threshold.toString(),
+            embedding_types: embedding_type
+          });
+          
+          const searchResponse = await apiService.post(`/embeddings/${embeddingTable}/search?${searchParams.toString()}`, {
+            query_embedding: sourceEmbedding
+          });
+          
+          let results = searchResponse.data || [];
+          
+          // Exclude the source entity if requested
+          if (exclude_self === 'true') {
+            results = results.filter(result => result.entity_id !== entityId);
+          }
+          
+          // Limit results
+          results = results.slice(0, parseInt(limit));
+          
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ data: results })
+          };
+        } catch (error) {
+          console.error(`Failed to find similar ${entityType}:`, error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: `Failed to find similar ${entityType}` })
+          };
+        }
+      }
+      
+      // Search suggestions
+      if (httpMethod === 'GET' && path.endsWith('/search/suggestions')) {
+        const { q, limit = 5 } = event.queryStringParameters || {};
+        
+        if (!q || q.length < 2) {
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ data: [] })
+          };
+        }
+        
+        try {
+          // Simple implementation - search across entity titles/descriptions
+          const suggestions = new Set();
+          
+          // Search action titles
+          const actionsSql = `
+            SELECT DISTINCT title FROM actions 
+            WHERE title ILIKE '%${escapeLiteral(q)}%' 
+            LIMIT ${parseInt(limit)};
+          `;
+          const actionsResult = await queryJSON(actionsSql);
+          actionsResult.forEach(row => suggestions.add(row.title));
+          
+          // Search exploration codes
+          const explorationsSql = `
+            SELECT DISTINCT exploration_code FROM exploration 
+            WHERE exploration_code ILIKE '%${escapeLiteral(q)}%' 
+            LIMIT ${parseInt(limit)};
+          `;
+          const explorationsResult = await queryJSON(explorationsSql);
+          explorationsResult.forEach(row => suggestions.add(row.exploration_code));
+          
+          // Search policy titles
+          const policiesSql = `
+            SELECT DISTINCT title FROM policy 
+            WHERE title ILIKE '%${escapeLiteral(q)}%' 
+            LIMIT ${parseInt(limit)};
+          `;
+          const policiesResult = await queryJSON(policiesSql);
+          policiesResult.forEach(row => suggestions.add(row.title));
+          
+          const suggestionsList = Array.from(suggestions).slice(0, parseInt(limit));
+          
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ data: suggestionsList })
+          };
+        } catch (error) {
+          console.error('Failed to get search suggestions:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to get search suggestions' })
+          };
+        }
+      }
+    }
+
+    // Embedding endpoints
+    if (path.startsWith('/embeddings/')) {
+      // Enqueue embedding job
+      if (httpMethod === 'POST' && path.endsWith('/embeddings/enqueue')) {
+        const body = JSON.parse(event.body || '{}');
+        const { id, table, text, embedding_type, model, delay_seconds, retry_count } = body;
+        
+        if (!id || !table || !text || !embedding_type) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'id, table, text, and embedding_type are required' })
+          };
+        }
+        
+        try {
+          const messageBody = JSON.stringify({
+            id,
+            table,
+            text: text.trim(),
+            embedding_type,
+            model: model || 'text-embedding-3-small',
+            retry_count: retry_count || 3,
+            enqueued_at: new Date().toISOString()
+          });
+          
+          const sqsParams = {
+            QueueUrl: EMBEDDINGS_QUEUE_URL,
+            MessageBody: messageBody
+          };
+          
+          if (delay_seconds && delay_seconds > 0) {
+            sqsParams.DelaySeconds = Math.min(delay_seconds, 900); // Max 15 minutes
+          }
+          
+          await sqs.send(new SendMessageCommand(sqsParams));
+          
+          console.log(`Enqueued embedding job: ${table}:${id}:${embedding_type}`);
+          
+          return {
+            statusCode: 201,
+            headers,
+            body: JSON.stringify({ 
+              success: true,
+              message: `Embedding job enqueued for ${table}:${id}:${embedding_type}`
+            })
+          };
+        } catch (error) {
+          console.error('Failed to enqueue embedding job:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to enqueue embedding job' })
+          };
+        }
+      }
+      
+      // Store embedding in database
+      if (httpMethod === 'POST' && (
+        path.endsWith('/embeddings/action_embedding') ||
+        path.endsWith('/embeddings/exploration_embedding') ||
+        path.endsWith('/embeddings/policy_embedding')
+      )) {
+        const body = JSON.parse(event.body || '{}');
+        const { entity_id, embedding_type, embedding, model, text_length } = body;
+        
+        if (!entity_id || !embedding_type || !embedding || !Array.isArray(embedding)) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'entity_id, embedding_type, and embedding array are required' })
+          };
+        }
+        
+        // Determine table name from path
+        const tableName = path.split('/').pop(); // action_embedding, exploration_embedding, or policy_embedding
+        
+        try {
+          // Check if embedding already exists and delete it (upsert behavior)
+          const deleteSql = `DELETE FROM ${tableName} WHERE entity_id = '${escapeLiteral(entity_id)}' AND embedding_type = '${escapeLiteral(embedding_type)}';`;
+          await queryJSON(deleteSql);
+          
+          // Insert new embedding
+          const insertSql = `
+            INSERT INTO ${tableName} (
+              entity_id, embedding_type, embedding, model, text_length, created_at, updated_at
+            ) VALUES (
+              '${escapeLiteral(entity_id)}',
+              '${escapeLiteral(embedding_type)}',
+              '[${embedding.join(',')}]'::vector,
+              '${escapeLiteral(model || 'text-embedding-3-small')}',
+              ${text_length || 0},
+              NOW(),
+              NOW()
+            )
+            RETURNING *;
+          `;
+          
+          const result = await queryJSON(insertSql);
+          
+          console.log(`Stored embedding: ${tableName}:${entity_id}:${embedding_type}`);
+          
+          return {
+            statusCode: 201,
+            headers,
+            body: JSON.stringify({ data: result[0] })
+          };
+        } catch (error) {
+          console.error(`Failed to store embedding in ${tableName}:`, error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to store embedding' })
+          };
+        }
+      }
+      
+      // Get embeddings for an entity
+      if (httpMethod === 'GET' && path.match(/\/embeddings\/(action_embedding|exploration_embedding|policy_embedding)\/(.+)$/)) {
+        const matches = path.match(/\/embeddings\/(action_embedding|exploration_embedding|policy_embedding)\/(.+)$/);
+        const tableName = matches[1];
+        const entityId = matches[2];
+        
+        try {
+          const sql = `SELECT * FROM ${tableName} WHERE entity_id = '${escapeLiteral(entityId)}' ORDER BY created_at DESC;`;
+          const result = await queryJSON(sql);
+          
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ data: result })
+          };
+        } catch (error) {
+          console.error(`Failed to fetch embeddings from ${tableName}:`, error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to fetch embeddings' })
+          };
+        }
+      }
+      
+      // Search similar embeddings using vector similarity
+      if (httpMethod === 'POST' && path.match(/\/embeddings\/(action_embedding|exploration_embedding|policy_embedding)\/search$/)) {
+        const matches = path.match(/\/embeddings\/(action_embedding|exploration_embedding|policy_embedding)\/search$/);
+        const tableName = matches[1];
+        const body = JSON.parse(event.body || '{}');
+        const { query_embedding } = body;
+        
+        if (!query_embedding || !Array.isArray(query_embedding)) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'query_embedding array is required' })
+          };
+        }
+        
+        const { 
+          limit = 10, 
+          threshold = 0.7, 
+          embedding_types, 
+          models 
+        } = event.queryStringParameters || {};
+        
+        try {
+          let whereConditions = [`embedding <=> '[${query_embedding.join(',')}]'::vector < ${1 - parseFloat(threshold)}`];
+          
+          if (embedding_types) {
+            const types = embedding_types.split(',').map(t => `'${escapeLiteral(t.trim())}'`).join(',');
+            whereConditions.push(`embedding_type IN (${types})`);
+          }
+          
+          if (models) {
+            const modelList = models.split(',').map(m => `'${escapeLiteral(m.trim())}'`).join(',');
+            whereConditions.push(`model IN (${modelList})`);
+          }
+          
+          const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+          
+          const sql = `
+            SELECT 
+              entity_id,
+              embedding_type,
+              model,
+              text_length,
+              created_at,
+              (1 - (embedding <=> '[${query_embedding.join(',')}]'::vector)) as similarity
+            FROM ${tableName}
+            ${whereClause}
+            ORDER BY similarity DESC
+            LIMIT ${parseInt(limit)};
+          `;
+          
+          const result = await queryJSON(sql);
+          
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ data: result })
+          };
+        } catch (error) {
+          console.error(`Failed to search embeddings in ${tableName}:`, error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to search embeddings' })
+          };
+        }
+      }
+      
+      // Delete embeddings
+      if (httpMethod === 'DELETE' && path.match(/\/embeddings\/(action_embedding|exploration_embedding|policy_embedding)$/)) {
+        const matches = path.match(/\/embeddings\/(action_embedding|exploration_embedding|policy_embedding)$/);
+        const tableName = matches[1];
+        const { entity_id, embedding_type, model } = event.queryStringParameters || {};
+        
+        if (!entity_id) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'entity_id parameter is required' })
+          };
+        }
+        
+        try {
+          let whereConditions = [`entity_id = '${escapeLiteral(entity_id)}'`];
+          
+          if (embedding_type) {
+            whereConditions.push(`embedding_type = '${escapeLiteral(embedding_type)}'`);
+          }
+          
+          if (model) {
+            whereConditions.push(`model = '${escapeLiteral(model)}'`);
+          }
+          
+          const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
+          const sql = `DELETE FROM ${tableName} ${whereClause} RETURNING *;`;
+          
+          const result = await queryJSON(sql);
+          
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ 
+              deleted_count: result.length,
+              deleted_embeddings: result 
+            })
+          };
+        } catch (error) {
+          console.error(`Failed to delete embeddings from ${tableName}:`, error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to delete embeddings' })
+          };
+        }
+      }
+    }
+
+    // AI Content Generation endpoints
+    if (path.startsWith('/ai/')) {
+      // AI service health check
+      if (httpMethod === 'GET' && path.endsWith('/ai/health')) {
         return {
           statusCode: 200,
           headers,
-          body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
+          body: JSON.stringify({ 
+            status: 'ok', 
+            timestamp: new Date().toISOString(),
+            service: 'ai-content-generation'
+          })
         };
+      }
+
+      // AI service capabilities
+      if (httpMethod === 'GET' && path.endsWith('/ai/capabilities')) {
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            available_models: ['gpt-4', 'gpt-3.5-turbo'],
+            features: ['summary_policy_generation', 'exploration_suggestions', 'policy_draft_generation'],
+            rate_limits: {
+              requests_per_minute: 60,
+              tokens_per_minute: 10000
+            }
+          })
+        };
+      }
+
+      // Generate summary policy text
+      if (httpMethod === 'POST' && path.endsWith('/ai/generate-summary-policy')) {
+        const body = JSON.parse(event.body || '{}');
+        const { prompt, model = 'gpt-4', max_tokens = 500, temperature = 0.3, context } = body;
+        
+        if (!prompt) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'prompt is required' })
+          };
+        }
+
+        try {
+          // Mock AI response for now - replace with actual AI service call
+          const mockResponse = {
+            summary_policy_text: "Follow safety protocols, document all procedures, and report any issues immediately. Use appropriate PPE and ensure proper training before beginning work.",
+            key_points: [
+              "Follow established safety protocols",
+              "Document all procedures and outcomes", 
+              "Report issues immediately",
+              "Use appropriate PPE"
+            ],
+            safety_considerations: [
+              "Ensure proper training before work begins",
+              "Use appropriate personal protective equipment",
+              "Follow established safety procedures"
+            ]
+          };
+
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({
+              content: JSON.stringify(mockResponse),
+              confidence: 0.85,
+              model: model,
+              tokens_used: 150,
+              context_processed: context ? Object.keys(context).length : 0
+            })
+          };
+        } catch (error) {
+          console.error('Failed to generate summary policy:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to generate summary policy' })
+          };
+        }
+      }
+
+      // Generate exploration suggestions
+      if (httpMethod === 'POST' && path.endsWith('/ai/generate-exploration-suggestions')) {
+        const body = JSON.parse(event.body || '{}');
+        const { prompt, model = 'gpt-4', max_tokens = 800, temperature = 0.4, context } = body;
+        
+        if (!prompt) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'prompt is required' })
+          };
+        }
+
+        try {
+          // Mock AI response for now - replace with actual AI service call
+          const mockResponse = {
+            exploration_notes_text: "Document the effectiveness of the new irrigation method by comparing water usage, crop yield, and soil moisture levels. Record environmental conditions, timing of application, and any observed differences in plant health or growth patterns.",
+            metrics_text: "Water consumption (L/m²), Crop yield (kg/m²), Soil moisture levels (%), Time to completion (hours), Resource efficiency ratio, Plant health score (1-10)",
+            suggested_measurements: [
+              "Water consumption per square meter",
+              "Crop yield comparison",
+              "Soil moisture retention",
+              "Time efficiency",
+              "Cost per unit area"
+            ],
+            comparison_areas: [
+              "Control area with traditional irrigation",
+              "Different soil types",
+              "Various weather conditions"
+            ],
+            documentation_tips: [
+              "Take before/after photos",
+              "Record weather conditions",
+              "Document timing and duration",
+              "Note any unexpected observations",
+              "Measure at consistent intervals"
+            ]
+          };
+
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({
+              content: JSON.stringify(mockResponse),
+              confidence: 0.78,
+              model: model,
+              tokens_used: 250,
+              context_processed: context ? Object.keys(context).length : 0
+            })
+          };
+        } catch (error) {
+          console.error('Failed to generate exploration suggestions:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to generate exploration suggestions' })
+          };
+        }
+      }
+
+      // Generate policy draft
+      if (httpMethod === 'POST' && path.endsWith('/ai/generate-policy-draft')) {
+        const body = JSON.parse(event.body || '{}');
+        const { prompt, model = 'gpt-4', max_tokens = 1000, temperature = 0.2, context } = body;
+        
+        if (!prompt) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'prompt is required' })
+          };
+        }
+
+        try {
+          // Mock AI response for now - replace with actual AI service call
+          const mockResponse = {
+            title: "Efficient Irrigation Implementation Policy",
+            description_text: "This policy establishes standard procedures for implementing and evaluating new irrigation methods based on field exploration results. It ensures consistent application of proven techniques while maintaining safety and documentation standards.",
+            key_procedures: [
+              "Conduct baseline measurements before implementation",
+              "Follow established safety protocols during installation",
+              "Document all procedures and measurements",
+              "Compare results with control areas",
+              "Submit detailed reports within 48 hours"
+            ],
+            safety_requirements: [
+              "Use appropriate PPE including gloves and eye protection",
+              "Ensure proper training on equipment before use",
+              "Maintain safe distances from electrical components",
+              "Follow lockout/tagout procedures for equipment maintenance"
+            ],
+            documentation_requirements: [
+              "Record all measurements with timestamps",
+              "Take photos of before/during/after conditions",
+              "Document weather conditions and environmental factors",
+              "Submit reports using standardized forms",
+              "Maintain equipment maintenance logs"
+            ],
+            effective_conditions: [
+              "When implementing new irrigation methods",
+              "For areas with similar soil and climate conditions",
+              "With properly trained personnel",
+              "When adequate resources and equipment are available"
+            ]
+          };
+
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({
+              content: JSON.stringify(mockResponse),
+              confidence: 0.82,
+              model: model,
+              tokens_used: 350,
+              context_processed: context ? Object.keys(context).length : 0
+            })
+          };
+        } catch (error) {
+          console.error('Failed to generate policy draft:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to generate policy draft' })
+          };
+        }
+      }
+
+      // Generate embedding (for AI service integration)
+      if (httpMethod === 'POST' && path.endsWith('/ai/generate-embedding')) {
+        const body = JSON.parse(event.body || '{}');
+        const { text, model = 'text-embedding-3-small' } = body;
+        
+        if (!text) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'text is required' })
+          };
+        }
+
+        try {
+          // Mock embedding generation - replace with actual AI service call
+          const dimensions = model === 'text-embedding-3-large' ? 3072 : 1536;
+          const mockEmbedding = Array.from({ length: dimensions }, () => Math.random() * 2 - 1);
+
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({
+              embedding: mockEmbedding,
+              model: model,
+              usage: {
+                prompt_tokens: text.length / 4, // Rough estimate
+                total_tokens: text.length / 4
+              }
+            })
+          };
+        } catch (error) {
+          console.error('Failed to generate embedding:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to generate embedding' })
+          };
+        }
       }
     }
 

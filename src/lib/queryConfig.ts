@@ -16,6 +16,5 @@ export const offlineQueryConfig = {
 
 export const offlineMutationConfig = {
   networkMode: 'always' as const, // Execute mutations even when offline
-  retry: 3,
-  retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
+  retry: 0, // Disable retries - fail fast so user sees actual error
 };

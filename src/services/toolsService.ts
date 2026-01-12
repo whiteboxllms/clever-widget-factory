@@ -1,4 +1,4 @@
-import { apiService, getApiData } from '@/lib/apiService';
+import { apiService, getApiData } from '../lib/apiService';
 import { Tool } from '@/hooks/tools/useToolsData';
 
 export const toolsService = {

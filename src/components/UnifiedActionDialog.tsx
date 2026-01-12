@@ -28,7 +28,7 @@ import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { apiService, getApiData } from '@/lib/apiService';
 import { missionsQueryKey, actionImplementationUpdatesQueryKey } from '@/lib/queryKeys';
 import { ImplementationUpdate } from '@/types/actions';
-import { 
+import {
   Paperclip, 
   Calendar as CalendarIcon, 
   Plus,
@@ -41,7 +41,9 @@ import {
   CheckCircle,
   Target,
   Flag,
-  Copy
+  Copy,
+  Sparkles,
+  Search
 } from "lucide-react";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useAuth } from "@/hooks/useCognitoAuth";
@@ -55,6 +57,9 @@ import { cn, sanitizeRichText, getActionBorderStyle } from "@/lib/utils";
 import { BaseAction, Profile, ActionCreationContext } from "@/types/actions";
 import { autoCheckinToolsForAction, activatePlannedCheckoutsIfNeeded } from '@/lib/autoToolCheckout';
 import { generateActionUrl, copyToClipboard } from "@/lib/urlUtils";
+import { explorationService } from "@/services/explorationService";
+import { aiContentService } from "@/services/aiContentService";
+import { ExplorationTab } from "./ExplorationTab";
 
 interface UnifiedActionDialogProps {
   open: boolean;
@@ -235,6 +240,25 @@ export function UnifiedActionDialog({
   const [isLocalUploading, setIsLocalUploading] = useState(false);
   // Track when uploads just completed to prevent accidental closes immediately after
   const uploadJustCompletedRef = useRef(false);
+  
+  // Exploration-related state
+  const [isExploration, setIsExploration] = useState(false);
+  const [explorationCode, setExplorationCode] = useState('');
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [hasExplorationData, setHasExplorationData] = useState(false);
+  const [checkingExploration, setCheckingExploration] = useState(false);
+  const [codeValidationState, setCodeValidationState] = useState<{
+    isValid: boolean;
+    isUnique: boolean;
+    isChecking: boolean;
+    message: string;
+  }>({
+    isValid: true,
+    isUnique: true,
+    isChecking: false,
+    message: ''
+  });
 
   const preferName = (value?: string | null) => {
     if (!value) return null;
@@ -318,6 +342,12 @@ export function UnifiedActionDialog({
             }
             return prev;
           });
+          
+          // Initialize exploration state from action
+          const hasExploration = !!(action as any).is_exploration;
+          setIsExploration(hasExploration);
+          setExplorationCode((action as any).exploration_code || '');
+          
           // Initialize implementation update count from action
           setImplementationUpdateCount(action.implementation_update_count || 0);
           if (action.estimated_duration) {
@@ -356,6 +386,11 @@ export function UnifiedActionDialog({
             required_stock: [],
             attachments: []
           });
+          
+          // Initialize exploration state for new actions
+          setIsExploration(false);
+          setExplorationCode('');
+          
           // Don't set default estimated completion date - explicitly set to undefined
           setEstimatedDate(undefined);
         }
@@ -433,6 +468,29 @@ export function UnifiedActionDialog({
       setImplementationUpdateCount(0);
     }
   }, [action?.id, action?.implementation_update_count]);
+
+  // Check if action has exploration data
+  useEffect(() => {
+    const checkExplorationData = async () => {
+      if (!action?.id || isCreating) {
+        setHasExplorationData(false);
+        return;
+      }
+
+      try {
+        setCheckingExploration(true);
+        const exploration = await explorationService.getExplorationByActionId(action.id);
+        setHasExplorationData(!!exploration);
+      } catch (error) {
+        console.error('Error checking exploration data:', error);
+        setHasExplorationData(false);
+      } finally {
+        setCheckingExploration(false);
+      }
+    };
+
+    checkExplorationData();
+  }, [action?.id, isCreating]);
 
   const getDialogTitle = () => {
     // If we have an actionId, we're editing (even if action not in cache yet)
@@ -612,6 +670,170 @@ export function UnifiedActionDialog({
     }
   };
 
+  // Handle exploration checkbox change
+  const handleExplorationToggle = async (checked: boolean) => {
+    setIsExploration(checked);
+    
+    if (checked && !explorationCode) {
+      // Auto-generate exploration code when checkbox is checked
+      await generateExplorationCode();
+    }
+    
+    if (!checked) {
+      // Clear exploration fields when unchecked
+      setExplorationCode('');
+      setCodeValidationState({
+        isValid: true,
+        isUnique: true,
+        isChecking: false,
+        message: ''
+      });
+    }
+  };
+
+  // Generate exploration code
+  const generateExplorationCode = async () => {
+    setIsGeneratingCode(true);
+    try {
+      const code = await explorationService.generateExplorationCode(new Date());
+      setExplorationCode(code);
+      // Validate the generated code
+      await validateExplorationCode(code);
+    } catch (error) {
+      console.error('Error generating exploration code:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate exploration code",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingCode(false);
+    }
+  };
+
+  // Validate exploration code format and uniqueness
+  const validateExplorationCode = async (code: string) => {
+    if (!code) {
+      setCodeValidationState({
+        isValid: true,
+        isUnique: true,
+        isChecking: false,
+        message: ''
+      });
+      return;
+    }
+
+    setCodeValidationState(prev => ({ ...prev, isChecking: true }));
+
+    try {
+      // Check format first
+      const formatRegex = /^[A-Z]{2}\d{6}[A-Z]{2}\d{2,}$/;
+      const isValidFormat = formatRegex.test(code);
+
+      if (!isValidFormat) {
+        setCodeValidationState({
+          isValid: false,
+          isUnique: true,
+          isChecking: false,
+          message: 'Invalid format. Expected: SF<mmddyy><SUFFIX><number> (e.g., SF010126EX01 or SF122925CT01)'
+        });
+        return;
+      }
+
+      // Format is valid - now check uniqueness via backend
+      const codeExists = await explorationService.codeExists(code);
+      
+      if (codeExists) {
+        setCodeValidationState({
+          isValid: true,
+          isUnique: false,
+          isChecking: false,
+          message: 'This exploration code already exists'
+        });
+      } else {
+        setCodeValidationState({
+          isValid: true,
+          isUnique: true,
+          isChecking: false,
+          message: 'Code is valid and unique'
+        });
+      }
+    } catch (error) {
+      console.error('Error validating exploration code:', error);
+      // If validation fails, allow the code but warn the user
+      setCodeValidationState({
+        isValid: true,
+        isUnique: true,
+        isChecking: false,
+        message: 'Unable to validate uniqueness'
+      });
+    }
+  };
+
+  // Handle exploration code input change with debounced validation
+  const handleExplorationCodeChange = (value: string) => {
+    setExplorationCode(value);
+    
+    // Debounce validation to avoid too many API calls
+    const timeoutId = setTimeout(() => {
+      validateExplorationCode(value);
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  };
+
+  // Generate AI summary policy text
+  const generateAISummaryPolicy = async () => {
+    if (!formData.description && !formData.policy) {
+      toast({
+        title: "Missing Information",
+        description: "Please add a description or policy text first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsGeneratingAI(true);
+    try {
+      const response = await aiContentService.generateSummaryPolicy({
+        state_text: formData.description || '',
+        policy_text: formData.policy || '',
+        action_context: {
+          title: formData.title,
+          assigned_to: formData.assigned_to || undefined,
+          priority: 'normal' // Could be enhanced with actual priority field
+        }
+      });
+
+      if (response?.content?.summary_policy_text) {
+        // Update the Action Policy field with the generated text
+        setFormData(prev => ({ 
+          ...prev, 
+          policy: response.content.summary_policy_text 
+        }));
+        toast({
+          title: "AI Suggestion Generated",
+          description: "Action policy has been updated with AI-generated content. You can edit it as needed.",
+        });
+      } else {
+        toast({
+          title: "AI Unavailable",
+          description: "AI service is currently unavailable. Please enter the policy manually.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error generating AI summary:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate AI summary",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
   const processStockConsumption = async (requiredStock: any[], actionId: string) => {
     if (!requiredStock || requiredStock.length === 0) {
       return; // No stock to process
@@ -764,6 +986,27 @@ export function UnifiedActionDialog({
       return;
     }
 
+    // Validate exploration fields if exploration is enabled
+    if (isExploration) {
+      if (!explorationCode.trim()) {
+        toast({
+          title: "Error",
+          description: "Please enter an exploration code",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (!codeValidationState.isValid || !codeValidationState.isUnique) {
+        toast({
+          title: "Error",
+          description: "Please fix the exploration code issues before saving",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     
     try {
@@ -797,7 +1040,10 @@ export function UnifiedActionDialog({
         policy_agreed_at: formData.policy_agreed_at || null,
         policy_agreed_by: formData.policy_agreed_by || null,
         created_by: isCreating || !action?.id ? userId : action.created_by || userId,
-        updated_by: userId
+        updated_by: userId,
+        // Exploration fields
+        is_exploration: isExploration,
+        exploration_code: isExploration ? explorationCode : null
       };
       
       // Debug logging for attachment updates
@@ -960,6 +1206,89 @@ export function UnifiedActionDialog({
               placeholder="Short description of what must be done"
               className="mt-1"
             />
+          </div>
+
+          {/* Exploration Fields */}
+          <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+            <div className="flex items-center space-x-3">
+              <Switch
+                id="is-exploration"
+                checked={isExploration}
+                onCheckedChange={handleExplorationToggle}
+              />
+              <Label htmlFor="is-exploration" className="text-sm font-medium">
+                This is an exploration action
+              </Label>
+            </div>
+            
+            {isExploration && (
+              <div className="space-y-4 pl-6 border-l-2 border-primary/20">
+                {/* Exploration Code */}
+                <div>
+                  <Label htmlFor="explorationCode" className="text-sm font-medium">
+                    Exploration Code
+                  </Label>
+                  <div className="flex gap-2 mt-1">
+                    <div className="flex-1 relative">
+                      <Input
+                        id="explorationCode"
+                        value={explorationCode}
+                        onChange={(e) => handleExplorationCodeChange(e.target.value)}
+                        placeholder="SF010125EX001"
+                        className={cn(
+                          "pr-8",
+                          !codeValidationState.isValid && "border-red-500",
+                          codeValidationState.isValid && !codeValidationState.isUnique && "border-yellow-500",
+                          codeValidationState.isValid && codeValidationState.isUnique && explorationCode && "border-green-500"
+                        )}
+                      />
+                      {/* Validation indicator */}
+                      <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                        {codeValidationState.isChecking ? (
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        ) : explorationCode && codeValidationState.isValid && codeValidationState.isUnique ? (
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        ) : explorationCode && (!codeValidationState.isValid || !codeValidationState.isUnique) ? (
+                          <AlertCircle className="h-4 w-4 text-red-500" />
+                        ) : null}
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={generateExplorationCode}
+                      disabled={isGeneratingCode}
+                      className="px-3"
+                      title="Generate new code"
+                    >
+                      {isGeneratingCode ? (
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                      ) : (
+                        <Search className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <div className="mt-1 space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                      Format: SF&lt;mmddyy&gt;&lt;SUFFIX&gt;&lt;number&gt; (e.g., SF010126EX01, SF122925CT01)
+                    </p>
+                    {explorationCode && codeValidationState.message && (
+                      <p className={cn(
+                        "text-xs",
+                        !codeValidationState.isValid && "text-red-500",
+                        codeValidationState.isValid && !codeValidationState.isUnique && "text-yellow-600",
+                        codeValidationState.isValid && codeValidationState.isUnique && "text-green-600"
+                      )}>
+                        {codeValidationState.message}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+
+              </div>
+            )}
           </div>
 
           {/* Description */}
@@ -1192,14 +1521,34 @@ export function UnifiedActionDialog({
 
           {/* Rich Text Content */}
           <Tabs value={activeTab || getDefaultTab()} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className={`grid w-full ${hasExplorationData ? 'grid-cols-3' : 'grid-cols-2'}`}>
               <TabsTrigger value="plan">Policy</TabsTrigger>
               <TabsTrigger value="observations">Implementation</TabsTrigger>
+              {hasExplorationData && (
+                <TabsTrigger value="exploration">Exploration</TabsTrigger>
+              )}
             </TabsList>
             
             <TabsContent value="plan" className="mt-4">
               <div>
-                <Label className="text-foreground">Action Policy</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-foreground">Action Policy</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={generateAISummaryPolicy}
+                    disabled={isGeneratingAI || (!formData.description && !formData.policy)}
+                    className="h-7 px-2 text-xs"
+                  >
+                    {isGeneratingAI ? (
+                      <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent mr-1" />
+                    ) : (
+                      <Sparkles className="h-3 w-3 mr-1" />
+                    )}
+                    AI Assist
+                  </Button>
+                </div>
                 <div className="mt-2 border rounded-lg">
                  <TiptapEditor
                    key={`plan-${action?.id || 'new'}`}
@@ -1230,6 +1579,28 @@ export function UnifiedActionDialog({
                 </div>
               )}
             </TabsContent>
+
+            {hasExplorationData && (
+              <TabsContent value="exploration" className="mt-4">
+                {action?.id ? (
+                  <ExplorationTab
+                    action={action}
+                    onUpdate={() => {
+                      // Refresh exploration data check after updates
+                      if (action?.id) {
+                        explorationService.getExplorationByActionId(action.id)
+                          .then(exploration => setHasExplorationData(!!exploration))
+                          .catch(() => setHasExplorationData(false));
+                      }
+                    }}
+                  />
+                ) : (
+                  <div className="text-center text-muted-foreground py-8">
+                    <p>Save the action first to view exploration data</p>
+                  </div>
+                )}
+              </TabsContent>
+            )}
           </Tabs>
 
           {/* Attachments */}

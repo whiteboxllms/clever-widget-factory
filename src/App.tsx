@@ -28,6 +28,7 @@ import CheckIn from "./pages/CheckIn";
 import Missions from "./pages/Missions";
 import EditMission from "./pages/EditMission";
 import Actions from "./pages/Actions";
+import Explorations from "./pages/Explorations";
 import Issues from "./pages/Issues";
 import Audit from "./pages/Audit";
 import AuditTool from "./pages/AuditTool";
@@ -157,6 +158,14 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <Actions />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/explorations"
+          element={
+            <ProtectedRoute>
+              <Explorations />
             </ProtectedRoute>
           }
         />

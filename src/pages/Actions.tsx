@@ -357,10 +357,12 @@ export default function Actions() {
     });
   
   // Use active profiles for assignee filter options
-  const assigneeOptions = profiles.map(profile => ({
-    user_id: profile.user_id,
-    full_name: profile.full_name
-  }));
+  const assigneeOptions = profiles
+    .filter(profile => profile.is_active !== false)
+    .map(profile => ({
+      user_id: profile.user_id,
+      full_name: profile.full_name
+    }));
 
   if (loading) {
     return (

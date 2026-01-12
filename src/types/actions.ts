@@ -12,6 +12,15 @@ export interface BaseAction {
   updated_at: string;
   completed_at?: string | null;
   
+  // Exploration flag - authoritative indicator
+  is_exploration?: boolean;
+  
+  // Exploration-related fields (logical field mappings)
+  state_text?: string; // Maps to description field
+  policy_text?: string; // Maps to policy field
+  summary_policy_text?: string; // New field for per-action synthesis
+  policy_id?: number; // Foreign key to policy table
+  
   // Parent relationship fields - only one should be set
   mission_id?: string | null;
   asset_id?: string | null;
@@ -84,7 +93,10 @@ export const createMissionAction = (missionId: string): Partial<BaseAction> => (
   status: 'not_started',
   title: '',
   description: '',
+  state_text: '', // Logical field mapping
   policy: '',
+  policy_text: '', // Logical field mapping
+  summary_policy_text: '',
   observations: '',
   assigned_to: null,
   participants: [],
@@ -101,15 +113,18 @@ export const createIssueAction = (
   linked_issue_id: issueId,
   status: 'not_started',
   title: '',
-  description: issueDescription || '', // Use the combined text passed in
+  description: issueDescription || '',
+  state_text: issueDescription || '', // Logical field mapping
   policy: '',
+  policy_text: '', // Logical field mapping
+  summary_policy_text: '',
   observations: '',
   assigned_to: null,
   participants: [],
   required_tools: toolId ? [toolId] : [],
   required_stock: [],
   attachments: [],
-  issue_reference: issueDescription ? `Issue: ${issueDescription.split('\n')[0]}` : null // Use first line for reference
+  issue_reference: issueDescription ? `Issue: ${issueDescription.split('\n')[0]}` : null
 });
 
 export const createAssetAction = (assetId: string): Partial<BaseAction> => ({
@@ -117,13 +132,33 @@ export const createAssetAction = (assetId: string): Partial<BaseAction> => ({
   status: 'not_started',
   title: '',
   description: '',
+  state_text: '', // Logical field mapping
   policy: '',
+  policy_text: '', // Logical field mapping
+  summary_policy_text: '',
   observations: '',
   assigned_to: null,
   participants: [],
   required_tools: [],
   required_stock: [],
   attachments: []
+});
+
+export const createExplorationAction = (): Partial<BaseAction> => ({
+  status: 'not_started',
+  title: '',
+  description: '',
+  state_text: '', // What situation/problem/context are you exploring?
+  policy: '',
+  policy_text: '', // What policy/best practice are you following?
+  summary_policy_text: '', // AI-assisted synthesis of how this should be done
+  observations: '',
+  assigned_to: null,
+  participants: [],
+  required_tools: [],
+  required_stock: [],
+  attachments: [],
+  is_exploration: true // Mark as exploration
 });
 
 // Validation helpers
@@ -154,4 +189,15 @@ export interface ImplementationUpdate {
     user_id: string;
     favorite_color?: string | null;
   };
+}
+
+export interface Exploration {
+  id: number;
+  action_id: string;
+  exploration_code: string;
+  exploration_notes_text?: string;
+  metrics_text?: string;
+  public_flag: boolean;
+  created_at: string;
+  updated_at: string;
 }

@@ -18,6 +18,15 @@ export default function Dashboard() {
   const { user, signOut, isAdmin, isLeadership, idToken } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
   const { organization, loading: orgLoading } = useOrganization();
+
+  // Debug logging to understand permission state
+  console.log('Dashboard permissions:', {
+    isAdmin,
+    isLeadership,
+    isSuperAdmin,
+    user: user?.userId,
+    loading: orgLoading
+  });
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -188,6 +197,13 @@ export default function Dashboard() {
       color: "bg-yellow-500"
     },
     {
+      title: "Explorations",
+      description: "Review and manage exploration data",
+      icon: Search,
+      path: "/explorations",
+      color: "bg-purple-500"
+    },
+    {
       title: "Stargazer Projects",
       description: "Manage objectives and track progress",
       icon: Flag,
@@ -267,12 +283,16 @@ export default function Dashboard() {
       <main className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {menuItems.filter(item => {
-            // Show all items initially - permissions will filter as they load
-            // This allows immediate interaction while auth/permissions load in background
-            if (item.path === "/dashboard/analytics") return isLeadership ?? false;
-            if (item.path === "/organization") return isLeadership ?? false;
-            if (item.path === "/admin/organizations") return isSuperAdmin ?? false;
-            return true;
+            // Show items based on permissions, but show all basic items while permissions load
+            const shouldShow = (() => {
+              if (item.path === "/dashboard/analytics") return isLeadership;
+              if (item.path === "/organization") return isLeadership;
+              if (item.path === "/admin/organizations") return isSuperAdmin;
+              return true; // Show all other items (Assets, Actions, Explorations, etc.)
+            })();
+            
+            console.log(`Menu item ${item.title} (${item.path}): shouldShow=${shouldShow}, isLeadership=${isLeadership}, isSuperAdmin=${isSuperAdmin}`);
+            return shouldShow;
           }).map((item) => {
             const Icon = item.icon;
             return (

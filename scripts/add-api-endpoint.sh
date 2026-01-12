@@ -59,14 +59,43 @@ else
 fi
 
 # Add integration
-echo "Adding Lambda integration..."
-aws apigateway put-integration \
-  --rest-api-id $API_ID \
-  --resource-id $RESOURCE_ID \
-  --http-method $METHOD \
-  --type AWS_PROXY \
-  --integration-http-method POST \
-  --uri "arn:aws:apigateway:$REGION:lambda:path/2015-03-31/functions/$LAMBDA_ARN/invocations" \
-  --region $REGION || echo "Integration already exists"
+if [ "$METHOD" != "OPTIONS" ]; then
+  echo "Adding Lambda integration..."
+  aws apigateway put-integration \
+    --rest-api-id $API_ID \
+    --resource-id $RESOURCE_ID \
+    --http-method $METHOD \
+    --type AWS_PROXY \
+    --integration-http-method POST \
+    --uri "arn:aws:apigateway:$REGION:lambda:path/2015-03-31/functions/$LAMBDA_ARN/invocations" \
+    --region $REGION || echo "Integration already exists"
+else
+  echo "Adding MOCK integration for OPTIONS..."
+  aws apigateway put-integration \
+    --rest-api-id $API_ID \
+    --resource-id $RESOURCE_ID \
+    --http-method OPTIONS \
+    --type MOCK \
+    --request-templates '{"application/json": "{\"statusCode\": 200}"}' \
+    --region $REGION || echo "Integration already exists"
+  
+  # Add method response for CORS
+  aws apigateway put-method-response \
+    --rest-api-id $API_ID \
+    --resource-id $RESOURCE_ID \
+    --http-method OPTIONS \
+    --status-code 200 \
+    --response-parameters '{"method.response.header.Access-Control-Allow-Headers":false,"method.response.header.Access-Control-Allow-Methods":false,"method.response.header.Access-Control-Allow-Origin":false}' \
+    --region $REGION || echo "Method response already exists"
+  
+  # Add integration response for CORS
+  aws apigateway put-integration-response \
+    --rest-api-id $API_ID \
+    --resource-id $RESOURCE_ID \
+    --http-method OPTIONS \
+    --status-code 200 \
+    --response-parameters method.response.header.Access-Control-Allow-Headers="'Content-Type,Authorization'",method.response.header.Access-Control-Allow-Methods="'GET,POST,PUT,DELETE,OPTIONS'",method.response.header.Access-Control-Allow-Origin="'*'" \
+    --region $REGION || echo "Integration response already exists"
+fi
 
 echo "✅ Done! Deploy with: aws apigateway create-deployment --rest-api-id $API_ID --stage-name prod --region $REGION"

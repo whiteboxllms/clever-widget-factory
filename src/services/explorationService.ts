@@ -20,6 +20,7 @@ export interface CreateExplorationRequest {
 }
 
 export interface UpdateExplorationRequest {
+  exploration_code?: string;
   exploration_notes_text?: string;
   metrics_text?: string;
   public_flag?: boolean;
@@ -105,7 +106,7 @@ export class ExplorationService {
   }
 
   /**
-   * Update an existing exploration
+   * Update an existing exploration by ID
    * @param id - Exploration ID
    * @param data - Exploration update data
    * @returns Promise<ExplorationResponse> - The updated exploration
@@ -139,6 +140,43 @@ export class ExplorationService {
   }
 
   /**
+   * Update an existing exploration by action ID
+   * @param actionId - Action ID
+   * @param data - Exploration update data (can include exploration_code)
+   * @returns Promise<ExplorationResponse> - The updated exploration
+   */
+  async updateExplorationByActionId(actionId: string, data: UpdateExplorationRequest): Promise<ExplorationResponse> {
+    try {
+      const response = await apiService.put('/explorations', {
+        action_id: actionId,
+        ...data
+      });
+      const result = response.data || response;
+
+      // Enqueue embedding jobs if text fields were updated
+      const hasTextUpdates = data.exploration_notes_text !== undefined || 
+                           data.metrics_text !== undefined;
+      
+      if (hasTextUpdates) {
+        try {
+          await embeddingQueue.enqueueExplorationEmbeddings(result.id.toString(), {
+            exploration_notes_text: result.exploration_notes_text,
+            metrics_text: result.metrics_text
+          });
+        } catch (embeddingError) {
+          console.warn('Failed to enqueue exploration embeddings after update:', embeddingError);
+          // Don't fail the update if embedding fails
+        }
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error updating exploration by action ID:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get an exploration by ID
    * @param id - Exploration ID
    * @returns Promise<ExplorationResponse> - The exploration
@@ -161,8 +199,20 @@ export class ExplorationService {
   async getExplorationByActionId(actionId: string): Promise<ExplorationResponse | null> {
     try {
       const response = await apiService.get(`/explorations?action_id=${actionId}`);
-      const explorations = response.data || response || [];
-      return explorations.length > 0 ? explorations[0] : null;
+      console.log('getExplorationByActionId response:', response);
+      
+      // Handle both { data: [...] } and direct array responses
+      let explorations = Array.isArray(response) ? response : (response.data || response || []);
+      
+      console.log('Parsed explorations:', explorations);
+      
+      if (Array.isArray(explorations) && explorations.length > 0) {
+        console.log('Returning exploration:', explorations[0]);
+        return explorations[0];
+      }
+      
+      console.log('No exploration found for action:', actionId);
+      return null;
     } catch (error) {
       console.error('Error fetching exploration by action ID:', error);
       return null;

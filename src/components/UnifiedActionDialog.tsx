@@ -26,7 +26,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { apiService, getApiData } from '@/lib/apiService';
-import { missionsQueryKey, actionImplementationUpdatesQueryKey } from '@/lib/queryKeys';
+import { missionsQueryKey, actionImplementationUpdatesQueryKey, explorationByActionIdQueryKey } from '@/lib/queryKeys';
 import { ImplementationUpdate } from '@/types/actions';
 import {
   Paperclip, 
@@ -345,8 +345,10 @@ export function UnifiedActionDialog({
           
           // Initialize exploration state from action
           const hasExploration = !!(action as any).is_exploration;
+          console.log('Action has exploration flag:', hasExploration, 'Action ID:', action.id);
           setIsExploration(hasExploration);
-          setExplorationCode((action as any).exploration_code || '');
+          // Exploration code will be loaded via React Query hook above
+          setExplorationCode('');
           
           // Initialize implementation update count from action
           setImplementationUpdateCount(action.implementation_update_count || 0);
@@ -450,6 +452,19 @@ export function UnifiedActionDialog({
     ...offlineQueryConfig,
   });
 
+  // Fetch exploration data if this is an exploration action
+  const explorationQueryEnabled = !!(action?.id && action?.is_exploration && open);
+  
+  const { data: explorationData } = useQuery({
+    queryKey: explorationByActionIdQueryKey(action?.id || ''),
+    queryFn: async () => {
+      if (!action?.id) return null;
+      return await explorationService.getExplorationByActionId(action.id);
+    },
+    enabled: explorationQueryEnabled,
+    ...offlineQueryConfig,
+  });
+
   // Find mission from cached data
   useEffect(() => {
     if (formData.mission_id && missions.length > 0) {
@@ -459,6 +474,35 @@ export function UnifiedActionDialog({
       setMissionData(null);
     }
   }, [formData.mission_id, missions]);
+
+  // Sync exploration code from query data
+  useEffect(() => {
+    console.log('Exploration data changed:', explorationData);
+    if (explorationData?.exploration_code) {
+      console.log('Setting exploration code from query:', explorationData.exploration_code);
+      setExplorationCode(explorationData.exploration_code);
+    } else if (explorationData && !explorationData.exploration_code) {
+      console.log('Exploration data exists but no code:', explorationData);
+    }
+  }, [explorationData]);
+
+  // Load exploration code when dialog opens with an exploration action
+  useEffect(() => {
+    if (open && action?.id && (action as any).is_exploration && !explorationCode) {
+      console.log('Loading exploration code for action:', action.id);
+      (async () => {
+        try {
+          const exploration = await explorationService.getExplorationByActionId(action.id);
+          if (exploration?.exploration_code) {
+            console.log('Loaded exploration code:', exploration.exploration_code);
+            setExplorationCode(exploration.exploration_code);
+          }
+        } catch (error) {
+          console.error('Error loading exploration code:', error);
+        }
+      })();
+    }
+  }, [open, action?.id]);
 
   // Sync implementation update count when action changes
   useEffect(() => {
@@ -723,24 +767,29 @@ export function UnifiedActionDialog({
       return;
     }
 
-    setCodeValidationState(prev => ({ ...prev, isChecking: true }));
+    // Check format first (synchronously)
+    const formatRegex = /^[A-Z]{2}\d{6}[A-Z]{2}\d{2,}$/;
+    const isValidFormat = formatRegex.test(code);
+
+    if (!isValidFormat) {
+      setCodeValidationState({
+        isValid: false,
+        isUnique: true,
+        isChecking: false,
+        message: 'Invalid format. Expected: SF<mmddyy><SUFFIX><number> (e.g., SF010126EX01 or SF122925CT01)'
+      });
+      return;
+    }
+
+    // Format is valid - now check uniqueness via backend (show yellow while checking)
+    setCodeValidationState({
+      isValid: true,
+      isUnique: true,
+      isChecking: true,
+      message: 'Validating...'
+    });
 
     try {
-      // Check format first
-      const formatRegex = /^[A-Z]{2}\d{6}[A-Z]{2}\d{2,}$/;
-      const isValidFormat = formatRegex.test(code);
-
-      if (!isValidFormat) {
-        setCodeValidationState({
-          isValid: false,
-          isUnique: true,
-          isChecking: false,
-          message: 'Invalid format. Expected: SF<mmddyy><SUFFIX><number> (e.g., SF010126EX01 or SF122925CT01)'
-        });
-        return;
-      }
-
-      // Format is valid - now check uniqueness via backend
       const codeExists = await explorationService.codeExists(code);
       
       if (codeExists) {
@@ -769,6 +818,40 @@ export function UnifiedActionDialog({
       });
     }
   };
+
+  // Auto-save exploration code when it's valid and unique
+  useEffect(() => {
+    const autoSaveExplorationCode = async () => {
+      if (
+        action?.id &&
+        isExploration &&
+        explorationCode &&
+        codeValidationState.isValid &&
+        codeValidationState.isUnique &&
+        !codeValidationState.isChecking
+      ) {
+        try {
+          console.log('Auto-saving exploration code:', explorationCode);
+          const existingExploration = await explorationService.getExplorationByActionId(action.id);
+          
+          if (existingExploration && existingExploration.exploration_code !== explorationCode) {
+            console.log('Updating exploration code from', existingExploration.exploration_code, 'to', explorationCode);
+            await explorationService.updateExplorationByActionId(action.id, {
+              exploration_code: explorationCode
+            });
+            console.log('Exploration code saved successfully');
+            
+            // Invalidate the exploration query cache so it reloads with the new code
+            queryClient.invalidateQueries({ queryKey: explorationByActionIdQueryKey(action.id) });
+          }
+        } catch (error) {
+          console.error('Error auto-saving exploration code:', error);
+        }
+      }
+    };
+
+    autoSaveExplorationCode();
+  }, [explorationCode, codeValidationState.isValid, codeValidationState.isUnique, codeValidationState.isChecking, action?.id, isExploration, queryClient]);
 
   // Handle exploration code input change with debounced validation
   const handleExplorationCodeChange = (value: string) => {
@@ -1041,9 +1124,8 @@ export function UnifiedActionDialog({
         policy_agreed_by: formData.policy_agreed_by || null,
         created_by: isCreating || !action?.id ? userId : action.created_by || userId,
         updated_by: userId,
-        // Exploration fields
-        is_exploration: isExploration,
-        exploration_code: isExploration ? explorationCode : null
+        // Exploration flag only (code stored in exploration table)
+        is_exploration: isExploration
       };
       
       // Debug logging for attachment updates
@@ -1059,7 +1141,36 @@ export function UnifiedActionDialog({
 
 
 
-      await saveActionMutation.mutateAsync(isCreating || !action?.id ? actionData : { ...actionData, id: action.id });
+      const savedAction = await saveActionMutation.mutateAsync(isCreating || !action?.id ? actionData : { ...actionData, id: action.id });
+      
+      // Create or update exploration record if this is an exploration action
+      if (isExploration && explorationCode && savedAction?.id) {
+        console.log('Saving exploration code:', explorationCode, 'for action:', savedAction.id);
+        try {
+          // Check if exploration already exists
+          const existingExploration = await explorationService.getExplorationByActionId(savedAction.id);
+          console.log('Existing exploration:', existingExploration);
+          if (!existingExploration) {
+            console.log('Creating new exploration');
+            await explorationService.createExploration({
+              action_id: savedAction.id,
+              exploration_code: explorationCode,
+              public_flag: false
+            });
+          } else {
+            // Update existing exploration with new code
+            console.log('Updating existing exploration with code:', explorationCode);
+            await explorationService.updateExplorationByActionId(savedAction.id, {
+              exploration_code: explorationCode
+            });
+          }
+        } catch (error) {
+          console.error('Error creating/updating exploration record:', error);
+          // Don't fail the action save if exploration creation fails
+        }
+      } else {
+        console.log('Not saving exploration - isExploration:', isExploration, 'explorationCode:', explorationCode, 'savedAction?.id:', savedAction?.id);
+      }
     } catch (error) {
       // Error handled by mutation onError
     } finally {
@@ -1238,18 +1349,19 @@ export function UnifiedActionDialog({
                         className={cn(
                           "pr-8",
                           !codeValidationState.isValid && "border-red-500",
-                          codeValidationState.isValid && !codeValidationState.isUnique && "border-yellow-500",
-                          codeValidationState.isValid && codeValidationState.isUnique && explorationCode && "border-green-500"
+                          codeValidationState.isChecking && "border-yellow-500",
+                          !codeValidationState.isChecking && codeValidationState.isValid && !codeValidationState.isUnique && "border-yellow-500",
+                          !codeValidationState.isChecking && codeValidationState.isValid && codeValidationState.isUnique && explorationCode && "border-green-500"
                         )}
                       />
                       {/* Validation indicator */}
                       <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
                         {codeValidationState.isChecking ? (
-                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-yellow-500 border-t-transparent" />
                         ) : explorationCode && codeValidationState.isValid && codeValidationState.isUnique ? (
                           <CheckCircle className="h-4 w-4 text-green-500" />
                         ) : explorationCode && (!codeValidationState.isValid || !codeValidationState.isUnique) ? (
-                          <AlertCircle className="h-4 w-4 text-red-500" />
+                          <AlertCircle className="h-4 w-4 text-yellow-500" />
                         ) : null}
                       </div>
                     </div>

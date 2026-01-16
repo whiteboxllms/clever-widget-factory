@@ -2,6 +2,11 @@ export const actionsQueryKey = () => ['actions'];
 export const actionQueryKey = (actionId: string) => ['action', actionId];
 export const actionImplementationUpdatesQueryKey = (actionId: string) => ['action_implementation_updates', actionId];
 
+// Exploration query keys
+export const explorationsQueryKey = () => ['explorations'];
+export const explorationQueryKey = (explorationId: number) => ['exploration', explorationId];
+export const explorationByActionIdQueryKey = (actionId: string) => ['exploration_by_action', actionId];
+
 export const toolsQueryKey = () => ['tools'];
 
 export const checkoutsQueryKey = (isReturned?: boolean) => [

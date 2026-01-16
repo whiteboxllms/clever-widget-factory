@@ -1,0 +1,9 @@
+{
+  "name": "cwf-explorations-lambda",
+  "version": "1.0.0",
+  "description": "Lambda function for exploration CRUD operations",
+  "main": "index.js",
+  "dependencies": {
+    "pg": "^8.11.3"
+  }
+}

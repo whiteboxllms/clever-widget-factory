@@ -5,6 +5,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { offlineQueryConfig, offlineMutationConfig } from "@/lib/queryConfig";
 import { queryCachePersister, QUERY_CACHE_MAX_AGE } from "@/lib/queryPersistAdapter";
+import { setQueryClient } from "@/lib/apiService";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useCognitoAuth";
 import { OrganizationProvider } from "@/hooks/useOrganization";
@@ -67,6 +68,9 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Initialize apiService with query client for automatic cache updates
+setQueryClient(queryClient);
 
 function AppContent() {
   useSessionMonitor();

@@ -3,9 +3,26 @@
  * 
  * Automatically adds Authorization header with Cognito JWT token
  * Handles token refresh and error responses
+ * Automatically updates TanStack Query cache on mutations
  */
 
 import { fetchAuthSession } from 'aws-amplify/auth';
+import { QueryClient } from '@tanstack/react-query';
+import { 
+  toolsQueryKey, 
+  actionsQueryKey, 
+  issuesQueryKey,
+  missionsQueryKey,
+  partsOrdersQueryKey,
+  explorationsQueryKey
+} from './queryKeys';
+
+// Global query client instance for cache updates
+let globalQueryClient: QueryClient | null = null;
+
+export function setQueryClient(queryClient: QueryClient) {
+  globalQueryClient = queryClient;
+}
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -166,10 +183,83 @@ async function apiRequest<T = any>(
   // Parse response
   try {
     const data = await response.json();
+    
+    // Auto-update cache for mutations (POST, PUT, DELETE)
+    if (globalQueryClient && ['POST', 'PUT', 'DELETE'].includes(options.method || '')) {
+      updateCacheFromResponse(endpoint, options.method || '', data);
+    }
+    
     return data;
   } catch (error) {
     // If response is not JSON, return empty object
     return {} as T;
+  }
+}
+
+/**
+ * Automatically update TanStack Query cache based on API response
+ */
+function updateCacheFromResponse(endpoint: string, method: string, responseData: any) {
+  if (!globalQueryClient) return;
+  
+  // Extract the actual data (handle { data: ... } wrapper)
+  const data = responseData?.data || responseData;
+  if (!data) return;
+  
+  // Determine which cache to update based on endpoint
+  if (endpoint.includes('/tools')) {
+    if (method === 'POST') {
+      // Add new tool to cache
+      globalQueryClient.setQueryData(toolsQueryKey(), (old: any[] = []) => [...old, data]);
+    } else if (method === 'PUT') {
+      // Update existing tool in cache
+      globalQueryClient.setQueryData(toolsQueryKey(), (old: any[] = []) => 
+        old.map(item => item.id === data.id ? data : item)
+      );
+    } else if (method === 'DELETE') {
+      // Remove tool from cache
+      const toolId = endpoint.split('/').pop();
+      globalQueryClient.setQueryData(toolsQueryKey(), (old: any[] = []) => 
+        old.filter(item => item.id !== toolId)
+      );
+    }
+  } else if (endpoint.includes('/actions')) {
+    if (method === 'POST') {
+      globalQueryClient.setQueryData(actionsQueryKey(), (old: any[] = []) => [...old, data]);
+    } else if (method === 'PUT') {
+      globalQueryClient.setQueryData(actionsQueryKey(), (old: any[] = []) => 
+        old.map(item => item.id === data.id ? data : item)
+      );
+    } else if (method === 'DELETE') {
+      const actionId = endpoint.split('/').pop();
+      globalQueryClient.setQueryData(actionsQueryKey(), (old: any[] = []) => 
+        old.filter(item => item.id !== actionId)
+      );
+    }
+  } else if (endpoint.includes('/issues')) {
+    if (method === 'POST') {
+      globalQueryClient.setQueryData(issuesQueryKey(), (old: any[] = []) => [...old, data]);
+    } else if (method === 'PUT') {
+      globalQueryClient.setQueryData(issuesQueryKey(), (old: any[] = []) => 
+        old.map(item => item.id === data.id ? data : item)
+      );
+    }
+  } else if (endpoint.includes('/missions')) {
+    if (method === 'POST') {
+      globalQueryClient.setQueryData(missionsQueryKey(), (old: any[] = []) => [...old, data]);
+    } else if (method === 'PUT') {
+      globalQueryClient.setQueryData(missionsQueryKey(), (old: any[] = []) => 
+        old.map(item => item.id === data.id ? data : item)
+      );
+    }
+  } else if (endpoint.includes('/explorations') || endpoint.includes('/exploration')) {
+    if (method === 'POST') {
+      globalQueryClient.setQueryData(explorationsQueryKey(), (old: any[] = []) => [...old, data]);
+    } else if (method === 'PUT') {
+      globalQueryClient.setQueryData(explorationsQueryKey(), (old: any[] = []) => 
+        old.map(item => item.id === data.id ? data : item)
+      );
+    }
   }
 }
 

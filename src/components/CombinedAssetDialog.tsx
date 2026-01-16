@@ -111,6 +111,12 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
         await onSubmit(partData, false);
       }
 
+      // Show success toast first
+      toast({
+        title: "Success",
+        description: `${isAsset ? 'Asset' : 'Stock item'} added successfully`
+      });
+
       // Reset form
       setFormData({
         name: "",
@@ -128,11 +134,6 @@ export const CombinedAssetDialog = ({ isOpen, onClose, onSubmit, initialName = "
       });
       setUseMinimumQuantity(false);
       onClose();
-
-      toast({
-        title: "Success",
-        description: `${isAsset ? 'Asset' : 'Stock item'} added successfully`
-      });
     } catch (error: any) {
       console.error('Error adding item:', error);
       const errorMessage = error?.message || error?.error || 'Unknown error';

@@ -136,18 +136,12 @@ export class ActionService {
    */
   async updateAction(id: string, data: UpdateActionRequest): Promise<ActionResponse> {
     try {
-      // Get current action state to check for exploration flag changes
-      const currentAction = await this.getAction(id);
-      const wasExploration = currentAction.is_exploration;
+      // Handle exploration flag transitions
+      const wasExploration = data.is_exploration;
       const willBeExploration = data.is_exploration !== undefined ? data.is_exploration : wasExploration;
 
       // Handle exploration flag transitions
-      if (wasExploration && !willBeExploration) {
-        // Changing from exploration to non-exploration
-        // Database triggers will prevent this if exploration records exist
-        // The API should handle this gracefully or require explicit exploration deletion
-        console.warn(`Attempting to change action ${id} from exploration to non-exploration`);
-      } else if (!wasExploration && willBeExploration) {
+      if (willBeExploration && !wasExploration) {
         // Changing from non-exploration to exploration
         // We need to create an exploration record
         const explorationCode = data.exploration_code_override || 
@@ -220,45 +214,15 @@ export class ActionService {
   }
 
   /**
-   * Get an action by ID
-   * @param id - Action ID
-   * @returns Promise<ActionResponse> - The action
-   */
-  async getAction(id: string): Promise<ActionResponse> {
-    try {
-      const response = await apiService.get(`/actions/${id}`);
-      const action = response.data || response;
-
-      // Map response fields to logical names for consistency
-      return {
-        ...action,
-        state_text: action.description,
-        policy_text: action.policy,
-        summary_policy_text: action.summary_policy_text
-      };
-    } catch (error) {
-      console.error('Error fetching action:', error);
-      throw error;
-    }
-  }
-
-  /**
    * Generate AI-assisted summary policy text
    * @param actionId - Action ID
    * @returns Promise<string> - Generated summary policy text
    */
   async generateSummaryPolicy(actionId: string): Promise<string> {
     try {
-      // Get the action data first
-      const action = await this.getAction(actionId);
-      
       // Call AI service to generate summary policy
       const response = await apiService.post('/ai/generate-summary-policy', {
-        action_id: actionId,
-        state_text: action.state_text,
-        policy_text: action.policy_text,
-        title: action.title,
-        description: action.description
+        action_id: actionId
       });
 
       return response.summary_policy_text || response.data?.summary_policy_text || '';

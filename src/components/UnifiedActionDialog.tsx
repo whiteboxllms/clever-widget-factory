@@ -60,6 +60,7 @@ import { generateActionUrl, copyToClipboard } from "@/lib/urlUtils";
 import { explorationService } from "@/services/explorationService";
 import { aiContentService } from "@/services/aiContentService";
 import { ExplorationTab } from "./ExplorationTab";
+import { ExplorationAssociationDialog } from "./ExplorationAssociationDialog";
 
 interface UnifiedActionDialogProps {
   open: boolean;
@@ -248,6 +249,8 @@ export function UnifiedActionDialog({
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [hasExplorationData, setHasExplorationData] = useState(false);
   const [checkingExploration, setCheckingExploration] = useState(false);
+  const [showExplorationDialog, setShowExplorationDialog] = useState(false);
+  const [linkedExplorationIds, setLinkedExplorationIds] = useState<string[]>([]);
   const [codeValidationState, setCodeValidationState] = useState<{
     isValid: boolean;
     isUnique: boolean;
@@ -486,6 +489,29 @@ export function UnifiedActionDialog({
     }
   }, [explorationData]);
 
+  // Load linked explorations when action loads
+  useEffect(() => {
+    const loadLinkedExplorations = async () => {
+      if (!action?.id || !open) return;
+      
+      try {
+        const result = await apiService.get(`/explorations?action_id=${action.id}`);
+        const explorations = result.data || [];
+        const explorationIds = explorations.map((e: any) => e.id);
+        setLinkedExplorationIds(explorationIds);
+        
+        // Also set is_exploration flag if there are linked explorations
+        if (explorationIds.length > 0) {
+          setIsExploration(true);
+        }
+      } catch (error) {
+        console.error('Error loading linked explorations:', error);
+      }
+    };
+    
+    loadLinkedExplorations();
+  }, [action?.id, open]);
+
   // Load exploration code when dialog opens with an exploration action
   useEffect(() => {
     if (open && action?.id && (action as any).is_exploration && !explorationCode) {
@@ -715,24 +741,27 @@ export function UnifiedActionDialog({
   };
 
   // Handle exploration checkbox change
-  const handleExplorationToggle = async (checked: boolean) => {
+  const handleExplorationToggle = (checked: boolean) => {
     setIsExploration(checked);
     
-    if (checked && !explorationCode) {
-      // Auto-generate exploration code when checkbox is checked
-      await generateExplorationCode();
-    }
-    
-    if (!checked) {
-      // Clear exploration fields when unchecked
+    if (checked) {
+      // Open the exploration association dialog
+      setShowExplorationDialog(true);
+    } else {
+      // Clear exploration association when unchecked
+      setLinkedExplorationIds([]);
       setExplorationCode('');
-      setCodeValidationState({
-        isValid: true,
-        isUnique: true,
-        isChecking: false,
-        message: ''
-      });
     }
+  };
+
+  // Handle exploration linked from dialog
+  const handleExplorationLinked = (explorationId: string) => {
+    setLinkedExplorationIds([explorationId]);
+    setShowExplorationDialog(false);
+    toast({
+      title: "Success",
+      description: "Exploration linked successfully"
+    });
   };
 
   // Generate exploration code
@@ -792,19 +821,45 @@ export function UnifiedActionDialog({
     try {
       const codeExists = await explorationService.codeExists(code);
       
-      if (codeExists) {
-        setCodeValidationState({
-          isValid: true,
-          isUnique: false,
-          isChecking: false,
-          message: 'This exploration code already exists'
-        });
-      } else {
+      if (!codeExists) {
+        // Code doesn't exist anywhere - it's available
         setCodeValidationState({
           isValid: true,
           isUnique: true,
           isChecking: false,
           message: 'Code is valid and unique'
+        });
+        return;
+      }
+      
+      // Code exists - check if it belongs to current action
+      if (action?.id) {
+        const existingExploration = await explorationService.getExplorationByActionId(action.id);
+        
+        if (existingExploration?.exploration_code === code) {
+          // Code belongs to this action - it's valid
+          setCodeValidationState({
+            isValid: true,
+            isUnique: true,
+            isChecking: false,
+            message: 'Code is valid (current code for this action)'
+          });
+        } else {
+          // Code exists but belongs to a different action
+          setCodeValidationState({
+            isValid: true,
+            isUnique: false,
+            isChecking: false,
+            message: '⚠️ Code is already in use - please choose a different code'
+          });
+        }
+      } else {
+        // No action context but code exists
+        setCodeValidationState({
+          isValid: true,
+          isUnique: false,
+          isChecking: false,
+          message: '⚠️ Code is already in use - please choose a different code'
         });
       }
     } catch (error) {
@@ -1334,71 +1389,46 @@ export function UnifiedActionDialog({
             
             {isExploration && (
               <div className="space-y-4 pl-6 border-l-2 border-primary/20">
-                {/* Exploration Code */}
-                <div>
-                  <Label htmlFor="explorationCode" className="text-sm font-medium">
-                    Exploration Code
-                  </Label>
-                  <div className="flex gap-2 mt-1">
-                    <div className="flex-1 relative">
-                      <Input
-                        id="explorationCode"
-                        value={explorationCode}
-                        onChange={(e) => handleExplorationCodeChange(e.target.value)}
-                        placeholder="SF010125EX001"
-                        className={cn(
-                          "pr-8",
-                          !codeValidationState.isValid && "border-red-500",
-                          codeValidationState.isChecking && "border-yellow-500",
-                          !codeValidationState.isChecking && codeValidationState.isValid && !codeValidationState.isUnique && "border-yellow-500",
-                          !codeValidationState.isChecking && codeValidationState.isValid && codeValidationState.isUnique && explorationCode && "border-green-500"
-                        )}
-                      />
-                      {/* Validation indicator */}
-                      <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
-                        {codeValidationState.isChecking ? (
-                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-yellow-500 border-t-transparent" />
-                        ) : explorationCode && codeValidationState.isValid && codeValidationState.isUnique ? (
-                          <CheckCircle className="h-4 w-4 text-green-500" />
-                        ) : explorationCode && (!codeValidationState.isValid || !codeValidationState.isUnique) ? (
-                          <AlertCircle className="h-4 w-4 text-yellow-500" />
-                        ) : null}
+                {/* Linked Explorations Display */}
+                {linkedExplorationIds.length > 0 ? (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Linked Exploration</Label>
+                    <div className="flex items-center justify-between p-3 bg-white border rounded-md">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">Exploration linked</p>
+                        <p className="text-xs text-muted-foreground">{linkedExplorationIds.length} exploration(s) associated</p>
                       </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowExplorationDialog(true)}
+                        disabled={!action?.id}
+                        title={!action?.id ? "Save action first to change exploration" : ""}
+                      >
+                        Change
+                      </Button>
                     </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Link Exploration</Label>
                     <Button
                       type="button"
                       variant="outline"
-                      size="sm"
-                      onClick={generateExplorationCode}
-                      disabled={isGeneratingCode}
-                      className="px-3"
-                      title="Generate new code"
+                      className="w-full"
+                      onClick={() => setShowExplorationDialog(true)}
+                      disabled={!action?.id}
+                      title={!action?.id ? "Save action first to link exploration" : ""}
                     >
-                      {isGeneratingCode ? (
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                      ) : (
-                        <Search className="h-4 w-4" />
-                      )}
+                      <Plus className="mr-2 h-4 w-4" />
+                      Link Exploration
                     </Button>
-                  </div>
-                  <div className="mt-1 space-y-1">
-                    <p className="text-xs text-muted-foreground">
-                      Format: SF&lt;mmddyy&gt;&lt;SUFFIX&gt;&lt;number&gt; (e.g., SF010126EX01, SF122925CT01)
-                    </p>
-                    {explorationCode && codeValidationState.message && (
-                      <p className={cn(
-                        "text-xs",
-                        !codeValidationState.isValid && "text-red-500",
-                        codeValidationState.isValid && !codeValidationState.isUnique && "text-yellow-600",
-                        codeValidationState.isValid && codeValidationState.isUnique && "text-green-600"
-                      )}>
-                        {codeValidationState.message}
-                      </p>
+                    {!action?.id && (
+                      <p className="text-xs text-muted-foreground">Save the action first to link an exploration</p>
                     )}
                   </div>
-                </div>
-
-
+                )}
               </div>
             )}
           </div>
@@ -1868,6 +1898,16 @@ export function UnifiedActionDialog({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Exploration Association Dialog */}
+      {action?.id && (
+        <ExplorationAssociationDialog
+          actionId={action.id}
+          isOpen={showExplorationDialog}
+          onClose={() => setShowExplorationDialog(false)}
+          onLinked={handleExplorationLinked}
+        />
+      )}
     </Dialog>
   );
 }

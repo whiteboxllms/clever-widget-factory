@@ -117,17 +117,12 @@ export function UnifiedActionDialog({
           if (!old) return old;
           return old.map(action => 
             action.id === variables.id 
-              ? { ...action, ...variables }
+              ? { ...action, ...variables, updated_at: new Date().toISOString() }
               : action
           );
         });
-      } else {
-        // Add new action optimistically (will be replaced with server response)
-        queryClient.setQueryData<BaseAction[]>(['actions'], (old) => {
-          const newAction = { ...variables } as BaseAction;
-          return old ? [...old, newAction] : [newAction];
-        });
       }
+      // Don't add optimistic action for creates - wait for server response to avoid duplicates
       
       return { previousActions };
     },
@@ -251,6 +246,7 @@ export function UnifiedActionDialog({
   const [checkingExploration, setCheckingExploration] = useState(false);
   const [showExplorationDialog, setShowExplorationDialog] = useState(false);
   const [linkedExplorationIds, setLinkedExplorationIds] = useState<string[]>([]);
+  const [linkedExplorationCodes, setLinkedExplorationCodes] = useState<string[]>([]);
   const [codeValidationState, setCodeValidationState] = useState<{
     isValid: boolean;
     isUnique: boolean;
@@ -498,7 +494,9 @@ export function UnifiedActionDialog({
         const result = await apiService.get(`/explorations?action_id=${action.id}`);
         const explorations = result.data || [];
         const explorationIds = explorations.map((e: any) => e.id);
+        const explorationCodes = explorations.map((e: any) => e.exploration_code);
         setLinkedExplorationIds(explorationIds);
+        setLinkedExplorationCodes(explorationCodes);
         
         // Also set is_exploration flag if there are linked explorations
         if (explorationIds.length > 0) {
@@ -755,8 +753,10 @@ export function UnifiedActionDialog({
   };
 
   // Handle exploration linked from dialog
-  const handleExplorationLinked = (explorationId: string) => {
+  const handleExplorationLinked = async (explorationId: string) => {
     setLinkedExplorationIds([explorationId]);
+    const result = await apiService.get(`/explorations/${explorationId}`);
+    setLinkedExplorationCodes([result.data.exploration_code]);
     setShowExplorationDialog(false);
     toast({
       title: "Success",
@@ -1126,19 +1126,11 @@ export function UnifiedActionDialog({
 
     // Validate exploration fields if exploration is enabled
     if (isExploration) {
-      if (!explorationCode.trim()) {
+      // Check if exploration is linked (via linkedExplorationIds)
+      if (!linkedExplorationIds || linkedExplorationIds.length === 0) {
         toast({
           title: "Error",
-          description: "Please enter an exploration code",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      if (!codeValidationState.isValid || !codeValidationState.isUnique) {
-        toast({
-          title: "Error",
-          description: "Please fix the exploration code issues before saving",
+          description: "Please link an exploration using the 'Link Exploration' button",
           variant: "destructive"
         });
         return;
@@ -1395,7 +1387,9 @@ export function UnifiedActionDialog({
                     <Label className="text-sm font-medium">Linked Exploration</Label>
                     <div className="flex items-center justify-between p-3 bg-white border rounded-md">
                       <div className="flex-1">
-                        <p className="text-sm font-medium">Exploration linked</p>
+                        <p className="text-sm font-medium">
+                          {linkedExplorationCodes.length > 0 ? linkedExplorationCodes.join(', ') : 'Exploration linked'}
+                        </p>
                         <p className="text-xs text-muted-foreground">{linkedExplorationIds.length} exploration(s) associated</p>
                       </div>
                       <Button
@@ -1906,6 +1900,7 @@ export function UnifiedActionDialog({
           isOpen={showExplorationDialog}
           onClose={() => setShowExplorationDialog(false)}
           onLinked={handleExplorationLinked}
+          currentExplorationId={linkedExplorationIds[0]}
         />
       )}
     </Dialog>

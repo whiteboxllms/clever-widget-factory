@@ -38,6 +38,7 @@ interface ExplorationAssociationDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onLinked?: (explorationId: string) => void;
+  currentExplorationId?: string;
 }
 
 interface ExplorationItem {
@@ -54,6 +55,7 @@ export function ExplorationAssociationDialog({
   isOpen,
   onClose,
   onLinked,
+  currentExplorationId,
 }: ExplorationAssociationDialogProps) {
   const [selectedExplorationId, setSelectedExplorationId] = useState<
     string | null
@@ -73,6 +75,13 @@ export function ExplorationAssociationDialog({
   const linkMutation = useLinkExploration();
   const createMutation = useCreateExploration();
   const updateActionMutation = useUpdateAction();
+
+  // Pre-select current exploration when dialog opens
+  useEffect(() => {
+    if (isOpen && currentExplorationId) {
+      setSelectedExplorationId(currentExplorationId);
+    }
+  }, [isOpen, currentExplorationId]);
 
   // Generate suggested code for today's date
   useEffect(() => {

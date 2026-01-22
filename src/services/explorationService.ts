@@ -12,8 +12,7 @@ import { explorationCodeGenerator } from './explorationCodeGenerator';
 import { embeddingQueue } from './embeddingQueue';
 
 export interface CreateExplorationRequest {
-  action_id: string;
-  exploration_code?: string; // Allow override of auto-generated code
+  exploration_code?: string;
   exploration_notes_text?: string;
   metrics_text?: string;
   public_flag?: boolean;
@@ -337,6 +336,99 @@ export class ExplorationService {
       await apiService.delete(`/explorations/${id}`);
     } catch (error) {
       console.error('Error deleting exploration:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Link an action to an exploration (many-to-many)
+   * @param actionId - Action ID
+   * @param explorationId - Exploration ID
+   * @returns Promise<any> - Response with action and exploration data
+   */
+  async linkExploration(actionId: string, explorationId: string): Promise<any> {
+    try {
+      const response = await apiService.post(
+        `/actions/${actionId}/explorations`,
+        { exploration_ids: [explorationId] }
+      );
+      return response.data || response;
+    } catch (error) {
+      console.error('Error linking exploration:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Link an action to multiple explorations (many-to-many)
+   * @param actionId - Action ID
+   * @param explorationIds - Array of exploration IDs
+   * @returns Promise<any> - Response with action and exploration data
+   */
+  async linkExplorations(actionId: string, explorationIds: string[]): Promise<any> {
+    try {
+      const response = await apiService.post(
+        `/actions/${actionId}/explorations`,
+        { exploration_ids: explorationIds }
+      );
+      return response.data || response;
+    } catch (error) {
+      console.error('Error linking explorations:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Unlink an action from an exploration
+   * @param actionId - Action ID
+   * @param explorationId - Exploration ID
+   * @returns Promise<any> - Response with updated action
+   */
+  async unlinkExploration(actionId: string, explorationId: string): Promise<any> {
+    try {
+      const response = await apiService.delete(
+        `/actions/${actionId}/explorations/${explorationId}`
+      );
+      return response.data || response;
+    } catch (error) {
+      console.error('Error unlinking exploration:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get non-integrated explorations for selection dialog
+   * @returns Promise<any[]> - List of explorations with action_count
+   */
+  async getNonIntegratedExplorations(): Promise<any[]> {
+    try {
+      const response = await apiService.get('/explorations/list?status=in_progress,ready_for_analysis');
+      return response.data || response || [];
+    } catch (error) {
+      console.error('Error fetching non-integrated explorations:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new exploration without requiring an action
+   * @deprecated - Explorations should be created with manual code entry
+   * Kept for backward compatibility if needed elsewhere
+   * @returns Promise<any> - The created exploration
+   */
+  async createNewExploration(): Promise<any> {
+    try {
+      // Generate exploration code
+      const exploration_code = await explorationCodeGenerator.generateCode(new Date());
+
+      const response = await apiService.post('/explorations', {
+        exploration_code,
+        status: 'in_progress'
+      });
+
+      return response.data || response;
+    } catch (error) {
+      console.error('Error creating new exploration:', error);
       throw error;
     }
   }

@@ -48,6 +48,7 @@ export interface ApiError {
  */
 let cachedToken: string | null = null;
 let tokenExpiry: number = 0;
+let lastTokenFetchTime: number = 0;
 
 /**
  * Clear the token cache (useful for testing)
@@ -55,6 +56,7 @@ let tokenExpiry: number = 0;
 export function clearTokenCache() {
   cachedToken = null;
   tokenExpiry = 0;
+  lastTokenFetchTime = 0;
 }
 
 async function getIdToken(): Promise<string | null> {
@@ -64,17 +66,67 @@ async function getIdToken(): Promise<string | null> {
       return cachedToken;
     }
     
-    const session = await fetchAuthSession({ forceRefresh: false });
-    const idToken = session.tokens?.idToken?.toString();
-    
-    if (idToken) {
-      cachedToken = idToken;
-      // JWT exp is in seconds, convert to ms
-      const payload = JSON.parse(atob(idToken.split('.')[1]));
-      tokenExpiry = payload.exp * 1000;
+    // Avoid hammering Cognito - if we just fetched a token and it was empty, wait a bit
+    const timeSinceLastFetch = Date.now() - lastTokenFetchTime;
+    if (timeSinceLastFetch < 1000 && !cachedToken) {
+      console.warn('Token fetch attempted too soon after previous empty result');
+      return null;
     }
     
-    return idToken || null;
+    lastTokenFetchTime = Date.now();
+    
+    const session = await fetchAuthSession({ forceRefresh: false });
+    
+    // Handle different token formats
+    let idToken: string | null = null;
+    
+    if (session.tokens?.idToken) {
+      // idToken might be a string or an object with toString()
+      if (typeof session.tokens.idToken === 'string') {
+        idToken = session.tokens.idToken;
+      } else if (session.tokens.idToken.toString) {
+        idToken = session.tokens.idToken.toString();
+      } else {
+        console.warn('idToken is not a string and has no toString method:', typeof session.tokens.idToken);
+      }
+    }
+    
+    if (!idToken || !idToken.trim()) {
+      console.warn('No ID token received from Cognito session', {
+        hasSession: !!session,
+        hasTokens: !!session.tokens,
+        hasIdToken: !!session.tokens?.idToken,
+        idTokenType: typeof session.tokens?.idToken,
+        idTokenValue: idToken ? `${idToken.substring(0, 20)}...` : 'null'
+      });
+      cachedToken = null;
+      tokenExpiry = 0;
+      return null;
+    }
+    
+    // Validate token format (should be JWT with 3 parts)
+    const tokenParts = idToken.split('.');
+    if (tokenParts.length !== 3) {
+      console.error('Invalid token format - expected JWT with 3 parts, got:', tokenParts.length, {
+        tokenPreview: `${idToken.substring(0, 50)}...`
+      });
+      cachedToken = null;
+      tokenExpiry = 0;
+      return null;
+    }
+    
+    cachedToken = idToken;
+    // JWT exp is in seconds, convert to ms
+    try {
+      const payload = JSON.parse(atob(tokenParts[1]));
+      tokenExpiry = payload.exp * 1000;
+      console.debug('✓ Token cached successfully, expires at:', new Date(tokenExpiry).toISOString());
+    } catch (decodeErr) {
+      console.warn('Failed to decode JWT payload:', decodeErr);
+      tokenExpiry = Date.now() + 3600000; // Assume 1 hour expiry
+    }
+    
+    return idToken;
   } catch (error) {
     console.error('Failed to get ID token:', error);
     cachedToken = null;
@@ -130,8 +182,18 @@ async function apiRequest<T = any>(
   };
 
   // Add Authorization header if token is available
-  if (idToken) {
+  if (idToken && idToken.trim()) {
     headers['Authorization'] = `Bearer ${idToken}`;
+    console.debug('✓ Authorization header set with valid token');
+  } else {
+    console.error('❌ CRITICAL: No valid ID token available for request', {
+      url,
+      method: options.method,
+      hasToken: !!idToken,
+      tokenLength: idToken?.length || 0,
+      tokenTrimmed: idToken?.trim() || 'N/A'
+    });
+    // Don't set Authorization header if token is empty - let it fail with proper error
   }
 
   // Make the request

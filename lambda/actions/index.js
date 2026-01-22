@@ -426,6 +426,73 @@ exports.handler = async (event) => {
       }
     }
 
+    // List non-integrated explorations
+    if (httpMethod === 'GET' && path.endsWith('/explorations/list')) {
+      const { status = 'in_progress,ready_for_analysis', limit = 100, offset = 0 } = queryStringParameters || {};
+      const requestId = require('crypto').randomUUID();
+      
+      console.log(`[${requestId}] GET /explorations/list - status: ${status}, limit: ${limit}, offset: ${offset}`);
+      
+      try {
+        // Parse status filter
+        const statuses = status.split(',').map(s => s.trim());
+        const statusCondition = statuses.map(s => `'${s.replace(/'/g, "''")}'`).join(',');
+        
+        const sql = `SELECT json_agg(row_to_json(t)) FROM (
+          SELECT 
+            e.id,
+            e.action_id,
+            e.exploration_code,
+            a.description as state_text,
+            a.policy as summary_policy_text,
+            e.exploration_notes_text,
+            e.metrics_text,
+            e.public_flag,
+            e.status,
+            COALESCE((
+              SELECT COUNT(*) 
+              FROM exploration 
+              WHERE action_id IS NOT NULL
+            ), 0) as action_count,
+            e.created_at,
+            e.updated_at
+          FROM exploration e
+          LEFT JOIN actions a ON e.action_id = a.id
+          WHERE e.status IN (${statusCondition})
+          ORDER BY e.created_at DESC
+          LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
+        ) t;`;
+        
+        console.log(`[${requestId}] Executing SQL for explorations list`);
+        const result = await queryJSON(sql);
+        const explorations = result?.[0]?.json_agg || [];
+        
+        console.log(`[${requestId}] Found ${explorations.length} explorations`);
+        
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ 
+            data: explorations,
+            total: explorations.length,
+            timestamp: new Date().toISOString(),
+            requestId
+          })
+        };
+      } catch (error) {
+        console.error(`[${requestId}] Error listing explorations:`, error);
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ 
+            error: 'Failed to list explorations',
+            code: 'LIST_EXPLORATIONS_ERROR',
+            requestId
+          })
+        };
+      }
+    }
+
     // Exploration code validation endpoints
     if (httpMethod === 'GET' && path.includes('/explorations/check-code/')) {
       const code = decodeURIComponent(path.split('/explorations/check-code/')[1]);

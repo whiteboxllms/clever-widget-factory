@@ -3056,6 +3056,7 @@ exports.handler = async (event) => {
           CASE WHEN scores.action_id IS NOT NULL THEN true ELSE false END as has_score,
           CASE WHEN updates.action_id IS NOT NULL THEN true ELSE false END as has_implementation_updates,
           COALESCE(update_counts.count, 0) as implementation_update_count,
+          e.exploration_code,
           -- Asset details
           CASE WHEN a.asset_id IS NOT NULL THEN
             json_build_object(
@@ -3099,6 +3100,7 @@ exports.handler = async (event) => {
         LEFT JOIN issues linked_issue ON a.linked_issue_id = linked_issue.id
         LEFT JOIN tools issue_tools ON linked_issue.context_id = issue_tools.id AND linked_issue.context_type = 'tool'
         LEFT JOIN missions ON a.mission_id = missions.id
+        LEFT JOIN exploration e ON a.id = e.action_id
         ${whereClause} 
         ORDER BY a.updated_at DESC 
         ${limitClause}
@@ -3249,11 +3251,13 @@ exports.handler = async (event) => {
               a.*,
               om.full_name as assigned_to_name,
               om.favorite_color as assigned_to_color,
+              e.exploration_code,
               CASE WHEN participants.participants IS NOT NULL THEN
                 participants.participants
               END as participants_details
             FROM actions a
             LEFT JOIN profiles om ON a.assigned_to = om.user_id
+            LEFT JOIN exploration e ON a.id = e.action_id
             LEFT JOIN (
               SELECT 
                 ap.action_id,
@@ -3350,6 +3354,7 @@ exports.handler = async (event) => {
             CASE WHEN scores.action_id IS NOT NULL THEN true ELSE false END as has_score,
             CASE WHEN updates.action_id IS NOT NULL THEN true ELSE false END as has_implementation_updates,
             COALESCE(update_counts.count, 0) as implementation_update_count,
+            e.exploration_code,
             -- Asset details
             CASE WHEN a.asset_id IS NOT NULL THEN
               json_build_object(
@@ -3386,6 +3391,7 @@ exports.handler = async (event) => {
           ) update_counts ON a.id = update_counts.action_id
           LEFT JOIN tools assets ON a.asset_id = assets.id
           LEFT JOIN missions ON a.mission_id = missions.id
+          LEFT JOIN exploration e ON a.id = e.action_id
           LEFT JOIN (
             SELECT 
               ap.action_id,

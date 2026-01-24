@@ -1,11 +1,9 @@
 import { useState } from 'react';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
-import { s3Client, S3_BUCKET, BUCKET_PREFIXES, BucketPrefix } from '@/lib/s3Client';
-import { compressImageSimple } from '@/lib/simpleImageCompression';
+import { apiService } from '@/lib/apiService';
 import { useEnhancedToast } from './useEnhancedToast';
 
 export interface FileUploadOptions {
-  bucket: BucketPrefix;
+  bucket: string;
   maxSizeMB?: number;
   maxWidthOrHeight?: number;
   generateFileName?: (file: File, index?: number) => string;
@@ -49,14 +47,7 @@ const useImageUploadImpl = () => {
     file: File,
     options: FileUploadOptions
   ): Promise<FileUploadResult> => {
-    const {
-      bucket,
-      maxSizeMB = 0.5,
-      maxWidthOrHeight = 1920,
-      generateFileName,
-      onProgress,
-      validateFile
-    } = options;
+    const { validateFile } = options;
 
     // Validate file if validator provided
     if (validateFile) {
@@ -66,9 +57,9 @@ const useImageUploadImpl = () => {
     const fileType = getFileType(file.type);
 
     // Default file validation
-    const maxSize = fileType === 'pdf' ? 10 * 1024 * 1024 : 10 * 1024 * 1024; // 10MB for both
+    const maxSize = 50 * 1024 * 1024; // 50MB
     if (file.size > maxSize) {
-      throw new Error(`File too large: ${(file.size / 1024 / 1024).toFixed(2)}MB. Maximum size is ${maxSize / 1024 / 1024}MB.`);
+      throw new Error(`File too large: ${(file.size / 1024 / 1024).toFixed(2)}MB. Maximum size is 50MB.`);
     }
 
     if (fileType === 'other') {
@@ -76,82 +67,45 @@ const useImageUploadImpl = () => {
     }
 
     try {
-      let finalFile: File = file;
-      let originalSize = file.size;
-      let compressedSize = file.size;
-      let compressionRatio = 0;
+      const originalSize = file.size;
 
-      // Only compress images, skip compression for PDFs
-      if (fileType === 'image') {
-        enhancedToast.showCompressionStart(file.name, file.size);
-        
-        const compressionResult = await compressImageSimple(
-          file,
-          { maxSizeMB, maxWidthOrHeight }
-        );
-
-        finalFile = compressionResult.file;
-        originalSize = compressionResult.originalSize;
-        compressedSize = compressionResult.compressedSize;
-        compressionRatio = compressionResult.compressionRatio;
-        
-        enhancedToast.showCompressionComplete({
-          ...compressionResult,
-          compressionRatio: compressionResult.compressionRatio,
-          timings: { total: 0 },
-          stages: [],
-          originalFormat: file.type.split('/')[1] || 'unknown',
-          finalFormat: 'jpeg',
-          algorithm: 'Canvas compression'
-        });
-      } else {
-        // For PDFs, just show upload start directly
-        enhancedToast.showUploadStart(file.name, file.size);
-      }
-
-      // Generate filename with prefix
-      const fileName = generateFileName 
-        ? generateFileName(finalFile)
-        : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${finalFile.name}`;
+      // Get presigned URL from backend
+      const presignedResponse = await apiService.post('/upload/presigned-url', {
+        filename: file.name,
+        contentType: file.type
+      });
       
-      const key = `${BUCKET_PREFIXES[bucket]}${fileName}`;
+      const { presignedUrl, publicUrl } = presignedResponse;
 
-      // Show upload start toast
-      enhancedToast.showUploadStart(fileName, compressedSize);
-
-      // Convert File to ArrayBuffer for AWS SDK compatibility
-      const fileBuffer = await finalFile.arrayBuffer();
-      
-      // Upload to S3
-      const command = new PutObjectCommand({
-        Bucket: S3_BUCKET,
-        Key: key,
-        Body: fileBuffer,
-        ContentType: finalFile.type,
+      // Upload to S3 using presigned URL
+      const uploadResponse = await fetch(presignedUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type,
+        },
       });
 
-      await s3Client.send(command);
+      if (!uploadResponse.ok) {
+        throw new Error(`S3 upload failed: ${uploadResponse.statusText}`);
+      }
 
-      // Generate public URL
-      const publicUrl = `https://${S3_BUCKET}.s3.us-west-2.amazonaws.com/${key}`;
-
-      // Show upload success
-      enhancedToast.showUploadSuccess(fileName, publicUrl);
+      enhancedToast.showUploadSuccess(file.name, publicUrl);
 
       return {
         url: publicUrl,
-        fileName,
+        fileName: file.name,
         originalSize,
-        compressedSize,
-        compressionRatio,
+        compressedSize: file.size,
+        compressionRatio: 0,
         fileType
       };
     } catch (error) {
       console.error('File upload failed:', error);
-      // Show error toast if not already shown by enhanced toast
-      if (error instanceof Error && !error.message.includes('Upload')) {
-        enhancedToast.showUploadError(error.message, file.name);
-      }
+      enhancedToast.showUploadError(
+        error instanceof Error ? error.message : 'Upload failed',
+        file.name
+      );
       throw error;
     }
   };

@@ -362,9 +362,19 @@ export const CombinedAssetsContainer = () => {
 
   const handleEdit = useCallback((asset: CombinedAsset) => {
     setSelectedAssetId(asset.id);
-    // Initialize attachments with existing image if available
-    if (asset.type === 'stock' && asset.image_url) {
-      setStockAttachments([asset.image_url]);
+    // Initialize attachments with existing attachments array or image_url
+    if (asset.type === 'stock') {
+      const existingAttachments = (asset as any).attachments || [];
+      const imageUrl = asset.image_url;
+      
+      // Use attachments array if available, otherwise fall back to image_url
+      if (existingAttachments.length > 0) {
+        setStockAttachments(existingAttachments);
+      } else if (imageUrl) {
+        setStockAttachments([imageUrl]);
+      } else {
+        setStockAttachments([]);
+      }
     } else {
       setStockAttachments([]);
     }
@@ -571,7 +581,8 @@ export const CombinedAssetsContainer = () => {
   const handleStockEditSubmit = async (formData: any, useMinimumQuantity: boolean) => {
     if (!selectedAsset || selectedAsset.type !== 'stock') return;
 
-    const imageUrl = stockAttachments.length > 0 ? stockAttachments[0] : selectedAsset.image_url;
+    // Only use first image from attachments array (parts table only supports single image_url)
+    const imageUrl = stockAttachments.length > 0 ? stockAttachments[0] : null;
 
     const updateData = {
       name: formData.name,

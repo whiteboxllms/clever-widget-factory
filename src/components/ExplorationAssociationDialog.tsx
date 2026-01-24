@@ -23,12 +23,14 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
-import { Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle, Trash2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useNonIntegratedExplorations,
   useLinkExploration,
   useCreateExploration,
+  useUpdateExploration,
+  useDeleteExploration,
   explorationKeys,
 } from '../hooks/useExplorations';
 import { useUpdateAction } from '../hooks/useActions';
@@ -37,13 +39,14 @@ interface ExplorationAssociationDialogProps {
   actionId: string;
   isOpen: boolean;
   onClose: () => void;
-  onLinked?: (explorationId: string) => void;
+  onLinked?: (exploration: { id: string; exploration_code: string; name?: string }) => void;
   currentExplorationId?: string;
 }
 
 interface ExplorationItem {
   id: string;
   exploration_code: string;
+  name?: string;
   exploration_notes_text?: string;
   status: string;
   action_count: number;
@@ -60,8 +63,13 @@ export function ExplorationAssociationDialog({
   const [selectedExplorationId, setSelectedExplorationId] = useState<
     string | null
   >(null);
+  const [deletingExplorationId, setDeletingExplorationId] = useState<string | null>(null);
   const [codeInput, setCodeInput] = useState('');
+  const [nameInput, setNameInput] = useState('');
   const [suggestedCode, setSuggestedCode] = useState('');
+  const [editingExplorationId, setEditingExplorationId] = useState<string | null>(null);
+  const [editCode, setEditCode] = useState('');
+  const [editName, setEditName] = useState('');
   const [codeValidation, setCodeValidation] = useState<{
     isValid: boolean;
     matchedId: string | null;
@@ -74,14 +82,21 @@ export function ExplorationAssociationDialog({
   const queryClient = useQueryClient();
   const linkMutation = useLinkExploration();
   const createMutation = useCreateExploration();
+  const updateMutation = useUpdateExploration();
+  const deleteMutation = useDeleteExploration();
   const updateActionMutation = useUpdateAction();
 
   // Pre-select current exploration when dialog opens
   useEffect(() => {
     if (isOpen && currentExplorationId) {
       setSelectedExplorationId(currentExplorationId);
+      const exploration = explorations.find((e: ExplorationItem) => e.id === currentExplorationId);
+      if (exploration) {
+        setCodeInput(exploration.exploration_code);
+        setNameInput(exploration.name || '');
+      }
     }
-  }, [isOpen, currentExplorationId]);
+  }, [isOpen, currentExplorationId, explorations]);
 
   // Generate suggested code for today's date
   useEffect(() => {
@@ -141,7 +156,7 @@ export function ExplorationAssociationDialog({
       setCodeValidation({
         isValid: true,
         matchedId: matched.id,
-        message: `✓ Found: ${matched.exploration_code} (${matched.action_count} actions)`,
+        message: '',
         isNew: false,
       });
     } else {
@@ -149,17 +164,21 @@ export function ExplorationAssociationDialog({
       setCodeValidation({
         isValid: true,
         matchedId: null,
-        message: `✓ Will create new exploration: ${upperCode}`,
+        message: '',
         isNew: true,
       });
     }
-  }, [codeInput, explorations]);
+  }, [codeInput]);
 
   const [isCreatingAndLinking, setIsCreatingAndLinking] = useState(false);
 
   const handleCreateAndLink = async () => {
     const codeToUse = codeInput.trim() || suggestedCode;
-    if (!codeToUse) return;
+    const nameToUse = nameInput.trim();
+    
+    if (!codeToUse || !nameToUse) {
+      return;
+    }
 
     setIsCreatingAndLinking(true);
     updateActionMutation.mutate(
@@ -172,6 +191,7 @@ export function ExplorationAssociationDialog({
           createMutation.mutate(
             {
               exploration_code: codeToUse.toUpperCase().trim(),
+              name: nameToUse,
             },
             {
               onSuccess: async (newExploration) => {
@@ -182,7 +202,7 @@ export function ExplorationAssociationDialog({
                 await queryClient.invalidateQueries({
                   queryKey: explorationKeys.list('in_progress,ready_for_analysis'),
                 });
-                onLinked?.(String(newExploration.id));
+                onLinked?.({ id: String(newExploration.id), exploration_code: newExploration.exploration_code, name: newExploration.name });
                 onClose();
               },
               onError: (err) => {
@@ -210,7 +230,8 @@ export function ExplorationAssociationDialog({
       await queryClient.invalidateQueries({
         queryKey: explorationKeys.list('in_progress,ready_for_analysis'),
       });
-      onLinked?.(selectedExplorationId);
+      const exploration = explorations.find((e: ExplorationItem) => e.id === selectedExplorationId);
+      onLinked?.({ id: selectedExplorationId, exploration_code: exploration?.exploration_code || '', name: exploration?.name });
       onClose();
       return;
     }
@@ -229,6 +250,7 @@ export function ExplorationAssociationDialog({
             createMutation.mutate(
               {
                 exploration_code: codeInput.toUpperCase().trim(),
+                name: nameInput.trim(),
               },
               {
                 onSuccess: async (newExploration) => {
@@ -239,7 +261,7 @@ export function ExplorationAssociationDialog({
                   await queryClient.invalidateQueries({
                     queryKey: explorationKeys.list('in_progress,ready_for_analysis'),
                   });
-                  onLinked?.(String(newExploration.id));
+                  onLinked?.({ id: String(newExploration.id), exploration_code: newExploration.exploration_code, name: newExploration.name });
                   onClose();
                 },
                 onError: (err) => {
@@ -261,7 +283,8 @@ export function ExplorationAssociationDialog({
       await queryClient.invalidateQueries({
         queryKey: explorationKeys.list('in_progress,ready_for_analysis'),
       });
-      onLinked?.(codeValidation.matchedId!);
+      const exploration = explorations.find((e: ExplorationItem) => e.id === codeValidation.matchedId);
+      onLinked?.({ id: codeValidation.matchedId!, exploration_code: codeInput.toUpperCase().trim(), name: exploration?.name });
       onClose();
     }
   };
@@ -269,7 +292,48 @@ export function ExplorationAssociationDialog({
   const handleClose = () => {
     setSelectedExplorationId(null);
     setCodeInput('');
+    setNameInput('');
+    setEditingExplorationId(null);
+    setEditCode('');
+    setEditName('');
     onClose();
+  };
+
+  const handleExplorationSelect = (exploration: ExplorationItem) => {
+    setSelectedExplorationId(exploration.id);
+    setCodeInput(exploration.exploration_code);
+    setNameInput(exploration.name || '');
+  };
+
+  const handleUpdateExploration = async () => {
+    if (!selectedExplorationId || !codeInput.trim() || !nameInput.trim()) return;
+    
+    await updateMutation.mutateAsync({
+      id: selectedExplorationId,
+      data: {
+        exploration_code: codeInput.toUpperCase().trim(),
+        name: nameInput.trim()
+      }
+    });
+    
+    await queryClient.invalidateQueries({
+      queryKey: explorationKeys.list('in_progress,ready_for_analysis'),
+    });
+  };
+
+  const handleDeleteExploration = async (explorationId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    try {
+      await deleteMutation.mutateAsync(explorationId);
+      await queryClient.invalidateQueries({
+        queryKey: explorationKeys.list('in_progress,ready_for_analysis'),
+      });
+      setDeletingExplorationId(null);
+    } catch (error) {
+      console.error('Failed to delete exploration:', error);
+      setDeletingExplorationId(null);
+    }
   };
 
   const isLoading_ = isLoading || linkMutation.isPending || createMutation.isPending || updateActionMutation.isPending;
@@ -285,10 +349,10 @@ export function ExplorationAssociationDialog({
 
         <div className="space-y-4">
           {/* Code Input Section */}
-          <div className="space-y-3 rounded-md border p-4 bg-blue-50">
+          <div className="space-y-3 rounded-md border p-4 bg-gray-50">
             <div>
               <Label htmlFor="exploration-code" className="text-sm font-medium">
-                Enter or Create Exploration Code
+                Exploration Code *
               </Label>
               <div className="mt-1 flex gap-2">
                 <Input
@@ -299,25 +363,6 @@ export function ExplorationAssociationDialog({
                   disabled={isLoading_}
                   className="flex-1"
                 />
-                {suggestedCode && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCreateAndLink}
-                    disabled={isLoading_ || isCreatingAndLinking || (!codeInput && !suggestedCode)}
-                    title={codeInput ? `Create and link: ${codeInput}` : `Create and link suggested: ${suggestedCode}`}
-                  >
-                    {isCreatingAndLinking ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      'Create'
-                    )}
-                  </Button>
-                )}
               </div>
               {suggestedCode && !codeInput && (
                 <p className="mt-2 text-xs text-gray-600">
@@ -326,23 +371,60 @@ export function ExplorationAssociationDialog({
               )}
             </div>
 
-            {/* Code Validation Message */}
-            {codeInput && (
-              <div
-                className={`flex items-center gap-2 rounded-md p-3 text-sm ${
-                  codeValidation.isValid
-                    ? 'bg-green-50 text-green-700'
-                    : 'bg-red-50 text-red-700'
-                }`}
+            {/* Name Input */}
+            <div>
+              <Label htmlFor="exploration-name" className="text-sm font-medium">
+                Exploration Name *
+              </Label>
+              <Input
+                id="exploration-name"
+                placeholder="e.g., North Field Survey"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                disabled={isLoading_}
+                className="mt-1"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
+                onClick={selectedExplorationId ? handleUpdateExploration : handleCreateAndLink}
+                disabled={isLoading_ || isCreatingAndLinking || !codeInput.trim() || !nameInput.trim() || updateMutation.isPending}
               >
-                {codeValidation.isValid ? (
-                  <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                {isCreatingAndLinking ? (
+                  <>
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                    Creating...
+                  </>
+                ) : updateMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                    Updating...
+                  </>
+                ) : selectedExplorationId ? (
+                  'Update'
                 ) : (
-                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  'Create'
                 )}
-                <span>{codeValidation.message}</span>
-              </div>
-            )}
+              </Button>
+              {selectedExplorationId && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedExplorationId(null);
+                    setCodeInput('');
+                    setNameInput('');
+                  }}
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
 
             {/* Hint */}
             <p className="text-xs text-gray-600">
@@ -378,32 +460,64 @@ export function ExplorationAssociationDialog({
                 <ScrollArea className="h-64">
                   <div className="space-y-1 p-4">
                     {explorations.map((exploration: ExplorationItem) => (
-                      <button
+                      <div
                         key={exploration.id}
-                        onClick={() => setSelectedExplorationId(exploration.id)}
-                        className={`w-full rounded-md p-3 text-left transition-colors ${
+                        className={`w-full rounded-md p-3 transition-colors ${
                           selectedExplorationId === exploration.id
                             ? 'bg-blue-50 ring-2 ring-blue-500'
                             : 'hover:bg-gray-50'
                         }`}
                       >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="font-medium text-sm">
-                              {exploration.exploration_code}
+                        <div className="flex items-start justify-between gap-2">
+                          <button
+                            onClick={() => handleExplorationSelect(exploration)}
+                            className="flex-1 text-left min-w-0"
+                          >
+                            <div className="text-sm">
+                              <span className="font-medium">{exploration.exploration_code}</span>
+                              {exploration.name && <span className="text-gray-700"> - {exploration.name}</span>}
                             </div>
                             {exploration.exploration_notes_text && (
                               <div className="mt-1 line-clamp-2 text-xs text-gray-600">
                                 {exploration.exploration_notes_text}
                               </div>
                             )}
-                          </div>
-                          <div className="ml-2 flex-shrink-0 text-xs text-gray-500">
-                            {exploration.action_count}{' '}
-                            {exploration.action_count === 1 ? 'action' : 'actions'}
+                          </button>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <div className="text-xs text-gray-500">
+                              {exploration.action_count}{' '}
+                              {exploration.action_count === 1 ? 'action' : 'actions'}
+                            </div>
+                            {Number(exploration.action_count) === 0 && (
+                              deletingExplorationId === exploration.id ? (
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={(e) => handleDeleteExploration(exploration.id, e)}
+                                    className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                                    disabled={deleteMutation.isPending}
+                                  >
+                                    Confirm
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setDeletingExplorationId(null); }}
+                                    className="px-2 py-1 text-xs bg-gray-200 rounded hover:bg-gray-300"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setDeletingExplorationId(exploration.id); }}
+                                  className="p-1 hover:bg-red-100 rounded transition-colors"
+                                  title="Delete exploration"
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-600" />
+                                </button>
+                              )
+                            )}
                           </div>
                         </div>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 </ScrollArea>

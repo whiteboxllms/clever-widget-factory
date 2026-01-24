@@ -1,16 +1,11 @@
 import { useState } from 'react';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
-import { s3Client, S3_BUCKET, BUCKET_PREFIXES, BucketPrefix } from '@/lib/s3Client';
-import { compressImageSimple } from '@/lib/simpleImageCompression';
 import { useEnhancedToast } from './useEnhancedToast';
+import { apiService } from '@/lib/apiService';
 
 export interface ImageUploadOptions {
-  bucket: BucketPrefix;
-  maxSizeMB?: number;
-  maxWidthOrHeight?: number;
-  generateFileName?: (file: File, index?: number) => string;
-  onProgress?: (stage: string, progress: number, details: string) => void;
+  bucket: string;
   validateFile?: (file: File) => void;
+  onProgress?: (fileName: string, progress: number) => void;
 }
 
 export interface ImageUploadResult {
@@ -23,52 +18,48 @@ export interface ImageUploadResult {
 
 export const useImageUpload = () => {
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<Map<string, number>>(new Map());
   const enhancedToast = useEnhancedToast();
+
+  const updateProgress = (fileName: string, progress: number) => {
+    setUploadProgress(prev => new Map(prev).set(fileName, progress));
+  };
+
+  const clearProgress = (fileName: string) => {
+    setUploadProgress(prev => {
+      const next = new Map(prev);
+      next.delete(fileName);
+      return next;
+    });
+  };
 
   const uploadSingleImage = async (
     file: File,
     options: ImageUploadOptions
   ): Promise<ImageUploadResult> => {
-    const {
-      bucket,
-      maxSizeMB = 0.5,
-      maxWidthOrHeight = 1920,
-      generateFileName,
-      onProgress,
-      validateFile
-    } = options;
+    const { validateFile, onProgress } = options;
 
     const uploadId = Math.random().toString(36).substr(2, 9);
     const startTime = performance.now();
     console.log(`[UPLOAD-${uploadId}] START:`, { 
       name: file.name, 
       type: file.type, 
-      size: file.size,
-      userAgent: navigator.userAgent,
-      connection: (navigator as any).connection?.effectiveType,
-      memory: (performance as any).memory?.usedJSHeapSize
+      size: file.size
     });
 
-    // Validate file if validator provided
     if (validateFile) {
       validateFile(file);
     }
 
-    // Default file validation - stricter limit on mobile
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const maxSize = isMobile ? 5 * 1024 * 1024 : 10 * 1024 * 1024;
+    const maxSize = 50 * 1024 * 1024; // 50MB
     if (file.size > maxSize) {
-      const maxMB = isMobile ? 5 : 10;
-      const error = `Image too large: ${(file.size / 1024 / 1024).toFixed(2)}MB. Maximum size is ${maxMB}MB${isMobile ? ' on mobile' : ''}.`;
+      const error = `Image too large: ${(file.size / 1024 / 1024).toFixed(2)}MB. Maximum size is 50MB.`;
       console.error(`[UPLOAD-${uploadId}] VALIDATION_FAILED:`, error);
       throw new Error(error);
     }
 
-    // Accept common image types, HEIC (iOS), and PDFs
-    const validTypes = ['image/', 'application/octet-stream', 'application/pdf']; // octet-stream for HEIC on some phones
+    const validTypes = ['image/', 'application/octet-stream', 'application/pdf'];
     const isValidType = validTypes.some(type => file.type.startsWith(type)) || file.name.match(/\.(jpg|jpeg|png|gif|webp|heic|heif|pdf)$/i);
-    
-    console.log(`[UPLOAD-${uploadId}] VALIDATION:`, { type: file.type, isValidType });
     
     if (!isValidType) {
       const error = `Invalid file type: ${file.type}. Only image and PDF files are allowed.`;
@@ -77,191 +68,78 @@ export const useImageUpload = () => {
     }
 
     try {
-      let compressionResult;
-      let compressedFile: File;
+      console.log(`[UPLOAD-${uploadId}] REQUESTING_PRESIGNED_URL`);
+      const presignedResponse = await apiService.post('/upload/presigned-url', {
+        filename: file.name,
+        contentType: file.type
+      });
       
-      // Skip compression for PDFs
-      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-        console.log(`[UPLOAD-${uploadId}] PDF_DETECTED: Skipping compression`);
-        compressedFile = file;
-        compressionResult = {
-          file,
-          originalSize: file.size,
-          compressedSize: file.size,
-          compressionRatio: 0
-        };
-      } else {
-        console.log(`[UPLOAD-${uploadId}] COMPRESSION_START:`, { 
-          elapsed: performance.now() - startTime,
-          memory: (performance as any).memory?.usedJSHeapSize 
+      const { presignedUrl, publicUrl } = presignedResponse;
+      console.log(`[UPLOAD-${uploadId}] PRESIGNED_URL_RECEIVED:`, { publicUrl });
+
+      console.log(`[UPLOAD-${uploadId}] UPLOADING_TO_S3`);
+      
+      // Initialize progress
+      updateProgress(file.name, 0);
+      
+      // Use XMLHttpRequest for progress tracking
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = (event.loaded / event.total) * 100;
+            console.log(`[UPLOAD-${uploadId}] PROGRESS: ${percentComplete.toFixed(1)}%`);
+            updateProgress(file.name, percentComplete);
+            onProgress?.(file.name, percentComplete);
+          }
         });
         
-        // Show compression start toast
-        const compressionToast = enhancedToast.showCompressionStart(file.name, file.size);
-
-        try {
-          // Compress the image with simple compression
-          compressionResult = await compressImageSimple(
-            file,
-            { maxSizeMB, maxWidthOrHeight }
-          );
-          compressedFile = compressionResult.file;
-        } catch (compressionError) {
-          console.warn(`[UPLOAD-${uploadId}] COMPRESSION_FAILED, uploading original:`, compressionError);
-          enhancedToast.showCompressionError(
-            'Compression failed, uploading original image. Server will compress.',
-            file.name
-          );
-          compressedFile = file;
-          compressionResult = {
-            file,
-            originalSize: file.size,
-            compressedSize: file.size,
-            compressionRatio: 0
-          };
-        }
-
-        // Log warnings if compression had issues
-        if (compressionResult.warnings && compressionResult.warnings.length > 0) {
-          console.warn(`[UPLOAD-${uploadId}] COMPRESSION_WARNINGS:`, compressionResult.warnings);
-          
-          // Show user-friendly warning for large files
-          const largeFileWarning = compressionResult.warnings.find(w => w.type === 'large_file' || w.type === 'timeout_risk');
-          if (largeFileWarning) {
-            enhancedToast.showCompressionError(
-              largeFileWarning.message,
-              file.name
-            );
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve();
+          } else {
+            reject(new Error(`S3 upload failed: ${xhr.statusText}`));
           }
-        }
-
-        console.log(`[UPLOAD-${uploadId}] COMPRESSION_COMPLETE:`, { 
-          elapsed: performance.now() - startTime,
-          originalSize: compressionResult.originalSize,
-          compressedSize: compressionResult.compressedSize,
-          ratio: compressionResult.compressionRatio,
-          memory: (performance as any).memory?.usedJSHeapSize,
-          warnings: compressionResult.warnings?.length || 0
         });
-
-        // Show compression complete toast only if actually compressed
-        if (compressionResult.compressionRatio > 0) {
-          enhancedToast.showCompressionComplete({
-            ...compressionResult,
-            compressionRatio: compressionResult.compressionRatio,
-            timings: { total: 0 },
-            stages: [],
-            originalFormat: file.type.split('/')[1] || 'unknown',
-            finalFormat: 'jpeg',
-            algorithm: 'Canvas compression'
-          });
-        }
-      }
-
-      // Generate filename with prefix
-      const fileName = generateFileName 
-        ? generateFileName(compressedFile)
-        : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${compressedFile.name}`;
-      
-      const key = `${BUCKET_PREFIXES[bucket]}${fileName}`;
-
-      console.log(`[UPLOAD-${uploadId}] BUFFER_CONVERSION_START:`, { 
-        elapsed: performance.now() - startTime,
-        fileSize: compressedFile.size,
-        memory: (performance as any).memory?.usedJSHeapSize
+        
+        xhr.addEventListener('error', () => {
+          reject(new Error('Network error during upload'));
+        });
+        
+        xhr.addEventListener('abort', () => {
+          reject(new Error('Upload cancelled'));
+        });
+        
+        xhr.open('PUT', presignedUrl);
+        xhr.setRequestHeader('Content-Type', file.type);
+        xhr.send(file);
       });
-
-      // Show upload start toast
-      const uploadToast = enhancedToast.showUploadStart(fileName, compressionResult.compressedSize);
-
-      // Convert File to ArrayBuffer for AWS SDK compatibility
-      const fileBuffer = await compressedFile.arrayBuffer();
-      
-      console.log(`[UPLOAD-${uploadId}] BUFFER_CONVERTED:`, { 
-        elapsed: performance.now() - startTime,
-        bufferSize: fileBuffer.byteLength,
-        memory: (performance as any).memory?.usedJSHeapSize
-      });
-      
-      const uint8Array = new Uint8Array(fileBuffer);
-      
-      console.log(`[UPLOAD-${uploadId}] UINT8_CREATED:`, { 
-        elapsed: performance.now() - startTime,
-        arraySize: uint8Array.length,
-        memory: (performance as any).memory?.usedJSHeapSize
-      });
-      
-      console.log(`[UPLOAD-${uploadId}] S3_UPLOAD_START:`, { 
-        elapsed: performance.now() - startTime,
-        key,
-        bucket: S3_BUCKET,
-        bodySize: uint8Array.length
-      });
-
-      // TODO: SECURITY - Replace direct S3 upload with presigned URL from backend
-      // Current implementation exposes AWS credentials in frontend code
-      // Proper solution: Backend generates presigned URLs for uploads
-      
-      if (!import.meta.env.VITE_AWS_ACCESS_KEY_ID || !import.meta.env.VITE_AWS_SECRET_ACCESS_KEY) {
-        throw new Error('Upload service not configured. Contact administrator.');
-      }
-
-      const contentType = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf') 
-        ? 'application/pdf' 
-        : 'image/jpeg';
-      
-      const command = new PutObjectCommand({
-        Bucket: S3_BUCKET,
-        Key: key,
-        Body: uint8Array,
-        ContentType: contentType,
-      });
-
-      const result = await s3Client.send(command);
-
-      console.log(`[UPLOAD-${uploadId}] S3_UPLOAD_COMPLETE:`, { 
-        elapsed: performance.now() - startTime,
-        etag: result.ETag,
-        memory: (performance as any).memory?.usedJSHeapSize
-      });
-
-      // Generate public URL
-      const publicUrl = `https://${S3_BUCKET}.s3.us-west-2.amazonaws.com/${key}`;
-
-      // Show upload success
-      enhancedToast.showUploadSuccess(fileName, publicUrl);
 
       console.log(`[UPLOAD-${uploadId}] SUCCESS:`, { 
         totalElapsed: performance.now() - startTime,
         url: publicUrl
       });
 
+      // Clear progress after success
+      clearProgress(file.name);
+
+      enhancedToast.showUploadSuccess(file.name, publicUrl);
+
       return {
         url: publicUrl,
-        fileName,
-        originalSize: compressionResult.originalSize,
-        compressedSize: compressionResult.compressedSize,
-        compressionRatio: compressionResult.compressionRatio
+        fileName: file.name,
+        originalSize: file.size,
+        compressedSize: file.size,
+        compressionRatio: 0
       };
     } catch (error) {
-      console.error(`[UPLOAD-${uploadId}] FAILED:`, {
-        elapsed: performance.now() - startTime,
-        error,
-        errorName: error instanceof Error ? error.name : 'Unknown',
-        errorMessage: error instanceof Error ? error.message : String(error),
-        errorStack: error instanceof Error ? error.stack : undefined,
-        fileName: file.name,
-        fileType: file.type,
-        fileSize: file.size,
-        bucket,
-        userAgent: navigator.userAgent,
-        memory: (performance as any).memory?.usedJSHeapSize,
-        connection: (navigator as any).connection?.effectiveType
-      });
-      // Show error toast if not already shown by enhanced toast
-      if (error instanceof Error && !error.message.includes('Upload')) {
-        enhancedToast.showUploadError(error.message, file.name);
-      }
+      console.error(`[UPLOAD-${uploadId}] FAILED:`, error);
+      clearProgress(file.name);
+      enhancedToast.showUploadError(
+        error instanceof Error ? error.message : 'Upload failed',
+        file.name
+      );
       throw error;
     }
   };
@@ -275,15 +153,12 @@ export const useImageUpload = () => {
     
     for (let i = 0; i < files.length; i++) {
       try {
-        const fileOptions = {
-          ...options,
-          generateFileName: options.generateFileName 
-            ? (f: File) => options.generateFileName!(f, i + 1)
-            : undefined
-        };
-        
-        const result = await uploadSingleImage(files[i], fileOptions);
+        const result = await uploadSingleImage(files[i], options);
         results.push(result);
+        
+        if (i < files.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Upload failed';
         errors.push({ name: files[i].name, error: errorMsg });
@@ -291,11 +166,8 @@ export const useImageUpload = () => {
     }
     
     if (errors.length > 0 && results.length === 0) {
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      const errorMsg = isMobile 
-        ? `All uploads failed. Large files may be too big for mobile. Try: 1) Use camera instead of gallery, 2) Reduce image quality in camera settings, or 3) Upload from computer.`
-        : `All uploads failed: ${errors.map(e => e.name).join(', ')}`;
-      throw new Error(errorMsg);
+      const errorDetails = errors.map(e => `${e.name}: ${e.error}`).join('; ');
+      throw new Error(`Upload failed: ${errorDetails}`);
     }
     
     if (errors.length > 0) {
@@ -327,6 +199,7 @@ export const useImageUpload = () => {
 
   return {
     uploadImages,
-    isUploading
+    isUploading,
+    uploadProgress
   };
 };

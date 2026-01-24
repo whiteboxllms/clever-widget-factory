@@ -39,7 +39,7 @@ export function useCreateExploration() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { exploration_code: string }) =>
+    mutationFn: (data: { exploration_code: string; name?: string }) =>
       explorationService.createExploration(data),
     onSuccess: (newExploration) => {
       // Invalidate the explorations list to refresh with new exploration
@@ -162,6 +162,51 @@ export function useUnlinkExploration() {
     },
     onError: (error) => {
       console.error('Failed to unlink exploration:', error);
+    },
+  });
+}
+
+
+/**
+ * Hook to update an exploration
+ */
+export function useUpdateExploration() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { exploration_code?: string; name?: string } }) =>
+      explorationService.updateExploration(id, data),
+    onSuccess: (updatedExploration) => {
+      queryClient.invalidateQueries({
+        queryKey: explorationKeys.list('in_progress,ready_for_analysis'),
+      });
+      queryClient.setQueryData(
+        explorationKeys.detail(String(updatedExploration.id)),
+        updatedExploration
+      );
+    },
+    onError: (error) => {
+      console.error('Failed to update exploration:', error);
+    },
+  });
+}
+
+/**
+ * Hook to delete an exploration
+ */
+export function useDeleteExploration() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (explorationId: string) =>
+      explorationService.deleteExploration(explorationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: explorationKeys.list('in_progress,ready_for_analysis'),
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to delete exploration:', error);
     },
   });
 }

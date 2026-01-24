@@ -7,7 +7,7 @@
  * Requirements: 2.4, 2.6, 2.7, 2.8, 6.6, 5.1, 5.2, 5.3, 8.2, 8.5
  */
 
-import { apiService } from '../lib/apiService';
+import { apiService, getApiData } from '../lib/apiService';
 import { explorationCodeGenerator } from './explorationCodeGenerator';
 import { embeddingQueue } from './embeddingQueue';
 
@@ -49,6 +49,7 @@ export interface ExplorationFilters {
 
 export interface ExplorationListItem {
   exploration_code: string;
+  name?: string;
   state_text: string;
   summary_policy_text?: string;
   exploration_notes_text?: string;
@@ -58,6 +59,7 @@ export interface ExplorationListItem {
   exploration_id: number;
   created_at: string;
   explorer_name?: string;
+  public_flag: boolean;
 }
 
 export interface ExplorationSuggestions {
@@ -328,10 +330,10 @@ export class ExplorationService {
 
   /**
    * Delete an exploration
-   * @param id - Exploration ID
+   * @param id - Exploration ID (UUID string)
    * @returns Promise<void>
    */
-  async deleteExploration(id: number): Promise<void> {
+  async deleteExploration(id: string): Promise<void> {
     try {
       await apiService.delete(`/explorations/${id}`);
     } catch (error) {
@@ -429,6 +431,19 @@ export class ExplorationService {
       return response.data || response;
     } catch (error) {
       console.error('Error creating new exploration:', error);
+      throw error;
+    }
+  }
+
+  async updateExploration(id: string, data: { exploration_code?: string; name?: string }): Promise<ExplorationResponse> {
+    try {
+      const response = await apiService.put(`/explorations`, {
+        exploration_id: id,
+        ...data
+      });
+      return getApiData(response);
+    } catch (error) {
+      console.error('Error updating exploration:', error);
       throw error;
     }
   }

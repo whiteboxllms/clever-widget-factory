@@ -20,30 +20,94 @@ export const compressImageSimple = async (
   const warnings: CompressionWarning[] = [];
   const startTime = performance.now();
   const initialMemory = (performance as any).memory?.usedJSHeapSize;
-  
-  // Detect if file is potentially too large for mobile
   const fileSizeMB = file.size / (1024 * 1024);
-  if (fileSizeMB > 3) {
-    warnings.push({
-      type: 'large_file',
-      message: `Large file detected (${fileSizeMB.toFixed(2)}MB). Compression may be slow on mobile devices.`,
-      details: { fileSizeMB, maxSizeMB }
-    });
-  }
+  const targetMaxDimension = maxWidthOrHeight;
   
-  // Check available memory (if available)
-  if ((performance as any).memory) {
-    const availableMemory = (performance as any).memory.jsHeapSizeLimit - (performance as any).memory.usedJSHeapSize;
-    const estimatedMemoryNeeded = file.size * 4; // Rough estimate: 4x file size for canvas operations
-    if (estimatedMemoryNeeded > availableMemory * 0.5) {
-      warnings.push({
-        type: 'low_memory',
-        message: `Low available memory. Compression may fail or be slow.`,
-        details: { 
-          availableMemoryMB: (availableMemory / (1024 * 1024)).toFixed(2),
-          estimatedNeededMB: (estimatedMemoryNeeded / (1024 * 1024)).toFixed(2)
+  // Try modern createImageBitmap API for memory-efficient decoding on mobile
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const useImageBitmap = isMobile && 'createImageBitmap' in window;
+  
+  if (useImageBitmap) {
+    try {
+      // Get image dimensions first
+      const img = await createImageBitmap(file);
+      let { width, height } = img;
+      img.close(); // Free memory immediately
+      
+      // Calculate target dimensions
+      if (width > targetMaxDimension || height > targetMaxDimension) {
+        if (width > height) {
+          height = Math.round((height * targetMaxDimension) / width);
+          width = targetMaxDimension;
+        } else {
+          width = Math.round((width * targetMaxDimension) / height);
+          height = targetMaxDimension;
         }
+      }
+      
+      console.log('[COMPRESSION] Using ImageBitmap (mobile):', { width, height });
+      
+      // Decode and resize in one step - saves memory!
+      const resizedBitmap = await createImageBitmap(file, {
+        resizeWidth: width,
+        resizeHeight: height,
+        resizeQuality: 'high'
       });
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      
+      if (!ctx) throw new Error('Canvas not supported');
+      
+      ctx.drawImage(resizedBitmap, 0, 0);
+      resizedBitmap.close(); // Free memory
+      
+      return new Promise((resolve) => {
+        canvas.toBlob(
+          (blob) => {
+            canvas.width = 0;
+            canvas.height = 0;
+            
+            if (!blob) {
+              resolve({
+                file,
+                originalSize: file.size,
+                compressedSize: file.size,
+                compressionRatio: 0,
+              });
+              return;
+            }
+            
+            const compressedFile = new File([blob], file.name, {
+              type: 'image/jpeg',
+              lastModified: Date.now(),
+            });
+            
+            const compressionRatio = ((file.size - compressedFile.size) / file.size) * 100;
+            
+            console.log('[COMPRESSION] ImageBitmap complete:', {
+              originalSizeMB: (file.size / (1024 * 1024)).toFixed(2),
+              compressedSizeMB: (compressedFile.size / (1024 * 1024)).toFixed(2),
+              compressionRatio: compressionRatio.toFixed(1) + '%',
+              elapsed: ((performance.now() - startTime) / 1000).toFixed(2) + 's'
+            });
+            
+            resolve({
+              file: compressedFile,
+              originalSize: file.size,
+              compressedSize: compressedFile.size,
+              compressionRatio,
+            });
+          },
+          'image/jpeg',
+          0.8
+        );
+      });
+    } catch (error) {
+      console.warn('[COMPRESSION] ImageBitmap failed, falling back to canvas:', error);
+      // Fall through to canvas method
     }
   }
   
@@ -67,19 +131,35 @@ export const compressImageSimple = async (
     let objectUrl: string | null = null;
     
     img.onload = () => {
-      // Calculate new dimensions
-      let { width, height } = img;
+      // Log memory before processing
+      const memoryBeforeProcessing = (performance as any).memory?.usedJSHeapSize;
       
-      if (width > maxWidthOrHeight || height > maxWidthOrHeight) {
+      // Calculate target dimensions BEFORE creating canvas
+      let { width, height } = img;
+      const targetMaxDimension = maxWidthOrHeight;
+      
+      if (width > targetMaxDimension || height > targetMaxDimension) {
         if (width > height) {
-          height = (height * maxWidthOrHeight) / width;
-          width = maxWidthOrHeight;
+          height = (height * targetMaxDimension) / width;
+          width = targetMaxDimension;
         } else {
-          width = (width * maxWidthOrHeight) / height;
-          height = maxWidthOrHeight;
+          width = (width * targetMaxDimension) / height;
+          height = targetMaxDimension;
         }
       }
       
+      console.log('[COMPRESSION] Image loaded:', {
+        originalWidth: img.width,
+        originalHeight: img.height,
+        targetWidth: Math.round(width),
+        targetHeight: Math.round(height),
+        fileSizeMB: fileSizeMB.toFixed(2),
+        memoryUsedMB: memoryBeforeProcessing ? (memoryBeforeProcessing / (1024 * 1024)).toFixed(2) : 'N/A',
+        originalCanvasMemoryMB: ((img.width * img.height * 4) / (1024 * 1024)).toFixed(2),
+        targetCanvasMemoryMB: ((width * height * 4) / (1024 * 1024)).toFixed(2)
+      });
+      
+      // Create canvas at TARGET size (not original size)
       canvas.width = width;
       canvas.height = height;
       
@@ -122,6 +202,20 @@ export const compressImageSimple = async (
             if (blob.size <= targetSize || quality <= 0.1) {
               resolved = true;
               if (objectUrl) URL.revokeObjectURL(objectUrl);
+              
+              // Clean up canvas and image to free memory
+              canvas.width = 0;
+              canvas.height = 0;
+              img.src = '';
+              
+              // Log memory after cleanup
+              const memoryAfterCleanup = (performance as any).memory?.usedJSHeapSize;
+              console.log('[COMPRESSION] Memory cleanup:', {
+                beforeMB: initialMemory ? (initialMemory / (1024 * 1024)).toFixed(2) : 'N/A',
+                afterMB: memoryAfterCleanup ? (memoryAfterCleanup / (1024 * 1024)).toFixed(2) : 'N/A',
+                freedMB: initialMemory && memoryAfterCleanup ? ((initialMemory - memoryAfterCleanup) / (1024 * 1024)).toFixed(2) : 'N/A'
+              });
+              
               const compressedFile = new File([blob], file.name, {
                 type: 'image/jpeg',
                 lastModified: Date.now(),
@@ -169,6 +263,12 @@ export const compressImageSimple = async (
           resolved = true;
           console.error('Canvas compression failed:', error);
           if (objectUrl) URL.revokeObjectURL(objectUrl);
+          
+          // Clean up on error
+          canvas.width = 0;
+          canvas.height = 0;
+          img.src = '';
+          
           resolve({
             file,
             originalSize: file.size,
@@ -185,6 +285,12 @@ export const compressImageSimple = async (
       if (resolved) return;
       resolved = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
+      
+      // Clean up on error
+      canvas.width = 0;
+      canvas.height = 0;
+      img.src = '';
+      
       resolve({
         file,
         originalSize: file.size,
@@ -193,9 +299,8 @@ export const compressImageSimple = async (
       });
     };
     
-    // Timeout fallback for mobile browsers
-    // Use longer timeout for large files, but warn if it's taking too long
-    const timeoutDuration = fileSizeMB > 3 ? 20000 : 10000; // 20s for large files, 10s for normal
+    // Timeout fallback - shorter since we're downsampling aggressively
+    const timeoutDuration = 15000; // 15s timeout
     const timeoutId = setTimeout(() => {
       if (resolved) return;
       resolved = true;
@@ -214,6 +319,12 @@ export const compressImageSimple = async (
       });
       
       if (objectUrl) URL.revokeObjectURL(objectUrl);
+      
+      // Clean up on timeout
+      canvas.width = 0;
+      canvas.height = 0;
+      img.src = '';
+      
       resolve({
         file,
         originalSize: file.size,

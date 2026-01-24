@@ -433,6 +433,9 @@ function ExplorationCard({ exploration, onCreatePolicy, onLinkPolicy, onViewActi
                     </Badge>
                   )}
                 </div>
+                {exploration.name && (
+                  <h4 className="text-base font-medium">{exploration.name}</h4>
+                )}
                 <p className="text-sm text-muted-foreground">
                   {format(new Date(exploration.created_at), 'MMM dd, yyyy')}
                   {exploration.explorer_name && ` • ${exploration.explorer_name}`}

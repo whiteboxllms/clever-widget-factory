@@ -42,7 +42,9 @@ exports.handler = async (event) => {
       if (actionId) {
         // Get explorations linked to this action via junction table
         const result = await pool.query(
-          `SELECT e.*, COUNT(ae.action_id) as action_count
+          `SELECT e.id, e.exploration_code, e.name, e.exploration_notes_text, e.metrics_text, 
+                  e.public_flag, e.status, e.key_photos, e.created_at, e.updated_at,
+                  COUNT(ae.action_id) as action_count
            FROM exploration e
            LEFT JOIN action_exploration ae ON e.id = ae.exploration_id
            WHERE e.id IN (
@@ -56,7 +58,9 @@ exports.handler = async (event) => {
       }
       
       // List explorations with optional status filter
-      let query = `SELECT e.*, COUNT(ae.action_id) as action_count
+      let query = `SELECT e.id, e.exploration_code, e.name, e.exploration_notes_text, e.metrics_text,
+                          e.public_flag, e.status, e.key_photos, e.created_at, e.updated_at,
+                          COUNT(ae.action_id) as action_count
                    FROM exploration e
                    LEFT JOIN action_exploration ae ON e.id = ae.exploration_id`;
       const params = [];
@@ -136,7 +140,7 @@ exports.handler = async (event) => {
         return error('Invalid JSON in request body', 400);
       }
       
-      const { exploration_id, exploration_code, exploration_notes_text, metrics_text, public_flag, key_photos } = body;
+      const { exploration_id, exploration_code, name, exploration_notes_text, metrics_text, public_flag, key_photos } = body;
 
       if (!exploration_id) {
         return error('exploration_id is required', 400);
@@ -145,14 +149,15 @@ exports.handler = async (event) => {
       const result = await pool.query(
         `UPDATE exploration 
          SET exploration_code = COALESCE($1, exploration_code),
-             exploration_notes_text = COALESCE($2, exploration_notes_text),
-             metrics_text = COALESCE($3, metrics_text),
-             public_flag = COALESCE($4, public_flag),
-             key_photos = COALESCE($5, key_photos),
+             name = COALESCE($2, name),
+             exploration_notes_text = COALESCE($3, exploration_notes_text),
+             metrics_text = COALESCE($4, metrics_text),
+             public_flag = COALESCE($5, public_flag),
+             key_photos = COALESCE($6, key_photos),
              updated_at = NOW()
-         WHERE id = $6
+         WHERE id = $7
          RETURNING *`,
-        [exploration_code, exploration_notes_text, metrics_text, public_flag, key_photos, exploration_id]
+        [exploration_code, name, exploration_notes_text, metrics_text, public_flag, key_photos, exploration_id]
       );
 
       if (result.rows.length === 0) {
@@ -195,10 +200,15 @@ exports.handler = async (event) => {
     }
 
     // DELETE /api/explorations/{id}
-    if (httpMethod === 'DELETE' && pathParameters?.id) {
+    if (httpMethod === 'DELETE' && path.startsWith('/api/explorations/')) {
+      const id = pathParameters?.id;
+      if (!id) {
+        return error('Exploration ID is required', 400);
+      }
+      
       const result = await pool.query(
         'DELETE FROM exploration WHERE id = $1 RETURNING *',
-        [pathParameters.id]
+        [id]
       );
 
       if (result.rows.length === 0) {
@@ -267,7 +277,8 @@ exports.handler = async (event) => {
 
       // Get all linked explorations for response
       const linkedExplorations = await pool.query(
-        `SELECT e.*
+        `SELECT e.id, e.exploration_code, e.name, e.exploration_notes_text, e.metrics_text,
+                e.public_flag, e.status, e.key_photos, e.created_at, e.updated_at
          FROM exploration e
          WHERE e.id = ANY($1)
          ORDER BY e.created_at DESC`,
@@ -322,10 +333,12 @@ exports.handler = async (event) => {
         SELECT 
           e.id,
           e.exploration_code,
+          e.name,
           e.exploration_notes_text,
           e.metrics_text,
           e.public_flag,
           e.status,
+          e.key_photos,
           e.created_at,
           e.updated_at,
           COUNT(ae.action_id) as action_count

@@ -194,10 +194,14 @@ export function UnifiedActionDialog({
           ? "The action has been marked as complete and stock consumption recorded."
           : (isCreating || !action?.id ? "Action created successfully" : "Action updated successfully")
       });
-      onActionSaved(updatedAction as BaseAction);
-      // Don't close dialog if uploads are in progress or just completed
-      if (!isUploading && !isLocalUploading && !uploadJustCompletedRef.current) {
+      // Don't close dialog if uploads are in progress OR if this is an auto-save from upload
+      console.log('[DIALOG] onSuccess - isUploading:', isUploading, 'isLocalUploading:', isLocalUploading, 'isAutoSavingFromUpload:', isAutoSavingFromUploadRef.current);
+      if (!isUploading && !isLocalUploading && !isAutoSavingFromUploadRef.current) {
+        console.log('[DIALOG] Closing dialog');
+        onActionSaved(updatedAction as BaseAction);
         onOpenChange(false);
+      } else {
+        console.log('[DIALOG] Keeping dialog open - skipping callbacks');
       }
     },
     onError: (error, variables, context) => {
@@ -231,11 +235,9 @@ export function UnifiedActionDialog({
   const [linkCopied, setLinkCopied] = useState(false);
   const [showMissionDialog, setShowMissionDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Local uploading state set immediately when files are selected (before async operations)
-  // This prevents dialog from closing on mobile before uploadImages sets its internal state
   const [isLocalUploading, setIsLocalUploading] = useState(false);
-  // Track when uploads just completed to prevent accidental closes immediately after
-  const uploadJustCompletedRef = useRef(false);
+  const uploadCompletedTimeRef = useRef<number>(0);
+  const isAutoSavingFromUploadRef = useRef<boolean>(false);
   
   // Exploration-related state
   const [isExploration, setIsExploration] = useState(false);
@@ -246,7 +248,7 @@ export function UnifiedActionDialog({
   const [checkingExploration, setCheckingExploration] = useState(false);
   const [showExplorationDialog, setShowExplorationDialog] = useState(false);
   const [linkedExplorationIds, setLinkedExplorationIds] = useState<string[]>([]);
-  const [linkedExplorationCodes, setLinkedExplorationCodes] = useState<string[]>([]);
+  const [linkedExplorations, setLinkedExplorations] = useState<Array<{ id: string; exploration_code: string; name?: string }>>([]);
   const [codeValidationState, setCodeValidationState] = useState<{
     isValid: boolean;
     isUnique: boolean;
@@ -417,7 +419,9 @@ export function UnifiedActionDialog({
 
   // Update formData when action changes from cache (after refetch)
   useEffect(() => {
-    if (action && !isCreating && isFormInitialized && !isUploading && !isLocalUploading && !uploadJustCompletedRef.current) {
+    // Don't sync from cache within 2 seconds of upload completing
+    const timeSinceUpload = Date.now() - uploadCompletedTimeRef.current;
+    if (action && !isCreating && isFormInitialized && !isUploading && !isLocalUploading && timeSinceUpload > 2000) {
       setFormData(prev => {
         // Update if attachment count, required_tools, or required_stock changed (additions or removals from cache)
         const attachmentsChanged = action.attachments?.length !== prev.attachments?.length;
@@ -425,6 +429,11 @@ export function UnifiedActionDialog({
         const requiredStockChanged = JSON.stringify([...(action.required_stock || [])].sort()) !== JSON.stringify([...(prev.required_stock || [])].sort());
         
         if (attachmentsChanged || requiredToolsChanged || requiredStockChanged) {
+          console.log('[DIALOG] useEffect syncing from cache - OVERWRITING formData!', {
+            actionAttachments: action.attachments?.length,
+            prevAttachments: prev.attachments?.length,
+            timeSinceUpload
+          });
           return {
             ...action,
             plan_commitment: action.plan_commitment || false,
@@ -494,9 +503,12 @@ export function UnifiedActionDialog({
         const result = await apiService.get(`/explorations?action_id=${action.id}`);
         const explorations = result.data || [];
         const explorationIds = explorations.map((e: any) => e.id);
-        const explorationCodes = explorations.map((e: any) => e.exploration_code);
         setLinkedExplorationIds(explorationIds);
-        setLinkedExplorationCodes(explorationCodes);
+        setLinkedExplorations(explorations.map((e: any) => ({ 
+          id: e.id, 
+          exploration_code: e.exploration_code,
+          name: e.name 
+        })));
         
         // Also set is_exploration flag if there are linked explorations
         if (explorationIds.length > 0) {
@@ -748,15 +760,15 @@ export function UnifiedActionDialog({
     } else {
       // Clear exploration association when unchecked
       setLinkedExplorationIds([]);
+      setLinkedExplorations([]);
       setExplorationCode('');
     }
   };
 
   // Handle exploration linked from dialog
-  const handleExplorationLinked = async (explorationId: string) => {
-    setLinkedExplorationIds([explorationId]);
-    const result = await apiService.get(`/explorations/${explorationId}`);
-    setLinkedExplorationCodes([result.data.exploration_code]);
+  const handleExplorationLinked = async (exploration: { id: string; exploration_code: string; name?: string }) => {
+    setLinkedExplorationIds([exploration.id]);
+    setLinkedExplorations([{ id: exploration.id, exploration_code: exploration.exploration_code, name: exploration.name }]);
     setShowExplorationDialog(false);
     toast({
       title: "Success",
@@ -1046,9 +1058,12 @@ export function UnifiedActionDialog({
         throw new Error('No files were uploaded successfully');
       }
       
+      const newAttachments = [...(formData.attachments || []), ...uploadedUrls];
+      
+      // Update formData immediately
       setFormData(prev => ({
         ...prev,
-        attachments: [...(prev.attachments || []), ...uploadedUrls]
+        attachments: newAttachments
       }));
       
       toast({
@@ -1056,10 +1071,24 @@ export function UnifiedActionDialog({
         description: `${uploadedUrls.length} file(s) uploaded successfully`
       });
       
-      uploadJustCompletedRef.current = true;
-      setTimeout(() => {
-        uploadJustCompletedRef.current = false;
-      }, 500);
+      // Mark upload completion time to prevent immediate cache sync
+      uploadCompletedTimeRef.current = Date.now();
+      
+      // Auto-save if editing existing action (BEFORE clearing isLocalUploading)
+      if (action?.id) {
+        try {
+          isAutoSavingFromUploadRef.current = true;
+          await saveActionMutation.mutateAsync({
+            id: action.id,
+            attachments: newAttachments
+          });
+        } catch (saveError) {
+          console.error('[DIALOG] Auto-save failed:', saveError);
+          // Don't show error - attachments are still in formData and will save on manual save
+        } finally {
+          isAutoSavingFromUploadRef.current = false;
+        }
+      }
     } catch (error) {
       console.error('Upload failed:', error);
       toast({
@@ -1262,15 +1291,13 @@ export function UnifiedActionDialog({
          * 
          * See: src/components/__tests__/UnifiedActionDialog.upload.test.tsx
          */
-        if (!newOpen && (isUploading || isLocalUploading || uploadJustCompletedRef.current)) {
-          if (isUploading || isLocalUploading) {
-            toast({
-              title: "Upload in progress",
-              description: "Please wait for the upload to complete before closing.",
-              variant: "default",
-              duration: 3000
-            });
-          }
+        if (!newOpen && (isUploading || isLocalUploading)) {
+          toast({
+            title: "Upload in progress",
+            description: "Please wait for the upload to complete before closing.",
+            variant: "default",
+            duration: 3000
+          });
           return;
         }
         onOpenChange(newOpen);
@@ -1387,10 +1414,12 @@ export function UnifiedActionDialog({
                     <Label className="text-sm font-medium">Linked Exploration</Label>
                     <div className="flex items-center justify-between p-3 bg-white border rounded-md">
                       <div className="flex-1">
-                        <p className="text-sm font-medium">
-                          {linkedExplorationCodes.length > 0 ? linkedExplorationCodes.join(', ') : 'Exploration linked'}
-                        </p>
-                        <p className="text-xs text-muted-foreground">{linkedExplorationIds.length} exploration(s) associated</p>
+                        {linkedExplorations.map((exp, idx) => (
+                          <p key={exp.id} className="text-sm">
+                            <span className="font-medium font-mono">{exp.exploration_code}</span>
+                            {exp.name && <span className="text-muted-foreground"> - {exp.name}</span>}
+                          </p>
+                        ))}
                       </div>
                       <Button
                         type="button"

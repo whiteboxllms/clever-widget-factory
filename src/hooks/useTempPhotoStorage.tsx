@@ -3,7 +3,6 @@ import { useState, useCallback } from 'react';
 import { useEnhancedToast } from "@/hooks/useEnhancedToast";
 import { compressImageDetailed } from "@/lib/enhancedImageUtils";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
-import { uploadToS3 } from '@/lib/s3Service';
 import { apiService } from '@/lib/apiService';
 import { useAuth } from '@/hooks/useCognitoAuth';
 
@@ -84,15 +83,30 @@ export const useTempPhotoStorage = () => {
         enhancedToast.showCompressionComplete(compressionResult);
         enhancedToast.dismiss(compressionToast.id);
 
-        // Upload to S3
+        // Get presigned URL from backend
+        const presignedResponse = await apiService.post('/upload/presigned-url', {
+          filename: tempPhoto.fileName,
+          contentType: compressionResult.file.type
+        });
+        
+        const { presignedUrl, publicUrl } = presignedResponse;
+
+        // Upload to S3 using presigned URL
         const uploadToast = enhancedToast.showUploadStart(tempPhoto.fileName, compressionResult.compressedSize);
         
-        const fileName = `${Date.now()}-${tempPhoto.fileName}`;
-        const uploadResult = await uploadToS3('mission-evidence', fileName, compressionResult.file);
+        const uploadResponse = await fetch(presignedUrl, {
+          method: 'PUT',
+          body: compressionResult.file,
+          headers: {
+            'Content-Type': compressionResult.file.type,
+          },
+        });
 
-        if (!uploadResult.success) throw new Error(uploadResult.error);
+        if (!uploadResponse.ok) {
+          throw new Error(`S3 upload failed: ${uploadResponse.statusText}`);
+        }
 
-        const relativePath = `mission-evidence/${fileName}`;
+        const relativePath = publicUrl.replace('https://cwf-dev-assets.s3.us-west-2.amazonaws.com/', '');
 
         // Save attachment record via API
         const attachmentData = await apiService.post('/api/mission_attachments', {

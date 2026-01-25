@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Setup New API Endpoint",
+  "description": "Guides you through creating a new API Gateway endpoint with Lambda function, authorizer, layers, and deployment - ensuring all steps are completed correctly",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "I need to set up a new API endpoint. Please guide me through the complete process step-by-step:\n\n1. **Gather Requirements**:\n   - Ask me for the endpoint path (e.g., /api/my-resource)\n   - Ask me for the HTTP methods needed (GET, POST, PUT, DELETE)\n   - Ask me for the Lambda function name (e.g., cwf-my-resource-lambda)\n   - Ask if this is a new Lambda or updating an existing one\n\n2. **Lambda Setup** (if new Lambda):\n   - Create lambda/<lambda-dir>/index.js with proper structure\n   - Create lambda/<lambda-dir>/package.json with required dependencies\n   - Create lambda/<lambda-dir>/deploy.sh using the layer pattern from lambda/explorations/deploy.sh\n   - Ensure it uses the cwf-shared layer (LAYER_ARN=\"arn:aws:lambda:us-west-2:131745734428:layer:cwf-shared:${LAYER_VERSION}\")\n   - Include proper environment variables (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD)\n   - Set timeout to 30 seconds and memory to 512MB\n\n3. **API Gateway Setup**:\n   - For each HTTP method, run: ./scripts/add-api-endpoint.sh <path> <method>\n   - Verify authorizer is set (AUTHORIZER_ID=\"pjg8xs\") for all methods except OPTIONS\n   - Create wire-api-gateway.sh script for this endpoint (based on lambda/explorations/wire-api-gateway.sh)\n\n4. **Deploy Lambda**:\n   - Run the deploy.sh script: cd lambda/<lambda-dir> && ./deploy.sh\n   - Verify layer is attached correctly\n\n5. **Wire API Gateway**:\n   - Run the wire-api-gateway.sh script to connect endpoints to Lambda\n   - Deploy API Gateway: aws apigateway create-deployment --rest-api-id 0720au267k --stage-name prod --region us-west-2\n\n6. **Verify Setup**:\n   - Run: ./scripts/verify-api-authorizers.sh\n   - Test endpoint with curl (provide example command)\n   - Check CloudWatch logs for any errors\n\n**Important Constants**:\n- API_ID=\"0720au267k\"\n- REGION=\"us-west-2\"\n- AUTHORIZER_ID=\"pjg8xs\"\n- LAYER_ARN=\"arn:aws:lambda:us-west-2:131745734428:layer:cwf-shared:${LAYER_VERSION}\"\n- ROLE_ARN=\"arn:aws:iam::131745734428:role/lambda-execution-role\"\n\nWalk me through each step, wait for confirmation before proceeding to the next step, and generate all necessary files and commands."
+  }
+}

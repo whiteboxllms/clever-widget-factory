@@ -4,13 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { toast } from '@/hooks/use-toast';
 import { useOrganizationMembers } from '@/hooks/useOrganizationMembers';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
 import { offlineQueryConfig } from '@/lib/queryConfig';
-import { Bolt, Plus, Filter, Search, CheckCircle, AlertTriangle, ArrowLeft, X } from 'lucide-react';
+import { Bolt, Plus, Filter, Search, CheckCircle, AlertTriangle, ArrowLeft, X, SearchCheck, Info } from 'lucide-react';
 import { UnifiedActionDialog } from '@/components/UnifiedActionDialog';
 import { ActionScoreDialog } from '@/components/ActionScoreDialog';
 import { ActionListItemCard } from '@/components/ActionListItemCard';
@@ -35,6 +36,8 @@ export default function Actions() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
+  const [isSemanticSearch, setIsSemanticSearch] = useState(false);
+  const [semanticResults, setSemanticResults] = useState<string[]>([]);
   
   // Use organization members for consistent "Assigned to" dropdown
   const { members: profiles } = useOrganizationMembers();
@@ -184,15 +187,27 @@ export default function Actions() {
 
   const handleScoreAction = async (action: BaseAction, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card click
+    console.log('[Actions] handleScoreAction called', {
+      actionId: action.id,
+      actionTitle: action.title
+    });
     setScoringAction(action);
     
-    // Load existing score if any
-    if (action.id) {
-      const score = await getScoreForAction(action.id);
-      setExistingScore(score);
-    }
-    
+    // Open dialog immediately
     setShowScoreDialog(true);
+    
+    // Load existing score in parallel (non-blocking)
+    if (action.id) {
+      console.log('[Actions] Loading existing score for action:', action.id);
+      getScoreForAction(action.id).then(score => {
+        console.log('[Actions] Existing score loaded:', score ? {
+          id: score.id,
+          action_id: score.action_id,
+          hasAiResponse: !!score.ai_response
+        } : null);
+        setExistingScore(score);
+      });
+    }
   };
 
   const handleScoreUpdated = () => {
@@ -209,6 +224,58 @@ export default function Actions() {
     setShowScoreDialog(open);
   };
 
+  const handleSemanticSearch = async () => {
+    if (!searchTerm.trim()) {
+      toast({
+        title: "Search Required",
+        description: "Please enter a search term for semantic search",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsSemanticSearch(true);
+      
+      // Call unified search API with entity_types filter for actions
+      const response = await apiService.post('/semantic-search/unified', {
+        query: searchTerm,
+        entity_types: ['action', 'action_existing_state'],
+        limit: 50
+      });
+
+      console.log('Semantic search response:', response);
+
+      if (response.data && response.data.results && Array.isArray(response.data.results)) {
+        // Extract unique action IDs from results
+        const actionIds = [...new Set(response.data.results.map((r: any) => r.entity_id))];
+        setSemanticResults(actionIds);
+        
+        toast({
+          title: "Semantic Search Complete",
+          description: `Found ${actionIds.length} relevant actions`,
+        });
+      } else {
+        console.error('Unexpected response format:', response);
+        throw new Error('Invalid response format from search API');
+      }
+    } catch (error) {
+      console.error('Semantic search error:', error);
+      toast({
+        title: "Search Error",
+        description: error instanceof Error ? error.message : "Failed to perform semantic search. Please try again.",
+        variant: "destructive",
+      });
+      setIsSemanticSearch(false);
+      setSemanticResults([]);
+    }
+  };
+
+  const handleClearSemanticSearch = () => {
+    setIsSemanticSearch(false);
+    setSemanticResults([]);
+  };
+
 
 
   // Handle URL parameters for direct action links (both search params and path params)
@@ -222,8 +289,10 @@ export default function Actions() {
       return;
     }
     
-    // Wait for the action to be loaded (from cache, single fetch, or all actions)
-    const action = singleActionData || allActions.find(a => a.id === currentId);
+    // Wait for the action to be loaded (from cache or single fetch)
+    // Use singleActionData (direct fetch) or cachedAction (from cache) - don't use allActions
+    // to avoid infinite loop when allActions array reference changes
+    const action = singleActionData || cachedAction;
     
     if (searchActionId) {
       if (action) {
@@ -260,7 +329,7 @@ export default function Actions() {
         processedUrlRef.current = urlActionId;
       }
     }
-  }, [actionId, organizationId, searchParams, singleActionData, allActions, singleActionLoading, allActionsLoading, cachedAction, navigate, setSearchParams]);
+  }, [actionId, organizationId, searchParams, singleActionData, singleActionLoading, allActionsLoading, cachedAction, navigate, setSearchParams]);
 
   // Reset assignee filter if the selected assignee is not in active profiles
   useEffect(() => {
@@ -280,8 +349,11 @@ export default function Actions() {
   const filteredActions = useMemo(() => {
     let filtered = allActions;
 
-    // Search filter
-    if (searchTerm) {
+    // Semantic search filter (takes precedence)
+    if (isSemanticSearch && semanticResults.length > 0) {
+      filtered = filtered.filter(action => semanticResults.includes(action.id));
+    } else if (searchTerm) {
+      // Regular text search filter
       const searchLower = searchTerm.toLowerCase();
       filtered = filtered.filter(action => {
         // Helper function to strip HTML and search
@@ -327,7 +399,7 @@ export default function Actions() {
     }
 
     return filtered;
-  }, [allActions, searchTerm, statusFilter, assigneeFilter, user?.userId, profiles.length]);
+  }, [allActions, searchTerm, statusFilter, assigneeFilter, user?.userId, profiles.length, isSemanticSearch, semanticResults]);
 
   // Sort actions: in-progress first, then by updated_at (most recent first)
   const sortedFilteredActions = [...filteredActions].sort((a, b) => {
@@ -389,7 +461,7 @@ export default function Actions() {
             <p className="text-muted-foreground">Track and manage actions</p>
           </div>
         </div>
-        <Button onClick={handleCreateAction} className="w-full sm:w-auto !whitespace-normal min-w-0">
+        <Button onClick={handleCreateAction} variant="outline" className="w-full sm:w-auto whitespace-nowrap min-w-0">
           <Plus className="h-4 w-4 mr-2 flex-shrink-0" />
           <span className="break-words">New Action</span>
         </Button>
@@ -409,24 +481,81 @@ export default function Actions() {
               <label className="text-sm font-medium flex items-center gap-2">
                 <Search className="h-4 w-4" />
                 Search
-              </label>
-              <div className="relative">
-                <Input
-                  placeholder="Search actions..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pr-10"
-                />
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm("")}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    type="button"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+                {isSemanticSearch && (
+                  <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                    AI Search Active
+                  </span>
                 )}
+              </label>
+              <div className="relative flex gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    placeholder="Search actions..."
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      // Clear semantic search when user types
+                      if (isSemanticSearch) {
+                        handleClearSemanticSearch();
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && e.shiftKey) {
+                        handleSemanticSearch();
+                      }
+                    }}
+                    className="pr-10"
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={() => {
+                        setSearchTerm("");
+                        handleClearSemanticSearch();
+                      }}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      type="button"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleSemanticSearch}
+                  disabled={!searchTerm.trim()}
+                  title="Semantic Search (Shift+Enter)"
+                  className={`flex-shrink-0 ${isSemanticSearch ? 'bg-primary/10 text-primary hover:bg-primary/20' : ''}`}
+                >
+                  <SearchCheck className="h-4 w-4" />
+                </Button>
               </div>
+              {isSemanticSearch && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  Showing {semanticResults.length} semantically similar actions
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-sm">
+                        <div className="space-y-2">
+                          <p className="font-semibold">Semantic search includes:</p>
+                          <ul className="list-disc list-inside space-y-1 text-sm">
+                            <li><strong>Existing State:</strong> The initial description of what needs to be done</li>
+                            <li><strong>Evidence:</strong> What was actually accomplished</li>
+                            <li><strong>Policy:</strong> Lessons learned and best practices</li>
+                            <li><strong>Observations:</strong> Field notes and additional context</li>
+                          </ul>
+                          <p className="text-sm mt-2 pt-2 border-t">
+                            <strong>Tip:</strong> Search using natural language to find actions by their purpose, outcomes, or lessons learned. For example: "banana wine fermentation" or "organic pest control"
+                          </p>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </p>
+              )}
             </div>
             
             <div className="space-y-2">
@@ -536,14 +665,13 @@ export default function Actions() {
         <UnifiedActionDialog
           open={isEditDialogOpen}
           onOpenChange={(open) => {
+            // Let the dialog control its own close behavior
+            // It will block close during uploads and call this when actually ready to close
+            setIsEditDialogOpen(open);
             if (!open) {
-              // Don't navigate if we're in the middle of an upload
-              // Check if there's an active upload by checking the dialog's isUploading state
-              // We'll handle navigation after upload completes or fails
-              handleCancelEdit();
-              // Clear URL parameter when dialog is closed
-              // Only navigate if we're not in the middle of an upload
-              // The dialog component will handle preventing close during upload
+              setEditingActionId(null);
+              setIsCreating(false);
+              // Navigate away if we came from a direct action link
               if (actionId) {
                 navigate('/actions');
               }

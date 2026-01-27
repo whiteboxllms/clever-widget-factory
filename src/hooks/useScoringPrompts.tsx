@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
 import { apiService } from '@/lib/apiService';
 import { useToast } from '@/hooks/use-toast';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
 import { getCurrentUser } from 'aws-amplify/auth';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { offlineQueryConfig } from '@/lib/queryConfig';
 
 export interface ScoringPrompt {
   id: string;
@@ -14,27 +15,26 @@ export interface ScoringPrompt {
   updated_at: string;
 }
 
+// Query key factory
+export const scoringPromptsQueryKey = () => ['scoring_prompts'];
+
 export const useScoringPrompts = () => {
   const organizationId = useOrganizationId();
-  const [prompts, setPrompts] = useState<ScoringPrompt[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Use TanStack Query for caching
+  const { data: prompts = [], isLoading } = useQuery({
+    queryKey: scoringPromptsQueryKey(),
+    queryFn: async () => {
+      const response = await apiService.get('/scoring_prompts');
+      return response.data || [];
+    },
+    ...offlineQueryConfig,
+  });
 
   const fetchPrompts = async () => {
-    try {
-      setIsLoading(true);
-      const response = await apiService.get('/scoring_prompts');
-      setPrompts(response.data || []);
-    } catch (error) {
-      console.error('Error fetching prompts:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch scoring prompts",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    await queryClient.invalidateQueries({ queryKey: scoringPromptsQueryKey() });
   };
 
   const createPrompt = async (promptData: Partial<ScoringPrompt>) => {
@@ -50,7 +50,9 @@ export const useScoringPrompts = () => {
       });
       const data = response.data;
 
-      await fetchPrompts();
+      // Invalidate and refetch
+      await queryClient.invalidateQueries({ queryKey: scoringPromptsQueryKey() });
+      
       toast({
         title: "Success",
         description: "Scoring prompt created successfully",
@@ -71,7 +73,9 @@ export const useScoringPrompts = () => {
     try {
       await apiService.put(`/scoring_prompts/${id}`, updates);
 
-      await fetchPrompts();
+      // Invalidate and refetch
+      await queryClient.invalidateQueries({ queryKey: scoringPromptsQueryKey() });
+      
       toast({
         title: "Success",
         description: "Scoring prompt updated successfully",
@@ -91,7 +95,9 @@ export const useScoringPrompts = () => {
     try {
       await apiService.put(`/scoring_prompts/${id}/set-default`, {});
 
-      await fetchPrompts();
+      // Invalidate and refetch
+      await queryClient.invalidateQueries({ queryKey: scoringPromptsQueryKey() });
+      
       toast({
         title: "Success",
         description: "Default prompt updated successfully",
@@ -110,10 +116,6 @@ export const useScoringPrompts = () => {
   const getDefaultPrompt = () => {
     return prompts.find(prompt => prompt.is_default) || prompts[0];
   };
-
-  useEffect(() => {
-    fetchPrompts();
-  }, []);
 
   return {
     prompts,

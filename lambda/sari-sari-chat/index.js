@@ -192,9 +192,14 @@ async function generateConversationalResponse(userQuery, products, intentResult,
     return { text: "I don't have any products matching that right now. Can I help you find something else?", productIds: [] };
   }
 
-  const productList = products.map((p, i) => 
-    `${i + 1}. ${p.name}: ₱${p.price} (ID: ${p.id})`
-  ).join('\n');
+  // Include policy (health benefits) in product context if available
+  const productList = products.map((p, i) => {
+    let productInfo = `${i + 1}. ${p.name}: ₱${p.price} (ID: ${p.id})`;
+    if (p.policy) {
+      productInfo += `\n   Benefits: ${p.policy}`;
+    }
+    return productInfo;
+  }).join('\n');
   
   let context = `Customer asked: "${userQuery}"\n\nAvailable products:\n${productList}`;
   
@@ -218,8 +223,9 @@ async function generateConversationalResponse(userQuery, products, intentResult,
 RULES:
 1. Match the customer's language (English or Tagalog/Filipino)
 2. Be brief and direct (1-2 sentences)
-3. Select 2-3 most relevant products to display
-4. Return JSON: {"text": "your response", "productIds": ["id1", "id2"]}`;
+3. If health benefits are mentioned, highlight them naturally in your response
+4. Select 2-3 most relevant products to display
+5. Return JSON: {"text": "your response", "productIds": ["id1", "id2"]}`;
 
   const payload = {
     anthropic_version: "bedrock-2023-05-31",

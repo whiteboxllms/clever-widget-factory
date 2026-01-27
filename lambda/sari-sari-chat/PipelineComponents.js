@@ -28,11 +28,22 @@ class HybridRetriever {
     this.filterNegatedProducts = filterNegatedProductsFn;
     this.generateEmbedding = generateEmbeddingFn;
     this.cosineSimilarity = cosineSimilarityFn;
+    // Feature flag: USE_UNIFIED_EMBEDDINGS=true to use unified_embeddings table
+    this.useUnifiedEmbeddings = process.env.USE_UNIFIED_EMBEDDINGS === 'true';
   }
 
   async retrieve(queryComponents, sqlFilters, organizationId) {
     console.log('[HybridRetriever] Input:', JSON.stringify({ queryComponents, sqlFilters, organizationId }, null, 2));
+    console.log('[HybridRetriever] Using unified embeddings:', this.useUnifiedEmbeddings);
     
+    if (this.useUnifiedEmbeddings) {
+      return await this.retrieveWithUnifiedEmbeddings(queryComponents, sqlFilters, organizationId);
+    } else {
+      return await this.retrieveWithInlineEmbeddings(queryComponents, sqlFilters, organizationId);
+    }
+  }
+
+  async retrieveWithUnifiedEmbeddings(queryComponents, sqlFilters, organizationId) {
     const searchTerms = queryComponents.productTerms?.join(' ') || queryComponents.extractedQuery;
     console.log('[HybridRetriever] Search terms:', searchTerms);
     
@@ -49,7 +60,76 @@ class HybridRetriever {
     }
     const priceFilter = priceConditions.length > 0 ? `AND ${priceConditions.join(' AND ')}` : '';
     
-    // Hybrid search: vector similarity + text match
+    // Search using unified_embeddings table with policy field
+    const query = `
+      SELECT 
+        p.id, 
+        p.name, 
+        p.description, 
+        p.policy,
+        p.cost_per_unit, 
+        p.unit, 
+        p.current_quantity, 
+        p.image_url,
+        ue.embedding_source,
+        (1 - (ue.embedding <=> '${embeddingStr}'::vector)) as similarity
+      FROM parts p
+      INNER JOIN unified_embeddings ue 
+        ON ue.entity_type = 'part' 
+        AND ue.entity_id = p.id
+      WHERE p.organization_id = '${organizationId}'
+        AND p.sellable = true
+        AND ue.embedding IS NOT NULL
+        ${priceFilter}
+      ORDER BY similarity DESC
+      LIMIT 10
+    `;
+    
+    console.log('[HybridRetriever] SQL Query (unified):', query);
+    
+    let rows = await this.dbQuery(query);
+    console.log('[HybridRetriever] Query results:', rows.length, 'rows');
+    if (rows.length > 0) {
+      console.log('[HybridRetriever] Top result:', JSON.stringify(rows[0], null, 2));
+    }
+    
+    const excludedProducts = [];
+    if (sqlFilters.negated_terms && sqlFilters.negated_terms.length > 0) {
+      rows = rows.filter(product => {
+        // Check against embedding_source which includes name + description + policy
+        const productText = (product.embedding_source || '').toLowerCase();
+        for (const term of sqlFilters.negated_terms) {
+          if (productText.includes(term.toLowerCase())) {
+            excludedProducts.push({ id: product.id, name: product.name, negatedTerm: term });
+            return false;
+          }
+        }
+        return true;
+      });
+    }
+    
+    console.log('[HybridRetriever] Final results:', rows.length, 'rows after filtering');
+    return { rows, excludedProducts, sqlQuery: query };
+  }
+
+  async retrieveWithInlineEmbeddings(queryComponents, sqlFilters, organizationId) {
+    const searchTerms = queryComponents.productTerms?.join(' ') || queryComponents.extractedQuery;
+    console.log('[HybridRetriever] Search terms:', searchTerms);
+    
+    // Generate embedding for semantic search
+    const queryEmbedding = await this.generateEmbedding(searchTerms);
+    const embeddingStr = `[${queryEmbedding.join(',')}]`;
+    
+    const priceConditions = [];
+    if (sqlFilters.price_min !== null && sqlFilters.price_min !== undefined) {
+      priceConditions.push(`p.cost_per_unit >= ${parseFloat(sqlFilters.price_min)}`);
+    }
+    if (sqlFilters.price_max !== null && sqlFilters.price_max !== undefined) {
+      priceConditions.push(`p.cost_per_unit <= ${parseFloat(sqlFilters.price_max)}`);
+    }
+    const priceFilter = priceConditions.length > 0 ? `AND ${priceConditions.join(' AND ')}` : '';
+    
+    // Legacy: Hybrid search using inline search_embedding
     const query = `
       SELECT p.id, p.name, p.description, p.cost_per_unit, p.unit, p.current_quantity, p.image_url,
              (1 - (p.search_embedding <=> '${embeddingStr}'::vector)) as similarity
@@ -62,7 +142,7 @@ class HybridRetriever {
       LIMIT 10
     `;
     
-    console.log('[HybridRetriever] SQL Query:', query);
+    console.log('[HybridRetriever] SQL Query (inline):', query);
     
     let rows = await this.dbQuery(query);
     console.log('[HybridRetriever] Query results:', rows.length, 'rows');

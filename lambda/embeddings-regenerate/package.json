@@ -1,0 +1,16 @@
+{
+  "name": "cwf-embeddings-regenerate",
+  "version": "1.0.0",
+  "description": "Lambda function to regenerate embeddings for specific entities",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "dependencies": {
+    "@aws-sdk/client-sqs": "^3.0.0",
+    "pg": "^8.11.0"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0"
+  }
+}

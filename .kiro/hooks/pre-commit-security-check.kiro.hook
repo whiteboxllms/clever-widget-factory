@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Pre-Commit Security & Organization Check",
+  "description": "Runs security checks for hardcoded passwords and validates script organization before committing",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Run a pre-commit security and organization check:\n\n1. **Security Scan**: Search for hardcoded passwords, secrets, and tokens\n   - Check all .sh files for: password=, PASSWORD=, DB_PASSWORD=, PGPASSWORD=, AWS_SECRET, AKIA[0-9A-Z]{16}\n   - Check for JWT tokens: eyJraWQiOiJ, Bearer eyJ\n   - Verify .env.local is in .gitignore and not staged\n   - List any files with security issues\n\n2. **Script Organization**: Verify scripts are in correct folders\n   - scripts/deploy/ - Deployment scripts (deploy-*.sh)\n   - scripts/ops/ - Operational utilities (trigger-*.sh, enable-*.sh, monitor-*.sh)\n   - scripts/verify/ - Verification scripts (verify-*.sh)\n   - scripts/backfill/ - Data migration scripts (backfill-*.sh, regenerate-*.sh, migrate-*.sh)\n   - scripts/ (root) - Only general utilities (search-*.sh, generate-*.sh, setup-*.sh)\n   - List any scripts in wrong locations\n\n3. **Legacy Code Check**: Identify unused/legacy code\n   - Check if supabase/ folder exists (should be deleted)\n   - Check for test-*.sh scripts in scripts/ root (should be in tests/integration/ or deleted)\n\n4. **Summary**: Provide a clear report:\n   - ✅ Security: Clean / ⚠️ Issues found\n   - ✅ Organization: Correct / ⚠️ Needs reorganization\n   - ✅ Legacy: Clean / ⚠️ Cleanup needed\n   \nIf issues found, list them with suggested fixes. If clean, confirm ready to commit."
+  }
+}

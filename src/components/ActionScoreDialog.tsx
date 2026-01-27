@@ -14,9 +14,10 @@ import { useActionScores, ActionScore } from "@/hooks/useActionScores";
 import { ScoreEntryForm } from "./ScoreEntryForm";
 import { ScoreDisplayCard } from "./ScoreDisplayCard";
 import { apiService } from '@/lib/apiService';
-import { BaseAction } from "@/types/actions";
+import { BaseAction, ImplementationUpdate } from "@/types/actions";
 import { useQuery } from '@tanstack/react-query';
 import { offlineQueryConfig } from '@/lib/queryConfig';
+import { actionImplementationUpdatesQueryKey } from '@/lib/queryKeys';
 
 // Utility function to strip HTML tags and decode entities
 const stripHtml = (html: string | null | undefined): string => {
@@ -49,24 +50,23 @@ export function ActionScoreDialog({
   const [showScoreForm, setShowScoreForm] = useState(false); // New state to control form visibility
   const [asset, setAsset] = useState<any>(null);
   const [assetName, setAssetName] = useState<string>("");
-  const [linkedIssue, setLinkedIssue] = useState<any>(null);
 
   const { toast } = useToast();
   const { prompts } = useScoringPrompts();
   const { createScore, updateScore } = useActionScores();
 
-  // Fetch linked issue if exists
-  const { data: issueData } = useQuery({
-    queryKey: ['issue', action.linked_issue_id],
+  // Fetch implementation updates (observations are stored as update_type = 'progress')
+  const { data: implementationUpdates = [] } = useQuery<ImplementationUpdate[]>({
+    queryKey: actionImplementationUpdatesQueryKey(action.id),
     queryFn: async () => {
-      const response = await apiService.get(`/issues/${action.linked_issue_id}`);
-      return response.data;
+      const result = await apiService.get(`/action_implementation_updates?action_id=${action.id}`);
+      return result.data || [];
     },
-    enabled: open && !!action.linked_issue_id,
+    enabled: open && !!action.id,
     ...offlineQueryConfig
   });
 
-  // Set asset and linked issue when data changes
+  // Set asset when data changes
   useEffect(() => {
     if (action.asset) {
       setAsset(action.asset);
@@ -77,59 +77,121 @@ export function ActionScoreDialog({
       setAsset(null);
       setAssetName("");
     }
-    
-    if (issueData) {
-      setLinkedIssue(issueData);
-    }
-  }, [action.asset, issueData]);
+  }, [action.asset]);
 
   // Initialize form based on existing score or create mode
   useEffect(() => {
+    console.log('[ActionScoreDialog] useEffect triggered', {
+      open,
+      actionId: action.id,
+      actionTitle: action.title,
+      existingScore: existingScore ? {
+        id: existingScore.id,
+        action_id: existingScore.action_id,
+        hasAiResponse: !!existingScore.ai_response,
+        aiResponsePreview: existingScore.ai_response ? JSON.stringify(existingScore.ai_response).substring(0, 100) : 'none'
+      } : null
+    });
+    
     if (open) {
+      // Always clear state first when opening for a new action
+      console.log('[ActionScoreDialog] Clearing all state');
+      setIsEditMode(false);
+      setSelectedPromptId("");
+      setAiResponse("");
+      setParsedScores(null);
+      setRootCauses([]);
+      setShowScoreForm(false);
+      
+      // Then populate if there's an existing score
       if (existingScore) {
+        console.log('[ActionScoreDialog] Populating from existing score');
         setIsEditMode(true);
         setSelectedPromptId(existingScore.prompt_id);
         // Only set AI response if it exists and has content
         const aiResponseContent = existingScore.ai_response && Object.keys(existingScore.ai_response).length > 0 
           ? JSON.stringify(existingScore.ai_response, null, 2)
           : "";
+        console.log('[ActionScoreDialog] Setting AI response:', aiResponseContent.substring(0, 100));
         setAiResponse(aiResponseContent);
-        // Don't auto-populate parsed scores - user must manually parse
-        setParsedScores(null);
-        setRootCauses([]);
-        setShowScoreForm(false);
       } else {
-        setIsEditMode(false);
-        setSelectedPromptId("");
-        setAiResponse(""); // Explicitly empty
-        setParsedScores(null);
-        setRootCauses([]);
-        setShowScoreForm(false);
+        console.log('[ActionScoreDialog] No existing score, leaving fields empty');
       }
+    } else {
+      // Clear everything when dialog closes
+      console.log('[ActionScoreDialog] Dialog closed, clearing state');
+      setIsEditMode(false);
+      setSelectedPromptId("");
+      setAiResponse("");
+      setParsedScores(null);
+      setRootCauses([]);
+      setShowScoreForm(false);
     }
-  }, [open, existingScore]);
+  }, [open, existingScore, action.id]); // Add action.id to dependencies
 
   const selectedPrompt = prompts.find(p => p.id === selectedPromptId);
+
+  // Aggregate observations from implementation updates with update_type = 'progress'
+  const aggregatedObservations = implementationUpdates
+    .filter(update => update.update_type === 'progress')
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    .map(update => {
+      const date = new Date(update.created_at).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+      return `[${date}] ${stripHtml(update.update_text)}`;
+    })
+    .join('\n\n');
 
   const generatePrompt = () => {
     if (!selectedPrompt) return "";
     
-    // Build action context - asset is optional
+    // Build action context - only include fields with meaningful content
     const actionContext: any = {
       id: action.id,
       title: action.title,
-      description: action.description,
-      policy: stripHtml(action.policy),
-      observations: stripHtml(action.observations),
       status: action.status,
       created_at: action.created_at,
-      assigned_to: action.assignee?.full_name,
-      estimated_duration: action.estimated_duration,
-      required_tools: action.required_tools,
-      required_stock: action.required_stock,
-      completed_at: action.completed_at,
-      issue_reference: action.issue_reference
+      completed_at: action.completed_at
     };
+
+    // Add optional fields only if they have content
+    if (action.description) {
+      actionContext.description = action.description;
+    }
+    
+    const policyText = stripHtml(action.policy);
+    if (policyText) {
+      actionContext.policy = policyText;
+    }
+    
+    // Use aggregated observations from implementation updates, fallback to action.observations
+    const observationsText = aggregatedObservations || stripHtml(action.observations);
+    if (observationsText) {
+      actionContext.observations = observationsText;
+    }
+    
+    if (action.assignee?.full_name) {
+      actionContext.assigned_to = action.assignee.full_name;
+    }
+    
+    if (action.estimated_duration) {
+      actionContext.estimated_duration = action.estimated_duration;
+    }
+    
+    if (action.required_tools && action.required_tools.length > 0) {
+      actionContext.required_tools = action.required_tools;
+    }
+    
+    if (action.required_stock && action.required_stock.length > 0) {
+      actionContext.required_stock = action.required_stock;
+    }
+    
+    if (action.issue_reference) {
+      actionContext.issue_reference = action.issue_reference;
+    }
 
     // Add asset info only if available
     if (asset || assetName) {
@@ -139,20 +201,6 @@ export function ActionScoreDialog({
         category: asset?.category,
         location: asset?.storage_vicinity,
         serial_number: asset?.serial_number
-      };
-    }
-
-    // Add linked issue if available
-    if (linkedIssue) {
-      actionContext.linked_issue = {
-        description: linkedIssue.description,
-        type: linkedIssue.issue_type,
-        status: linkedIssue.status,
-        reported_at: linkedIssue.reported_at,
-        damage_assessment: linkedIssue.damage_assessment,
-        efficiency_loss_percentage: linkedIssue.efficiency_loss_percentage,
-        root_cause: linkedIssue.root_cause,
-        resolution_notes: linkedIssue.resolution_notes
       };
     }
 
@@ -328,10 +376,10 @@ IMPORTANT OVERRIDES (do not ignore):
                     <p className="text-sm mt-1">{stripHtml(action.policy)}</p>
                   </div>
                 )}
-                {action.observations && (
+                {(aggregatedObservations || action.observations) && (
                   <div>
                     <Label className="text-sm font-semibold">Observations</Label>
-                    <p className="text-sm mt-1">{stripHtml(action.observations)}</p>
+                    <p className="text-sm mt-1 whitespace-pre-wrap">{aggregatedObservations || stripHtml(action.observations)}</p>
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-4">
@@ -349,47 +397,6 @@ IMPORTANT OVERRIDES (do not ignore):
               </div>
             </CardContent>
           </Card>
-
-          {/* Linked Issue Information */}
-          {linkedIssue && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Linked Issue Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="outline">{linkedIssue.issue_type}</Badge>
-                    <Badge variant={linkedIssue.status === 'active' ? 'destructive' : 'secondary'}>
-                      {linkedIssue.status}
-                    </Badge>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-semibold">Issue Description</Label>
-                    <p className="text-sm mt-1">{linkedIssue.description}</p>
-                  </div>
-                  {linkedIssue.damage_assessment && (
-                    <div>
-                      <Label className="text-sm font-semibold">Damage Assessment</Label>
-                      <p className="text-sm mt-1">{linkedIssue.damage_assessment}</p>
-                    </div>
-                  )}
-                  {linkedIssue.efficiency_loss_percentage && (
-                    <div>
-                      <Label className="text-sm font-semibold">Efficiency Loss</Label>
-                      <p className="text-sm mt-1">{linkedIssue.efficiency_loss_percentage}%</p>
-                    </div>
-                  )}
-                  {linkedIssue.root_cause && (
-                    <div>
-                      <Label className="text-sm font-semibold">Root Cause</Label>
-                      <p className="text-sm mt-1">{linkedIssue.root_cause}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Show existing score if in edit mode */}
           {isEditMode && existingScore && (

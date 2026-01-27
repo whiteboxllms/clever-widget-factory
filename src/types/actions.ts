@@ -183,6 +183,7 @@ export interface ImplementationUpdate {
   action_id: string;
   updated_by: string;
   update_text: string;
+  update_type?: string; // 'progress' for observations, other types for different update categories
   created_at: string;
   updated_by_profile?: {
     full_name: string;

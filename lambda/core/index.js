@@ -2,6 +2,7 @@ const { Client } = require('pg');
 const { randomUUID } = require('crypto');
 const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
 const { getAuthorizerContext, buildOrganizationFilter, hasPermission, canAccessOrganization } = require('./shared/authorizerContext');
+const { composePartEmbeddingSource, composeToolEmbeddingSource, composeIssueEmbeddingSource, composePolicyEmbeddingSource } = require('./shared/embedding-composition');
 
 const sqs = new SQSClient({ region: 'us-west-2' });
 const EMBEDDINGS_QUEUE_URL = 'https://sqs.us-west-2.amazonaws.com/131745734428/cwf-embeddings-queue';
@@ -180,7 +181,7 @@ exports.handler = async (event) => {
           INSERT INTO tools (
             id, name, description, category, status, serial_number,
             parent_structure_id, storage_location, legacy_storage_vicinity,
-            accountable_person_id, image_url, organization_id, created_at, updated_at
+            accountable_person_id, image_url, policy, organization_id, created_at, updated_at
           ) VALUES (
             '${toolId}',
             ${formatSqlValue(body.name)},
@@ -193,6 +194,7 @@ exports.handler = async (event) => {
             ${formatSqlValue(body.legacy_storage_vicinity)},
             ${formatSqlValue(body.accountable_person_id)},
             ${formatSqlValue(body.image_url)},
+            ${formatSqlValue(body.policy)},
             ${formatSqlValue(organizationId)},
             NOW(),
             NOW()
@@ -205,6 +207,28 @@ exports.handler = async (event) => {
           console.log('📝 Logging asset creation:', { toolId, userId, organizationId });
           const historySql = `INSERT INTO asset_history (asset_id, change_type, changed_by, organization_id, changed_at) VALUES ('${toolId}', 'created', '${userId}', '${organizationId}', NOW())`;
           await queryJSON(historySql).catch(e => console.error('History log error:', e));
+        }
+        
+        // Send SQS message for embedding generation
+        const tool = result[0];
+        const embeddingSource = composeToolEmbeddingSource(tool);
+        
+        if (embeddingSource && embeddingSource.trim()) {
+          try {
+            await sqs.send(new SendMessageCommand({
+              QueueUrl: EMBEDDINGS_QUEUE_URL,
+              MessageBody: JSON.stringify({
+                entity_type: 'tool',
+                entity_id: toolId,
+                embedding_source: embeddingSource,
+                organization_id: organizationId
+              })
+            }));
+            console.log('Queued embedding generation for tool', toolId);
+          } catch (sqsError) {
+            console.error('Failed to queue embedding:', sqsError);
+            // Non-fatal - continue with response
+          }
         }
         
         return {
@@ -227,7 +251,8 @@ exports.handler = async (event) => {
           'category',
           'serial_number',
           'accountable_person_id',
-          'image_url'
+          'image_url',
+          'policy'
         ]);
         if (updates.length === 0) {
           return {
@@ -244,29 +269,34 @@ exports.handler = async (event) => {
         const userId = authContext.cognito_user_id;
         if (userId && organizationId) {
           console.log('📝 Logging asset update:', { toolId, userId, organizationId });
-          const fields = Object.keys(body).filter(k => ['status','actual_location','storage_location','name','description','category','serial_number'].includes(k));
+          const fields = Object.keys(body).filter(k => ['status','actual_location','storage_location','name','description','category','serial_number','policy'].includes(k));
           for (const field of fields) {
             const historySql = `INSERT INTO asset_history (asset_id, change_type, field_changed, new_value, changed_by, organization_id, changed_at) VALUES ('${toolId}', 'updated', '${field}', ${formatSqlValue(body[field])}, '${userId}', '${organizationId}', NOW())`;
             await queryJSON(historySql).catch(e => console.error('History log error:', e));
           }
         }
         
-        // Trigger embedding regeneration if name or description changed
-        if (body.name !== undefined || body.description !== undefined) {
+        // Trigger embedding regeneration if name, description, or policy changed
+        if (body.name !== undefined || body.description !== undefined || body.policy !== undefined) {
           const tool = result[0];
-          const searchText = `${tool.name || ''} - ${tool.description || ''}`;
-          try {
-            await sqs.send(new SendMessageCommand({
-              QueueUrl: EMBEDDINGS_QUEUE_URL,
-              MessageBody: JSON.stringify({
-                id: toolId,
-                table: 'tools',
-                text: searchText
-              })
-            }));
-            console.log('Sent embedding update to SQS for tool:', toolId);
-          } catch (sqsError) {
-            console.error('Failed to send SQS message:', sqsError.message);
+          const embeddingSource = composeToolEmbeddingSource(tool);
+          
+          if (embeddingSource && embeddingSource.trim()) {
+            try {
+              await sqs.send(new SendMessageCommand({
+                QueueUrl: EMBEDDINGS_QUEUE_URL,
+                MessageBody: JSON.stringify({
+                  entity_type: 'tool',
+                  entity_id: toolId,
+                  embedding_source: embeddingSource,
+                  organization_id: organizationId
+                })
+              }));
+              console.log('Queued embedding generation for tool', toolId);
+            } catch (sqsError) {
+              console.error('Failed to queue embedding:', sqsError);
+              // Non-fatal - continue with response
+            }
           }
         }
         
@@ -317,7 +347,7 @@ exports.handler = async (event) => {
           SELECT DISTINCT ON (tools.id)
             tools.id, tools.name, tools.description, tools.category,
             tools.actual_location, tools.serial_number, tools.last_maintenance,
-            tools.manual_url, tools.known_issues, tools.has_motor, tools.stargazer_sop,
+            tools.manual_url, tools.known_issues, tools.has_motor, tools.policy,
             tools.storage_location, tools.last_audited_at, tools.audit_status,
             tools.parent_structure_id, tools.organization_id, tools.accountable_person_id,
             tools.created_at, tools.updated_at,
@@ -388,7 +418,7 @@ exports.handler = async (event) => {
         INSERT INTO parts (
           id, name, description, category, current_quantity, minimum_quantity,
           unit, parent_structure_id, storage_location, legacy_storage_vicinity,
-          accountable_person_id, image_url, organization_id, sellable, cost_per_unit,
+          accountable_person_id, image_url, policy, organization_id, sellable, cost_per_unit,
           created_at, updated_at
         ) VALUES (
           '${partId}',
@@ -403,6 +433,7 @@ exports.handler = async (event) => {
           ${formatSqlValue(body.legacy_storage_vicinity)},
           ${formatSqlValue(body.accountable_person_id)},
           ${formatSqlValue(body.image_url)},
+          ${formatSqlValue(body.policy)},
           ${formatSqlValue(organizationId)},
           ${body.sellable !== undefined ? body.sellable : false},
           ${body.cost_per_unit !== undefined ? body.cost_per_unit : 'NULL'},
@@ -412,6 +443,29 @@ exports.handler = async (event) => {
       `;
       
       const result = await queryJSON(sql);
+      
+      // Send SQS message for embedding generation
+      const part = result[0];
+      const embeddingSource = composePartEmbeddingSource(part);
+      
+      if (embeddingSource && embeddingSource.trim()) {
+        try {
+          await sqs.send(new SendMessageCommand({
+            QueueUrl: EMBEDDINGS_QUEUE_URL,
+            MessageBody: JSON.stringify({
+              entity_type: 'part',
+              entity_id: partId,
+              embedding_source: embeddingSource,
+              organization_id: organizationId
+            })
+          }));
+          console.log('Queued embedding generation for part', partId);
+        } catch (sqsError) {
+          console.error('Failed to queue embedding:', sqsError);
+          // Non-fatal - continue with response
+        }
+      }
+      
       return {
         statusCode: 201,
         headers,
@@ -486,6 +540,9 @@ exports.handler = async (event) => {
       if (body.sellable !== undefined) {
         updates.push(`sellable = ${formatSqlValue(body.sellable)}`);
       }
+      if (body.policy !== undefined) {
+        updates.push(`policy = ${formatSqlValue(body.policy)}`);
+      }
       
       if (updates.length === 0) {
         return {
@@ -513,22 +570,27 @@ exports.handler = async (event) => {
         };
       }
       
-      // Trigger embedding regeneration if name or description changed
-      if (body.name !== undefined || body.description !== undefined) {
+      // Trigger embedding regeneration if name, description, or policy changed
+      if (body.name !== undefined || body.description !== undefined || body.policy !== undefined) {
         const part = result[0];
-        const searchText = `${part.name || ''} - ${part.description || ''}`;
-        try {
-          await sqs.send(new SendMessageCommand({
-            QueueUrl: EMBEDDINGS_QUEUE_URL,
-            MessageBody: JSON.stringify({
-              id: partId,
-              table: 'parts',
-              text: searchText
-            })
-          }));
-          console.log('Sent embedding update to SQS for part:', partId);
-        } catch (sqsError) {
-          console.error('Failed to send SQS message:', sqsError.message);
+        const embeddingSource = composePartEmbeddingSource(part);
+        
+        if (embeddingSource && embeddingSource.trim()) {
+          try {
+            await sqs.send(new SendMessageCommand({
+              QueueUrl: EMBEDDINGS_QUEUE_URL,
+              MessageBody: JSON.stringify({
+                entity_type: 'part',
+                entity_id: partId,
+                embedding_source: embeddingSource,
+                organization_id: organizationId
+              })
+            }));
+            console.log('Queued embedding generation for part', partId);
+          } catch (sqsError) {
+            console.error('Failed to queue embedding:', sqsError);
+            // Non-fatal - continue with response
+          }
         }
       }
       
@@ -544,7 +606,7 @@ exports.handler = async (event) => {
       const { limit = 50, offset = 0 } = event.queryStringParameters || {};
       const sql = `SELECT json_agg(row_to_json(t)) FROM (
         SELECT 
-          parts.id, parts.name, parts.description, parts.category, 
+          parts.id, parts.name, parts.description, parts.policy, parts.category, 
           parts.current_quantity, parts.minimum_quantity, parts.cost_per_unit,
           parts.unit, parts.parent_structure_id, parts.storage_location, 
           parts.accountable_person_id, parts.sellable,
@@ -576,7 +638,7 @@ exports.handler = async (event) => {
       const { limit = 50, offset = 0 } = event.queryStringParameters || {};
       const sql = `SELECT json_agg(row_to_json(t)) FROM (
         SELECT 
-          parts.id, parts.name, parts.description, parts.category, 
+          parts.id, parts.name, parts.description, parts.policy, parts.category, 
           parts.current_quantity, parts.minimum_quantity, parts.cost_per_unit,
           parts.unit, parts.parent_structure_id, parts.storage_location, 
           parts.accountable_person_id, parts.sellable,
@@ -800,6 +862,29 @@ exports.handler = async (event) => {
         `;
 
         const result = await queryJSON(sql);
+        
+        // Send SQS message for embedding generation
+        const issue = result[0];
+        const embeddingSource = composeIssueEmbeddingSource(issue);
+        
+        if (embeddingSource && embeddingSource.trim()) {
+          try {
+            await sqs.send(new SendMessageCommand({
+              QueueUrl: EMBEDDINGS_QUEUE_URL,
+              MessageBody: JSON.stringify({
+                entity_type: 'issue',
+                entity_id: issue.id,
+                embedding_source: embeddingSource,
+                organization_id: orgId
+              })
+            }));
+            console.log('Queued embedding generation for issue', issue.id);
+          } catch (sqsError) {
+            console.error('Failed to queue embedding:', sqsError);
+            // Non-fatal - continue with response
+          }
+        }
+        
         return {
           statusCode: 201,
           headers,
@@ -825,6 +910,7 @@ exports.handler = async (event) => {
       if (httpMethod === 'PUT') {
         const body = JSON.parse(event.body || '{}');
         const updates = buildUpdateClauses(body, [
+          'title',
           'status',
           'workflow_status',
           'root_cause',
@@ -868,6 +954,31 @@ exports.handler = async (event) => {
 
         const sql = `UPDATE issues SET ${updates.join(', ')} WHERE id = '${issueId}' RETURNING *`;
         const result = await queryJSON(sql);
+        
+        // Trigger embedding regeneration if title, description, or resolution_notes changed
+        if (body.title !== undefined || body.description !== undefined || body.resolution_notes !== undefined) {
+          const issue = result[0];
+          const embeddingSource = composeIssueEmbeddingSource(issue);
+          
+          if (embeddingSource && embeddingSource.trim()) {
+            try {
+              await sqs.send(new SendMessageCommand({
+                QueueUrl: EMBEDDINGS_QUEUE_URL,
+                MessageBody: JSON.stringify({
+                  entity_type: 'issue',
+                  entity_id: issueId,
+                  embedding_source: embeddingSource,
+                  organization_id: result[0].organization_id
+                })
+              }));
+              console.log('Queued embedding generation for issue', issueId);
+            } catch (sqsError) {
+              console.error('Failed to queue embedding:', sqsError);
+              // Non-fatal - continue with response
+            }
+          }
+        }
+        
         return {
           statusCode: 200,
           headers,
@@ -917,6 +1028,29 @@ exports.handler = async (event) => {
       `;
 
       const result = await queryJSON(sql);
+      
+      // Send SQS message for embedding generation
+      const part = result[0];
+      const embeddingSource = composePartEmbeddingSource(part);
+      
+      if (embeddingSource && embeddingSource.trim()) {
+        try {
+          await sqs.send(new SendMessageCommand({
+            QueueUrl: EMBEDDINGS_QUEUE_URL,
+            MessageBody: JSON.stringify({
+              entity_type: 'part',
+              entity_id: partId,
+              embedding_source: embeddingSource,
+              organization_id: organizationId
+            })
+          }));
+          console.log('Queued embedding generation for part', partId);
+        } catch (sqsError) {
+          console.error('Failed to queue embedding:', sqsError);
+          // Non-fatal - continue with response
+        }
+      }
+      
       return {
         statusCode: 201,
         headers,
@@ -1351,7 +1485,7 @@ exports.handler = async (event) => {
     // Action scores endpoint
     if (path.endsWith('/action_scores')) {
       if (httpMethod === 'GET') {
-        const { start_date, end_date, user_id } = event.queryStringParameters || {};
+        const { start_date, end_date, user_id, source_id, source_type } = event.queryStringParameters || {};
         let whereConditions = [];
         
         // Always filter by organization via actions table
@@ -1367,6 +1501,12 @@ exports.handler = async (event) => {
         }
         if (user_id) {
           whereConditions.push(`a.assigned_to = '${user_id}'`);
+        }
+        if (source_id) {
+          whereConditions.push(`s.source_id = '${escapeLiteral(source_id)}'`);
+        }
+        if (source_type) {
+          whereConditions.push(`s.source_type = '${escapeLiteral(source_type)}'`);
         }
         
         const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
@@ -2495,6 +2635,29 @@ exports.handler = async (event) => {
         
         try {
           const result = await queryJSON(sql);
+          
+          // Send SQS message for embedding generation
+          const policy = result[0];
+          const embeddingSource = composePolicyEmbeddingSource(policy);
+          
+          if (embeddingSource && embeddingSource.trim()) {
+            try {
+              await sqs.send(new SendMessageCommand({
+                QueueUrl: EMBEDDINGS_QUEUE_URL,
+                MessageBody: JSON.stringify({
+                  entity_type: 'policy',
+                  entity_id: policy.id.toString(),
+                  embedding_source: embeddingSource,
+                  organization_id: organizationId
+                })
+              }));
+              console.log('Queued embedding generation for policy', policy.id);
+            } catch (sqsError) {
+              console.error('Failed to queue embedding:', sqsError);
+              // Non-fatal - continue with response
+            }
+          }
+          
           return {
             statusCode: 201,
             headers,
@@ -2560,6 +2723,31 @@ exports.handler = async (event) => {
               body: JSON.stringify({ error: 'Policy not found' })
             };
           }
+          
+          // Trigger embedding regeneration if title or description_text changed
+          if (body.title !== undefined || body.description_text !== undefined) {
+            const policy = result[0];
+            const embeddingSource = composePolicyEmbeddingSource(policy);
+            
+            if (embeddingSource && embeddingSource.trim()) {
+              try {
+                await sqs.send(new SendMessageCommand({
+                  QueueUrl: EMBEDDINGS_QUEUE_URL,
+                  MessageBody: JSON.stringify({
+                    entity_type: 'policy',
+                    entity_id: policy.id.toString(),
+                    embedding_source: embeddingSource,
+                    organization_id: organizationId
+                  })
+                }));
+                console.log('Queued embedding generation for policy', policy.id);
+              } catch (sqsError) {
+                console.error('Failed to queue embedding:', sqsError);
+                // Non-fatal - continue with response
+              }
+            }
+          }
+          
           return {
             statusCode: 200,
             headers,

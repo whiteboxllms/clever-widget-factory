@@ -4,6 +4,7 @@
   "description": "Actions Lambda function for action management endpoints",
   "main": "index.js",
   "dependencies": {
-    "pg": "^8.11.3"
+    "pg": "^8.11.3",
+    "@aws-sdk/client-sqs": "^3.0.0"
   }
 }

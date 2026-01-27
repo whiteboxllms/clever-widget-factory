@@ -6,14 +6,14 @@ This plan implements the unified embeddings system in phases, starting with data
 
 ## Tasks
 
-- [ ] 1. Create database schema and migration
+- [x] 1. Create database schema and migration
   - Create unified_embeddings table with proper indexes
   - Create cascade delete triggers for all entity types
   - Test migration on development database
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 9.5_
 
-- [ ] 2. Implement embedding source composition functions
-  - [ ] 2.1 Create shared/embedding-composition.js module
+- [x] 2. Implement embedding source composition functions
+  - [x] 2.1 Create shared/embedding-composition.js module
     - Implement composePartEmbeddingSource(part)
     - Implement composeToolEmbeddingSource(tool)
     - Implement composeActionEmbeddingSource(action)
@@ -32,8 +32,8 @@ This plan implements the unified embeddings system in phases, starting with data
     - Test empty/null field handling
     - _Requirements: 3.1, 3.3, 3.4, 3.5, 3.6_
 
-- [ ] 3. Modify embeddings-processor Lambda
-  - [ ] 3.1 Update embeddings-processor to support all entity types
+- [x] 3. Modify embeddings-processor Lambda
+  - [x] 3.1 Update embeddings-processor to support all entity types
     - Add support for 'action', 'issue', 'policy' entity types
     - Implement writeToUnifiedTable() function
     - Add configuration flags (WRITE_TO_UNIFIED, WRITE_TO_INLINE)
@@ -51,11 +51,11 @@ This plan implements the unified embeddings system in phases, starting with data
     - Test error handling for empty embedding_source
     - _Requirements: 5.3, 5.4, 5.6, 5.7_
 
-- [ ] 4. Checkpoint - Verify embeddings-processor works
+- [x] 4. Checkpoint - Verify embeddings-processor works
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Modify Core Lambda for parts and tools
-  - [ ] 5.1 Update Core Lambda to use embedding composition functions
+- [x] 5. Modify Core Lambda for parts and tools
+  - [x] 5.1 Update Core Lambda to use embedding composition functions
     - Import composePartEmbeddingSource and composeToolEmbeddingSource
     - Update PUT /parts/:id handler to send SQS message
     - Update PUT /tools/:id handler to send SQS message
@@ -73,8 +73,8 @@ This plan implements the unified embeddings system in phases, starting with data
     - Test error handling when SQS fails
     - _Requirements: 5.1_
 
-- [ ] 6. Modify Actions Lambda for actions
-  - [ ] 6.1 Update Actions Lambda to use embedding composition
+- [x] 6. Modify Actions Lambda for actions
+  - [x] 6.1 Update Actions Lambda to use embedding composition
     - Import composeActionEmbeddingSource
     - Update POST /actions handler to send SQS message
     - Update PUT /actions/:id handler to send SQS message
@@ -85,14 +85,14 @@ This plan implements the unified embeddings system in phases, starting with data
     - Test message sent on create/update
     - _Requirements: 5.2_
 
-- [ ] 7. Add embedding support for issues and policies
-  - [ ] 7.1 Update Core Lambda for issues
+- [x] 7. Add embedding support for issues and policies
+  - [x] 7.1 Update Core Lambda for issues
     - Import composeIssueEmbeddingSource
     - Update POST /issues handler to send SQS message
     - Update PUT /issues/:id handler to send SQS message
     - _Requirements: 5.2_
   
-  - [ ] 7.2 Update Core Lambda for policies
+  - [x] 7.2 Update Core Lambda for policies
     - Import composePolicyEmbeddingSource
     - Update POST /policies handler to send SQS message
     - Update PUT /policies/:id handler to send SQS message
@@ -103,11 +103,11 @@ This plan implements the unified embeddings system in phases, starting with data
     - Test SQS message format for policies
     - _Requirements: 5.2_
 
-- [ ] 8. Checkpoint - Verify all entity types trigger embeddings
+- [x] 8. Checkpoint - Verify all entity types trigger embeddings
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 9. Create unified search Lambda
-  - [ ] 9.1 Implement lambda/unified-search/index.js
+- [x] 9. Create unified search Lambda
+  - [x] 9.1 Implement lambda/unified-search/index.js
     - Implement POST handler for semantic search
     - Generate query embedding via Bedrock
     - Build SQL query with organization and entity_type filters
@@ -147,8 +147,8 @@ This plan implements the unified embeddings system in phases, starting with data
     - Test with unauthorized request (401 error)
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7_
 
-- [ ] 10. Create coverage endpoint Lambda
-  - [ ] 10.1 Implement lambda/embeddings-coverage/index.js
+- [x] 10. Create coverage endpoint Lambda
+  - [x] 10.1 Implement lambda/embeddings-coverage/index.js
     - Implement GET handler for coverage statistics
     - Query unified_embeddings for counts by entity_type and model_version
     - Query source tables for total entity counts
@@ -163,8 +163,8 @@ This plan implements the unified embeddings system in phases, starting with data
     - Test with 100% coverage
     - _Requirements: 10.6, 10.7_
 
-- [ ] 11. Create regenerate endpoint Lambda
-  - [ ] 11.1 Implement lambda/embeddings-regenerate/index.js
+- [x] 11. Create regenerate endpoint Lambda
+  - [x] 11.1 Implement lambda/embeddings-regenerate/index.js
     - Implement POST handler for single entity regeneration
     - Fetch entity from appropriate table
     - Compose embedding_source
@@ -182,25 +182,25 @@ This plan implements the unified embeddings system in phases, starting with data
     - Test with non-existent entity_id
     - _Requirements: 7.3, 10.4, 10.5_
 
-- [ ] 12. Checkpoint - Verify all API endpoints work
+- [x] 12. Checkpoint - Verify all API endpoints work
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 13. Add API Gateway endpoints
-  - [ ] 13.1 Add POST /api/semantic-search/unified endpoint
+- [x] 13. Add API Gateway endpoints
+  - [x] 13.1 Add POST /api/semantic-search/unified endpoint
     - Run ./scripts/add-api-endpoint.sh /api/semantic-search/unified POST
     - Configure Lambda integration for unified-search
     - Configure authorizer
     - Deploy API Gateway changes
     - _Requirements: 10.1_
   
-  - [ ] 13.2 Add GET /api/embeddings/coverage endpoint
+  - [x] 13.2 Add GET /api/embeddings/coverage endpoint
     - Run ./scripts/add-api-endpoint.sh /api/embeddings/coverage GET
     - Configure Lambda integration for embeddings-coverage
     - Configure authorizer
     - Deploy API Gateway changes
     - _Requirements: 10.6_
   
-  - [ ] 13.3 Add POST /api/embeddings/regenerate endpoint
+  - [x] 13.3 Add POST /api/embeddings/regenerate endpoint
     - Run ./scripts/add-api-endpoint.sh /api/embeddings/regenerate POST
     - Configure Lambda integration for embeddings-regenerate
     - Configure authorizer

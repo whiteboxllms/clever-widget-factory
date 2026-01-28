@@ -22,43 +22,43 @@ LAMBDA_ARN=$(aws lambda get-function \
 echo "📍 Lambda ARN: $LAMBDA_ARN"
 
 # Get root resource ID
-ROOT_ID=$(aws apigateway get-resources \
+API_RESOURCE_ID=$(aws apigateway get-resources \
   --rest-api-id $API_ID \
   --region $REGION \
-  --query 'items[?path==`/`].id' \
+  --query 'items[?path==`/api`].id' \
   --output text)
 
-echo "📍 Root resource ID: $ROOT_ID"
+echo "📍 /api resource ID: $API_RESOURCE_ID"
 
-# Create /action-scoring resource if it doesn't exist
+# Create /api/action-scoring resource if it doesn't exist
 ACTION_SCORING_ID=$(aws apigateway get-resources \
   --rest-api-id $API_ID \
   --region $REGION \
-  --query 'items[?path==`/action-scoring`].id' \
+  --query 'items[?path==`/api/action-scoring`].id' \
   --output text)
 
 if [ -z "$ACTION_SCORING_ID" ]; then
-  echo "🆕 Creating /action-scoring resource..."
+  echo "🆕 Creating /api/action-scoring resource..."
   ACTION_SCORING_ID=$(aws apigateway create-resource \
     --rest-api-id $API_ID \
-    --parent-id $ROOT_ID \
+    --parent-id $API_RESOURCE_ID \
     --path-part "action-scoring" \
     --region $REGION \
     --query 'id' \
     --output text)
 fi
 
-echo "📍 /action-scoring resource ID: $ACTION_SCORING_ID"
+echo "📍 /api/action-scoring resource ID: $ACTION_SCORING_ID"
 
-# Create /action-scoring/generate resource if it doesn't exist
+# Create /api/action-scoring/generate resource if it doesn't exist
 GENERATE_ID=$(aws apigateway get-resources \
   --rest-api-id $API_ID \
   --region $REGION \
-  --query 'items[?path==`/action-scoring/generate`].id' \
+  --query 'items[?path==`/api/action-scoring/generate`].id' \
   --output text)
 
 if [ -z "$GENERATE_ID" ]; then
-  echo "🆕 Creating /action-scoring/generate resource..."
+  echo "🆕 Creating /api/action-scoring/generate resource..."
   GENERATE_ID=$(aws apigateway create-resource \
     --rest-api-id $API_ID \
     --parent-id $ACTION_SCORING_ID \
@@ -68,7 +68,7 @@ if [ -z "$GENERATE_ID" ]; then
     --output text)
 fi
 
-echo "📍 /action-scoring/generate resource ID: $GENERATE_ID"
+echo "📍 /api/action-scoring/generate resource ID: $GENERATE_ID"
 
 # Create POST method
 echo "🔧 Creating POST method..."

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Copy, User, Calendar, Wrench, AlertTriangle, CheckCircle, Clock } from "lucide-react";
+import { Copy, User, Calendar, Wrench, AlertTriangle, CheckCircle, Clock, Sparkles, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useScoringPrompts } from "@/hooks/useScoringPrompts";
@@ -50,10 +50,21 @@ export function ActionScoreDialog({
   const [showScoreForm, setShowScoreForm] = useState(false); // New state to control form visibility
   const [asset, setAsset] = useState<any>(null);
   const [assetName, setAssetName] = useState<string>("");
+  const [selectedModel, setSelectedModel] = useState<string>("haiku");
+  const [isAutoScoring, setIsAutoScoring] = useState(false);
+  const scoreCardRef = useRef<HTMLDivElement>(null);
 
   const { toast } = useToast();
   const { prompts } = useScoringPrompts();
   const { createScore, updateScore } = useActionScores();
+
+  // Set default prompt on mount
+  useEffect(() => {
+    if (prompts.length > 0 && !selectedPromptId) {
+      const defaultPrompt = prompts.find(p => p.is_default) || prompts[0];
+      setSelectedPromptId(defaultPrompt.id);
+    }
+  }, [prompts, selectedPromptId]);
 
   // Fetch implementation updates (observations are stored as update_type = 'progress')
   const { data: implementationUpdates = [] } = useQuery<ImplementationUpdate[]>({
@@ -115,7 +126,12 @@ export function ActionScoreDialog({
         console.log('[ActionScoreDialog] Setting AI response:', aiResponseContent.substring(0, 100));
         setAiResponse(aiResponseContent);
       } else {
-        console.log('[ActionScoreDialog] No existing score, leaving fields empty');
+        console.log('[ActionScoreDialog] No existing score, setting default prompt');
+        // Set default prompt if not already set
+        if (prompts.length > 0 && !selectedPromptId) {
+          const defaultPrompt = prompts.find(p => p.is_default) || prompts[0];
+          setSelectedPromptId(defaultPrompt.id);
+        }
       }
     } else {
       // Clear everything when dialog closes
@@ -246,6 +262,72 @@ IMPORTANT OVERRIDES (do not ignore):
         description: "Please check your AI response format.",
         variant: "destructive"
       });
+    }
+  };
+
+  const handleAutoScore = async () => {
+    if (!selectedPromptId) {
+      toast({
+        title: "No prompt selected",
+        description: "Please select a scoring prompt first.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsAutoScoring(true);
+    try {
+      // Generate the full prompt on the frontend
+      const fullPrompt = generatePrompt();
+      
+      const response = await apiService.post('/action-scoring/generate', {
+        prompt: fullPrompt,  // Send the complete prompt text
+        model: selectedModel,
+        auto_save: false
+      });
+
+      if (response.success && response.data) {
+        // Populate the AI response field with raw text
+        const aiResponseText = typeof response.data.ai_response === 'string' 
+          ? response.data.ai_response 
+          : JSON.stringify(response.data.ai_response, null, 2);
+        
+        setAiResponse(aiResponseText);
+        
+        // Automatically parse the response
+        try {
+          const parsed = JSON.parse(aiResponseText);
+          setParsedScores(parsed.scores || {});
+          setRootCauses(parsed.likely_root_causes || []);
+          setShowScoreForm(true);
+          
+          // Scroll to the score card after a brief delay
+          setTimeout(() => {
+            scoreCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 100);
+          
+          toast({
+            title: "Auto-scoring complete",
+            description: `Scores generated and parsed successfully using ${selectedModel === 'haiku' ? 'Claude 3.5 Haiku' : 'Claude 3.5 Sonnet'}.`
+          });
+        } catch (parseError) {
+          toast({
+            title: "Auto-scoring complete",
+            description: `Response generated but couldn't auto-parse. Please review and parse manually.`,
+            variant: "destructive"
+          });
+        }
+      }
+    } catch (error: any) {
+      console.error('Auto-scoring error:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || "Failed to generate scores. Please try again.";
+      toast({
+        title: "Auto-scoring failed",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    } finally {
+      setIsAutoScoring(false);
     }
   };
 
@@ -455,15 +537,60 @@ IMPORTANT OVERRIDES (do not ignore):
             )}
           </div>
 
+          {/* Auto-Score Section */}
+          <Card className="bg-muted/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Sparkles className="w-4 h-4" />
+                Auto-Score with AI
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-2">
+                <Select value={selectedModel} onValueChange={setSelectedModel}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="haiku">
+                      Claude 3.5 Haiku (~$0.0012 per score)
+                    </SelectItem>
+                    <SelectItem value="sonnet">
+                      Claude 3.5 Sonnet (~$0.012 per score)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button 
+                  onClick={handleAutoScore}
+                  disabled={!selectedPromptId || isAutoScoring}
+                  variant="secondary"
+                  className="whitespace-nowrap"
+                >
+                  {isAutoScoring ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Generate Scores
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* AI Response Input */}
           <div className="space-y-4">
             <div>
-              <Label htmlFor="ai-response">Paste AI Response (JSON format)</Label>
+              <Label htmlFor="ai-response">AI Response (JSON format)</Label>
               <Textarea
                 id="ai-response"
                 value={aiResponse}
                 onChange={(e) => setAiResponse(e.target.value)}
-                placeholder="Paste the JSON response from your AI tool here..."
+                placeholder="Auto-generated response will appear here, or paste manually..."
                 rows={8}
                 className="font-mono text-sm"
               />
@@ -481,9 +608,56 @@ IMPORTANT OVERRIDES (do not ignore):
 
           {/* Score Entry Form */}
           {showScoreForm && parsedScores && (
-            <Card>
+            <Card ref={scoreCardRef}>
               <CardHeader>
-                <CardTitle className="text-lg">Review & Save Scores</CardTitle>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">Review & Save Scores</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">
+                        {(() => {
+                          const scores = Object.values(parsedScores);
+                          const mean = scores.length > 0 ? scores.reduce((sum, entry) => sum + entry.score, 0) / scores.length : 0;
+                          if (mean >= 2) return <span className="animate-bounce">🦄</span>;
+                          if (mean >= 1.5) return <span className="animate-pulse">🎉</span>;
+                          if (mean >= 1.2) return <span className="animate-pulse">😊</span>;
+                          if (mean >= 0.8) return <span>🙂</span>;
+                          return <span className="animate-[shake_0.5s_ease-in-out]">😰</span>;
+                        })()}
+                      </span>
+                      <Badge className={`${(() => {
+                        const scores = Object.values(parsedScores);
+                        const mean = scores.length > 0 ? scores.reduce((sum, entry) => sum + entry.score, 0) / scores.length : 0;
+                        if (mean >= 1) return 'bg-green-100 text-green-800';
+                        if (mean <= -1) return 'bg-red-100 text-red-800';
+                        return 'bg-yellow-100 text-yellow-800';
+                      })()} text-base px-3 py-1`}>
+                        Mean: {(() => {
+                          const scores = Object.values(parsedScores);
+                          return scores.length > 0 ? (scores.reduce((sum, entry) => sum + entry.score, 0) / scores.length).toFixed(2) : '0.00';
+                        })()}
+                      </Badge>
+                    </div>
+                  </div>
+                  {/* Progress Bar */}
+                  <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="absolute inset-0 flex">
+                      <div className="w-1/2 bg-red-100"></div>
+                      <div className="w-1/2 bg-gradient-to-r from-yellow-100 via-green-100 to-green-200"></div>
+                    </div>
+                    <div 
+                      className="absolute h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full animate-[fillBar_1.5s_ease-out_0.5s_forwards]"
+                      style={{
+                        '--target-width': `${(() => {
+                          const scores = Object.values(parsedScores);
+                          const mean = scores.length > 0 ? scores.reduce((sum, entry) => sum + entry.score, 0) / scores.length : 0;
+                          return ((mean + 2) / 4) * 100;
+                        })()}%`
+                      } as React.CSSProperties}
+                    ></div>
+                    <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-gray-400"></div>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <ScoreEntryForm

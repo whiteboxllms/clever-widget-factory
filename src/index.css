@@ -202,4 +202,17 @@ All colors MUST be HSL.
   .prose ul li {
     list-style-type: disc;
   }
+
+  /* Shake animation for worried emoji */
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+
+  /* Fill bar animation for progress bar */
+  @keyframes fillBar {
+    from { width: 0; }
+    to { width: var(--target-width); }
+  }
 }

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Trash2, Send, Users, Shield, User, Wrench, Star, Info, ToggleLeft, ToggleRight, ChevronDown, UserX, ArrowLeft } from 'lucide-react';
+import { Trash2, Send, Users, Shield, User, Wrench, Star, Info, ToggleLeft, ToggleRight, ChevronDown, UserX, ArrowLeft, MessageSquare } from 'lucide-react';
 import { EditableOrganizationName } from '@/components/EditableOrganizationName';
 import { EditableMemberName } from '@/components/EditableMemberName';
 import { EditableOrganizationDomain } from '@/components/EditableOrganizationDomain';
@@ -475,6 +475,27 @@ const Organization = () => {
 
       {/* Organization Values */}
       <OrganizationValuesSection canEdit={isAdmin} organization={targetOrganization} />
+
+      {/* Scoring Prompts */}
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquare className="w-5 h-5" />
+              AI Scoring Prompts
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              Manage AI prompts used for automated action scoring and accountability assessments.
+            </p>
+            <Button onClick={() => navigate('/prompts')} variant="outline">
+              <MessageSquare className="w-4 h-4 mr-2" />
+              Manage Scoring Prompts
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Roles & Permissions */}
       <Collapsible defaultOpen={false}>

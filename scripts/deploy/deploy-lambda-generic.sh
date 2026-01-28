@@ -13,19 +13,42 @@ fi
 LAMBDA_DIR="$1"
 FUNCTION_NAME="$2"
 
-cd "$(dirname "$0")/../lambda/$LAMBDA_DIR"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR/../../lambda/$LAMBDA_DIR"
 
 echo "📦 Copying shared directory..."
+rm -rf shared
 cp -r ../shared .
 
 echo "📦 Packaging Lambda (index.js + shared/ + node_modules/)..."
 zip -r function.zip index.js shared/ node_modules/
 
 echo "🚀 Deploying to AWS Lambda ($FUNCTION_NAME)..."
-aws lambda update-function-code \
+DEPLOY_OUTPUT=$(aws lambda update-function-code \
   --function-name "$FUNCTION_NAME" \
   --zip-file fileb://function.zip \
-  --region us-west-2
+  --region us-west-2 2>&1)
+
+if [ $? -ne 0 ]; then
+  echo "❌ Deployment failed!"
+  echo "$DEPLOY_OUTPUT"
+  exit 1
+fi
+
+NEW_SHA=$(echo "$DEPLOY_OUTPUT" | grep -o '"CodeSha256": "[^"]*"' | cut -d'"' -f4)
+echo "✅ Deployed with CodeSha256: $NEW_SHA"
+
+echo "⏳ Waiting for Lambda to be ready..."
+sleep 5
+
+echo "🔍 Verifying deployment..."
+CURRENT_SHA=$(aws lambda get-function --function-name "$FUNCTION_NAME" --region us-west-2 --query 'Configuration.CodeSha256' --output text)
+
+if [ "$NEW_SHA" = "$CURRENT_SHA" ]; then
+  echo "✅ Deployment verified: $CURRENT_SHA"
+else
+  echo "⚠️  Warning: SHA mismatch. Deployed: $NEW_SHA, Current: $CURRENT_SHA"
+fi
 
 echo "🧹 Cleaning up..."
 rm function.zip

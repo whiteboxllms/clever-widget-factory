@@ -12,7 +12,12 @@
 const { BedrockRuntimeClient, InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime');
 
 const bedrockClient = new BedrockRuntimeClient({ region: process.env.AWS_REGION || 'us-west-2' });
-const MODEL_ID = 'anthropic.claude-3-5-haiku-20241022-v1:0';
+
+// Available models
+const MODELS = {
+  haiku: 'anthropic.claude-3-5-haiku-20241022-v1:0',
+  sonnet: 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+};
 
 /**
  * Strip HTML tags and decode entities
@@ -118,10 +123,13 @@ IMPORTANT OVERRIDES (do not ignore):
  * Call Bedrock to generate scores
  * 
  * @param {string} prompt - Complete prompt with action context
+ * @param {string} modelKey - Model key ('haiku' or 'sonnet')
  * @returns {Promise<Object>} - Raw Bedrock response
  * @throws {Error} - If Bedrock call fails
  */
-async function generateScoresWithBedrock(prompt) {
+async function generateScoresWithBedrock(prompt, modelKey = 'haiku') {
+  const modelId = MODELS[modelKey] || MODELS.haiku;
+  
   const payload = {
     anthropic_version: "bedrock-2023-05-31",
     max_tokens: 1000, // Scores can be verbose
@@ -130,7 +138,7 @@ async function generateScoresWithBedrock(prompt) {
   };
 
   const command = new InvokeModelCommand({
-    modelId: MODEL_ID,
+    modelId,
     body: JSON.stringify(payload),
     contentType: 'application/json',
     accept: 'application/json'
@@ -197,8 +205,8 @@ function parseAndValidateScores(responseText) {
       throw new Error(`Invalid score value for category "${category}": must be a number`);
     }
 
-    if (scoreData.score < 1 || scoreData.score > 10) {
-      throw new Error(`Invalid score value for category "${category}": must be between 1 and 10`);
+    if (scoreData.score < -2 || scoreData.score > 2) {
+      throw new Error(`Invalid score value for category "${category}": must be between -2 and 2`);
     }
 
     if (typeof scoreData.reason !== 'string' || !scoreData.reason.trim()) {

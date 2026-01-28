@@ -20,6 +20,7 @@ This Lambda function generates accountability scores for completed actions by:
 {
   "action_id": "uuid",
   "prompt_id": "uuid (optional - uses default if not provided)",
+  "model": "haiku | sonnet (optional - defaults to haiku)",
   "auto_save": false
 }
 ```
@@ -167,17 +168,37 @@ This Lambda uses `lambda/shared/action-scoring.js` for:
 
 ## Bedrock Configuration
 
-- **Model**: `anthropic.claude-3-5-haiku-20241022-v1:0`
+### Available Models
+
+- **haiku** (default): `anthropic.claude-3-5-haiku-20241022-v1:0`
+  - Fast and cost-effective
+  - ~$0.001 per scoring
+  - Best for: High-volume scoring, quick feedback
+  
+- **sonnet**: `anthropic.claude-3-5-sonnet-20241022-v2:0`
+  - More capable and thorough
+  - ~$0.015 per scoring
+  - Best for: Detailed analysis, complex actions
+
+### Configuration
+
 - **Max Tokens**: 1000
 - **Temperature**: 0.3 (consistency over creativity)
 - **Timeout**: 10 seconds
 
 ## Cost Estimation
 
+### Haiku (Default)
 - Input: ~1,500 tokens per request
 - Output: ~500 tokens per request
 - Cost: ~$0.001 per scoring (0.1 cents)
 - Monthly (100 actions/day): ~$3
+
+### Sonnet
+- Input: ~1,500 tokens per request
+- Output: ~500 tokens per request
+- Cost: ~$0.015 per scoring (1.5 cents)
+- Monthly (100 actions/day): ~$45
 
 ## Monitoring
 

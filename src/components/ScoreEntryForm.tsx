@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 interface ScoreEntry {
   score: number;
   reason: string;
+  how_to_improve?: string;
 }
 
 interface ScoreEntryFormProps {
@@ -51,7 +52,7 @@ export function ScoreEntryForm({ initialScores = {}, rootCauses = [], onSave, on
     if (newAttributeName.trim() && !scores[newAttributeName]) {
       setScores(prev => ({
         ...prev,
-        [newAttributeName]: { score: 0, reason: '' }
+        [newAttributeName]: { score: 0, reason: '', how_to_improve: '' }
       }));
       setNewAttributeName('');
     }
@@ -85,6 +86,10 @@ export function ScoreEntryForm({ initialScores = {}, rootCauses = [], onSave, on
     return 'bg-yellow-100 text-yellow-800';
   };
 
+  const meanScore = Object.values(scores).length > 0
+    ? Object.values(scores).reduce((sum, entry) => sum + entry.score, 0) / Object.values(scores).length
+    : 0;
+
   return (
     <div className="space-y-6">
       {/* Root Causes Analysis */}
@@ -109,51 +114,24 @@ export function ScoreEntryForm({ initialScores = {}, rootCauses = [], onSave, on
       )}
 
       {/* Existing Scores */}
-      <div className="space-y-4">
+      <div className="space-y-2">
         {Object.entries(scores).map(([attribute, entry]) => (
-          <Card key={attribute}>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">{attribute}</CardTitle>
-                <div className="flex items-center space-x-2">
-                  <Badge className={getScoreColor(entry.score)}>
-                    Score: {entry.score}
-                  </Badge>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleRemoveAttribute(attribute)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+          <div key={attribute} className="flex items-start gap-3 p-3 border rounded-lg bg-card">
+            <Badge className={`${getScoreColor(entry.score)} shrink-0 h-6`}>
+              {entry.score}
+            </Badge>
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-sm mb-1">{attribute}</div>
+              <div className="text-xs text-muted-foreground mb-1">
+                <span className="font-medium">Reason:</span> {entry.reason}
+              </div>
+              {entry.how_to_improve && (
+                <div className="text-xs text-muted-foreground">
+                  <span className="font-medium">How to Improve:</span> {entry.how_to_improve}
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <Label htmlFor={`score-${attribute}`}>Score (-2 to +2)</Label>
-                <Input
-                  id={`score-${attribute}`}
-                  type="number"
-                  min="-2"
-                  max="2"
-                  value={entry.score}
-                  onChange={(e) => handleScoreChange(attribute, 'score', parseInt(e.target.value) || 0)}
-                  className="w-24"
-                />
-              </div>
-              <div>
-                <Label htmlFor={`reason-${attribute}`}>Justification</Label>
-                <Textarea
-                  id={`reason-${attribute}`}
-                  value={entry.reason}
-                  onChange={(e) => handleScoreChange(attribute, 'reason', e.target.value)}
-                  placeholder="Enter a one-line justification for this score"
-                  rows={2}
-                />
-              </div>
-            </CardContent>
-          </Card>
+              )}
+            </div>
+          </div>
         ))}
       </div>
 

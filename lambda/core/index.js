@@ -1566,9 +1566,9 @@ exports.handler = async (event) => {
             '${source_id || action_id}',
             '${prompt_id}',
             ${prompt_text ? `'${escapeLiteral(prompt_text)}'` : 'NULL'},
-            '${JSON.stringify(scores)}'::jsonb,
-            ${ai_response ? `'${JSON.stringify(ai_response)}'::jsonb` : 'NULL'},
-            ${likely_root_causes ? `'${JSON.stringify(likely_root_causes)}'::jsonb` : 'NULL'},
+            '${escapeLiteral(JSON.stringify(scores))}'::jsonb,
+            ${ai_response ? `'${escapeLiteral(JSON.stringify(ai_response))}'::jsonb` : 'NULL'},
+            ${formatSqlValue(likely_root_causes)},
             ${asset_context_id ? `'${asset_context_id}'` : 'NULL'},
             ${asset_context_name ? `'${escapeLiteral(asset_context_name)}'` : 'NULL'},
             NOW(),
@@ -1596,9 +1596,9 @@ exports.handler = async (event) => {
         
         if (body.prompt_id) updates.push(`prompt_id = '${body.prompt_id}'`);
         if (body.prompt_text) updates.push(`prompt_text = '${escapeLiteral(body.prompt_text)}'`);
-        if (body.scores) updates.push(`scores = '${JSON.stringify(body.scores)}'::jsonb`);
-        if (body.ai_response) updates.push(`ai_response = '${JSON.stringify(body.ai_response)}'::jsonb`);
-        if (body.likely_root_causes) updates.push(`likely_root_causes = '${JSON.stringify(body.likely_root_causes)}'::jsonb`);
+        if (body.scores) updates.push(`scores = '${escapeLiteral(JSON.stringify(body.scores))}'::jsonb`);
+        if (body.ai_response) updates.push(`ai_response = '${escapeLiteral(JSON.stringify(body.ai_response))}'::jsonb`);
+        if (body.likely_root_causes) updates.push(`likely_root_causes = ${formatSqlValue(body.likely_root_causes)}`);
         if (body.asset_context_id) updates.push(`asset_context_id = '${body.asset_context_id}'`);
         if (body.asset_context_name) updates.push(`asset_context_name = '${escapeLiteral(body.asset_context_name)}'`);
         

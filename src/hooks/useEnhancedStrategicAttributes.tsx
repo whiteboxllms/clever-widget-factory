@@ -18,11 +18,21 @@ export interface EnhancedAttributeAnalytics {
 
 interface ActionScore {
   id: string;
-  action_id: string;
-  assigned_to: string;
-  full_name: string;
-  scores: Record<string, { score: number; reason: string }>;
+  created_by: string;
+  scores: Array<{
+    score_name: string;
+    score: number;
+    reason: string;
+    how_to_improve?: string;
+  }>;
+  contexts: Array<{
+    context_service: string;
+    context_id: string;
+  }>;
   created_at: string;
+  // Enriched fields (added by frontend)
+  assigned_to?: string;
+  full_name?: string;
 }
 
 export interface EnhancedAttributeFilters {
@@ -101,11 +111,15 @@ export function useEnhancedStrategicAttributes(filters: EnhancedAttributeFilters
       organizationMembers.map(member => [member.user_id, member])
     );
 
-    return (actionScoresQuery.data ?? []).map((score) => {
-      const action = actionsMap.get(score.action_id);
+    return (actionScoresQuery.data ?? []).map((analysis) => {
+      // Find action_id from contexts
+      const actionContext = analysis.contexts?.find((ctx: any) => ctx.context_service === 'action_score');
+      const actionId = actionContext?.context_id;
+      const action = actionId ? actionsMap.get(actionId) : undefined;
       const assignee = action?.assigned_to ? memberMap.get(action.assigned_to) : undefined;
+      
       return {
-        ...score,
+        ...analysis,
         assigned_to: action?.assigned_to,
         full_name: assignee?.full_name || action?.full_name || 'Unknown User',
       };
@@ -238,15 +252,17 @@ function computeActionAnalytics(
     const user = userMap.get(userId)!;
     user.totalActions = (user.totalActions || 0) + 1;
 
-    Object.entries(actionScore.scores || {}).forEach(([orgValue, scoreData]) => {
-      const attributeKey = mapScoredAttributeToStrategic(orgValue);
+    // Handle new array format from analyses API
+    const scoresArray = actionScore.scores || [];
+    scoresArray.forEach(scoreItem => {
+      const attributeKey = mapScoredAttributeToStrategic(scoreItem.score_name);
       if (!attributeKey) return;
 
       const currentSum = user.attributes[attributeKey] || 0;
       const currentCount = user.scoreCount![attributeKey] || 0;
       
       // Convert -2 to 2 scale to 0 to 4 scale
-      const normalizedScore = scoreData.score + 2;
+      const normalizedScore = scoreItem.score + 2;
       user.attributes[attributeKey] = currentSum + normalizedScore;
       user.scoreCount![attributeKey] = currentCount + 1;
     });

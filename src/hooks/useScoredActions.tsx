@@ -10,24 +10,25 @@ import { offlineQueryConfig } from '@/lib/queryConfig';
 export interface ScoredAction {
   id: string;
   action_id: string;
-  source_id: string;
-  source_type: string;
   asset_context_id: string;
   asset_context_name: string;
-  prompt_text: string;
-  scores: Record<string, { score: number; reason: string }>;
+  prompt_id: string;
+  scores: Array<{ score_name: string; score: number; reason: string; how_to_improve?: string }>;
+  attributes?: Array<{ attribute_name: string; attribute_values: string[] }>;
+  contexts?: Array<{ context_service: string; context_id: string }>;
+  likely_root_causes?: string[];
   ai_response: unknown;
-  likely_root_causes: string[];
-  score_attribution_type: string;
   created_at: string;
   updated_at: string;
+  source_type: string;
+  score_attribution_type: string;
   // Related action data
   action?: {
     id: string;
     title: string;
     description: string;
     status: string;
-    assigned_to: string;
+    assigned_to?: string;
     assignee?: {
       full_name: string;
       role: string;
@@ -53,16 +54,11 @@ const buildScoredActionsKey = (filters: ScoredActionFilters) => [
 
 type RawActionScore = {
   id: string;
-  action_id: string;
-  source_id: string;
-  source_type: string;
-  asset_context_id?: string | null;
-  asset_context_name?: string | null;
-  prompt_text: string;
-  scores: Record<string, { score: number; reason: string }>;
+  prompt_id: string;
+  scores: Array<{ score_name: string; score: number; reason: string; how_to_improve?: string }>;
+  attributes?: Array<{ attribute_name: string; attribute_values: string[] }>;
+  contexts?: Array<{ context_service: string; context_id: string }>;
   ai_response: unknown;
-  likely_root_causes?: string[];
-  score_attribution_type?: string;
   created_at: string;
   updated_at: string;
 };
@@ -84,7 +80,7 @@ export function useScoredActions(filters: ScoredActionFilters = {}) {
     queryKey: buildScoredActionsKey(filters),
     queryFn: async () => {
       // Always check cache first - reuse data from useEnhancedStrategicAttributes if available
-      // This prevents duplicate action_scores fetches (which is a large data pull)
+      // This prevents duplicate analysis fetches (which is a large data pull)
       const actionScoresKey = actionScoresQueryKey(filters.startDate, filters.endDate);
       const actionsKey = actionsQueryKey();
       
@@ -122,7 +118,14 @@ export function useScoredActions(filters: ScoredActionFilters = {}) {
         queryClient.setQueryData(['organization_members'], organizationMembers);
       }
 
-      const actionIds = new Set(scoresData.map((score) => score.action_id).filter(Boolean));
+      const actionIds = new Set(
+        scoresData
+          .map((score) => {
+            const actionContext = score.contexts?.find(c => c.context_service === 'action_score');
+            return actionContext?.context_id;
+          })
+          .filter(Boolean)
+      );
       const filteredActions = (actionsData || []).filter((action) => actionIds.has(action.id));
 
       const actionsMap = new Map(filteredActions.map((action) => [action.id, action]));
@@ -133,29 +136,38 @@ export function useScoredActions(filters: ScoredActionFilters = {}) {
       const baseData = scoresData || [];
       const filteredData = filters.userIds?.length
         ? baseData.filter(item => {
-            const action = actionsMap.get(item.action_id);
+            const actionContext = item.contexts?.find(c => c.context_service === 'action_score');
+            const actionId = actionContext?.context_id;
+            const action = actionId ? actionsMap.get(actionId) : null;
             return action?.assigned_to && filters.userIds!.includes(action.assigned_to);
           })
         : baseData;
 
       return filteredData.map(item => {
-        const action = actionsMap.get(item.action_id);
+        const actionContext = item.contexts?.find(c => c.context_service === 'action_score');
+        const actionId = actionContext?.context_id || '';
+        const action = actionsMap.get(actionId);
         const assignee = action?.assigned_to ? membersMap.get(action.assigned_to) : null;
+        
+        // Extract likely_root_causes from attributes
+        const rootCauseAttr = item.attributes?.find(a => a.attribute_name === 'likely_root_cause');
+        const likelyRootCauses = rootCauseAttr?.attribute_values || [];
 
         return {
           id: item.id,
-          action_id: item.action_id,
-          source_id: item.source_id,
-          source_type: item.source_type,
-          asset_context_id: item.asset_context_id || '',
-          asset_context_name: item.asset_context_name || 'Unknown Asset',
-          prompt_text: item.prompt_text,
-          scores: item.scores as Record<string, { score: number; reason: string }>,
+          action_id: actionId,
+          asset_context_id: '',
+          asset_context_name: 'Unknown Asset',
+          prompt_id: item.prompt_id,
+          scores: item.scores || [],
+          attributes: item.attributes,
+          contexts: item.contexts,
+          likely_root_causes: likelyRootCauses,
           ai_response: item.ai_response,
-          likely_root_causes: item.likely_root_causes || [],
-          score_attribution_type: item.score_attribution_type || 'action',
           created_at: item.created_at,
           updated_at: item.updated_at,
+          source_type: 'action',
+          score_attribution_type: 'action_score',
           action: action ? {
             id: action.id,
             title: action.title,

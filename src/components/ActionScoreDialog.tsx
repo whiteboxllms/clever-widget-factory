@@ -56,7 +56,7 @@ export function ActionScoreDialog({
 
   const { toast } = useToast();
   const { prompts } = useScoringPrompts();
-  const { createScore, updateScore } = useActionScores();
+  const { createScore } = useActionScores();
 
   // Set default prompt on mount
   useEffect(() => {
@@ -280,7 +280,7 @@ IMPORTANT OVERRIDES (do not ignore):
       // Generate the full prompt on the frontend
       const fullPrompt = generatePrompt();
       
-      const response = await apiService.post('/action-scoring/generate', {
+      const response = await apiService.post('/analysis/generate', {
         prompt: fullPrompt,  // Send the complete prompt text
         model: selectedModel,
         auto_save: false
@@ -335,26 +335,22 @@ IMPORTANT OVERRIDES (do not ignore):
     if (!selectedPrompt) return;
 
     try {
-      // Action should already exist if we're scoring it (completed actions only)
-      // No need to verify/create
+      const scoresArray = Object.entries(finalScores).map(([score_name, { score, reason }]) => ({
+        score_name,
+        score,
+        reason,
+        how_to_improve: ''
+      }));
 
       const scoreData = {
         action_id: action.id!,
         prompt_id: selectedPromptId,
-        prompt_text: selectedPrompt.prompt_text,
-        scores: finalScores,
+        scores: scoresArray,
         ai_response: aiResponse ? JSON.parse(aiResponse) : undefined,
-        likely_root_causes: rootCauses,
-        asset_context_id: asset?.id || action.asset_id,
-        asset_context_name: assetName,
+        attributes: rootCauses.length > 0 ? [{ attribute_name: 'likely_root_cause', attribute_values: rootCauses }] : undefined,
       };
 
-      if (existingScore) {
-        await updateScore(existingScore.id, scoreData);
-      } else {
-        await createScore(scoreData);
-      }
-
+      await createScore(scoreData);
       onScoreUpdated();
       handleClose();
     } catch (error) {

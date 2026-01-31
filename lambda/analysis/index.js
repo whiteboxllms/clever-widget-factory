@@ -1,20 +1,25 @@
 /**
- * Action Scoring Lambda
+ * Analysis Lambda
  * 
- * Handles AI-powered analysis and scoring with new normalized schema.
+ * Handles AI-powered analysis and scoring with normalized schema.
  * 
  * Endpoints:
- * - POST /action-scoring/generate: Run AI prompt (no save)
- * - GET /action-scoring/analyses: List analyses
- * - POST /action-scoring/analyses: Create analysis with scores
- * - GET /action-scoring/analyses/{id}: Get single analysis
- * - GET /action-scoring/prompts: List scoring prompts
+ * - POST /analysis/generate: Run AI prompt (no save)
+ * - GET /analysis/analyses: List analyses
+ * - POST /analysis/analyses: Create analysis with scores
+ * - GET /analysis/analyses/{id}: Get single analysis
+ * - GET /analysis/prompts: List scoring prompts
  */
 
-const { Client } = require('pg');
-const { generateScoresWithBedrock } = require('./shared/action-scoring');
-const { getAuthorizerContext } = require('./shared/authorizerContext');
+// Layer imports (generic utilities)
+const { getAuthorizerContext } = require('/opt/nodejs/authorizerContext');
+const { query } = require('/opt/nodejs/db');
+const { success, error: errorResponse } = require('/opt/nodejs/response');
 
+// Local imports (domain logic)
+const { generateScoresWithBedrock } = require('./action-scoring');
+
+const { Client } = require('pg');
 const dbConfig = {
   host: process.env.DB_HOST || 'cwf-dev-postgres.ctmma86ykgeb.us-west-2.rds.amazonaws.com',
   port: parseInt(process.env.DB_PORT || '5432'),

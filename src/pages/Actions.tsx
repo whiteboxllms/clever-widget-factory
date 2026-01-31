@@ -214,6 +214,7 @@ export default function Actions() {
     setShowScoreDialog(false);
     setScoringAction(null);
     setExistingScore(null);
+    // No need to invalidate - optimistic update in useActionScores handles it
   };
 
   const handleScoreDialogClose = (open: boolean) => {

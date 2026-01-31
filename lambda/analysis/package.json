@@ -1,7 +1,7 @@
 {
-  "name": "cwf-action-scoring",
+  "name": "cwf-analysis",
   "version": "1.0.0",
-  "description": "Lambda function for automated action scoring using AWS Bedrock",
+  "description": "Lambda function for AI-powered analysis using AWS Bedrock",
   "main": "index.js",
   "scripts": {
     "test": "jest",
@@ -9,8 +9,7 @@
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
-    "@aws-sdk/client-bedrock-runtime": "^3.0.0",
-    "pg": "^8.11.0"
+    "@aws-sdk/client-bedrock-runtime": "^3.0.0"
   },
   "devDependencies": {
     "jest": "^29.0.0"

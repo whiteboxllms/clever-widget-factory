@@ -1,6 +1,6 @@
 const { generateEmbeddingV1 } = require('@cwf/embeddings');
 const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
-const { summarizeAction, summarizeIssue, shouldSummarize } = require('./ai-summarizer');
+const { summarizeAction, summarizeIssue, shouldSummarize } = require('/opt/nodejs/ai-summarizer');
 const {
   composePartEmbeddingSource,
   composeToolEmbeddingSource,

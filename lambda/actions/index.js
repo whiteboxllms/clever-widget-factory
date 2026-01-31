@@ -1,7 +1,7 @@
 const { Client } = require('pg');
 const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
-const { getAuthorizerContext, buildOrganizationFilter } = require('./shared/authorizerContext');
-const { composeActionEmbeddingSource } = require('/opt/nodejs/lib/embedding-composition');
+const { getAuthorizerContext, buildOrganizationFilter } = require('/opt/nodejs/authorizerContext');
+const { composeActionEmbeddingSource } = require('/opt/nodejs/embedding-composition');
 
 const sqs = new SQSClient({ region: 'us-west-2' });
 const EMBEDDINGS_QUEUE_URL = 'https://sqs.us-west-2.amazonaws.com/131745734428/cwf-embeddings-queue';
@@ -90,11 +90,12 @@ exports.handler = async (event) => {
         SELECT 
           a.*,
           om.full_name as assigned_to_name,
-          CASE WHEN scores.action_id IS NOT NULL THEN true ELSE false END as has_score,
+          CASE WHEN (ac.context_id IS NOT NULL OR old_scores.action_id IS NOT NULL) THEN true ELSE false END as has_score,
           CASE WHEN updates.action_id IS NOT NULL THEN true ELSE false END as has_implementation_updates
         FROM actions a
         LEFT JOIN organization_members om ON a.assigned_to = om.user_id
-        LEFT JOIN action_scores scores ON a.id = scores.action_id
+        LEFT JOIN analysis_contexts ac ON a.id = ac.context_id AND ac.context_service = 'action_score'
+        LEFT JOIN action_scores old_scores ON a.id = old_scores.action_id
         LEFT JOIN (
           SELECT DISTINCT action_id 
           FROM action_implementation_updates
@@ -626,7 +627,7 @@ exports.handler = async (event) => {
           a.*,
           om.full_name as assigned_to_name,
           om.favorite_color as assigned_to_color,
-          CASE WHEN scores.action_id IS NOT NULL THEN true ELSE false END as has_score,
+          CASE WHEN (ac.context_id IS NOT NULL OR old_scores.action_id IS NOT NULL) THEN true ELSE false END as has_score,
           CASE WHEN updates.action_id IS NOT NULL THEN true ELSE false END as has_implementation_updates,
           COALESCE((
             SELECT COUNT(*) 
@@ -638,7 +639,8 @@ exports.handler = async (event) => {
           ELSE NULL END as asset
         FROM actions a
         LEFT JOIN profiles om ON a.assigned_to = om.user_id
-        LEFT JOIN action_scores scores ON a.id = scores.action_id
+        LEFT JOIN analysis_contexts ac ON a.id = ac.context_id AND ac.context_service = 'action_score'
+        LEFT JOIN action_scores old_scores ON a.id = old_scores.action_id
         LEFT JOIN (
           SELECT DISTINCT action_id 
           FROM action_implementation_updates

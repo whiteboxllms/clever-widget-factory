@@ -189,8 +189,7 @@ export function ActionImplementationUpdates({ actionId, profiles, onUpdate }: Ac
         );
       });
 
-      const response = await apiService.put('/action_implementation_updates', {
-        id: editingUpdateId,
+      const response = await apiService.put(`/action_implementation_updates/${editingUpdateId}`, {
         update_text: editingText
       });
 

@@ -8,7 +8,7 @@ const {
   composeActionEmbeddingSource,
   composeIssueEmbeddingSource,
   composePolicyEmbeddingSource
-} = require('./embedding-composition');
+} = require('/opt/nodejs/lib/embedding-composition');
 
 const sqs = new SQSClient({ region: 'us-west-2' });
 const EMBEDDINGS_QUEUE_URL = process.env.EMBEDDINGS_QUEUE_URL || 

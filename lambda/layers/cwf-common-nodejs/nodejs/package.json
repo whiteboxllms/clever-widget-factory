@@ -1,0 +1,8 @@
+{
+  "name": "cwf-common-nodejs",
+  "version": "1.0.0",
+  "description": "Shared utilities for Clever Widget Factory Lambda functions",
+  "dependencies": {
+    "pg": "^8.11.3"
+  }
+}

@@ -1,7 +1,7 @@
 const { Client } = require('pg');
 const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
 const { getAuthorizerContext, buildOrganizationFilter } = require('./shared/authorizerContext');
-const { composeActionEmbeddingSource } = require('./shared/embedding-composition');
+const { composeActionEmbeddingSource } = require('/opt/nodejs/lib/embedding-composition');
 
 const sqs = new SQSClient({ region: 'us-west-2' });
 const EMBEDDINGS_QUEUE_URL = 'https://sqs.us-west-2.amazonaws.com/131745734428/cwf-embeddings-queue';

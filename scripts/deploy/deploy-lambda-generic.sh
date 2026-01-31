@@ -16,9 +16,24 @@ FUNCTION_NAME="$2"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR/../../lambda/$LAMBDA_DIR"
 
-echo "📦 Copying shared directory..."
+echo "📦 Detecting required shared files..."
 rm -rf shared
-cp -r ../shared .
+
+# Detect which shared files are actually imported
+REQUIRED_FILES=$(grep -oE "require\(['\"]\./shared/[^'\"]+" index.js 2>/dev/null | sed "s/require(['\"]\.\/shared\///" | sed "s/['\"]//g" | sort -u)
+
+if [ -n "$REQUIRED_FILES" ]; then
+  echo "📦 Copying only required shared files:"
+  mkdir -p shared
+  for file in $REQUIRED_FILES; do
+    if [ -f "../shared/${file}.js" ]; then
+      echo "   - ${file}.js"
+      cp "../shared/${file}.js" "shared/"
+    fi
+  done
+else
+  echo "   No shared files required"
+fi
 
 echo "📦 Packaging Lambda (index.js + shared/ + node_modules/)..."
 zip -r function.zip index.js shared/ node_modules/

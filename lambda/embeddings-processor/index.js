@@ -7,7 +7,7 @@ const {
   composeActionEmbeddingSource,
   composeIssueEmbeddingSource,
   composePolicyEmbeddingSource
-} = require('./embedding-composition');
+} = require('/opt/nodejs/lib/embedding-composition');
 
 const lambda = new LambdaClient({ region: 'us-west-2' });
 

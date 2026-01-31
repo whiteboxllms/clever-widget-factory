@@ -1,63 +1,16 @@
-const { Client } = require('pg');
 const { randomUUID } = require('crypto');
 const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
-const { getAuthorizerContext, buildOrganizationFilter, hasPermission, canAccessOrganization } = require('./shared/authorizerContext');
-const { composePartEmbeddingSource, composeToolEmbeddingSource, composeIssueEmbeddingSource, composePolicyEmbeddingSource } = require('./shared/embedding-composition');
+const { getAuthorizerContext, buildOrganizationFilter, hasPermission, canAccessOrganization } = require('/opt/nodejs/authorizerContext');
+const { composePartEmbeddingSource, composeToolEmbeddingSource, composeIssueEmbeddingSource, composePolicyEmbeddingSource } = require('/opt/nodejs/embedding-composition');
+const { query } = require('/opt/nodejs/db');
+const { escapeLiteral, formatSqlValue, buildUpdateClauses } = require('/opt/nodejs/sqlUtils');
 
 const sqs = new SQSClient({ region: 'us-west-2' });
 const EMBEDDINGS_QUEUE_URL = 'https://sqs.us-west-2.amazonaws.com/131745734428/cwf-embeddings-queue';
 
-// Database configuration
-const dbConfig = {
-  host: 'cwf-dev-postgres.ctmma86ykgeb.us-west-2.rds.amazonaws.com',
-  port: 5432,
-  database: 'postgres',
-  user: 'postgres',
-  password: process.env.DB_PASSWORD,
-  ssl: {
-    rejectUnauthorized: false
-  }
-};
-
-const escapeLiteral = (value = '') => String(value).replace(/'/g, "''");
-
-const formatSqlValue = (value) => {
-  if (value === null || value === undefined) return 'NULL';
-  if (typeof value === 'number') return value;
-  if (typeof value === 'boolean') return value ? 'true' : 'false';
-  if (Array.isArray(value)) {
-    if (value.length === 0) return 'ARRAY[]::text[]';
-    const sanitizedItems = value.map((item) => `'${escapeLiteral(String(item))}'`);
-    return `ARRAY[${sanitizedItems.join(', ')}]`;
-  }
-  if (typeof value === 'object') {
-    return `'${escapeLiteral(JSON.stringify(value))}'::jsonb`;
-  }
-  return `'${escapeLiteral(String(value))}'`;
-};
-
-const buildUpdateClauses = (body, allowedFields) => {
-  return allowedFields.reduce((clauses, field) => {
-    if (Object.prototype.hasOwnProperty.call(body, field)) {
-      clauses.push(`${field} = ${formatSqlValue(body[field])}`);
-    }
-    return clauses;
-  }, []);
-};
-
 // Helper to execute SQL and return JSON
 async function queryJSON(sql) {
-  const client = new Client(dbConfig);
-  try {
-    await client.connect();
-    const result = await client.query(sql);
-    return result.rows;
-  } catch (error) {
-    console.error('Database query error:', error);
-    throw error;
-  } finally {
-    await client.end();
-  }
+  return await query(sql);
 }
 
 
@@ -246,6 +199,7 @@ exports.handler = async (event) => {
           'actual_location',
           'storage_location',
           'legacy_storage_vicinity',
+          'parent_structure_id',
           'name',
           'description',
           'category',
@@ -1483,151 +1437,6 @@ exports.handler = async (event) => {
     }
 
     // Action scores endpoint
-    if (path.endsWith('/action_scores')) {
-      if (httpMethod === 'GET') {
-        const { start_date, end_date, user_id, source_id, source_type } = event.queryStringParameters || {};
-        let whereConditions = [];
-        
-        // Always filter by organization via actions table
-        if (!hasDataReadAll && organizationId) {
-          whereConditions.push(`a.organization_id::text = '${escapeLiteral(organizationId)}'`);
-        }
-        
-        if (start_date) {
-          whereConditions.push(`s.created_at >= '${start_date}'`);
-        }
-        if (end_date) {
-          whereConditions.push(`s.created_at <= '${end_date}'`);
-        }
-        if (user_id) {
-          whereConditions.push(`a.assigned_to = '${user_id}'`);
-        }
-        if (source_id) {
-          whereConditions.push(`s.source_id = '${escapeLiteral(source_id)}'`);
-        }
-        if (source_type) {
-          whereConditions.push(`s.source_type = '${escapeLiteral(source_type)}'`);
-        }
-        
-        const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
-        
-        const sql = `SELECT json_agg(row_to_json(t)) FROM (
-          SELECT s.* FROM action_scores s
-          LEFT JOIN actions a ON a.id = s.action_id
-          ${whereClause}
-          ORDER BY s.created_at DESC
-        ) t;`;
-        
-        const result = await queryJSON(sql);
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({ data: result?.[0]?.json_agg || [] })
-        };
-      }
-      
-      if (httpMethod === 'POST') {
-        const body = JSON.parse(event.body || '{}');
-        const { action_id, source_type, source_id, prompt_id, prompt_text, scores, ai_response, likely_root_causes, asset_context_id, asset_context_name } = body;
-        
-        if (!action_id || !prompt_id || !scores) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'action_id, prompt_id, and scores are required' })
-          };
-        }
-        
-        // Validate action is completed
-        const actionCheck = await queryJSON(`SELECT status FROM actions WHERE id = '${escapeLiteral(action_id)}' LIMIT 1`);
-        if (!actionCheck || actionCheck.length === 0) {
-          return {
-            statusCode: 404,
-            headers,
-            body: JSON.stringify({ error: 'Action not found' })
-          };
-        }
-        if (actionCheck[0].status !== 'completed') {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'Only completed actions can be scored' })
-          };
-        }
-        
-        const sql = `
-          INSERT INTO action_scores (
-            action_id, source_type, source_id, prompt_id, prompt_text, scores, 
-            ai_response, likely_root_causes, asset_context_id, asset_context_name, created_at, updated_at
-          )
-          VALUES (
-            '${action_id}',
-            '${source_type || 'action'}',
-            '${source_id || action_id}',
-            '${prompt_id}',
-            ${prompt_text ? `'${escapeLiteral(prompt_text)}'` : 'NULL'},
-            '${escapeLiteral(JSON.stringify(scores))}'::jsonb,
-            ${ai_response ? `'${escapeLiteral(JSON.stringify(ai_response))}'::jsonb` : 'NULL'},
-            ${formatSqlValue(likely_root_causes)},
-            ${asset_context_id ? `'${asset_context_id}'` : 'NULL'},
-            ${asset_context_name ? `'${escapeLiteral(asset_context_name)}'` : 'NULL'},
-            NOW(),
-            NOW()
-          )
-          RETURNING *;
-        `;
-        
-        const result = await queryJSON(sql);
-        return {
-          statusCode: 201,
-          headers,
-          body: JSON.stringify({ data: result[0] })
-        };
-      }
-    }
-    
-    // Action scores by ID endpoint
-    if (path.match(/\/action_scores\/[^/]+$/)) {
-      const scoreId = path.split('/').pop();
-      
-      if (httpMethod === 'PUT') {
-        const body = JSON.parse(event.body || '{}');
-        const updates = [];
-        
-        if (body.prompt_id) updates.push(`prompt_id = '${body.prompt_id}'`);
-        if (body.prompt_text) updates.push(`prompt_text = '${escapeLiteral(body.prompt_text)}'`);
-        if (body.scores) updates.push(`scores = '${escapeLiteral(JSON.stringify(body.scores))}'::jsonb`);
-        if (body.ai_response) updates.push(`ai_response = '${escapeLiteral(JSON.stringify(body.ai_response))}'::jsonb`);
-        if (body.likely_root_causes) updates.push(`likely_root_causes = ${formatSqlValue(body.likely_root_causes)}`);
-        if (body.asset_context_id) updates.push(`asset_context_id = '${body.asset_context_id}'`);
-        if (body.asset_context_name) updates.push(`asset_context_name = '${escapeLiteral(body.asset_context_name)}'`);
-        
-        updates.push(`updated_at = NOW()`);
-        
-        if (updates.length === 0) {
-          return {
-            statusCode: 400,
-            headers,
-            body: JSON.stringify({ error: 'No valid fields to update' })
-          };
-        }
-        
-        const sql = `
-          UPDATE action_scores
-          SET ${updates.join(', ')}
-          WHERE id = '${scoreId}'
-          RETURNING *;
-        `;
-        
-        const result = await queryJSON(sql);
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({ data: result[0] })
-        };
-      }
-    }
-
     // Profiles endpoint
     if (path.endsWith('/profiles')) {
       if (httpMethod === 'GET') {

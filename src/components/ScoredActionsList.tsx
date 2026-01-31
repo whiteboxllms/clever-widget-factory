@@ -23,10 +23,9 @@ export function ScoredActionsList({ scoredActions, isLoading }: ScoredActionsLis
     }
   };
 
-  const getAverageScore = (scores: Record<string, { score: number; reason: string }>) => {
-    const scoreValues = Object.values(scores).map(s => s.score);
-    if (scoreValues.length === 0) return 0;
-    return scoreValues.reduce((sum, score) => sum + score, 0) / scoreValues.length;
+  const getAverageScore = (scores: Array<{ score_name: string; score: number; reason: string; how_to_improve?: string }>) => {
+    if (scores.length === 0) return 0;
+    return scores.reduce((sum, s) => sum + s.score, 0) / scores.length;
   };
 
   const formatDate = (dateString: string) => {
@@ -176,17 +175,17 @@ export function ScoredActionsList({ scoredActions, isLoading }: ScoredActionsLis
               </div>
 
               {/* Individual Attribute Scores */}
-              {Object.keys(scoredAction.scores).length > 0 && (
+              {scoredAction.scores.length > 0 && (
                 <div className="mt-3 pt-2 border-t">
                   <div className="text-xs text-muted-foreground mb-2">Attribute Scores:</div>
                   <div className="grid grid-cols-2 gap-1">
-                    {Object.entries(scoredAction.scores).map(([attribute, scoreData]) => (
-                      <div key={attribute} className="flex items-center justify-between text-xs">
+                    {scoredAction.scores.map((scoreItem) => (
+                      <div key={scoreItem.score_name} className="flex items-center justify-between text-xs">
                         <span className="text-muted-foreground capitalize">
-                          {attribute.replace(/_/g, ' ')}:
+                          {scoreItem.score_name.replace(/_/g, ' ')}:
                         </span>
                         <Badge variant="outline" className="text-xs">
-                          {scoreData.score.toFixed(1)}
+                          {scoreItem.score.toFixed(1)}
                         </Badge>
                       </div>
                     ))}

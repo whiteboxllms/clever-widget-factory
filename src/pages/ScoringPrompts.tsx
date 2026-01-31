@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, Star, StarOff, Edit, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Star, StarOff, Edit, Trash2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -71,6 +72,7 @@ const PromptForm = ({ isEdit = false, formData, setFormData, onSubmit, onCancel 
 );
 
 export default function ScoringPrompts() {
+  const navigate = useNavigate();
   const { prompts, isLoading, createPrompt, updatePrompt, setDefaultPrompt } = useScoringPrompts();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<ScoringPrompt | null>(null);
@@ -139,11 +141,17 @@ export default function ScoringPrompts() {
   return (
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Scoring Prompts</h1>
-          <p className="text-muted-foreground">
-            Manage AI prompts for asset scoring
-          </p>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={() => navigate('/organization')}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Settings
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">Scoring Prompts</h1>
+            <p className="text-muted-foreground">
+              Manage AI prompts for asset scoring
+            </p>
+          </div>
         </div>
         
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>

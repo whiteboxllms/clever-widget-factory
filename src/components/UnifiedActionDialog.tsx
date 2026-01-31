@@ -1074,7 +1074,9 @@ export function UnifiedActionDialog({
       // Mark upload completion time to prevent immediate cache sync
       uploadCompletedTimeRef.current = Date.now();
       
-      // Auto-save if editing existing action (BEFORE clearing isLocalUploading)
+      // Auto-save if editing existing action
+      // CRITICAL: Set flag BEFORE mutation and clear it AFTER mutation completes
+      // to prevent dialog from closing during the save operation
       if (action?.id) {
         try {
           isAutoSavingFromUploadRef.current = true;
@@ -1082,11 +1084,14 @@ export function UnifiedActionDialog({
             id: action.id,
             attachments: newAttachments
           });
+          // Clear flag AFTER mutation completes successfully
+          // This ensures onSuccess sees the flag as true and keeps dialog open
+          isAutoSavingFromUploadRef.current = false;
         } catch (saveError) {
           console.error('[DIALOG] Auto-save failed:', saveError);
-          // Don't show error - attachments are still in formData and will save on manual save
-        } finally {
+          // Clear flag on error too
           isAutoSavingFromUploadRef.current = false;
+          // Don't show error - attachments are still in formData and will save on manual save
         }
       }
     } catch (error) {
@@ -1255,14 +1260,16 @@ export function UnifiedActionDialog({
   };
 
   // Get border styling based on current form data
-  // Use local implementationUpdateCount state so border updates immediately when updates are added
-  const borderStyle = getActionBorderStyle({
+  // Fallback to action data when formData hasn't loaded yet (handles async loading)
+  const borderStyleInput = {
     status: action?.status || formData.status || 'not_started',
-    policy: formData.policy,
-    assigned_to: formData.assigned_to,
-    plan_commitment: formData.plan_commitment,
+    policy: formData.policy || action?.policy,
+    assigned_to: formData.assigned_to || action?.assigned_to,
+    plan_commitment: formData.plan_commitment ?? action?.plan_commitment ?? false,
     implementation_update_count: implementationUpdateCount
-  });
+  };
+  
+  const borderStyle = getActionBorderStyle(borderStyleInput);
 
 
   return (
@@ -1426,8 +1433,8 @@ export function UnifiedActionDialog({
                         variant="outline"
                         size="sm"
                         onClick={() => setShowExplorationDialog(true)}
-                        disabled={!action?.id}
-                        title={!action?.id ? "Save action first to change exploration" : ""}
+                        disabled={!actionId}
+                        title={!actionId ? "Save action first to change exploration" : ""}
                       >
                         Change
                       </Button>
@@ -1440,14 +1447,22 @@ export function UnifiedActionDialog({
                       type="button"
                       variant="outline"
                       className="w-full"
-                      onClick={() => setShowExplorationDialog(true)}
-                      disabled={!action?.id}
-                      title={!action?.id ? "Save action first to link exploration" : ""}
+                      onClick={() => {
+                        console.log('[LINK EXPLORATION] Button clicked', { 
+                          actionId, 
+                          actionFromCache: action?.id,
+                          showExplorationDialog,
+                          isExploration 
+                        });
+                        setShowExplorationDialog(true);
+                      }}
+                      disabled={!actionId}
+                      title={!actionId ? "Save action first to link exploration" : ""}
                     >
                       <Plus className="mr-2 h-4 w-4" />
                       Link Exploration
                     </Button>
-                    {!action?.id && (
+                    {!actionId && (
                       <p className="text-xs text-muted-foreground">Save the action first to link an exploration</p>
                     )}
                   </div>
@@ -1923,11 +1938,14 @@ export function UnifiedActionDialog({
       </Dialog>
 
       {/* Exploration Association Dialog */}
-      {action?.id && (
+      {actionId && (
         <ExplorationAssociationDialog
-          actionId={action.id}
+          actionId={actionId}
           isOpen={showExplorationDialog}
-          onClose={() => setShowExplorationDialog(false)}
+          onClose={() => {
+            console.log('[EXPLORATION DIALOG] Closing dialog');
+            setShowExplorationDialog(false);
+          }}
           onLinked={handleExplorationLinked}
           currentExplorationId={linkedExplorationIds[0]}
         />

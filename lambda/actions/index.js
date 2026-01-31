@@ -1,5 +1,10 @@
 const { Client } = require('pg');
-const { getAuthorizerContext, buildOrganizationFilter } = require('./shared/authorizerContext');
+const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
+const { getAuthorizerContext, buildOrganizationFilter } = require('/opt/nodejs/authorizerContext');
+const { composeActionEmbeddingSource } = require('/opt/nodejs/embedding-composition');
+
+const sqs = new SQSClient({ region: 'us-west-2' });
+const EMBEDDINGS_QUEUE_URL = 'https://sqs.us-west-2.amazonaws.com/131745734428/cwf-embeddings-queue';
 
 // Database configuration
 // SECURITY: Password must be provided via environment variable
@@ -85,11 +90,12 @@ exports.handler = async (event) => {
         SELECT 
           a.*,
           om.full_name as assigned_to_name,
-          CASE WHEN scores.action_id IS NOT NULL THEN true ELSE false END as has_score,
+          CASE WHEN (ac.context_id IS NOT NULL OR old_scores.action_id IS NOT NULL) THEN true ELSE false END as has_score,
           CASE WHEN updates.action_id IS NOT NULL THEN true ELSE false END as has_implementation_updates
         FROM actions a
         LEFT JOIN organization_members om ON a.assigned_to = om.user_id
-        LEFT JOIN action_scores scores ON a.id = scores.action_id
+        LEFT JOIN analysis_contexts ac ON a.id = ac.context_id AND ac.context_service = 'action_score'
+        LEFT JOIN action_scores old_scores ON a.id = old_scores.action_id
         LEFT JOIN (
           SELECT DISTINCT action_id 
           FROM action_implementation_updates
@@ -207,6 +213,62 @@ exports.handler = async (event) => {
       
       const sql = `UPDATE actions SET ${updates.join(', ')}, updated_at = NOW() WHERE id = '${actionId}' ${orgFilter.condition ? 'AND ' + orgFilter.condition : ''} RETURNING *`;
       const result = await queryJSON(sql);
+      
+      // Queue embedding generation if embedding-relevant fields were updated
+      // Fire-and-forget pattern to avoid blocking the response
+      if (result && result.length > 0) {
+        const updatedAction = result[0];
+        const embeddingRelevantFields = ['description', 'state_text', 'summary_policy_text', 'observations'];
+        const hasEmbeddingUpdate = embeddingRelevantFields.some(field => actionData[field] !== undefined);
+        
+        if (hasEmbeddingUpdate) {
+          // Send embedding messages asynchronously without blocking response
+          const embeddingPromises = [];
+          
+          // Send first message: full context embedding (existing behavior)
+          const embeddingSource = composeActionEmbeddingSource(updatedAction);
+          if (embeddingSource && embeddingSource.trim()) {
+            embeddingPromises.push(
+              sqs.send(new SendMessageCommand({
+                QueueUrl: EMBEDDINGS_QUEUE_URL,
+                MessageBody: JSON.stringify({
+                  entity_type: 'action',
+                  entity_id: updatedAction.id,
+                  embedding_source: embeddingSource,
+                  organization_id: updatedAction.organization_id
+                })
+              }))
+              .then(() => console.log('Queued full context embedding for action', updatedAction.id))
+              .catch(error => console.error('Failed to queue full context embedding:', error))
+            );
+          }
+          
+          // Send second message: action_existing_state embedding (description only)
+          if (updatedAction.description && updatedAction.description.trim()) {
+            embeddingPromises.push(
+              sqs.send(new SendMessageCommand({
+                QueueUrl: EMBEDDINGS_QUEUE_URL,
+                MessageBody: JSON.stringify({
+                  entity_type: 'action_existing_state',
+                  entity_id: updatedAction.id,
+                  embedding_source: updatedAction.description.trim(),
+                  organization_id: updatedAction.organization_id
+                })
+              }))
+              .then(() => console.log('Queued action_existing_state embedding for action', updatedAction.id))
+              .catch(error => console.error('Failed to queue action_existing_state embedding:', error))
+            );
+          }
+          
+          // Fire and forget - don't await, but log if all complete
+          Promise.allSettled(embeddingPromises).then(results => {
+            const succeeded = results.filter(r => r.status === 'fulfilled').length;
+            const failed = results.filter(r => r.status === 'rejected').length;
+            console.log(`Embedding queue results for action ${updatedAction.id}: ${succeeded} succeeded, ${failed} failed`);
+          });
+        }
+      }
+      
       // Handle exploration record if is_exploration is true
       // Note: Exploration records are created/updated via separate API endpoint
       // This prevents database constraint violations during action updates
@@ -399,6 +461,22 @@ exports.handler = async (event) => {
         const result = await queryJSON(sql);
         const newAction = result[0];
         
+        // Queue embedding generation for the new action (fire-and-forget)
+        const embeddingSource = composeActionEmbeddingSource(newAction);
+        if (embeddingSource && embeddingSource.trim()) {
+          sqs.send(new SendMessageCommand({
+            QueueUrl: EMBEDDINGS_QUEUE_URL,
+            MessageBody: JSON.stringify({
+              entity_type: 'action',
+              entity_id: newAction.id,
+              embedding_source: embeddingSource,
+              organization_id: orgId
+            })
+          }))
+          .then(() => console.log('Queued embedding generation for action', newAction.id))
+          .catch(error => console.error('Failed to queue embedding:', error));
+        }
+        
         // If action is created with status 'in_progress' and has required_tools, create checkouts
         if (newAction.status === 'in_progress' && newAction.required_tools && newAction.required_tools.length > 0) {
           const assignedTo = newAction.assigned_to || userId;
@@ -549,7 +627,7 @@ exports.handler = async (event) => {
           a.*,
           om.full_name as assigned_to_name,
           om.favorite_color as assigned_to_color,
-          CASE WHEN scores.action_id IS NOT NULL THEN true ELSE false END as has_score,
+          CASE WHEN (ac.context_id IS NOT NULL OR old_scores.action_id IS NOT NULL) THEN true ELSE false END as has_score,
           CASE WHEN updates.action_id IS NOT NULL THEN true ELSE false END as has_implementation_updates,
           COALESCE((
             SELECT COUNT(*) 
@@ -561,7 +639,8 @@ exports.handler = async (event) => {
           ELSE NULL END as asset
         FROM actions a
         LEFT JOIN profiles om ON a.assigned_to = om.user_id
-        LEFT JOIN action_scores scores ON a.id = scores.action_id
+        LEFT JOIN analysis_contexts ac ON a.id = ac.context_id AND ac.context_service = 'action_score'
+        LEFT JOIN action_scores old_scores ON a.id = old_scores.action_id
         LEFT JOIN (
           SELECT DISTINCT action_id 
           FROM action_implementation_updates

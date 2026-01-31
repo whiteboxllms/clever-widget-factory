@@ -4,7 +4,7 @@ import { BaseAction } from '@/types/actions';
 
 interface ScoreButtonProps {
   action: BaseAction;
-  onScoreAction: (action: BaseAction, e: React.MouseEvent) => void;
+  onScoreAction: (e: React.MouseEvent) => void;
 }
 
 export function ScoreButton({ action, onScoreAction }: ScoreButtonProps) {
@@ -16,11 +16,17 @@ export function ScoreButton({ action, onScoreAction }: ScoreButtonProps) {
   // Use the has_score field from the API
   const hasScore = (action as any).has_score === true;
 
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    onScoreAction(e);
+  };
+
   return (
     <Button
       variant="outline"
       size="sm"
-      onClick={(e) => onScoreAction(action, e)}
+      onClick={handleClick}
       className={`h-7 px-2 text-xs ${hasScore ? 'border-green-500 border-2' : ''}`}
       title={hasScore ? "View/Edit Score" : "Assign Score"}
     >

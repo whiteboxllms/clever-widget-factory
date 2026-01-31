@@ -19,7 +19,7 @@ export interface Tool {
   last_maintenance?: string;
   manual_url?: string;
   
-  stargazer_sop?: string;
+  policy?: string;
   created_at: string;
   updated_at: string;
   has_motor?: boolean;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Copy, User, Calendar, Wrench, AlertTriangle, CheckCircle, Clock } from "lucide-react";
+import { Copy, User, Calendar, Wrench, AlertTriangle, CheckCircle, Clock, Sparkles, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useScoringPrompts } from "@/hooks/useScoringPrompts";
@@ -14,9 +14,10 @@ import { useActionScores, ActionScore } from "@/hooks/useActionScores";
 import { ScoreEntryForm } from "./ScoreEntryForm";
 import { ScoreDisplayCard } from "./ScoreDisplayCard";
 import { apiService } from '@/lib/apiService';
-import { BaseAction } from "@/types/actions";
+import { BaseAction, ImplementationUpdate } from "@/types/actions";
 import { useQuery } from '@tanstack/react-query';
 import { offlineQueryConfig } from '@/lib/queryConfig';
+import { actionImplementationUpdatesQueryKey } from '@/lib/queryKeys';
 
 // Utility function to strip HTML tags and decode entities
 const stripHtml = (html: string | null | undefined): string => {
@@ -49,24 +50,34 @@ export function ActionScoreDialog({
   const [showScoreForm, setShowScoreForm] = useState(false); // New state to control form visibility
   const [asset, setAsset] = useState<any>(null);
   const [assetName, setAssetName] = useState<string>("");
-  const [linkedIssue, setLinkedIssue] = useState<any>(null);
+  const [selectedModel, setSelectedModel] = useState<string>("haiku");
+  const [isAutoScoring, setIsAutoScoring] = useState(false);
+  const scoreCardRef = useRef<HTMLDivElement>(null);
 
   const { toast } = useToast();
   const { prompts } = useScoringPrompts();
-  const { createScore, updateScore } = useActionScores();
+  const { createScore } = useActionScores();
 
-  // Fetch linked issue if exists
-  const { data: issueData } = useQuery({
-    queryKey: ['issue', action.linked_issue_id],
+  // Set default prompt on mount
+  useEffect(() => {
+    if (prompts.length > 0 && !selectedPromptId) {
+      const defaultPrompt = prompts.find(p => p.is_default) || prompts[0];
+      setSelectedPromptId(defaultPrompt.id);
+    }
+  }, [prompts, selectedPromptId]);
+
+  // Fetch implementation updates (observations are stored as update_type = 'progress')
+  const { data: implementationUpdates = [] } = useQuery<ImplementationUpdate[]>({
+    queryKey: actionImplementationUpdatesQueryKey(action.id),
     queryFn: async () => {
-      const response = await apiService.get(`/issues/${action.linked_issue_id}`);
-      return response.data;
+      const result = await apiService.get(`/action_implementation_updates?action_id=${action.id}`);
+      return result.data || [];
     },
-    enabled: open && !!action.linked_issue_id,
+    enabled: open && !!action.id,
     ...offlineQueryConfig
   });
 
-  // Set asset and linked issue when data changes
+  // Set asset when data changes
   useEffect(() => {
     if (action.asset) {
       setAsset(action.asset);
@@ -77,59 +88,126 @@ export function ActionScoreDialog({
       setAsset(null);
       setAssetName("");
     }
-    
-    if (issueData) {
-      setLinkedIssue(issueData);
-    }
-  }, [action.asset, issueData]);
+  }, [action.asset]);
 
   // Initialize form based on existing score or create mode
   useEffect(() => {
+    console.log('[ActionScoreDialog] useEffect triggered', {
+      open,
+      actionId: action.id,
+      actionTitle: action.title,
+      existingScore: existingScore ? {
+        id: existingScore.id,
+        action_id: existingScore.action_id,
+        hasAiResponse: !!existingScore.ai_response,
+        aiResponsePreview: existingScore.ai_response ? JSON.stringify(existingScore.ai_response).substring(0, 100) : 'none'
+      } : null
+    });
+    
     if (open) {
+      // Always clear state first when opening for a new action
+      console.log('[ActionScoreDialog] Clearing all state');
+      setIsEditMode(false);
+      setSelectedPromptId("");
+      setAiResponse("");
+      setParsedScores(null);
+      setRootCauses([]);
+      setShowScoreForm(false);
+      
+      // Then populate if there's an existing score
       if (existingScore) {
+        console.log('[ActionScoreDialog] Populating from existing score');
         setIsEditMode(true);
         setSelectedPromptId(existingScore.prompt_id);
         // Only set AI response if it exists and has content
         const aiResponseContent = existingScore.ai_response && Object.keys(existingScore.ai_response).length > 0 
           ? JSON.stringify(existingScore.ai_response, null, 2)
           : "";
+        console.log('[ActionScoreDialog] Setting AI response:', aiResponseContent.substring(0, 100));
         setAiResponse(aiResponseContent);
-        // Don't auto-populate parsed scores - user must manually parse
-        setParsedScores(null);
-        setRootCauses([]);
-        setShowScoreForm(false);
       } else {
-        setIsEditMode(false);
-        setSelectedPromptId("");
-        setAiResponse(""); // Explicitly empty
-        setParsedScores(null);
-        setRootCauses([]);
-        setShowScoreForm(false);
+        console.log('[ActionScoreDialog] No existing score, setting default prompt');
+        // Set default prompt if not already set
+        if (prompts.length > 0 && !selectedPromptId) {
+          const defaultPrompt = prompts.find(p => p.is_default) || prompts[0];
+          setSelectedPromptId(defaultPrompt.id);
+        }
       }
+    } else {
+      // Clear everything when dialog closes
+      console.log('[ActionScoreDialog] Dialog closed, clearing state');
+      setIsEditMode(false);
+      setSelectedPromptId("");
+      setAiResponse("");
+      setParsedScores(null);
+      setRootCauses([]);
+      setShowScoreForm(false);
     }
-  }, [open, existingScore]);
+  }, [open, existingScore, action.id]); // Add action.id to dependencies
 
   const selectedPrompt = prompts.find(p => p.id === selectedPromptId);
+
+  // Aggregate observations from implementation updates with update_type = 'progress'
+  const aggregatedObservations = implementationUpdates
+    .filter(update => update.update_type === 'progress')
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    .map(update => {
+      const date = new Date(update.created_at).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+      return `[${date}] ${stripHtml(update.update_text)}`;
+    })
+    .join('\n\n');
 
   const generatePrompt = () => {
     if (!selectedPrompt) return "";
     
-    // Build action context - asset is optional
+    // Build action context - only include fields with meaningful content
     const actionContext: any = {
       id: action.id,
       title: action.title,
-      description: action.description,
-      policy: stripHtml(action.policy),
-      observations: stripHtml(action.observations),
       status: action.status,
       created_at: action.created_at,
-      assigned_to: action.assignee?.full_name,
-      estimated_duration: action.estimated_duration,
-      required_tools: action.required_tools,
-      required_stock: action.required_stock,
-      completed_at: action.completed_at,
-      issue_reference: action.issue_reference
+      completed_at: action.completed_at
     };
+
+    // Add optional fields only if they have content
+    if (action.description) {
+      actionContext.description = action.description;
+    }
+    
+    const policyText = stripHtml(action.policy);
+    if (policyText) {
+      actionContext.policy = policyText;
+    }
+    
+    // Use aggregated observations from implementation updates, fallback to action.observations
+    const observationsText = aggregatedObservations || stripHtml(action.observations);
+    if (observationsText) {
+      actionContext.observations = observationsText;
+    }
+    
+    if (action.assignee?.full_name) {
+      actionContext.assigned_to = action.assignee.full_name;
+    }
+    
+    if (action.estimated_duration) {
+      actionContext.estimated_duration = action.estimated_duration;
+    }
+    
+    if (action.required_tools && action.required_tools.length > 0) {
+      actionContext.required_tools = action.required_tools;
+    }
+    
+    if (action.required_stock && action.required_stock.length > 0) {
+      actionContext.required_stock = action.required_stock;
+    }
+    
+    if (action.issue_reference) {
+      actionContext.issue_reference = action.issue_reference;
+    }
 
     // Add asset info only if available
     if (asset || assetName) {
@@ -139,20 +217,6 @@ export function ActionScoreDialog({
         category: asset?.category,
         location: asset?.storage_vicinity,
         serial_number: asset?.serial_number
-      };
-    }
-
-    // Add linked issue if available
-    if (linkedIssue) {
-      actionContext.linked_issue = {
-        description: linkedIssue.description,
-        type: linkedIssue.issue_type,
-        status: linkedIssue.status,
-        reported_at: linkedIssue.reported_at,
-        damage_assessment: linkedIssue.damage_assessment,
-        efficiency_loss_percentage: linkedIssue.efficiency_loss_percentage,
-        root_cause: linkedIssue.root_cause,
-        resolution_notes: linkedIssue.resolution_notes
       };
     }
 
@@ -201,30 +265,92 @@ IMPORTANT OVERRIDES (do not ignore):
     }
   };
 
+  const handleAutoScore = async () => {
+    if (!selectedPromptId) {
+      toast({
+        title: "No prompt selected",
+        description: "Please select a scoring prompt first.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsAutoScoring(true);
+    try {
+      // Generate the full prompt on the frontend
+      const fullPrompt = generatePrompt();
+      
+      const response = await apiService.post('/analysis/generate', {
+        prompt: fullPrompt,  // Send the complete prompt text
+        model: selectedModel,
+        auto_save: false
+      });
+
+      if (response.success && response.data) {
+        // Populate the AI response field with raw text
+        const aiResponseText = typeof response.data.ai_response === 'string' 
+          ? response.data.ai_response 
+          : JSON.stringify(response.data.ai_response, null, 2);
+        
+        setAiResponse(aiResponseText);
+        
+        // Automatically parse the response
+        try {
+          const parsed = JSON.parse(aiResponseText);
+          setParsedScores(parsed.scores || {});
+          setRootCauses(parsed.likely_root_causes || []);
+          setShowScoreForm(true);
+          
+          // Scroll to the score card after a brief delay
+          setTimeout(() => {
+            scoreCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 100);
+          
+          toast({
+            title: "Auto-scoring complete",
+            description: `Scores generated and parsed successfully using ${selectedModel === 'haiku' ? 'Claude 3.5 Haiku' : 'Claude 3.5 Sonnet'}.`
+          });
+        } catch (parseError) {
+          toast({
+            title: "Auto-scoring complete",
+            description: `Response generated but couldn't auto-parse. Please review and parse manually.`,
+            variant: "destructive"
+          });
+        }
+      }
+    } catch (error: any) {
+      console.error('Auto-scoring error:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || "Failed to generate scores. Please try again.";
+      toast({
+        title: "Auto-scoring failed",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    } finally {
+      setIsAutoScoring(false);
+    }
+  };
+
   const handleSaveScore = async (finalScores: Record<string, { score: number; reason: string }>) => {
     if (!selectedPrompt) return;
 
     try {
-      // Action should already exist if we're scoring it (completed actions only)
-      // No need to verify/create
+      const scoresArray = Object.entries(finalScores).map(([score_name, { score, reason }]) => ({
+        score_name,
+        score,
+        reason,
+        how_to_improve: ''
+      }));
 
       const scoreData = {
         action_id: action.id!,
         prompt_id: selectedPromptId,
-        prompt_text: selectedPrompt.prompt_text,
-        scores: finalScores,
+        scores: scoresArray,
         ai_response: aiResponse ? JSON.parse(aiResponse) : undefined,
-        likely_root_causes: rootCauses,
-        asset_context_id: asset?.id || action.asset_id,
-        asset_context_name: assetName,
+        attributes: rootCauses.length > 0 ? [{ attribute_name: 'likely_root_cause', attribute_values: rootCauses }] : undefined,
       };
 
-      if (existingScore) {
-        await updateScore(existingScore.id, scoreData);
-      } else {
-        await createScore(scoreData);
-      }
-
+      await createScore(scoreData);
       onScoreUpdated();
       handleClose();
     } catch (error) {
@@ -328,10 +454,10 @@ IMPORTANT OVERRIDES (do not ignore):
                     <p className="text-sm mt-1">{stripHtml(action.policy)}</p>
                   </div>
                 )}
-                {action.observations && (
+                {(aggregatedObservations || action.observations) && (
                   <div>
                     <Label className="text-sm font-semibold">Observations</Label>
-                    <p className="text-sm mt-1">{stripHtml(action.observations)}</p>
+                    <p className="text-sm mt-1 whitespace-pre-wrap">{aggregatedObservations || stripHtml(action.observations)}</p>
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-4">
@@ -349,47 +475,6 @@ IMPORTANT OVERRIDES (do not ignore):
               </div>
             </CardContent>
           </Card>
-
-          {/* Linked Issue Information */}
-          {linkedIssue && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Linked Issue Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="outline">{linkedIssue.issue_type}</Badge>
-                    <Badge variant={linkedIssue.status === 'active' ? 'destructive' : 'secondary'}>
-                      {linkedIssue.status}
-                    </Badge>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-semibold">Issue Description</Label>
-                    <p className="text-sm mt-1">{linkedIssue.description}</p>
-                  </div>
-                  {linkedIssue.damage_assessment && (
-                    <div>
-                      <Label className="text-sm font-semibold">Damage Assessment</Label>
-                      <p className="text-sm mt-1">{linkedIssue.damage_assessment}</p>
-                    </div>
-                  )}
-                  {linkedIssue.efficiency_loss_percentage && (
-                    <div>
-                      <Label className="text-sm font-semibold">Efficiency Loss</Label>
-                      <p className="text-sm mt-1">{linkedIssue.efficiency_loss_percentage}%</p>
-                    </div>
-                  )}
-                  {linkedIssue.root_cause && (
-                    <div>
-                      <Label className="text-sm font-semibold">Root Cause</Label>
-                      <p className="text-sm mt-1">{linkedIssue.root_cause}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Show existing score if in edit mode */}
           {isEditMode && existingScore && (
@@ -448,15 +533,60 @@ IMPORTANT OVERRIDES (do not ignore):
             )}
           </div>
 
+          {/* Auto-Score Section */}
+          <Card className="bg-muted/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Sparkles className="w-4 h-4" />
+                Auto-Score with AI
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-2">
+                <Select value={selectedModel} onValueChange={setSelectedModel}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="haiku">
+                      Claude 3.5 Haiku (~$0.0012 per score)
+                    </SelectItem>
+                    <SelectItem value="sonnet">
+                      Claude 3.5 Sonnet (~$0.012 per score)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button 
+                  onClick={handleAutoScore}
+                  disabled={!selectedPromptId || isAutoScoring}
+                  variant="secondary"
+                  className="whitespace-nowrap"
+                >
+                  {isAutoScoring ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Generate Scores
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* AI Response Input */}
           <div className="space-y-4">
             <div>
-              <Label htmlFor="ai-response">Paste AI Response (JSON format)</Label>
+              <Label htmlFor="ai-response">AI Response (JSON format)</Label>
               <Textarea
                 id="ai-response"
                 value={aiResponse}
                 onChange={(e) => setAiResponse(e.target.value)}
-                placeholder="Paste the JSON response from your AI tool here..."
+                placeholder="Auto-generated response will appear here, or paste manually..."
                 rows={8}
                 className="font-mono text-sm"
               />
@@ -474,9 +604,56 @@ IMPORTANT OVERRIDES (do not ignore):
 
           {/* Score Entry Form */}
           {showScoreForm && parsedScores && (
-            <Card>
+            <Card ref={scoreCardRef}>
               <CardHeader>
-                <CardTitle className="text-lg">Review & Save Scores</CardTitle>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">Review & Save Scores</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">
+                        {(() => {
+                          const scores = Object.values(parsedScores);
+                          const mean = scores.length > 0 ? scores.reduce((sum, entry) => sum + entry.score, 0) / scores.length : 0;
+                          if (mean >= 2) return <span className="animate-bounce">🦄</span>;
+                          if (mean >= 1.5) return <span className="animate-pulse">🎉</span>;
+                          if (mean >= 1.2) return <span className="animate-pulse">😊</span>;
+                          if (mean >= 0.8) return <span>🙂</span>;
+                          return <span className="animate-[shake_0.5s_ease-in-out]">😰</span>;
+                        })()}
+                      </span>
+                      <Badge className={`${(() => {
+                        const scores = Object.values(parsedScores);
+                        const mean = scores.length > 0 ? scores.reduce((sum, entry) => sum + entry.score, 0) / scores.length : 0;
+                        if (mean >= 1) return 'bg-green-100 text-green-800';
+                        if (mean <= -1) return 'bg-red-100 text-red-800';
+                        return 'bg-yellow-100 text-yellow-800';
+                      })()} text-base px-3 py-1`}>
+                        Mean: {(() => {
+                          const scores = Object.values(parsedScores);
+                          return scores.length > 0 ? (scores.reduce((sum, entry) => sum + entry.score, 0) / scores.length).toFixed(2) : '0.00';
+                        })()}
+                      </Badge>
+                    </div>
+                  </div>
+                  {/* Progress Bar */}
+                  <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="absolute inset-0 flex">
+                      <div className="w-1/2 bg-red-100"></div>
+                      <div className="w-1/2 bg-gradient-to-r from-yellow-100 via-green-100 to-green-200"></div>
+                    </div>
+                    <div 
+                      className="absolute h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full animate-[fillBar_1.5s_ease-out_0.5s_forwards]"
+                      style={{
+                        '--target-width': `${(() => {
+                          const scores = Object.values(parsedScores);
+                          const mean = scores.length > 0 ? scores.reduce((sum, entry) => sum + entry.score, 0) / scores.length : 0;
+                          return ((mean + 2) / 4) * 100;
+                        })()}%`
+                      } as React.CSSProperties}
+                    ></div>
+                    <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-gray-400"></div>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <ScoreEntryForm

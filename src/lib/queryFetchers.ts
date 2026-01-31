@@ -19,7 +19,7 @@ export async function fetchActionScores(params?: { startDate?: string; endDate?:
     queryParams.end_date = params.endDate;
   }
 
-  const response = await apiService.get('/action_scores', {
+  const response = await apiService.get('/analysis/analyses', {
     params: queryParams,
   });
   return getApiData(response) || [];

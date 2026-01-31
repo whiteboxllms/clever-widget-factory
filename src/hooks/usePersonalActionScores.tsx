@@ -4,7 +4,7 @@ import { apiService } from '@/lib/apiService';
 interface ActionScore {
   id: string;
   action_id: string;
-  scores: Record<string, { score: number; reason: string }>;
+  scores: Array<{ score_name: string; score: number; reason: string }>;
   created_at: string;
 }
 
@@ -26,11 +26,7 @@ export const usePersonalActionScores = (userId?: string, startDate?: string, end
     const fetchScores = async () => {
       setIsLoading(true);
       try {
-        const params = new URLSearchParams({ user_id: userId });
-        if (startDate) params.append('start_date', startDate);
-        if (endDate) params.append('end_date', endDate);
-
-        const response = await apiService.get<{ data: ActionScore[] }>(`/action_scores?${params}`);
+        const response = await apiService.get<{ data: ActionScore[] }>(`/analysis/analyses?user_id=${userId}${startDate ? `&start_date=${startDate}` : ''}${endDate ? `&end_date=${endDate}` : ''}`);
         const scores = response.data || [];
         
         setTotalScores(scores.length);
@@ -39,12 +35,12 @@ export const usePersonalActionScores = (userId?: string, startDate?: string, end
         const aggregated: AggregatedScores = {};
         
         scores.forEach(score => {
-          Object.entries(score.scores).forEach(([attribute, { score: value }]) => {
-            if (!aggregated[attribute]) {
-              aggregated[attribute] = { avgScore: 0, count: 0 };
+          score.scores?.forEach(({ score_name, score: value }) => {
+            if (!aggregated[score_name]) {
+              aggregated[score_name] = { avgScore: 0, count: 0 };
             }
-            aggregated[attribute].avgScore += value;
-            aggregated[attribute].count += 1;
+            aggregated[score_name].avgScore += value;
+            aggregated[score_name].count += 1;
           });
         });
 

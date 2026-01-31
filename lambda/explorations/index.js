@@ -101,7 +101,7 @@ exports.handler = async (event) => {
         return error('Invalid JSON in request body', 400);
       }
       
-      const { exploration_code, exploration_notes_text, metrics_text, public_flag, status } = body;
+      const { exploration_code, name, exploration_notes_text, metrics_text, public_flag, status } = body;
 
       // exploration_code is required
       if (!exploration_code) {
@@ -121,10 +121,10 @@ exports.handler = async (event) => {
       // Create exploration
       const result = await pool.query(
         `INSERT INTO exploration 
-         (exploration_code, exploration_notes_text, metrics_text, public_flag, status, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+         (exploration_code, name, exploration_notes_text, metrics_text, public_flag, status, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
          RETURNING *`,
-        [exploration_code, exploration_notes_text || null, metrics_text || null, public_flag || false, status || 'in_progress']
+        [exploration_code, name || null, exploration_notes_text || null, metrics_text || null, public_flag || false, status || 'in_progress']
       );
 
       return success(result.rows[0]);

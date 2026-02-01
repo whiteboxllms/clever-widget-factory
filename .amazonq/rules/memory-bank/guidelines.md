@@ -428,9 +428,20 @@ describe('Feature Name', () => {
 - ❌ Add complex workarounds before understanding the issue
 - ❌ Make multiple changes at once
 
+#### Proactive Problem Solving:
+**When a problem is observed, find the FULL SCOPE and fix it EVERYWHERE.**
+
+Examples:
+- If a script has hardcoded values, make it generic and update all similar scripts
+- If a pattern is duplicated across files, consolidate into a shared utility
+- If a configuration is inconsistent, standardize it across the codebase
+- If documentation is outdated, update all related documentation
+
+**Don't just fix the immediate issue - eliminate the entire class of problems.**
+
 ### Database Migration Protocol
 
-**All database changes MUST follow this two-step process:**
+**All database changes MUST follow this three-step process:**
 
 1. **Execute Migration**:
 ```bash
@@ -443,14 +454,84 @@ aws lambda invoke \
   response.json && cat response.json
 ```
 
-2. **Verify Changes**:
+2. **Verify Schema Changes**:
 ```bash
-# For schema changes
-echo '{"sql": "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '\''your_table'\'';"}' | \
+# Verify foreign keys and CASCADE rules
+echo '{"sql": "SELECT tc.constraint_name, tc.table_name, kcu.column_name, ccu.table_name AS foreign_table_name, rc.delete_rule FROM information_schema.table_constraints tc JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name JOIN information_schema.constraint_column_usage ccu ON ccu.constraint_name = tc.constraint_name LEFT JOIN information_schema.referential_constraints rc ON tc.constraint_name = rc.constraint_name WHERE tc.constraint_type = '\''FOREIGN KEY'\'' AND tc.table_name LIKE '\''your_table%'\'' ORDER BY tc.table_name;"}' | \
+aws lambda invoke --function-name cwf-db-migration --payload file:///dev/stdin --region us-west-2 --cli-binary-format raw-in-base64-out response.json && cat response.json | jq
+
+# Verify unique constraints
+echo '{"sql": "SELECT tc.table_name, tc.constraint_name, string_agg(kcu.column_name, '\', '\') AS columns FROM information_schema.table_constraints tc JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name WHERE tc.table_name LIKE '\''your_table%'\'' AND tc.constraint_type IN ('\''UNIQUE'\', '\''PRIMARY KEY'\') GROUP BY tc.table_name, tc.constraint_name ORDER BY tc.table_name;"}' | \
+aws lambda invoke --function-name cwf-db-migration --payload file:///dev/stdin --region us-west-2 --cli-binary-format raw-in-base64-out response.json && cat response.json | jq
+
+# Verify indexes
+echo '{"sql": "SELECT tablename, indexname, indexdef FROM pg_indexes WHERE tablename LIKE '\''your_table%'\'' ORDER BY tablename, indexname;"}' | \
+aws lambda invoke --function-name cwf-db-migration --payload file:///dev/stdin --region us-west-2 --cli-binary-format raw-in-base64-out response.json && cat response.json | jq
+
+# Verify default values
+echo '{"sql": "SELECT table_name, column_name, column_default FROM information_schema.columns WHERE table_name LIKE '\''your_table%'\'' AND column_default IS NOT NULL ORDER BY table_name;"}' | \
 aws lambda invoke --function-name cwf-db-migration --payload file:///dev/stdin --region us-west-2 --cli-binary-format raw-in-base64-out response.json && cat response.json | jq
 ```
 
-**Never assume a migration succeeded without verification.**
+3. **Document Verification Results**:
+- Confirm all foreign keys have correct CASCADE/NO ACTION rules
+- Verify unique constraints are in place
+- Check all indexes were created
+- Validate default values (gen_random_uuid(), NOW())
+
+**Never assume a migration succeeded without comprehensive verification.**
+
+### Lambda Deployment Protocol
+
+**Use the generic deployment script for all Lambda functions:**
+
+```bash
+# Deploy Lambda with layer
+./scripts/deploy/deploy-lambda-with-layer.sh <lambda-dir> <function-name>
+
+# Example
+./scripts/deploy/deploy-lambda-with-layer.sh observations cwf-observations-lambda
+```
+
+**Do NOT create custom deploy.sh scripts in Lambda directories.**
+
+The generic script handles:
+- Installing dependencies
+- Packaging code and node_modules
+- Attaching cwf-common-nodejs layer
+- Setting environment variables from .env.local
+- Creating or updating Lambda function
+- Verifying deployment
+
+### API Gateway Wiring Protocol
+
+**Use the generic add-api-endpoint script:**
+
+```bash
+# Add endpoint with method and Lambda function
+./scripts/add-api-endpoint.sh <path> <method> <lambda-function-name>
+
+# Examples
+./scripts/add-api-endpoint.sh /api/observations GET cwf-observations-lambda
+./scripts/add-api-endpoint.sh /api/observations POST cwf-observations-lambda
+./scripts/add-api-endpoint.sh /api/observations/{id} GET cwf-observations-lambda
+./scripts/add-api-endpoint.sh /api/observations/{id} PUT cwf-observations-lambda
+./scripts/add-api-endpoint.sh /api/observations/{id} DELETE cwf-observations-lambda
+
+# Add Lambda permission
+aws lambda add-permission \
+  --function-name <function-name> \
+  --statement-id apigateway-invoke \
+  --action lambda:InvokeFunction \
+  --principal apigateway.amazonaws.com \
+  --source-arn "arn:aws:execute-api:us-west-2:131745734428:0720au267k/*/*/api/<path>*" \
+  --region us-west-2
+
+# Deploy API Gateway
+aws apigateway create-deployment --rest-api-id 0720au267k --stage-name prod --region us-west-2
+```
+
+**Exception:** Lambdas with complex nested resources (e.g., `/api/analysis/generate`, `/api/explorations/check-code/{code}`) may keep custom wire scripts.
 
 ### Design Decision Authority
 

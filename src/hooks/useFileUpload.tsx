@@ -133,7 +133,7 @@ const useImageUploadImpl = () => {
         
         // Small delay between uploads to prevent mobile browser memory issues
         if (i < files.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
       } catch (error) {
         console.error(`Failed to upload file ${i + 1}/${files.length}:`, file.name, error);

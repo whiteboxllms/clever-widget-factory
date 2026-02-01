@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Wrench, Package, Edit, Trash2, LogOut, LogIn, AlertTriangle, AlertCircle, Plus, Minus, ShoppingCart, History, Triangle, Info, ExternalLink } from "lucide-react";
+import { Wrench, Package, Edit, Trash2, LogOut, LogIn, AlertTriangle, AlertCircle, Plus, Minus, ShoppingCart, History, Triangle, Info, ExternalLink, Camera } from "lucide-react";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { InventoryHistoryDialog } from "./InventoryHistoryDialog";
 import { AssetHistoryDialog } from "./AssetHistoryDialog";
@@ -63,6 +63,7 @@ interface CombinedAssetCardProps {
   onReceiveOrder?: (asset: CombinedAsset) => void;
   hasPendingOrders?: boolean;
   onShowHistory?: (asset: CombinedAsset) => void;
+  onAddObservation?: (asset: CombinedAsset) => void;
   itemCount?: number;
 }
 
@@ -154,6 +155,7 @@ export const CombinedAssetCard = memo(({
   onReceiveOrder,
   hasPendingOrders,
   onShowHistory,
+  onAddObservation,
   itemCount
 }: CombinedAssetCardProps) => {
   const checkoutDateDisplay = useMemo(() => {
@@ -242,10 +244,35 @@ export const CombinedAssetCard = memo(({
               </TooltipProvider>
             )}
           </CardTitle>
-          {asset.type === 'stock' && (
-            <Badge variant="secondary" className="text-xs shrink-0">
-              Stock
-            </Badge>
+          {asset.type === 'stock' && canEdit && (
+            <div className="flex gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+              {onUseQuantity && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUseQuantity(asset);
+                  }}
+                >
+                  <Minus className="h-3 w-3" />
+                </Button>
+              )}
+              {onAddQuantity && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAddQuantity(asset);
+                  }}
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
           )}
         </div>
         
@@ -259,7 +286,7 @@ export const CombinedAssetCard = memo(({
         )}
       </CardHeader>
 
-      <CardContent className="pt-0 pb-2 flex-1 flex flex-col">
+      <CardContent className="pt-0 pb-2 pl-3 pr-3 flex-1 flex flex-col">
         {asset.image_url && (
           <div className="mb-2 w-full h-32 md:h-40 rounded-md border bg-muted overflow-hidden flex-shrink-0">
             <img
@@ -381,27 +408,52 @@ export const CombinedAssetCard = memo(({
 
           {/* Asset History Button - Always show for assets */}
           {asset.type === 'asset' && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <AssetHistoryDialog assetId={asset.id} assetName={asset.name}>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-12 px-2"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                      }}
-                    >
-                      <History className="h-4 w-4" />
-                    </Button>
-                  </AssetHistoryDialog>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>View History</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <>
+              {onAddObservation && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-12 px-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAddObservation(asset);
+                        }}
+                      >
+                        <Camera className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Add Observation</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <AssetHistoryDialog assetId={asset.id} assetName={asset.name}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-12 px-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
+                      >
+                        <History className="h-4 w-4" />
+                      </Button>
+                    </AssetHistoryDialog>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>View History</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </>
           )}
 
 
@@ -410,32 +462,27 @@ export const CombinedAssetCard = memo(({
           {asset.type === 'stock' && canEdit && (
             <>
               <div className="flex gap-2 flex-1">
-                {onUseQuantity && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onUseQuantity(asset);
-                    }}
-                  >
-                    <Minus className="h-4 w-4" />
-                  </Button>
-                )}
-
-                {onAddQuantity && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAddQuantity(asset);
-                    }}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
+                {onAddObservation && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-12 px-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAddObservation(asset);
+                          }}
+                        >
+                          <Camera className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Add Observation</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
 
                 {onOrderStock && (

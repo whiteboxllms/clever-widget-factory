@@ -1,17 +1,18 @@
 #!/bin/bash
 # Add API Gateway endpoint with authorizer
-# Usage: ./add-api-endpoint.sh <path> <method>
-# Example: ./add-api-endpoint.sh /api/organizations GET
+# Usage: ./add-api-endpoint.sh <path> <method> [lambda-function-name]
+# Example: ./add-api-endpoint.sh /api/organizations GET cwf-core-lambda
 
 set -e
 
 API_ID="0720au267k"
 REGION="us-west-2"
-LAMBDA_ARN="arn:aws:lambda:us-west-2:131745734428:function:cwf-core-lambda"
 AUTHORIZER_ID="pjg8xs"
 
 PATH_ARG="${1:-/api/organizations}"
 METHOD="${2:-GET}"
+FUNCTION_NAME="${3:-cwf-core-lambda}"
+LAMBDA_ARN="arn:aws:lambda:us-west-2:131745734428:function:${FUNCTION_NAME}"
 
 # Get parent resource ID
 PARENT_PATH=$(dirname "$PATH_ARG")

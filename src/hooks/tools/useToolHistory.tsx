@@ -48,6 +48,21 @@ export interface IssueHistoryEntry {
   damage_assessment?: string;
 }
 
+export interface ObservationHistoryEntry {
+  id: string;
+  type: 'observation';
+  observation_text?: string;
+  observed_by: string;
+  observed_by_name: string;
+  observed_at: string;
+  photos?: Array<{
+    id: string;
+    photo_url: string;
+    photo_description?: string;
+    photo_order: number;
+  }>;
+}
+
 export interface AssetHistoryEntry {
   id: string;
   type: 'asset_change';
@@ -66,7 +81,7 @@ export interface AssetHistoryEntry {
   action_status?: string;
 }
 
-export type HistoryEntry = CheckoutHistory | IssueHistoryEntry | AssetHistoryEntry;
+export type HistoryEntry = CheckoutHistory | IssueHistoryEntry | ObservationHistoryEntry | AssetHistoryEntry;
 
 export const useToolHistory = () => {
   const [toolHistory, setToolHistory] = useState<HistoryEntry[]>([]);
@@ -79,12 +94,12 @@ export const useToolHistory = () => {
     setLoading(true);
     setToolHistory([]); // Clear previous history while loading
     try {
-      // Fetch unified history from computed endpoint
-      const historyResult = await apiService.get(`/tools/${toolId}/history`);
-      const historyResponse = historyResult.data || { asset: null, timeline: [], checkouts: [], issues: [], actions: [] };
+      // Fetch unified history from new history Lambda endpoint
+      const historyResult = await apiService.get(`/history/tools/${toolId}`);
+      const historyResponse = historyResult.data || { asset: null, timeline: [], checkouts: [], issues: [], actions: [], observations: [] };
       
-      // Use timeline if available (contains asset_history entries)
-      const timeline = historyResponse.timeline || [];
+      // Use timeline if available (contains asset_history entries) - filter out observations since we get those separately
+      const timeline = (historyResponse.timeline || []).filter((entry: any) => entry.type !== 'observation');
       
       // Combine checkouts and issues into unified history
       const checkouts = (historyResponse.checkouts || []).map((checkout: any) => ({
@@ -110,7 +125,19 @@ export const useToolHistory = () => {
         user_name: action.created_by_name || 'System'
       }));
       
-      const historyData = [...timeline, ...checkouts, ...issues, ...actions];
+      // Add observations
+      const observations = (historyResponse.observations || []).map((obs: any) => {
+        console.log('🔵 Raw observation from API:', obs);
+        return {
+          ...obs,
+          type: 'observation',
+          date: obs.observed_at
+        };
+      });
+      console.log('📊 Total observations:', observations.length);
+      
+      const historyData = [...timeline, ...checkouts, ...issues, ...actions, ...observations];
+      console.log('📋 History data before transform, observations:', historyData.filter(e => e.type === 'observation'));
 
       // Find current checkout (not returned)
       const activeCheckout = checkouts.find(
@@ -123,7 +150,7 @@ export const useToolHistory = () => {
         switch (entry.type) {
           case 'asset_change':
             return {
-              id: entry.data?.id || entry.id,
+              id: entry.data?.id || entry.id || `asset-${Date.now()}-${Math.random()}`,
               type: 'asset_change',
               asset_id: toolId,
               change_type: entry.data?.change_type || 'updated',
@@ -197,17 +224,52 @@ export const useToolHistory = () => {
               notes: entry.description || entry.notes
             } as IssueHistoryEntry;
 
+          case 'observation':
+            console.log('🔍 Processing observation:', entry);
+            const obsEntry = {
+              id: entry.id,
+              type: 'observation',
+              observation_text: entry.observation_text,
+              observed_by: entry.observed_by,
+              observed_by_name: entry.observed_by_name,
+              observed_at: entry.observed_at || entry.date,
+              photos: entry.photos
+            } as ObservationHistoryEntry;
+            console.log('✅ Observation entry created:', obsEntry);
+            return obsEntry;
+
           default:
+            // Handle timeline entries without proper type
+            if (entry.type === 'issue_reported' || entry.type === 'issue_resolved') {
+              return {
+                id: entry.data?.id || `issue-timeline-${Date.now()}-${Math.random()}`,
+                type: 'issue_change',
+                issue_id: entry.data?.id || '',
+                issue_description: entry.data?.description,
+                issue_type: entry.data?.issue_type,
+                change_type: entry.type === 'issue_resolved' ? 'resolved' : 'created',
+                changed_at: entry.timestamp,
+                changed_by: entry.data?.reported_by || 'system',
+                user_name: entry.data?.reported_by_name || 'System',
+                old_status: null,
+                new_status: entry.data?.status || (entry.type === 'issue_resolved' ? 'resolved' : 'active'),
+                notes: entry.data?.description
+              } as IssueHistoryEntry;
+            }
             return entry;
         }
       });
 
       // Sort by date descending (most recent first)
       allHistory.sort((a, b) => {
-        const dateA = 'checkout_date' in a ? (a.checkout_date || a.created_at) : a.changed_at;
-        const dateB = 'checkout_date' in b ? (b.checkout_date || b.created_at) : b.changed_at;
+        const dateA = 'checkout_date' in a ? (a.checkout_date || a.created_at) : 
+                      'observed_at' in a ? a.observed_at : a.changed_at;
+        const dateB = 'checkout_date' in b ? (b.checkout_date || b.created_at) : 
+                      'observed_at' in b ? b.observed_at : b.changed_at;
         return new Date(dateB).getTime() - new Date(dateA).getTime();
       });
+      
+      console.log('🟢 allHistory after sort, observations:', allHistory.filter(e => 'observed_at' in e));
 
       // Group entries that happened within 5 seconds of each other
       const groupedHistory: HistoryEntry[] = [];
@@ -215,14 +277,19 @@ export const useToolHistory = () => {
       let currentTimestamp: number | null = null;
 
       allHistory.forEach((entry) => {
-        const entryTime = new Date('checkout_date' in entry ? (entry.checkout_date || entry.created_at) : entry.changed_at).getTime();
+        const entryTime = new Date(
+          'checkout_date' in entry ? (entry.checkout_date || entry.created_at) : 
+          'observed_at' in entry ? entry.observed_at : entry.changed_at
+        ).getTime();
+        
+        console.log('🔹 Processing for grouping:', { id: entry.id, type: 'type' in entry ? entry.type : 'unknown', hasObservedAt: 'observed_at' in entry, entryTime });
         
         if (currentTimestamp === null || Math.abs(entryTime - currentTimestamp) <= 5000) {
           currentGroup.push(entry);
           currentTimestamp = entryTime;
         } else {
           if (currentGroup.length > 1 && currentGroup.every(e => e.type === 'asset_change')) {
-            // Combine multiple asset_change entries into one
+            // Only combine asset_change entries
             const combined = currentGroup[0] as AssetHistoryEntry;
             combined.notes = currentGroup.map(e => {
               const ae = e as AssetHistoryEntry;
@@ -230,6 +297,7 @@ export const useToolHistory = () => {
             }).filter(Boolean).join(', ');
             groupedHistory.push(combined);
           } else {
+            // Push all entries individually (including observations)
             groupedHistory.push(...currentGroup);
           }
           currentGroup = [entry];
@@ -238,6 +306,7 @@ export const useToolHistory = () => {
       });
 
       // Push last group
+      console.log('🔵 Last group before push:', currentGroup.map(e => ({ id: e.id, type: 'type' in e ? e.type : 'unknown', hasObservedAt: 'observed_at' in e })));
       if (currentGroup.length > 1 && currentGroup.every(e => e.type === 'asset_change')) {
         const combined = currentGroup[0] as AssetHistoryEntry;
         combined.notes = currentGroup.map(e => {
@@ -250,6 +319,8 @@ export const useToolHistory = () => {
       }
 
       setToolHistory(groupedHistory);
+      console.log('📦 Final toolHistory set:', groupedHistory.filter(e => 'observed_at' in e));
+      console.log('🔴 ALL entries in toolHistory:', groupedHistory.map(e => ({ id: e.id, type: 'type' in e ? e.type : 'unknown', hasObservedAt: 'observed_at' in e })));
     } catch (error) {
       console.error('Error fetching tool history:', error);
       toast({

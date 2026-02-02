@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { History, Edit, Plus, AlertTriangle, Clock, LogOut, LogIn, Loader2, ExternalLink, Zap, Target } from "lucide-react";
+import { History, Edit, Plus, AlertTriangle, Clock, LogOut, LogIn, Loader2, ExternalLink, Zap, Target, Camera } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useToolHistory, HistoryEntry, AssetHistoryEntry, CheckoutHistory, IssueHistoryEntry } from "@/hooks/tools/useToolHistory";
+import { useToolHistory, HistoryEntry, AssetHistoryEntry, CheckoutHistory, IssueHistoryEntry, ObservationHistoryEntry } from "@/hooks/tools/useToolHistory";
 import { Link } from "react-router-dom";
 
 // Type guard functions
@@ -20,6 +20,14 @@ const isCheckoutHistory = (entry: HistoryEntry): entry is CheckoutHistory => {
 
 const isIssueHistory = (entry: HistoryEntry): entry is IssueHistoryEntry => {
   return 'issue_id' in entry && 'old_status' in entry && 'new_status' in entry;
+};
+
+const isObservation = (entry: HistoryEntry): entry is ObservationHistoryEntry => {
+  const result = 'observation_text' in entry && 'observed_at' in entry;
+  if (result) {
+    console.log('✅ isObservation TRUE for:', entry);
+  }
+  return result;
 };
 
 interface AssetHistoryDialogProps {
@@ -60,6 +68,8 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
       return entry.is_returned ? <LogIn className="h-4 w-4 text-green-600" /> : <LogOut className="h-4 w-4 text-blue-600" />;
     } else if (isIssueHistory(entry)) {
       return <AlertTriangle className="h-4 w-4 text-red-600" />;
+    } else if (isObservation(entry)) {
+      return <Camera className="h-4 w-4 text-blue-600" />;
     }
     return <History className="h-4 w-4 text-gray-600" />;
   };
@@ -83,17 +93,17 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
     } else if (isCheckoutHistory(entry)) {
       return entry.is_returned ? 'Tool returned' : 'Tool checked out';
     } else if (isIssueHistory(entry)) {
-      // Show status transition for issue updates
       if (entry.old_status && entry.new_status && entry.old_status !== entry.new_status) {
         return `Issue ${entry.old_status} → ${entry.new_status}`;
       }
-      // For issue creation, show description if available, otherwise show type
       if (entry.issue_description) {
         return entry.issue_description.length > 100 
           ? entry.issue_description.substring(0, 100) + '...' 
           : entry.issue_description;
       }
       return entry.issue_type ? `${entry.issue_type} issue reported` : 'Issue reported';
+    } else if (isObservation(entry)) {
+      return '';
     }
     return 'Activity recorded';
   };
@@ -108,6 +118,8 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
       return entry.is_returned ? 'Returned' : 'Checked Out';
     } else if (isIssueHistory(entry)) {
       return entry.issue_type ? `Issue: ${entry.issue_type}` : `Issue: ${entry.new_status}`;
+    } else if (isObservation(entry)) {
+      return 'Observation';
     }
     return 'Activity';
   };
@@ -115,6 +127,8 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
   const getChangeDate = (entry: HistoryEntry) => {
     if (isCheckoutHistory(entry)) {
       return entry.checkout_date || entry.created_at;
+    } else if (isObservation(entry)) {
+      return entry.observed_at;
     }
     return entry.changed_at;
   };
@@ -146,7 +160,9 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
             </div>
           ) : (
             <div className="space-y-4">
-              {toolHistory.map((entry) => (
+              {toolHistory.map((entry, index) => {
+                console.log(`🔍 Rendering entry ${index}:`, entry.id, 'has observed_at:', 'observed_at' in entry, 'type:', 'type' in entry ? entry.type : 'no-type');
+                return (
                 <Card key={entry.id} className="p-4">
                   <div className="flex items-start gap-3">
                     <div className="flex-shrink-0 mt-1">
@@ -158,6 +174,8 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
                           <span className="font-medium">
                             {isCheckoutHistory(entry) 
                               ? (entry.user_display_name || <span className="text-red-600">ERROR: User not found</span>)
+                              : isObservation(entry)
+                              ? entry.observed_by_name
                               : (entry.user_name || 'System')
                             }
                           </span>
@@ -386,10 +404,40 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
                           )}
                         </div>
                       )}
+
+                      {/* Observation display section */}
+                      {isObservation(entry) && (
+                        <div className="text-sm bg-blue-50 border border-blue-200 p-3 rounded mt-2">
+                          {entry.observation_text && (
+                            <p className="text-blue-800 mb-2">{entry.observation_text}</p>
+                          )}
+                          {entry.photos && entry.photos.length > 0 && (
+                            <div className="space-y-2 mt-2">
+                              {entry.photos.map(photo => (
+                                <div key={photo.id} className="flex items-start gap-2">
+                                  {photo.photo_description && (
+                                    <p className="text-blue-800 flex-1">{photo.photo_description}</p>
+                                  )}
+                                  <a 
+                                    href={photo.photo_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1 whitespace-nowrap"
+                                  >
+                                    View Photo
+                                    <ExternalLink className="h-3 w-3" />
+                                  </a>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </Card>
-              ))}
+              );
+              })}
               
               {/* Asset Creation Info */}
               {assetInfo && (

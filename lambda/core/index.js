@@ -1764,6 +1764,34 @@ exports.handler = async (event) => {
           ) t;`;
           const actionsResult = await queryJSON(actionsSql);
           
+          // Get observations - DEPENDENCIES: observations, observation_photos, observation_links tables
+          const observationsSql = `SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json) as json_agg FROM (
+            SELECT 
+              o.id::text,
+              o.observation_text,
+              o.observed_by::text,
+              o.observed_at,
+              o.created_at,
+              COALESCE(om.full_name, o.observed_by::text) as observed_by_name,
+              (
+                SELECT json_agg(json_build_object(
+                  'id', op.id,
+                  'photo_url', op.photo_url,
+                  'photo_description', op.photo_description,
+                  'photo_order', op.photo_order
+                ))
+                FROM observation_photos op
+                WHERE op.observation_id = o.id
+                ORDER BY op.photo_order
+              ) as photos
+            FROM observations o
+            JOIN observation_links ol ON ol.observation_id = o.id
+            LEFT JOIN organization_members om ON o.observed_by::text = om.cognito_user_id::text
+            WHERE ol.entity_type = 'tool' AND ol.entity_id::text = '${escapeLiteral(toolId)}'
+            ORDER BY o.observed_at DESC
+          ) t;`;
+          const observationsResult = await queryJSON(observationsSql);
+          
           // Get asset history
           const assetHistorySql = `SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json) as json_agg FROM (
             SELECT 
@@ -1787,6 +1815,7 @@ exports.handler = async (event) => {
           const checkouts = checkoutsResult?.[0]?.json_agg || [];
           const issues = issuesResult?.[0]?.json_agg || [];
           const actions = actionsResult?.[0]?.json_agg || [];
+          const observations = observationsResult?.[0]?.json_agg || [];
           const assetHistory = assetHistoryResult?.[0]?.json_agg || [];
           
           const timeline = [];
@@ -1862,6 +1891,7 @@ exports.handler = async (event) => {
                 checkouts,
                 issues,
                 actions,
+                observations,
                 timeline
               }
             })

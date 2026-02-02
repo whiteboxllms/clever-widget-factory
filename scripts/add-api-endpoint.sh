@@ -1,17 +1,18 @@
 #!/bin/bash
 # Add API Gateway endpoint with authorizer
-# Usage: ./add-api-endpoint.sh <path> <method>
-# Example: ./add-api-endpoint.sh /api/organizations GET
+# Usage: ./add-api-endpoint.sh <path> <method> [lambda-function-name]
+# Example: ./add-api-endpoint.sh /api/organizations GET cwf-core-lambda
 
 set -e
 
 API_ID="0720au267k"
 REGION="us-west-2"
-LAMBDA_ARN="arn:aws:lambda:us-west-2:131745734428:function:cwf-core-lambda"
 AUTHORIZER_ID="pjg8xs"
 
 PATH_ARG="${1:-/api/organizations}"
 METHOD="${2:-GET}"
+FUNCTION_NAME="${3:-cwf-core-lambda}"
+LAMBDA_ARN="arn:aws:lambda:us-west-2:131745734428:function:${FUNCTION_NAME}"
 
 # Get parent resource ID
 PARENT_PATH=$(dirname "$PATH_ARG")
@@ -80,22 +81,36 @@ else
     --region $REGION || echo "Integration already exists"
   
   # Add method response for CORS
+  aws apigateway delete-method-response \
+    --rest-api-id $API_ID \
+    --resource-id $RESOURCE_ID \
+    --http-method OPTIONS \
+    --status-code 200 \
+    --region $REGION 2>/dev/null || true
+  
   aws apigateway put-method-response \
     --rest-api-id $API_ID \
     --resource-id $RESOURCE_ID \
     --http-method OPTIONS \
     --status-code 200 \
     --response-parameters '{"method.response.header.Access-Control-Allow-Headers":false,"method.response.header.Access-Control-Allow-Methods":false,"method.response.header.Access-Control-Allow-Origin":false}' \
-    --region $REGION || echo "Method response already exists"
+    --region $REGION
   
   # Add integration response for CORS
+  aws apigateway delete-integration-response \
+    --rest-api-id $API_ID \
+    --resource-id $RESOURCE_ID \
+    --http-method OPTIONS \
+    --status-code 200 \
+    --region $REGION 2>/dev/null || true
+  
   aws apigateway put-integration-response \
     --rest-api-id $API_ID \
     --resource-id $RESOURCE_ID \
     --http-method OPTIONS \
     --status-code 200 \
-    --response-parameters method.response.header.Access-Control-Allow-Headers="'Content-Type,Authorization'",method.response.header.Access-Control-Allow-Methods="'GET,POST,PUT,DELETE,OPTIONS'",method.response.header.Access-Control-Allow-Origin="'*'" \
-    --region $REGION || echo "Integration response already exists"
+    --response-parameters '{"method.response.header.Access-Control-Allow-Headers":"'\''Content-Type,Authorization'\''" ,"method.response.header.Access-Control-Allow-Methods":"'\''GET,POST,PUT,DELETE,OPTIONS'\''" ,"method.response.header.Access-Control-Allow-Origin":"'\''*'\''" }' \
+    --region $REGION
 fi
 
 echo "✅ Done! Deploy with: aws apigateway create-deployment --rest-api-id $API_ID --stage-name prod --region $REGION"

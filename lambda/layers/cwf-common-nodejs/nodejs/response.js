@@ -5,18 +5,18 @@ const headers = {
   'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
 };
 
-function success(data, statusCode = 200) {
+function successResponse(data, customHeaders = {}) {
   return {
-    statusCode,
-    headers,
-    body: JSON.stringify({ data })
+    statusCode: 200,
+    headers: { ...headers, ...customHeaders },
+    body: JSON.stringify(data)
   };
 }
 
-function error(message, statusCode = 500) {
+function errorResponse(statusCode, message, customHeaders = {}) {
   return {
     statusCode,
-    headers,
+    headers: { ...headers, ...customHeaders },
     body: JSON.stringify({ error: message })
   };
 }
@@ -29,4 +29,4 @@ function corsResponse() {
   };
 }
 
-module.exports = { success, error, corsResponse, headers };
+module.exports = { successResponse, errorResponse, corsResponse, headers };

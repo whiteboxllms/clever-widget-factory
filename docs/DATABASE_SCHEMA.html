@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Database Schema - Clever Widget Factory</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: white;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .mermaid {
+      display: flex;
+      justify-content: center;
+    }
+    @media print {
+      body { margin: 0; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Clever Widget Factory - Database Schema</h1>
+  <div class="mermaid">
+erDiagram
+  action_embedding {
+    uuid id PK
+    uuid action_id
+    varchar embedding_type
+    varchar model
+    vector embedding
+    timestamp created_at
+  }
+  action_implementation_updates {
+    uuid id PK
+    uuid action_id
+    uuid updated_by
+    text update_text
+    text update_type
+    timestamp created_at
+  }
+  actions {
+    uuid id PK
+    uuid mission_id
+    text title
+    text description
+    uuid assigned_to
+    text status
+    timestamp created_at
+    uuid policy_id
+    boolean is_exploration
+    uuid organization_id
+  }
+  analyses {
+    uuid id PK
+    uuid organization_id
+    uuid created_by
+    uuid prompt_id
+    jsonb ai_response
+    timestamp created_at
+  }
+  analysis_attributes {
+    uuid id PK
+    uuid analysis_id
+    text attribute_name
+    text[] attribute_values
+    timestamp created_at
+  }
+  analysis_contexts {
+    uuid id PK
+    uuid analysis_id
+    text context_service
+    uuid context_id
+    timestamp created_at
+  }
+  analysis_scores {
+    uuid id PK
+    uuid analysis_id
+    text score_name
+    numeric score
+    text reason
+    text how_to_improve
+  }
+  exploration {
+    uuid id PK
+    uuid action_id
+    varchar exploration_code
+    text exploration_notes_text
+    text metrics_text
+    boolean public_flag
+    varchar status
+  }
+  policy {
+    uuid id PK
+    varchar title
+    text description_text
+    varchar status
+    date effective_from
+    date effective_to
+    uuid created_by_user_id
+  }
+  tools {
+    uuid id PK
+    text name
+    text description
+    text category
+    text status
+    text serial_number
+    uuid organization_id
+  }
+  parts {
+    uuid id PK
+    text name
+    text description
+    text category
+    numeric current_quantity
+    boolean sellable
+    uuid organization_id
+  }
+  checkouts {
+    uuid id PK
+    uuid tool_id
+    text user_id
+    timestamp checkout_date
+    boolean is_returned
+    uuid action_id
+  }
+  issues {
+    uuid id PK
+    text description
+    text status
+    uuid reported_by
+    uuid organization_id
+  }
+  missions {
+    uuid id PK
+    text title
+    text problem_statement
+    text status
+    uuid created_by
+    uuid organization_id
+  }
+  organizations {
+    uuid id PK
+    text name
+    text subdomain
+    boolean is_active
+  }
+  organization_members {
+    uuid id PK
+    uuid organization_id
+    uuid user_id
+    text role
+    text full_name
+    text cognito_user_id
+  }
+  
+  actions ||--o{ action_implementation_updates : "updates"
+  actions ||--o{ exploration : "1-to-1"
+  actions ||--o{ checkouts : "used_in"
+  policy ||--o{ actions : "guides"
+  missions ||--o{ actions : "contains"
+  organizations ||--o{ actions : "owns"
+  organizations ||--o{ tools : "owns"
+  organizations ||--o{ parts : "owns"
+  organizations ||--o{ missions : "owns"
+  organizations ||--o{ issues : "owns"
+  organizations ||--o{ organization_members : "has"
+  tools ||--o{ checkouts : "checked_out"
+  analyses ||--o{ analysis_attributes : "has"
+  analyses ||--o{ analysis_contexts : "has"
+  analyses ||--o{ analysis_scores : "has"
+  </div>
+  <script>
+    mermaid.initialize({ 
+      startOnLoad: true,
+      theme: 'default',
+      er: {
+        fontSize: 12,
+        useMaxWidth: true
+      }
+    });
+  </script>
+</body>
+</html>

@@ -17,6 +17,7 @@ function getAuthorizerContext(event) {
     accessible_organization_ids: parseJSON(authorizer.accessible_organization_ids, []),
     partner_access: parseJSON(authorizer.partner_access, []),
     cognito_user_id: authorizer.cognito_user_id,
+    user_id: authorizer.cognito_user_id,
     user_role: authorizer.user_role,
     permissions: parseJSON(authorizer.permissions, [])
   };
@@ -38,6 +39,7 @@ function getAuthorizerContext(event) {
       accessible_organization_ids: parseJSON(authorizer.context.accessible_organization_ids, []),
       partner_access: parseJSON(authorizer.context.partner_access, []),
       cognito_user_id: authorizer.context.cognito_user_id,
+      user_id: authorizer.context.cognito_user_id,
       user_role: authorizer.context.user_role,
       permissions: parseJSON(authorizer.context.permissions, [])
     };
@@ -107,7 +109,7 @@ function buildOrganizationFilter(context, tableAlias = '') {
   // Users with data:read:all permission can access all organizations
   // This replaces the old superadmin concept - access is now based on permissions
   if (hasPermission(context, 'data:read:all')) {
-    return { condition: '', params: [] };
+    return { condition: '1=1', params: [] };
   }
   
   // Filter by accessible organizations
@@ -120,13 +122,13 @@ function buildOrganizationFilter(context, tableAlias = '') {
   
   if (accessibleOrgs.length === 1) {
     return {
-      condition: `${prefix}organization_id = '${accessibleOrgs[0]}'`,
+      condition: `${prefix}organization_id = '${accessibleOrgs[0]}'::uuid`,
       params: []
     };
   }
   
   // Multiple orgs - use IN clause
-  const orgIdsList = accessibleOrgs.map(id => `'${id.replace(/'/g, "''")}'`).join(',');
+  const orgIdsList = accessibleOrgs.map(id => `'${id.replace(/'/g, "''")}'::uuid`).join(',');
   return {
     condition: `${prefix}organization_id IN (${orgIdsList})`,
     params: []

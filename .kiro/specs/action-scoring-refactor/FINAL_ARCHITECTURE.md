@@ -179,3 +179,51 @@ WHERE asc.action_id IS NOT NULL;
 
 COMMIT;
 ```
+
+
+---
+
+## Deployment
+
+### Lambda Structure
+
+**Layer-based approach:**
+- Generic utilities (db, auth, response) → `cwf-common-nodejs` layer
+- Domain logic (action-scoring) → local to Lambda
+- Dependencies: Only Bedrock SDK in package.json (pg comes from layer)
+
+### Deployment Steps
+
+```bash
+# 1. Deploy Lambda with layer (automatically loads DB_PASSWORD from .env.local)
+./scripts/deploy/deploy-lambda-with-layer.sh analysis cwf-analysis
+
+# 2. Wire API Gateway endpoints (includes CORS configuration)
+cd lambda/analysis
+./wire-api-gateway.sh
+```
+
+The deploy script automatically:
+- Loads `DB_PASSWORD` from `.env.local`
+- Sets Lambda environment variables
+- Attaches the common layer
+- Configures timeout and memory
+
+The wire-api-gateway.sh script automatically:
+- Creates resources and methods
+- Configures OPTIONS methods for CORS
+- Adds method responses and integration responses with CORS headers
+- Deploys changes to prod stage
+
+### API Endpoints Created
+
+✅ **Deployed:**
+- `POST https://0720au267k.execute-api.us-west-2.amazonaws.com/prod/api/analysis/generate` - Run AI prompt (no save)
+- `GET https://0720au267k.execute-api.us-west-2.amazonaws.com/prod/api/analysis/analyses` - List analyses
+- `POST https://0720au267k.execute-api.us-west-2.amazonaws.com/prod/api/analysis/analyses` - Create analysis with scores
+- `GET https://0720au267k.execute-api.us-west-2.amazonaws.com/prod/api/analysis/prompts` - List scoring prompts
+
+All endpoints use CUSTOM authorizer (pjg8xs) except OPTIONS.
+
+**Lambda:** `cwf-analysis`  
+**Layer:** `arn:aws:lambda:us-west-2:131745734428:layer:cwf-common-nodejs:9`

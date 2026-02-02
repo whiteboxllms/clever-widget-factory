@@ -1,6 +1,6 @@
-const { Client } = require('pg');
+const { Pool } = require('pg');
 
-const dbConfig = {
+const pool = new Pool({
   host: process.env.DB_HOST || 'cwf-dev-postgres.ctmma86ykgeb.us-west-2.rds.amazonaws.com',
   port: process.env.DB_PORT || 5432,
   database: process.env.DB_NAME || 'postgres',
@@ -8,21 +8,13 @@ const dbConfig = {
   password: process.env.DB_PASSWORD,
   ssl: {
     rejectUnauthorized: false
-  }
-};
+  },
+  max: 10,
+  idleTimeoutMillis: 30000
+});
 
-async function query(sql) {
-  const client = new Client(dbConfig);
-  try {
-    await client.connect();
-    const result = await client.query(sql);
-    return result.rows;
-  } catch (error) {
-    console.error('Database query error:', error);
-    throw error;
-  } finally {
-    await client.end();
-  }
+async function getDbClient() {
+  return await pool.connect();
 }
 
-module.exports = { query };
+module.exports = { getDbClient };

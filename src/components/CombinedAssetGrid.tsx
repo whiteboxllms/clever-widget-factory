@@ -17,6 +17,7 @@ interface CombinedAssetGridProps {
   onCheckin: (asset: CombinedAsset) => void;
   onReportIssue?: (asset: CombinedAsset) => void;
   onManageIssues?: (asset: CombinedAsset) => void;
+  onAddObservation?: (asset: CombinedAsset) => void;
   onAddQuantity?: (asset: CombinedAsset) => void;
   onUseQuantity?: (asset: CombinedAsset) => void;
   onOrderStock?: (asset: CombinedAsset) => void;
@@ -43,6 +44,7 @@ export const CombinedAssetGrid = ({
   onCheckin,
   onReportIssue,
   onManageIssues,
+  onAddObservation,
   onAddQuantity,
   onUseQuantity,
   onOrderStock,
@@ -100,6 +102,7 @@ export const CombinedAssetGrid = ({
           onCheckin={onCheckin}
           onReportIssue={onReportIssue}
           onManageIssues={onManageIssues}
+          onAddObservation={onAddObservation}
           onAddQuantity={onAddQuantity}
           onUseQuantity={onUseQuantity}
           onOrderStock={onOrderStock}
@@ -109,7 +112,7 @@ export const CombinedAssetGrid = ({
         />
       </div>
     );
-  }, [assets, canEdit, isAdmin, currentUserId, currentUserEmail, onView, onEdit, onRemove, onCheckout, onCheckin, onReportIssue, onManageIssues, onAddQuantity, onUseQuantity, onOrderStock, onReceiveOrder, pendingOrders, userNameMap, areaItemCounts]);
+  }, [assets, canEdit, isAdmin, currentUserId, currentUserEmail, onView, onEdit, onRemove, onCheckout, onCheckin, onReportIssue, onManageIssues, onAddObservation, onAddQuantity, onUseQuantity, onOrderStock, onReceiveOrder, pendingOrders, userNameMap, areaItemCounts]);
 
   if (assets.length === 0) {
     return (

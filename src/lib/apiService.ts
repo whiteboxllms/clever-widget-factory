@@ -14,7 +14,8 @@ import {
   issuesQueryKey,
   missionsQueryKey,
   partsOrdersQueryKey,
-  explorationsQueryKey
+  explorationsQueryKey,
+  observationsQueryKey
 } from './queryKeys';
 
 // Global query client instance for cache updates
@@ -320,6 +321,19 @@ function updateCacheFromResponse(endpoint: string, method: string, responseData:
     } else if (method === 'PUT') {
       globalQueryClient.setQueryData(explorationsQueryKey(), (old: any[] = []) => 
         old.map(item => item.id === data.id ? data : item)
+      );
+    }
+  } else if (endpoint.includes('/observations')) {
+    if (method === 'POST') {
+      globalQueryClient.setQueryData(observationsQueryKey(), (old: any[] = []) => [...old, data]);
+    } else if (method === 'PUT') {
+      globalQueryClient.setQueryData(observationsQueryKey(), (old: any[] = []) => 
+        old.map(item => item.id === data.id ? data : item)
+      );
+    } else if (method === 'DELETE') {
+      const observationId = endpoint.split('/').pop();
+      globalQueryClient.setQueryData(observationsQueryKey(), (old: any[] = []) => 
+        old.filter(item => item.id !== observationId)
       );
     }
   }

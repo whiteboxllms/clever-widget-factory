@@ -415,6 +415,11 @@ export const CombinedAssetsContainer = () => {
     setShowIssueDialog(true);
   }, []);
 
+  const handleAddObservation = useCallback((asset: CombinedAsset) => {
+    const assetType = asset.type === 'asset' ? 'tools' : 'parts';
+    navigate(`/combined-assets/${assetType}/${asset.id}/observation`);
+  }, [navigate]);
+
   const handleShowAssetDetails = (asset: CombinedAsset) => {
     // This should behave like clicking on the asset card - go to detail view
     setSelectedAssetForDetails(asset);
@@ -745,6 +750,7 @@ export const CombinedAssetsContainer = () => {
             onCheckin={handleCheckin}
             onReportIssue={handleManageIssues}
             onManageIssues={handleManageIssues}
+            onAddObservation={handleAddObservation}
             onAddQuantity={handleAddQuantity}
             onUseQuantity={handleUseQuantity}
             onOrderStock={handleOrderStock}

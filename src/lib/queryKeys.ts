@@ -56,3 +56,7 @@ export const partsOrdersQueryKey = (status?: string) => [
   status ?? 'all'
 ];
 
+// Observations query keys
+export const observationsQueryKey = () => ['observations'];
+export const observationQueryKey = (observationId: string) => ['observation', observationId];
+

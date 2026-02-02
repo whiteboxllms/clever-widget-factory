@@ -1,0 +1,7 @@
+{
+  "name": "cwf-history-lambda",
+  "version": "1.0.0",
+  "description": "History endpoints for tools and parts",
+  "main": "index.js",
+  "dependencies": {}
+}

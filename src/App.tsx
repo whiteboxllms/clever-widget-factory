@@ -25,6 +25,7 @@ import Dashboard from "./pages/Dashboard";
 
 import InventorySummary from "./pages/InventorySummary";
 import CombinedAssets from "./pages/CombinedAssets";
+import AddObservation from "./pages/AddObservation";
 import CheckIn from "./pages/CheckIn";
 import Missions from "./pages/Missions";
 import EditMission from "./pages/EditMission";
@@ -118,6 +119,14 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <CombinedAssets />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/combined-assets/:assetType/:id/observation"
+          element={
+            <ProtectedRoute>
+              <AddObservation />
             </ProtectedRoute>
           }
         />

@@ -103,7 +103,11 @@ export default function AddObservation() {
 
     const data: CreateObservationData = {
       observation_text: observationText || undefined,
-      photos,
+      photos: photos.map((photo, index) => ({
+        photo_url: photo.photo_url,
+        photo_description: photo.photo_description,
+        photo_order: index
+      })),
       links: [{
         entity_type: assetType === 'tools' ? 'tool' : 'part',
         entity_id: id!

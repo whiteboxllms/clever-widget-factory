@@ -6,6 +6,68 @@ import { toolsQueryKey } from '@/lib/queryKeys';
 export function useAssetMutations() {
   const queryClient = useQueryClient();
 
+  const createTool = useMutation({
+    mutationFn: async (data: any) => {
+      const result = await apiService.post('/tools', data);
+      return result.data;
+    },
+    onMutate: async (newTool) => {
+      await queryClient.cancelQueries({ queryKey: toolsQueryKey() });
+      const previousTools = queryClient.getQueryData(toolsQueryKey());
+      
+      // Optimistically add the new tool to cache
+      const tempId = 'temp-' + Date.now();
+      queryClient.setQueryData(toolsQueryKey(), (old: any[]) => 
+        old ? [...old, { ...newTool, id: tempId, created_at: new Date().toISOString() }] : [{ ...newTool, id: tempId }]
+      );
+      
+      return { previousTools, tempId };
+    },
+    onSuccess: (data, variables, context) => {
+      // Replace temp item with real data from server
+      queryClient.setQueryData(toolsQueryKey(), (old: any[]) => 
+        old?.map(tool => tool.id === context.tempId ? data : tool)
+      );
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousTools) {
+        queryClient.setQueryData(toolsQueryKey(), context.previousTools);
+      }
+    },
+    ...offlineMutationConfig,
+  });
+
+  const createPart = useMutation({
+    mutationFn: async (data: any) => {
+      const result = await apiService.post('/parts', data);
+      return result.data;
+    },
+    onMutate: async (newPart) => {
+      await queryClient.cancelQueries({ queryKey: ['parts'] });
+      const previousParts = queryClient.getQueryData(['parts']);
+      
+      // Optimistically add the new part to cache
+      const tempId = 'temp-' + Date.now();
+      queryClient.setQueryData(['parts'], (old: any[]) => 
+        old ? [...old, { ...newPart, id: tempId, created_at: new Date().toISOString() }] : [{ ...newPart, id: tempId }]
+      );
+      
+      return { previousParts, tempId };
+    },
+    onSuccess: (data, variables, context) => {
+      // Replace temp item with real data from server
+      queryClient.setQueryData(['parts'], (old: any[]) => 
+        old?.map(part => part.id === context.tempId ? data : part)
+      );
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousParts) {
+        queryClient.setQueryData(['parts'], context.previousParts);
+      }
+    },
+    ...offlineMutationConfig,
+  });
+
   const updatePart = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       const result = await apiService.put(`/parts/${id}`, data);
@@ -104,6 +166,8 @@ export function useAssetMutations() {
   });
 
   return {
+    createTool,
+    createPart,
     updatePart,
     updateTool,
     createPartsHistory,

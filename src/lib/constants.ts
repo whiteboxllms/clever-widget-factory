@@ -55,13 +55,10 @@ export const getStatusLabel = (status: string) => {
 export const TOOL_CATEGORY_OPTIONS = [
   { value: 'Hand Tools', label: 'Hand Tools' },
   { value: 'Electric Tool', label: 'Electric Tool' },
-  { value: 'Combustion Engine', label: 'Combustion Engine' },
-  { value: 'Vehicle', label: 'Vehicle' },
-  { value: 'Recreation', label: 'Recreation' },
+  { value: 'Other', label: 'Other' },
   { value: 'Container', label: 'Container' },
   { value: 'Infrastructure', label: 'Infrastructure' },
   { value: 'Biological', label: 'Biological' },
-  { value: 'Experiment', label: 'Experiment' },
   { value: 'Field', label: 'Field'}
 ] as const;
 

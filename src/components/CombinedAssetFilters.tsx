@@ -259,7 +259,7 @@ export const CombinedAssetFilters = ({
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Show only Infrastructure/Container areas (parent structures), sorted by item count</p>
+                  <p>Show only Infrastructure/Container/Field areas (parent structures), sorted by item count</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

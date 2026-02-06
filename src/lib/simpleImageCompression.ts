@@ -45,8 +45,6 @@ export const compressImageSimple = async (
         }
       }
       
-      console.log('[COMPRESSION] Using ImageBitmap (mobile):', { width, height });
-      
       // Decode and resize in one step - saves memory!
       const resizedBitmap = await createImageBitmap(file, {
         resizeWidth: width,
@@ -86,13 +84,6 @@ export const compressImageSimple = async (
             });
             
             const compressionRatio = ((file.size - compressedFile.size) / file.size) * 100;
-            
-            console.log('[COMPRESSION] ImageBitmap complete:', {
-              originalSizeMB: (file.size / (1024 * 1024)).toFixed(2),
-              compressedSizeMB: (compressedFile.size / (1024 * 1024)).toFixed(2),
-              compressionRatio: compressionRatio.toFixed(1) + '%',
-              elapsed: ((performance.now() - startTime) / 1000).toFixed(2) + 's'
-            });
             
             resolve({
               file: compressedFile,
@@ -148,17 +139,6 @@ export const compressImageSimple = async (
         }
       }
       
-      console.log('[COMPRESSION] Image loaded:', {
-        originalWidth: img.width,
-        originalHeight: img.height,
-        targetWidth: Math.round(width),
-        targetHeight: Math.round(height),
-        fileSizeMB: fileSizeMB.toFixed(2),
-        memoryUsedMB: memoryBeforeProcessing ? (memoryBeforeProcessing / (1024 * 1024)).toFixed(2) : 'N/A',
-        originalCanvasMemoryMB: ((img.width * img.height * 4) / (1024 * 1024)).toFixed(2),
-        targetCanvasMemoryMB: ((width * height * 4) / (1024 * 1024)).toFixed(2)
-      });
-      
       // Create canvas at TARGET size (not original size)
       canvas.width = width;
       canvas.height = height;
@@ -208,14 +188,6 @@ export const compressImageSimple = async (
               canvas.height = 0;
               img.src = '';
               
-              // Log memory after cleanup
-              const memoryAfterCleanup = (performance as any).memory?.usedJSHeapSize;
-              console.log('[COMPRESSION] Memory cleanup:', {
-                beforeMB: initialMemory ? (initialMemory / (1024 * 1024)).toFixed(2) : 'N/A',
-                afterMB: memoryAfterCleanup ? (memoryAfterCleanup / (1024 * 1024)).toFixed(2) : 'N/A',
-                freedMB: initialMemory && memoryAfterCleanup ? ((initialMemory - memoryAfterCleanup) / (1024 * 1024)).toFixed(2) : 'N/A'
-              });
-              
               const compressedFile = new File([blob], file.name, {
                 type: 'image/jpeg',
                 lastModified: Date.now(),
@@ -232,15 +204,6 @@ export const compressImageSimple = async (
                   details: { compressionRatio, fileSizeMB, compressedSizeMB: (compressedFile.size / (1024 * 1024)).toFixed(2) }
                 });
               }
-              
-              console.log('[COMPRESSION] Complete:', {
-                originalSizeMB: (file.size / (1024 * 1024)).toFixed(2),
-                compressedSizeMB: (compressedFile.size / (1024 * 1024)).toFixed(2),
-                compressionRatio: compressionRatio.toFixed(1) + '%',
-                elapsed: (elapsed / 1000).toFixed(2) + 's',
-                memoryUsedMB: initialMemory && finalMemory ? ((finalMemory - initialMemory) / (1024 * 1024)).toFixed(2) : 'N/A',
-                warnings: warnings.length > 0 ? warnings.map(w => w.message) : undefined
-              });
               
               resolve({
                 file: compressedFile,

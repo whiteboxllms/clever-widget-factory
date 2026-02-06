@@ -5,7 +5,6 @@ export interface BaseAction {
   title: string;
   description?: string;
   policy?: string;
-  observations?: string;
   status: string;
   assigned_to?: string | null;
   created_at: string;
@@ -27,14 +26,11 @@ export interface BaseAction {
   linked_issue_id?: string | null;
   
   // Additional optional fields
-  estimated_duration?: string | null;
-  estimated_completion_date?: string | null;
   required_tools?: string[];
   required_tool_serial_numbers?: string[];
   required_stock?: { part_id: string; quantity: number; part_name: string; }[];
   attachments?: string[];
   issue_reference?: string | null;
-  score?: number | null;
   scoring_data?: any;
   plan_commitment?: boolean | null;
   policy_agreed_at?: string | null;
@@ -97,7 +93,6 @@ export const createMissionAction = (missionId: string): Partial<BaseAction> => (
   policy: '',
   policy_text: '', // Logical field mapping
   summary_policy_text: '',
-  observations: '',
   assigned_to: null,
   participants: [],
   required_tools: [],
@@ -118,7 +113,6 @@ export const createIssueAction = (
   policy: '',
   policy_text: '', // Logical field mapping
   summary_policy_text: '',
-  observations: '',
   assigned_to: null,
   participants: [],
   required_tools: toolId ? [toolId] : [],
@@ -136,7 +130,6 @@ export const createAssetAction = (assetId: string): Partial<BaseAction> => ({
   policy: '',
   policy_text: '', // Logical field mapping
   summary_policy_text: '',
-  observations: '',
   assigned_to: null,
   participants: [],
   required_tools: [],
@@ -152,7 +145,6 @@ export const createExplorationAction = (): Partial<BaseAction> => ({
   policy: '',
   policy_text: '', // What policy/best practice are you following?
   summary_policy_text: '', // AI-assisted synthesis of how this should be done
-  observations: '',
   assigned_to: null,
   participants: [],
   required_tools: [],

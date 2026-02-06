@@ -30,7 +30,6 @@ interface Task {
   observations?: string;
   assigned_to: string | null;
   status?: string; // Add optional status field
-  estimated_completion_date?: Date;
   required_tools?: string[];
   plan_commitment?: boolean | null;
   required_stock?: { part_id: string; quantity: number; part_name: string; }[];
@@ -145,9 +144,6 @@ export function SimpleMissionForm({
         policy_agreed_by: task.policy_agreed_by || null,
         implementation_update_count: task.implementation_update_count || 0,
         mission_id: task.mission_id,
-        estimated_completion_date: task.estimated_duration ? new Date(task.estimated_duration) : undefined,
-        estimated_duration: task.estimated_duration,
-        actual_duration: task.actual_duration || '',
         required_tools: task.required_tools || [],
         required_stock: Array.isArray(task.required_stock) ? task.required_stock as { part_id: string; quantity: number; part_name: string; }[] : [],
         attachments: task.attachments || [],
@@ -249,7 +245,6 @@ export function SimpleMissionForm({
       assigned_to: action.assigned_to,
       status: action.status,
       plan_commitment: action.plan_commitment || false,
-      estimated_completion_date: action.estimated_duration ? new Date(action.estimated_duration) : undefined,
       required_tools: (action.required_tools || []) as string[],
       required_stock: (Array.isArray(action.required_stock) ? action.required_stock : []) as { part_id: string; quantity: number; part_name: string; }[],
       attachments: (action.attachments || []) as string[]
@@ -316,7 +311,6 @@ export function SimpleMissionForm({
         policy: task.description,
         observations: '',
         assigned_to: null,
-        estimated_completion_date: undefined,
         required_tools: task.required_tools || []
       }))
     }));
@@ -359,7 +353,6 @@ export function SimpleMissionForm({
               assigned_to: data.assigned_to,
               status: data.status,
               plan_commitment: data.plan_commitment || false,
-              estimated_completion_date: data.estimated_duration ? new Date(data.estimated_duration) : undefined,
               required_tools: (data.required_tools || []) as string[],
               required_stock: (Array.isArray(data.required_stock) ? data.required_stock : []) as { part_id: string; quantity: number; part_name: string; }[],
               attachments: (data.attachments || []) as string[]
@@ -580,7 +573,7 @@ export function SimpleMissionForm({
               status: formData.actions[editingTaskIndex].status || 'not_started',
               plan_commitment: formData.actions[editingTaskIndex].plan_commitment || false,
               mission_id: missionId || '',
-              estimated_duration: formData.actions[editingTaskIndex].estimated_completion_date?.toISOString(),
+              // NOTE: estimated_duration removed in migration 005 - no longer supported
               required_tools: formData.actions[editingTaskIndex].required_tools,
               required_stock: formData.actions[editingTaskIndex].required_stock,
               attachments: formData.actions[editingTaskIndex].attachments,
@@ -624,8 +617,6 @@ export function SimpleMissionForm({
                 updated_at: (task as any).updated_at || new Date().toISOString(),
                 completed_at: (task as any).completed_at || null,
                 mission_id: task.mission_id || missionId || null,
-                estimated_duration: task.estimated_completion_date?.toISOString() || null,
-                estimated_completion_date: task.estimated_completion_date,
                 required_tools: task.required_tools,
                 required_stock: task.required_stock,
                 attachments: task.attachments,

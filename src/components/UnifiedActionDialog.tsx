@@ -26,8 +26,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { apiService, getApiData } from '@/lib/apiService';
-import { missionsQueryKey, actionImplementationUpdatesQueryKey, explorationByActionIdQueryKey } from '@/lib/queryKeys';
-import { ImplementationUpdate } from '@/types/actions';
+import { missionsQueryKey, explorationByActionIdQueryKey } from '@/lib/queryKeys';
 import {
   Paperclip, 
   Calendar as CalendarIcon, 
@@ -48,7 +47,7 @@ import {
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useAuth } from "@/hooks/useCognitoAuth";
 import TiptapEditor from './TiptapEditor';
-import { ActionImplementationUpdates } from './ActionImplementationUpdates';
+import { StatesInline } from './StatesInline';
 import { AssetSelector } from './AssetSelector';
 import { StockSelector } from './StockSelector';
 import { MultiParticipantSelector } from './MultiParticipantSelector';
@@ -61,6 +60,7 @@ import { explorationService } from "@/services/explorationService";
 import { aiContentService } from "@/services/aiContentService";
 import { ExplorationTab } from "./ExplorationTab";
 import { ExplorationAssociationDialog } from "./ExplorationAssociationDialog";
+import { useActionObservationCount } from "@/hooks/useActionObservationCount";
 
 interface UnifiedActionDialogProps {
   open: boolean;
@@ -225,8 +225,7 @@ export function UnifiedActionDialog({
   const [missionData, setMissionData] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
-  const [estimatedDate, setEstimatedDate] = useState<Date | undefined>();
-  const [implementationUpdateCount, setImplementationUpdateCount] = useState<number>(0);
+  // NOTE: estimatedDate removed - estimated_completion_date field removed in migration 005
   const [isFormInitialized, setIsFormInitialized] = useState(false);
   const [storedActionId, setStoredActionId] = useState<string | null>(null);
   const [currentContextType, setCurrentContextType] = useState<string | null>(null);
@@ -249,6 +248,9 @@ export function UnifiedActionDialog({
   const [showExplorationDialog, setShowExplorationDialog] = useState(false);
   const [linkedExplorationIds, setLinkedExplorationIds] = useState<string[]>([]);
   const [linkedExplorations, setLinkedExplorations] = useState<Array<{ id: string; exploration_code: string; name?: string }>>([]);
+
+  // Derive observation count from TanStack cache (preferred over database count)
+  const derivedObservationCount = useActionObservationCount(action?.id || '');
   const [codeValidationState, setCodeValidationState] = useState<{
     isValid: boolean;
     isUnique: boolean;
@@ -351,20 +353,7 @@ export function UnifiedActionDialog({
           // Exploration code will be loaded via React Query hook above
           setExplorationCode('');
           
-          // Initialize implementation update count from action
-          setImplementationUpdateCount(action.implementation_update_count || 0);
-          if (action.estimated_duration) {
-            const parsedDate = new Date(action.estimated_duration);
-            // Only set if date is valid
-            if (!isNaN(parsedDate.getTime())) {
-              setEstimatedDate(parsedDate);
-            } else {
-              setEstimatedDate(undefined);
-            }
-          } else {
-            // Explicitly set to undefined if no estimated_duration exists
-            setEstimatedDate(undefined);
-          }
+          // NOTE: estimatedDate removed - field no longer exists
         } else if (context?.prefilledData) {
           // Creating new action with context
           setFormData({
@@ -373,8 +362,7 @@ export function UnifiedActionDialog({
             required_stock: context.prefilledData.required_stock || [],
             attachments: context.prefilledData.attachments || []
           });
-          // Don't set default estimated completion date - explicitly set to undefined
-          setEstimatedDate(undefined);
+          // NOTE: estimatedDate removed - field no longer exists
         } else {
           // Default new action
           setFormData({
@@ -394,8 +382,7 @@ export function UnifiedActionDialog({
           setIsExploration(false);
           setExplorationCode('');
           
-          // Don't set default estimated completion date - explicitly set to undefined
-          setEstimatedDate(undefined);
+          // NOTE: estimatedDate removed - field no longer exists
         }
         
         setIsFormInitialized(true);
@@ -540,15 +527,6 @@ export function UnifiedActionDialog({
     }
   }, [open, action?.id]);
 
-  // Sync implementation update count when action changes
-  useEffect(() => {
-    if (action?.id) {
-      setImplementationUpdateCount(action.implementation_update_count || 0);
-    } else {
-      setImplementationUpdateCount(0);
-    }
-  }, [action?.id, action?.implementation_update_count]);
-
   // Check if action has exploration data
   useEffect(() => {
     const checkExplorationData = async () => {
@@ -665,7 +643,6 @@ export function UnifiedActionDialog({
         description: formData.description,
         policy: formData.policy,
         assigned_to: formData.assigned_to,
-        estimated_duration: formData.estimated_duration,
         required_stock: formData.required_stock,
         required_tools: formData.required_tools,
         attachments: formData.attachments,
@@ -1174,8 +1151,6 @@ export function UnifiedActionDialog({
     setIsSubmitting(true);
     
     try {
-      const estimatedDuration = estimatedDate ? estimatedDate.toISOString() : null;
-
       // Normalize rich text content
       const normalizedPolicy = sanitizeRichText(formData.policy);
       
@@ -1190,7 +1165,6 @@ export function UnifiedActionDialog({
         policy: normalizedPolicy,
         assigned_to: formData.assigned_to === 'unassigned' ? null : formData.assigned_to || null,
         participants: formData.participants || [],
-        estimated_duration: estimatedDuration,
         required_stock: formData.required_stock || [],
         required_tools: Array.isArray(formData.required_tools) ? formData.required_tools : [],
         // Always include attachments array, even if empty, so removals are properly saved
@@ -1207,6 +1181,8 @@ export function UnifiedActionDialog({
         updated_by: userId,
         // Exploration flag only (code stored in exploration table)
         is_exploration: isExploration
+        // NOTE: estimated_duration, actual_duration, estimated_completion_date removed in migration 005
+        // Explicitly exclude these fields to prevent errors with stale cached data
       };
       
       // Debug logging for attachment updates
@@ -1266,10 +1242,10 @@ export function UnifiedActionDialog({
     policy: formData.policy || action?.policy,
     assigned_to: formData.assigned_to || action?.assigned_to,
     plan_commitment: formData.plan_commitment ?? action?.plan_commitment ?? false,
-    implementation_update_count: implementationUpdateCount
+    implementation_update_count: action?.implementation_update_count || 0 // Fallback for when cache isn't loaded
   };
   
-  const borderStyle = getActionBorderStyle(borderStyleInput);
+  const borderStyle = getActionBorderStyle(borderStyleInput, derivedObservationCount);
 
 
   return (
@@ -1527,42 +1503,8 @@ export function UnifiedActionDialog({
             </div>
           </div>
 
-          {/* Estimated Completion Date - Full Width Row */}
-          <div className="space-y-2">
-            <Label htmlFor="estimated_completion_date" className="flex items-start gap-1 break-words">
-              <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <span>Estimated Completion Date</span>
-            </Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal mt-1 !whitespace-normal min-w-0",
-                      !estimatedDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4 flex-shrink-0" />
-                    <span className="break-words">
-                      {estimatedDate && !isNaN(estimatedDate.getTime()) ? (
-                        format(estimatedDate, "PPP")
-                      ) : (
-                        "Pick a completion date"
-                      )}
-                    </span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={estimatedDate}
-                    onSelect={setEstimatedDate}
-                    initialFocus
-                    className="p-3 pointer-events-auto"
-                  />
-                </PopoverContent>
-              </Popover>
-          </div>
+          {/* NOTE: Estimated Completion Date field removed in migration 005 */}
+          {/* Duration tracking now uses objective data like image metadata */}
 
           {/* Plan Commitment Toggle - Only show when assigned and user is leadership */}
           {formData.assigned_to && formData.assigned_to !== 'unassigned' && isLeadership && (
@@ -1742,20 +1684,13 @@ export function UnifiedActionDialog({
 
             <TabsContent value="observations" className="mt-4">
               {action?.id ? (
-                <ActionImplementationUpdates
-                  actionId={action.id}
-                  profiles={profiles}
-                  onUpdate={() => {
-                    // Update local implementation update count from cache (no API call needed)
-                    const cachedUpdates = queryClient.getQueryData<ImplementationUpdate[]>(actionImplementationUpdatesQueryKey(action.id));
-                    if (cachedUpdates) {
-                      setImplementationUpdateCount(cachedUpdates.length);
-                    }
-                  }}
+                <StatesInline
+                  entity_type="action"
+                  entity_id={action.id}
                 />
               ) : (
                 <div className="text-center text-muted-foreground py-8">
-                  <p>Save the action first to add implementation updates</p>
+                  <p>Save the action first to add observations</p>
                 </div>
               )}
             </TabsContent>

@@ -30,7 +30,7 @@ exports.handler = async (event) => {
       case 'GET':
         return pathParameters?.id 
           ? await getState(pathParameters.id, authContext, headers)
-          : await listStates(authContext, headers);
+          : await listStates(event, authContext, headers);
       case 'POST':
         return await createState(event, authContext, headers);
       case 'PUT':
@@ -46,22 +46,38 @@ exports.handler = async (event) => {
   }
 };
 
-async function listStates(authContext, headers) {
+async function listStates(event, authContext, headers) {
   const client = await getDbClient();
   
   try {
+    const queryParams = event.queryStringParameters || {};
+    const { entity_type, entity_id } = queryParams;
+    
     const orgFilter = buildOrganizationFilter(authContext, 's');
     console.log('🔍 listStates orgFilter:', JSON.stringify(orgFilter));
     console.log('🔍 authContext:', JSON.stringify(authContext));
+    console.log('🔍 queryParams:', JSON.stringify(queryParams));
     
     // Temporary: bypass filter for testing
     const whereClause = orgFilter.condition === '1=0' 
       ? `s.organization_id = '${authContext.organization_id}'`
       : orgFilter.condition;
     
+    // Add entity filtering if provided
+    let entityFilter = '';
+    if (entity_type && entity_id) {
+      entityFilter = ` AND sl.entity_type = ${formatSqlValue(entity_type)} AND sl.entity_id = ${formatSqlValue(entity_id)}::uuid`;
+    }
+    
     const sql = `
       SELECT 
-        s.*,
+        s.id,
+        s.organization_id,
+        s.state_text as observation_text,
+        s.captured_by,
+        s.captured_at,
+        s.created_at,
+        s.updated_at,
         om.full_name as captured_by_name,
         COALESCE(
           json_agg(
@@ -88,11 +104,12 @@ async function listStates(authContext, headers) {
       LEFT JOIN organization_members om ON s.captured_by = om.user_id
       LEFT JOIN state_photos sp ON s.id = sp.state_id
       LEFT JOIN state_links sl ON s.id = sl.state_id
-      WHERE ${whereClause}
-      GROUP BY s.id, om.full_name
+      WHERE ${whereClause}${entityFilter}
+      GROUP BY s.id, s.organization_id, s.state_text, s.captured_by, s.captured_at, s.created_at, s.updated_at, om.full_name
       ORDER BY s.captured_at DESC
     `;
 
+    console.log('🔍 Full SQL:', sql);
     const result = await client.query(sql);
     return successResponse(result.rows, headers);
   } finally {
@@ -110,7 +127,13 @@ async function getState(id, authContext, headers) {
     
     const sql = `
       SELECT 
-        s.*,
+        s.id,
+        s.organization_id,
+        s.state_text as observation_text,
+        s.captured_by,
+        s.captured_at,
+        s.created_at,
+        s.updated_at,
         om.full_name as captured_by_name,
         COALESCE(
           json_agg(
@@ -138,7 +161,7 @@ async function getState(id, authContext, headers) {
       LEFT JOIN state_photos sp ON s.id = sp.state_id
       LEFT JOIN state_links sl ON s.id = sl.state_id
       WHERE s.id = ${formatSqlValue(id)}::uuid AND ${orgFilter.condition}
-      GROUP BY s.id, om.full_name
+      GROUP BY s.id, s.organization_id, s.state_text, s.captured_by, s.captured_at, s.created_at, s.updated_at, om.full_name
     `;
 
     console.log('🔍 Full SQL:', sql);
@@ -159,6 +182,14 @@ async function createState(event, authContext, headers) {
   const { state_text, captured_at, photos = [], links = [] } = body;
   const organizationId = authContext.organization_id;
   const userId = authContext.user_id;
+
+  // Validation: Require at least one of state_text OR photos
+  const hasText = state_text && state_text.trim().length > 0;
+  const hasPhotos = photos && photos.length > 0;
+  
+  if (!hasText && !hasPhotos) {
+    return errorResponse(400, 'Please add observation text or at least one photo', headers);
+  }
 
   const client = await getDbClient();
   
@@ -238,6 +269,41 @@ async function updateState(event, id, authContext, headers) {
   
   try {
     await client.query('BEGIN');
+
+    // Validation: If updating text or photos, ensure at least one will remain
+    // First, get current state to check what exists
+    const currentStateSql = `
+      SELECT 
+        s.state_text,
+        COALESCE(
+          json_agg(sp.id) FILTER (WHERE sp.id IS NOT NULL),
+          '[]'
+        ) as photo_ids
+      FROM states s
+      LEFT JOIN state_photos sp ON s.id = sp.state_id
+      WHERE s.id = ${formatSqlValue(id)}::uuid AND s.organization_id = ${formatSqlValue(organizationId)}::uuid
+      GROUP BY s.id, s.state_text
+    `;
+    
+    const currentStateResult = await client.query(currentStateSql);
+    if (currentStateResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return errorResponse(404, 'State not found', headers);
+    }
+    
+    const currentState = currentStateResult.rows[0];
+    
+    // Determine final state after update
+    const finalText = state_text !== undefined ? state_text : currentState.state_text;
+    const finalPhotos = photos !== undefined ? photos : currentState.photo_ids;
+    
+    const hasText = finalText && finalText.trim().length > 0;
+    const hasPhotos = Array.isArray(finalPhotos) && finalPhotos.length > 0;
+    
+    if (!hasText && !hasPhotos) {
+      await client.query('ROLLBACK');
+      return errorResponse(400, 'Please add observation text or at least one photo', headers);
+    }
 
     const updates = [];
     if (state_text !== undefined) updates.push(`state_text = ${formatSqlValue(state_text)}`);

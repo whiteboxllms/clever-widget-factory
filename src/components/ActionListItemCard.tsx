@@ -4,6 +4,7 @@ import { User } from "lucide-react";
 import { cn, getActionBorderStyle } from "@/lib/utils";
 import { BaseAction, Profile } from "@/types/actions";
 import { ScoreButton } from "./ScoreButton";
+import { useActionObservationCount } from "@/hooks/useActionObservationCount";
 
 interface ActionListItemCardProps {
   action: BaseAction;
@@ -24,7 +25,9 @@ export function ActionListItemCard({
   showScoreButton = false,
   className
 }: ActionListItemCardProps) {
-  const borderStyle = getActionBorderStyle(action);
+  // Derive observation count from TanStack cache (preferred over database count)
+  const derivedCount = useActionObservationCount(action.id);
+  const borderStyle = getActionBorderStyle(action, derivedCount);
 
   const handleClick = () => {
     onClick?.(action);

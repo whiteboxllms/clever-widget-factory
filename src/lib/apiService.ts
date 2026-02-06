@@ -121,7 +121,6 @@ async function getIdToken(): Promise<string | null> {
     try {
       const payload = JSON.parse(atob(tokenParts[1]));
       tokenExpiry = payload.exp * 1000;
-      console.debug('✓ Token cached successfully, expires at:', new Date(tokenExpiry).toISOString());
     } catch (decodeErr) {
       console.warn('Failed to decode JWT payload:', decodeErr);
       tokenExpiry = Date.now() + 3600000; // Assume 1 hour expiry
@@ -185,7 +184,6 @@ async function apiRequest<T = any>(
   // Add Authorization header if token is available
   if (idToken && idToken.trim()) {
     headers['Authorization'] = `Bearer ${idToken}`;
-    console.debug('✓ Authorization header set with valid token');
   } else {
     console.error('❌ CRITICAL: No valid ID token available for request', {
       url,

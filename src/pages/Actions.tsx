@@ -187,10 +187,6 @@ export default function Actions() {
 
   const handleScoreAction = async (action: BaseAction, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card click
-    console.log('[Actions] handleScoreAction called', {
-      actionId: action.id,
-      actionTitle: action.title
-    });
     setScoringAction(action);
     
     // Open dialog immediately
@@ -198,13 +194,7 @@ export default function Actions() {
     
     // Load existing score in parallel (non-blocking)
     if (action.id) {
-      console.log('[Actions] Loading existing score for action:', action.id);
       getScoreForAction(action.id).then(score => {
-        console.log('[Actions] Existing score loaded:', score ? {
-          id: score.id,
-          action_id: score.action_id,
-          hasAiResponse: !!score.ai_response
-        } : null);
         setExistingScore(score);
       });
     }
@@ -244,8 +234,6 @@ export default function Actions() {
         entity_types: ['action', 'action_existing_state'],
         limit: 50
       });
-
-      console.log('Semantic search response:', response);
 
       if (response.data && response.data.results && Array.isArray(response.data.results)) {
         // Extract unique action IDs from results

@@ -2,9 +2,9 @@ export interface Observation {
   id: string;
   organization_id: string;
   observation_text: string | null;
-  observed_by: string;
-  observed_by_name?: string;
-  observed_at: string;
+  captured_by: string;
+  captured_by_name?: string;
+  captured_at: string;
   created_at: string;
   updated_at: string;
   photos: ObservationPhoto[];
@@ -27,8 +27,9 @@ export interface ObservationLink {
 }
 
 export interface CreateObservationData {
-  observation_text?: string;
-  observed_at?: string;
+  state_text?: string;  // Lambda and database use state_text
+  observation_text?: string;  // Deprecated, kept for backwards compatibility
+  captured_at?: string;
   photos: Array<{
     photo_url: string;
     photo_description?: string;

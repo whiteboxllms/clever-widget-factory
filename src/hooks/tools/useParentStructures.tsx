@@ -39,7 +39,7 @@ export const useParentStructures = () => {
   const parentStructures = useMemo(() => {
     return toolsData
       .filter((tool: Tool) => {
-        const isInfrastructureOrContainer = tool.category === 'Infrastructure' || tool.category === 'Container';
+        const isInfrastructureOrContainer = tool.category === 'Infrastructure' || tool.category === 'Container' || tool.category === 'Field';
         const isNotRemoved = tool.status !== 'removed';
         return isInfrastructureOrContainer && isNotRemoved;
       })

@@ -193,10 +193,6 @@ export function ActionScoreDialog({
       actionContext.assigned_to = action.assignee.full_name;
     }
     
-    if (action.estimated_duration) {
-      actionContext.estimated_duration = action.estimated_duration;
-    }
-    
     if (action.required_tools && action.required_tools.length > 0) {
       actionContext.required_tools = action.required_tools;
     }

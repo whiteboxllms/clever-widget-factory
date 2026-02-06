@@ -3082,7 +3082,11 @@ exports.handler = async (event) => {
           COALESCE(p.favorite_color, om.favorite_color) as assigned_to_color,
           CASE WHEN scores.action_id IS NOT NULL THEN true ELSE false END as has_score,
           CASE WHEN updates.action_id IS NOT NULL THEN true ELSE false END as has_implementation_updates,
-          COALESCE(update_counts.count, 0) as implementation_update_count,
+          COALESCE((
+            SELECT COUNT(*) 
+            FROM state_links sl
+            WHERE sl.entity_type = 'action' AND sl.entity_id = a.id
+          ), 0) as implementation_update_count,
           e.exploration_code,
           -- Asset details
           CASE WHEN a.asset_id IS NOT NULL THEN
@@ -3117,12 +3121,6 @@ exports.handler = async (event) => {
           FROM action_implementation_updates
           WHERE update_type != 'policy_agreement' OR update_type IS NULL
         ) updates ON a.id = updates.action_id
-        LEFT JOIN (
-          SELECT action_id, COUNT(*) as count
-          FROM action_implementation_updates
-          WHERE update_type != 'policy_agreement' OR update_type IS NULL
-          GROUP BY action_id
-        ) update_counts ON a.id = update_counts.action_id
         LEFT JOIN tools assets ON a.asset_id = assets.id
         LEFT JOIN issues linked_issue ON a.linked_issue_id = linked_issue.id
         LEFT JOIN tools issue_tools ON linked_issue.context_id = issue_tools.id AND linked_issue.context_type = 'tool'
@@ -3380,7 +3378,11 @@ exports.handler = async (event) => {
             om.favorite_color as assigned_to_color,
             CASE WHEN scores.action_id IS NOT NULL THEN true ELSE false END as has_score,
             CASE WHEN updates.action_id IS NOT NULL THEN true ELSE false END as has_implementation_updates,
-            COALESCE(update_counts.count, 0) as implementation_update_count,
+            COALESCE((
+              SELECT COUNT(*) 
+              FROM state_links sl
+              WHERE sl.entity_type = 'action' AND sl.entity_id = a.id
+            ), 0) as implementation_update_count,
             e.exploration_code,
             -- Asset details
             CASE WHEN a.asset_id IS NOT NULL THEN
@@ -3410,12 +3412,6 @@ exports.handler = async (event) => {
             FROM action_implementation_updates
             WHERE update_type != 'policy_agreement' OR update_type IS NULL
           ) updates ON a.id = updates.action_id
-          LEFT JOIN (
-            SELECT action_id, COUNT(*) as count
-            FROM action_implementation_updates
-            WHERE update_type != 'policy_agreement' OR update_type IS NULL
-            GROUP BY action_id
-          ) update_counts ON a.id = update_counts.action_id
           LEFT JOIN tools assets ON a.asset_id = assets.id
           LEFT JOIN missions ON a.mission_id = missions.id
           LEFT JOIN exploration e ON a.id = e.action_id

@@ -97,9 +97,9 @@ exports.handler = async (event) => {
         LEFT JOIN analysis_contexts ac ON a.id = ac.context_id AND ac.context_service = 'action_score'
         LEFT JOIN action_scores old_scores ON a.id = old_scores.action_id
         LEFT JOIN (
-          SELECT DISTINCT action_id 
-          FROM action_implementation_updates
-          WHERE update_type != 'policy_agreement' OR update_type IS NULL
+          SELECT DISTINCT entity_id as action_id
+          FROM state_links
+          WHERE entity_type = 'action'
         ) updates ON a.id = updates.action_id
         WHERE om.cognito_user_id = '${cognitoUserId}'
         ORDER BY a.created_at DESC
@@ -629,11 +629,6 @@ exports.handler = async (event) => {
           om.favorite_color as assigned_to_color,
           CASE WHEN (ac.context_id IS NOT NULL OR old_scores.action_id IS NOT NULL) THEN true ELSE false END as has_score,
           CASE WHEN updates.action_id IS NOT NULL THEN true ELSE false END as has_implementation_updates,
-          COALESCE((
-            SELECT COUNT(*) 
-            FROM action_implementation_updates aiu 
-            WHERE aiu.action_id = a.id
-          ), 0) as implementation_update_count,
           CASE WHEN a.asset_id IS NOT NULL THEN
             json_build_object('id', t.id, 'name', t.name, 'category', t.category)
           ELSE NULL END as asset
@@ -642,9 +637,9 @@ exports.handler = async (event) => {
         LEFT JOIN analysis_contexts ac ON a.id = ac.context_id AND ac.context_service = 'action_score'
         LEFT JOIN action_scores old_scores ON a.id = old_scores.action_id
         LEFT JOIN (
-          SELECT DISTINCT action_id 
-          FROM action_implementation_updates
-          WHERE update_type != 'policy_agreement' OR update_type IS NULL
+          SELECT DISTINCT entity_id as action_id
+          FROM state_links
+          WHERE entity_type = 'action'
         ) updates ON a.id = updates.action_id
         LEFT JOIN tools t ON a.asset_id = t.id
         ${whereClause} 

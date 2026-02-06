@@ -107,29 +107,29 @@ exports.handler = async (event) => {
       ) t;`;
       const actionsResult = await queryJSON(actionsSql);
       
-      // Get observations
+      // Get observations (states)
       const observationsSql = `SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json) as json_agg FROM (
         SELECT 
-          o.id::text,
-          o.observation_text,
-          o.observed_by::text,
-          o.observed_at,
-          o.created_at,
-          COALESCE(om.full_name, o.observed_by::text) as observed_by_name,
+          s.id::text,
+          s.state_text as observation_text,
+          s.captured_by::text as observed_by,
+          s.captured_at as observed_at,
+          s.created_at,
+          COALESCE(om.full_name, s.captured_by::text) as observed_by_name,
           (
             SELECT json_agg(json_build_object(
-              'id', op.id,
-              'photo_url', op.photo_url,
-              'photo_description', op.photo_description
-            ) ORDER BY op.photo_order)
-            FROM observation_photos op
-            WHERE op.observation_id = o.id
+              'id', sp.id,
+              'photo_url', sp.photo_url,
+              'photo_description', sp.photo_description
+            ) ORDER BY sp.photo_order)
+            FROM state_photos sp
+            WHERE sp.state_id = s.id
           ) as photos
-        FROM observations o
-        JOIN observation_links ol ON ol.observation_id = o.id
-        LEFT JOIN organization_members om ON o.observed_by::text = om.cognito_user_id::text
-        WHERE ol.entity_type = 'tool' AND ol.entity_id::text = '${escapeLiteral(toolId)}'
-        ORDER BY o.observed_at DESC
+        FROM states s
+        JOIN state_links sl ON sl.state_id = s.id
+        LEFT JOIN organization_members om ON s.captured_by::text = om.cognito_user_id::text
+        WHERE sl.entity_type = 'tool' AND sl.entity_id::text = '${escapeLiteral(toolId)}'
+        ORDER BY s.captured_at DESC
       ) t;`;
       const observationsResult = await queryJSON(observationsSql);
       
@@ -267,29 +267,29 @@ exports.handler = async (event) => {
       ) t;`;
       const partHistoryResult = await queryJSON(partHistorySql);
       
-      // Get observations for part
+      // Get observations for part (states)
       const observationsSql = `SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json) as json_agg FROM (
         SELECT 
-          o.id::text,
-          o.observation_text,
-          o.observed_by::text,
-          o.observed_at,
-          o.created_at,
-          COALESCE(om.full_name, o.observed_by::text) as observed_by_name,
+          s.id::text,
+          s.state_text as observation_text,
+          s.captured_by::text as observed_by,
+          s.captured_at as observed_at,
+          s.created_at,
+          COALESCE(om.full_name, s.captured_by::text) as observed_by_name,
           (
             SELECT json_agg(json_build_object(
-              'id', op.id,
-              'photo_url', op.photo_url,
-              'photo_description', op.photo_description
-            ) ORDER BY op.photo_order)
-            FROM observation_photos op
-            WHERE op.observation_id = o.id
+              'id', sp.id,
+              'photo_url', sp.photo_url,
+              'photo_description', sp.photo_description
+            ) ORDER BY sp.photo_order)
+            FROM state_photos sp
+            WHERE sp.state_id = s.id
           ) as photos
-        FROM observations o
-        JOIN observation_links ol ON ol.observation_id = o.id
-        LEFT JOIN organization_members om ON o.observed_by::text = om.cognito_user_id::text
-        WHERE ol.entity_type = 'part' AND ol.entity_id::text = '${escapeLiteral(partId)}'
-        ORDER BY o.observed_at DESC
+        FROM states s
+        JOIN state_links sl ON sl.state_id = s.id
+        LEFT JOIN organization_members om ON s.captured_by::text = om.cognito_user_id::text
+        WHERE sl.entity_type = 'part' AND sl.entity_id::text = '${escapeLiteral(partId)}'
+        ORDER BY s.captured_at DESC
       ) t;`;
       const observationsResult = await queryJSON(observationsSql);
       

@@ -19,14 +19,6 @@ export default function Dashboard() {
   const { isSuperAdmin } = useSuperAdmin();
   const { organization, loading: orgLoading } = useOrganization();
 
-  // Debug logging to understand permission state
-  console.log('Dashboard permissions:', {
-    isAdmin,
-    isLeadership,
-    isSuperAdmin,
-    user: user?.userId,
-    loading: orgLoading
-  });
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -100,18 +92,14 @@ export default function Dashboard() {
       const startTime = performance.now();
 
       if (!cachedTools) {
-        const toolsStart = performance.now();
-        console.log(`[Dashboard] Starting tools fetch at ${(toolsStart - startTime).toFixed(2)}ms`);
         fetchPromises.push(
           fetch(`${baseUrl}/api/tools?limit=2000`, { headers })
             .then(res => {
-              console.log(`[Dashboard] Tools response received at ${(performance.now() - startTime).toFixed(2)}ms`);
               return res.json();
             })
             .then(result => {
               const data = getApiData(result) || [];
               queryClient.setQueryData(toolsQueryKey(), data);
-              console.log(`[Dashboard] Tools completed at ${(performance.now() - startTime).toFixed(2)}ms`);
               return data;
             })
             .catch(err => {
@@ -122,18 +110,14 @@ export default function Dashboard() {
       }
 
       if (!cachedParts) {
-        const partsStart = performance.now();
-        console.log(`[Dashboard] Starting parts fetch at ${(partsStart - startTime).toFixed(2)}ms`);
         fetchPromises.push(
           fetch(`${baseUrl}/api/parts?limit=2000`, { headers })
             .then(res => {
-              console.log(`[Dashboard] Parts response received at ${(performance.now() - startTime).toFixed(2)}ms`);
               return res.json();
             })
             .then(result => {
               const data = getApiData(result) || [];
               queryClient.setQueryData(['parts'], data);
-              console.log(`[Dashboard] Parts completed at ${(performance.now() - startTime).toFixed(2)}ms`);
               return data;
             })
             .catch(err => {
@@ -144,18 +128,14 @@ export default function Dashboard() {
       }
 
       if (!cachedPartsOrders) {
-        const ordersStart = performance.now();
-        console.log(`[Dashboard] Starting parts_orders fetch at ${(ordersStart - startTime).toFixed(2)}ms`);
         fetchPromises.push(
           fetch(`${baseUrl}/api/parts_orders`, { headers })
             .then(res => {
-              console.log(`[Dashboard] Parts_orders response received at ${(performance.now() - startTime).toFixed(2)}ms`);
               return res.json();
             })
             .then(result => {
               const data = getApiData(result) || [];
               queryClient.setQueryData(partsOrdersQueryKey(), data);
-              console.log(`[Dashboard] Parts_orders completed at ${(performance.now() - startTime).toFixed(2)}ms`);
               return data;
             })
             .catch(err => {
@@ -168,11 +148,8 @@ export default function Dashboard() {
       // Execute all fetches in parallel - these will start simultaneously
       // Don't await - let them run in background so dashboard renders immediately
       if (fetchPromises.length > 0) {
-        console.log(`[Dashboard] Starting ${fetchPromises.length} parallel requests at ${(performance.now() - startTime).toFixed(2)}ms`);
         // Fire and forget - don't block dashboard rendering
-        Promise.all(fetchPromises).then(() => {
-          console.log(`[Dashboard] All requests completed in ${(performance.now() - startTime).toFixed(2)}ms`);
-        }).catch(err => {
+        Promise.all(fetchPromises).catch(err => {
           console.error('[Dashboard] Error prefetching data:', err);
         });
       }
@@ -291,7 +268,6 @@ export default function Dashboard() {
               return true; // Show all other items (Assets, Actions, Explorations, etc.)
             })();
             
-            console.log(`Menu item ${item.title} (${item.path}): shouldShow=${shouldShow}, isLeadership=${isLeadership}, isSuperAdmin=${isSuperAdmin}`);
             return shouldShow;
           }).map((item) => {
             const Icon = item.icon;

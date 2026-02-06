@@ -27,7 +27,6 @@ export async function activatePlannedCheckoutsForAction(actionId: string, organi
     const result = await apiService.get(`/checkouts?action_id=${actionId}&is_returned=false`);
     
     if (!result.data || result.data.length === 0) {
-      console.log('No planned checkouts to activate');
       return;
     }
     
@@ -35,7 +34,6 @@ export async function activatePlannedCheckoutsForAction(actionId: string, organi
     const plannedCheckouts = result.data.filter((c: any) => !c.checkout_date);
     
     if (plannedCheckouts.length === 0) {
-      console.log('No planned checkouts to activate');
       return;
     }
     
@@ -45,8 +43,6 @@ export async function activatePlannedCheckoutsForAction(actionId: string, organi
       // Update tool status to checked_out
       await apiService.put(`/tools/${checkout.tool_id}`, { status: 'checked_out' });
     }
-    
-    console.log(`Activated ${plannedCheckouts.length} planned checkouts for action ${actionId}`);
   } catch (error) {
     console.error('Error activating planned checkouts:', error);
     throw error;
@@ -105,11 +101,7 @@ export async function autoCheckinToolsForAction(options: AutoCheckinOptions): Pr
       await apiService.put(`/checkouts/${checkout.id}`, { is_returned: true });
 
       await apiService.put(`/tools/${checkout.tool_id}`, { status: 'available' });
-
-      console.log(`Checked in tool ${checkout.tool_id} for action ${actionId}`);
     }
-
-    console.log(`Auto-checked in ${checkouts.length} tools for action ${actionId}`);
   } catch (error) {
     console.error('Error auto-checking in tools:', error);
     throw error;
@@ -148,7 +140,6 @@ export async function activatePlannedCheckoutsIfNeeded(actionId: string, organiz
 
     // Activate the checkouts
     await activatePlannedCheckoutsForAction(actionId);
-    console.log(`Activated planned checkouts for action ${actionId} (plan committed)`);
   } catch (error) {
     console.error('Error activating planned checkouts if needed:', error);
     // Don't throw - this is a background operation

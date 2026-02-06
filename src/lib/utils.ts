@@ -71,19 +71,30 @@ export interface ActionBorderStyle {
  * Get consistent border styling for actions based on their state
  * Progression: Gray (no border) → Blue (plan + commitment) → Yellow (implementation) → Green (completed)
  * Yellow can only occur if there was first a plan (blue state)
+ * 
+ * @param action - The action object with status, policy, etc.
+ * @param derivedCount - Optional observation count derived from TanStack cache (preferred over action.implementation_update_count)
  */
-export function getActionBorderStyle(action: {
-  status: string;
-  title?: string;
-  policy?: string | null;
-  assigned_to?: string | null;
-  policy_agreed_at?: string | null;
-  policy_agreed_by?: string | null;
-  plan_commitment?: boolean;
-  implementation_update_count?: number;
-}): ActionBorderStyle {
+export function getActionBorderStyle(
+  action: {
+    status: string;
+    title?: string;
+    policy?: string | null;
+    assigned_to?: string | null;
+    policy_agreed_at?: string | null;
+    policy_agreed_by?: string | null;
+    plan_commitment?: boolean;
+    implementation_update_count?: number;
+  },
+  derivedCount?: number
+): ActionBorderStyle {
   const hasPolicy = hasActualContent(action.policy);
-  const hasImplementationUpdates = (action.implementation_update_count ?? 0) > 0;
+  
+  // Prefer derived count from cache over database count
+  // If derivedCount is provided (even if 0), use it. Otherwise fall back to action.implementation_update_count
+  const observationCount = derivedCount !== undefined ? derivedCount : (action.implementation_update_count ?? 0);
+  const hasImplementationUpdates = observationCount > 0;
+  
   const isAssigned = Boolean(action.assigned_to);
   const hasPolicyAgreement = Boolean(action.policy_agreed_at || action.plan_commitment);
 

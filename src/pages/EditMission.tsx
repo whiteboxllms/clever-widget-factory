@@ -32,8 +32,6 @@ interface Task {
   assigned_to: string | null;
   status?: string;
   mission_id?: string;
-  estimated_completion_date?: Date;
-  actual_duration?: string;
   required_tools?: string[];
 }
 
@@ -135,8 +133,6 @@ export default function EditMission() {
           assigned_to: task.assigned_to,
           status: task.status,
           mission_id: task.mission_id,
-          estimated_completion_date: task.estimated_duration ? new Date(task.estimated_duration) : undefined,
-          actual_duration: task.actual_duration || '',
           required_tools: task.required_tools || [],
           // phase removed - tasks no longer have phases
         })) || []

@@ -5,12 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Edit3, 
   Save, 
-  X, 
-  Clock, 
-  Timer, 
-  Wrench, 
-  User,
-  CheckCircle2
+  X
 } from 'lucide-react';
 import TiptapEditor from './TiptapEditor';
 
@@ -29,8 +24,6 @@ interface Task {
   assigned_to: string | null;
   status: string;
   mission_id: string;
-  estimated_duration?: string;
-  actual_duration?: string;
   required_tools?: string[];
 }
 
@@ -38,7 +31,7 @@ interface TaskInlineEditorProps {
   task: Task;
   profiles: Profile[];
   onUpdate: (taskData: Partial<Task>) => void;
-  field: 'title' | 'plan' | 'observations' | 'estimated_duration' | 'actual_duration';
+  field: 'title' | 'plan' | 'observations';
   isRichText?: boolean;
 }
 
@@ -94,10 +87,6 @@ export function TaskInlineEditor({
 
   const getFieldIcon = () => {
     switch (field) {
-      case 'estimated_duration':
-        return <Clock className="w-4 h-4" />;
-      case 'actual_duration':
-        return <Timer className="w-4 h-4" />;
       default:
         return <Edit3 className="w-4 h-4" />;
     }
@@ -111,10 +100,6 @@ export function TaskInlineEditor({
         return 'Plan';
       case 'observations':
         return 'Implementation Notes';
-      case 'estimated_duration':
-        return 'Estimated Duration';
-      case 'actual_duration':
-        return 'Actual Duration';
       default:
         return 'Field';
     }

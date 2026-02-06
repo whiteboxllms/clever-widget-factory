@@ -13,6 +13,52 @@
 - **Image Processing**: browser-image-compression
 - **Offline Storage**: IndexedDB via Dexie
 
+### TanStack Query Best Practices
+
+**Prefer deriving values from cache over maintaining separate state:**
+
+```typescript
+// ❌ BAD: Maintaining count in separate state, requires manual sync
+const [count, setCount] = useState(0);
+useEffect(() => {
+  setCount(states.length);
+}, [states]);
+
+// ✅ GOOD: Derive count directly from cached data
+const count = useActionObservationCount(actionId); // Reads from cache
+```
+
+**Prefer optimistic updates over cache invalidation** to avoid unnecessary API calls:
+
+```typescript
+// ❌ BAD: Invalidates cache, triggers full refetch
+onSuccess: () => {
+  queryClient.invalidateQueries({ queryKey: ['actions'] });
+}
+
+// ✅ GOOD: Optimistically updates cache, no refetch needed
+onSuccess: (newData, variables) => {
+  queryClient.setQueryData(['actions'], (old) => 
+    old?.map(action => 
+      action.id === variables.actionId
+        ? { ...action, count: action.count + 1 }
+        : action
+    )
+  );
+}
+```
+
+**When to use each approach:**
+- **Derived values**: For counts, flags, or computed values that can be calculated from cached data (preferred)
+- **Optimistic updates**: For updating cached data after mutations without refetching
+- **Invalidation**: When you need fresh data from the server (new records, complex calculations)
+
+**Example: Action observation counts**
+- Use `useActionObservationCount(actionId)` hook to derive count from cached states
+- Count is automatically correct when states are added/removed (no manual sync needed)
+- Eliminates need for `implementation_update_count` field in database queries
+- Database COUNT subquery can be removed to improve query performance
+
 ## Backend
 
 - **API**: AWS API Gateway + Lambda functions (Node.js)

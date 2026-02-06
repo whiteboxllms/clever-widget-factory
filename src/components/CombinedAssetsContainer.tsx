@@ -293,7 +293,7 @@ export const CombinedAssetsContainer = () => {
       // Areas filter - show only Infrastructure/Container tools
       if (showOnlyAreas) {
         if (asset.type !== 'asset') return false;
-        const isArea = asset.category === 'Infrastructure' || asset.category === 'Container';
+        const isArea = asset.category === 'Infrastructure' || asset.category === 'Container' || asset.category === 'Field';
         if (!isArea) return false;
       }
 

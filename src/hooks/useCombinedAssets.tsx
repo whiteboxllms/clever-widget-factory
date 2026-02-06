@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useUserNames } from '@/hooks/useUserNames';
+import { useAssetMutations } from '@/hooks/useAssetMutations';
 import { offlineQueryConfig } from '@/lib/queryConfig';
 import { apiService, getApiData } from '@/lib/apiService';
 import { toolsQueryKey, issuesQueryKey } from '@/lib/queryKeys';
@@ -79,6 +80,7 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
   const [currentPage, setCurrentPage] = useState(0);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { createTool, createPart } = useAssetMutations();
   
   const { data: toolsData = [], isLoading: toolsLoading } = useQuery({
     queryKey: toolsQueryKey(),
@@ -136,12 +138,9 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
 
   const createAsset = async (assetData: Record<string, unknown>, isAsset: boolean) => {
     try {
-      const endpoint = isAsset ? 'tools' : 'parts';
-      const result = await apiService.post(`/${endpoint}`, assetData);
-      const data = result.data;
-
-      // Note: Asset will appear after refetch
-      return data;
+      const mutation = isAsset ? createTool : createPart;
+      const result = await mutation.mutateAsync(assetData);
+      return result;
     } catch (error: any) {
       console.error(`Error creating ${isAsset ? 'asset' : 'stock item'}:`, error);
       const errorMessage = error?.message || error?.error || 'Unknown error';

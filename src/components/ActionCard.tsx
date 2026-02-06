@@ -5,6 +5,7 @@ import { getActionBorderStyle } from '@/lib/utils';
 import { BaseAction } from '@/types/actions';
 import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/hooks/useCognitoAuth';
+import { useActionObservationCount } from '@/hooks/useActionObservationCount';
 
 interface Profile {
   id: string;
@@ -23,6 +24,9 @@ interface ActionCardProps {
 export function ActionCard({ action, profiles, onEdit }: ActionCardProps) {
   const { favoriteColor } = useProfile();
   const { user } = useAuth();
+  
+  // Derive observation count from TanStack cache (preferred over database count)
+  const derivedCount = useActionObservationCount(action.id);
 
   const getStatusIcon = () => {
     if (action.status === 'completed') {
@@ -62,7 +66,7 @@ export function ActionCard({ action, profiles, onEdit }: ActionCardProps) {
     return <Badge variant="outline">Not Started</Badge>;
   };
 
-  const theme = getActionBorderStyle(action);
+  const theme = getActionBorderStyle(action, derivedCount);
 
   return (
     <Card 

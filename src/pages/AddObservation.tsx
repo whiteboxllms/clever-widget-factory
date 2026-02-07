@@ -19,7 +19,7 @@ export default function AddObservation() {
   const { createObservation, isCreating } = useObservationMutations();
   const { toast } = useToast();
 
-  const [photos, setPhotos] = useState<Array<{ photo_url: string; photo_description: string; photo_order: number; isUploading?: boolean; previewUrl?: string }>>([]);
+  const [photos, setPhotos] = useState<Array<{ tempId?: string; photo_url: string; photo_description: string; photo_order: number; isUploading?: boolean; previewUrl?: string }>>([]);
   const [observationText, setObservationText] = useState('');
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
 
@@ -30,7 +30,9 @@ export default function AddObservation() {
     const fileArray = Array.from(files);
     
     // Immediately show placeholder rows with local file previews
+    // Use unique IDs to track each photo during upload
     const placeholders = fileArray.map((file, index) => ({
+      tempId: crypto.randomUUID(), // Unique ID for tracking
       photo_url: '',
       photo_description: '',
       photo_order: photos.length + index,
@@ -44,21 +46,21 @@ export default function AddObservation() {
     try {
       // Upload all files in parallel
       const uploadPromises = fileArray.map(async (file, index) => {
+        const tempId = placeholders[index].tempId;
         const uploadResults = await uploadFiles([file], { bucket: 'cwf-uploads' });
         const resultsArray = Array.isArray(uploadResults) ? uploadResults : [uploadResults];
         
         // Update progress as each upload completes
         setUploadProgress(prev => prev ? { current: prev.current + 1, total: prev.total } : null);
         
-        // Replace placeholder with actual S3 URL and revoke preview URL
-        const photoIndex = photos.length + index;
-        setPhotos(prev => prev.map((p, i) => {
-          if (i === photoIndex) {
+        // Replace placeholder with actual S3 URL using tempId to match
+        setPhotos(prev => prev.map(p => {
+          if (p.tempId === tempId) {
             if (p.previewUrl) URL.revokeObjectURL(p.previewUrl);
             return {
               photo_url: resultsArray[0].url,
-              photo_description: '',
-              photo_order: index,
+              photo_description: p.photo_description, // Preserve any description user may have typed
+              photo_order: p.photo_order,
               isUploading: false
             };
           }

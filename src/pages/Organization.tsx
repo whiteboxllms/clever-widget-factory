@@ -212,66 +212,25 @@ const Organization = () => {
     onMutate: async ({ memberId, currentStatus }) => {
       console.log('[toggleMemberStatus] onMutate', { memberId, currentStatus });
       setUpdatingMemberId(memberId);
-      
-      // Cancel any outgoing refetches to avoid overwriting optimistic update
-      await queryClient.cancelQueries({ queryKey: ['organization_members', resolvedOrgId] });
-      
-      // Snapshot the previous value for rollback
-      const previousData = queryClient.getQueryData(['organization_members', resolvedOrgId]);
-      
-      // Optimistically update the TanStack Query cache
-      const newStatus = !currentStatus;
-      queryClient.setQueryData(['organization_members', resolvedOrgId], (old: any) => {
-        if (!old || !Array.isArray(old)) return old;
-        return old.map((member: any) => 
-          (member.id === memberId || member.user_id === memberId)
-            ? { ...member, is_active: newStatus }
-            : member
-        );
-      });
-      
-      return { previousData };
     },
     onSuccess: (response, variables) => {
       console.log('[toggleMemberStatus] onSuccess', { response, variables });
       setUpdatingMemberId(null);
       
-      // Update cache with server response
-      const updatedMemberData = getApiData(response) as any;
-      if (updatedMemberData && resolvedOrgId) {
-        const memberId = updatedMemberData.id || updatedMemberData.user_id;
-        queryClient.setQueryData(['organization_members', resolvedOrgId], (old: any) => {
-          if (!old || !Array.isArray(old)) return old;
-          return old.map((member: any) => 
-            (member.id === memberId || member.user_id === memberId)
-              ? { ...member, ...updatedMemberData, is_active: updatedMemberData.is_active }
-              : member
-          );
-        });
-        // Also update general cache for backwards compatibility
-        queryClient.setQueryData(['organization_members'], (old: any) => {
-          if (!old || !Array.isArray(old)) return old;
-          return old.map((member: any) => 
-            (member.id === memberId || member.user_id === memberId)
-              ? { ...member, ...updatedMemberData, is_active: updatedMemberData.is_active }
-              : member
-          );
-        });
+      // Invalidate all member caches to force refetch with latest data
+      queryClient.invalidateQueries({ queryKey: ['organization_members'] });
+      if (resolvedOrgId) {
+        queryClient.invalidateQueries({ queryKey: ['organization_members', resolvedOrgId] });
       }
       
       toast({
         title: "Success",
-        description: `Member ${!variables.currentStatus ? 'activated' : 'deactivated'} successfully`,
+        description: `Member ${!variables.currentStatus ? 'enabled' : 'disabled'} successfully`,
       });
     },
-    onError: (error, variables, context) => {
-      console.error('[toggleMemberStatus] onError', { error, variables, context });
+    onError: (error, variables) => {
+      console.error('[toggleMemberStatus] onError', { error, variables });
       setUpdatingMemberId(null);
-      
-      // Rollback to previous cache state
-      if (context?.previousData) {
-        queryClient.setQueryData(['organization_members', resolvedOrgId], context.previousData);
-      }
       
       toast({
         title: "Error",
@@ -288,7 +247,7 @@ const Organization = () => {
   const handleRemoveMember = async (memberId: string, memberName: string) => {
     if (!isAdmin) return;
 
-    const confirmed = window.confirm(`Are you sure you want to remove ${memberName}? This will deactivate their account.`);
+    const confirmed = window.confirm(`Are you sure you want to remove ${memberName}? This will disable their account.`);
     if (!confirmed) return;
 
     try {
@@ -320,45 +279,13 @@ const Organization = () => {
       });
     },
     onMutate: async ({ memberId, newRole }) => {
-      await queryClient.cancelQueries({ queryKey: ['organization_members', resolvedOrgId] });
-      
-      // Snapshot the previous value for rollback
-      const previousData = queryClient.getQueryData(['organization_members', resolvedOrgId]);
-      
-      // Optimistically update the TanStack Query cache
-      queryClient.setQueryData(['organization_members', resolvedOrgId], (old: any) => {
-        if (!old || !Array.isArray(old)) return old;
-        return old.map((member: any) => 
-          (member.id === memberId || member.user_id === memberId)
-            ? { ...member, role: newRole }
-            : member
-        );
-      });
-      
-      return { previousData };
+      // Just track that we're updating
     },
     onSuccess: (response, variables) => {
-      // Update cache with server response
-      const updatedMemberData = getApiData(response) as any;
-      if (updatedMemberData && resolvedOrgId) {
-        const memberId = updatedMemberData.id || updatedMemberData.user_id;
-        queryClient.setQueryData(['organization_members', resolvedOrgId], (old: any) => {
-          if (!old || !Array.isArray(old)) return old;
-          return old.map((member: any) => 
-            (member.id === memberId || member.user_id === memberId)
-              ? { ...member, ...updatedMemberData, role: updatedMemberData.role }
-              : member
-          );
-        });
-        // Also update general cache for backwards compatibility
-        queryClient.setQueryData(['organization_members'], (old: any) => {
-          if (!old || !Array.isArray(old)) return old;
-          return old.map((member: any) => 
-            (member.id === memberId || member.user_id === memberId)
-              ? { ...member, ...updatedMemberData, role: updatedMemberData.role }
-              : member
-          );
-        });
+      // Invalidate all member caches to force refetch with latest data
+      queryClient.invalidateQueries({ queryKey: ['organization_members'] });
+      if (resolvedOrgId) {
+        queryClient.invalidateQueries({ queryKey: ['organization_members', resolvedOrgId] });
       }
       
       toast({
@@ -366,13 +293,8 @@ const Organization = () => {
         description: `Member's role has been updated to ${variables.newRole}`,
       });
     },
-    onError: (error, variables, context) => {
+    onError: (error, variables) => {
       console.error('Error updating member role:', error);
-      
-      // Rollback to previous cache state
-      if (context?.previousData) {
-        queryClient.setQueryData(['organization_members', resolvedOrgId], context.previousData);
-      }
       
       toast({
         title: "Error",
@@ -410,7 +332,7 @@ const Organization = () => {
                     <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
                       <li>You are logged in with the correct account</li>
                       <li>Your account has organization memberships</li>
-                      <li>Your organization memberships are active</li>
+                      <li>Your organization memberships are enabled</li>
                     </ul>
                   </div>
                 ) : null}
@@ -660,15 +582,15 @@ const Organization = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Active Members */}
+              {/* Organization Members */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
                   <Users className="w-5 h-5" />
-                  <h3 className="text-lg font-semibold">Active Members ({members.length})</h3>
+                  <h3 className="text-lg font-semibold">Organization Members ({members.length})</h3>
                 </div>
                 
                 {members.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-4">No active members found</p>
+                  <p className="text-muted-foreground text-center py-4">No members found</p>
                 ) : (
                   <div className="space-y-2">
                     {members.map((member) => (
@@ -704,7 +626,7 @@ const Organization = () => {
                          </div>
                         <div className="flex items-center gap-2">
                           <Badge variant={member.is_active ? "default" : "secondary"}>
-                            {member.is_active ? 'Active' : 'Inactive'}
+                            {member.is_active ? 'Enabled' : 'Disabled'}
                           </Badge>
                           <Button
                             variant="outline"
@@ -718,12 +640,12 @@ const Organization = () => {
                             ) : member.is_active ? (
                               <>
                                 <ToggleLeft className="w-4 h-4 mr-1" />
-                                Deactivate
+                                Disable
                               </>
                             ) : (
                               <>
                                 <ToggleRight className="w-4 h-4 mr-1" />
-                                Activate
+                                Enable
                               </>
                             )}
                           </Button>

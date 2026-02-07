@@ -1090,7 +1090,8 @@ exports.handler = async (event) => {
           };
         }
         
-        const sql = `UPDATE organization_members SET ${updates.join(', ')} WHERE id = '${escapeLiteral(id)}' RETURNING *`;
+        // Support both id (UUID) and cognito_user_id for backwards compatibility
+        const sql = `UPDATE organization_members SET ${updates.join(', ')} WHERE (id = '${escapeLiteral(id)}' OR cognito_user_id = '${escapeLiteral(id)}') RETURNING *`;
         const result = await queryJSON(sql);
         return {
           statusCode: 200,

@@ -22,15 +22,20 @@ export interface OrganizationMember {
 /**
  * Fetch organization members for a specific organization
  */
-async function fetchOrganizationMembersByOrg(organizationId: string) {
+async function fetchOrganizationMembersByOrg(organizationId: string): Promise<any[]> {
   const response = await apiService.get(`/organization_members?organization_id=${organizationId}`);
-  const memberData = getApiData(response) || [];
-  return memberData;
+  const memberData = getApiData<any[]>(response);
+  return memberData || [];
 }
 
 /**
  * Hook to fetch organization members for a specific organization
  * Uses TanStack Query for caching and automatic updates
+ * 
+ * Returns:
+ * - members: All signed-in members (both enabled and disabled, sorted with enabled first)
+ * - pendingMembers: Pending invitations (no cognito_user_id yet)
+ * - allMembers: All members including pending
  */
 export function useOrganizationMembersByOrg(organizationId: string | null | undefined) {
   const queryClient = useQueryClient();
@@ -48,7 +53,7 @@ export function useOrganizationMembersByOrg(organizationId: string | null | unde
           id: member.id || member.user_id || member.cognito_user_id,
           user_id: member.user_id || member.cognito_user_id,
           role: member.role,
-          is_active: member.is_active ?? true, // Default to true if not specified
+          is_active: member.is_active ?? true, // Default to enabled if not specified
           organization_id: organizationId,
           full_name: member.full_name || member.user_id || 'Unknown',
           favorite_color: member.favorite_color,
@@ -69,20 +74,24 @@ export function useOrganizationMembersByOrg(organizationId: string | null | unde
     networkMode: offlineQueryConfig.networkMode,
   });
 
-  // Split members into signed-in and pending using select
+  // Split members into signed-in and pending
+  // Signed-in members: have cognito_user_id (accepted invitation)
+  // Pending members: no cognito_user_id (invitation not yet accepted)
   const signedInMembers = useMemo(() => {
-    return (query.data ?? []).filter((m) => m.auth_data?.last_sign_in_at !== null);
+    return (query.data ?? []).filter((m: OrganizationMember) => m.cognito_user_id !== null);
   }, [query.data]);
 
   const pendingMembers = useMemo(() => {
-    return (query.data ?? []).filter((m) => m.auth_data?.last_sign_in_at === null);
+    return (query.data ?? []).filter((m: OrganizationMember) => m.cognito_user_id === null);
   }, [query.data]);
 
-  // Sort signed-in members: active first, then by name
+  // Sort signed-in members: enabled first, then disabled, then by name
   const sortedSignedInMembers = useMemo(() => {
     return [...signedInMembers].sort((a, b) => {
+      // Enabled members first
       if (a.is_active && !b.is_active) return -1;
       if (!a.is_active && b.is_active) return 1;
+      // Then sort by name
       return (a.full_name || '').localeCompare(b.full_name || '');
     });
   }, [signedInMembers]);
@@ -94,7 +103,7 @@ export function useOrganizationMembersByOrg(organizationId: string | null | unde
   };
 
   return {
-    members: sortedSignedInMembers,
+    members: sortedSignedInMembers, // All signed-in members (enabled + disabled)
     pendingMembers,
     allMembers: query.data ?? [],
     loading: query.isLoading,
@@ -114,7 +123,7 @@ export function useOrganizationMembers() {
     queryKey: ['organization_members'],
     queryFn: async () => {
       const response = await apiService.get('/organization_members');
-      const members = getApiData(response) || [];
+      const members = getApiData<any[]>(response) || [];
       return members.map((member: any) => ({
         id: member.user_id,
         user_id: member.user_id,
@@ -122,6 +131,7 @@ export function useOrganizationMembers() {
         role: member.role,
         favorite_color: member.favorite_color,
         cognito_user_id: member.cognito_user_id,
+        is_active: member.is_active ?? true,
       })) as OrganizationMember[];
     },
     staleTime: Infinity,
@@ -137,5 +147,26 @@ export function useOrganizationMembers() {
     members: query.data ?? [],
     loading: query.isLoading,
     refetch: invalidate,
+  };
+}
+
+/**
+ * Hook to get only enabled members for dropdowns and assignments
+ * Filters out disabled members to prevent assigning work to inactive accounts
+ */
+export function useEnabledMembers() {
+  const { members, loading, refetch } = useOrganizationMembers();
+  
+  const enabledMembers = useMemo(() => {
+    const filtered = members.filter((m) => m.is_active === true);
+    console.log('[useEnabledMembers] All members:', members.length, members);
+    console.log('[useEnabledMembers] Enabled members:', filtered.length, filtered);
+    return filtered;
+  }, [members]);
+
+  return {
+    members: enabledMembers,
+    loading,
+    refetch,
   };
 }

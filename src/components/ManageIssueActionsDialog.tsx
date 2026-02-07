@@ -12,7 +12,7 @@ import { useIssueActions } from "@/hooks/useIssueActions";
 import { UnifiedActionDialog } from "./UnifiedActionDialog";
 import { BaseAction, createIssueAction } from "@/types/actions";
 import { ActionListItemCard } from "./ActionListItemCard";
-import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
+import { useEnabledMembers } from "@/hooks/useOrganizationMembers";
 import { issueActionsQueryKey } from '@/lib/queryKeys';
 import { offlineQueryConfig } from '@/lib/queryConfig';
 import { apiService, getApiData } from '@/lib/apiService';
@@ -74,8 +74,8 @@ export function ManageIssueActionsDialog({
   const loading = actionsQuery.isLoading;
   
   // Use organization_members for consistent "Assigned to" dropdown
-  // This ensures we only show active members from the current organization
-  const { members: organizationMembers } = useOrganizationMembers();
+  // This ensures we only show enabled members from the current organization
+  const { members: organizationMembers } = useEnabledMembers();
   
   // Transform organization members to Profile format for UnifiedActionDialog
   // Filter out members with empty/whitespace names and map to Profile interface

@@ -573,41 +573,30 @@ export function UnifiedActionDialog({
   };
 
   // Helper to check if there are implementation updates
-  const hasImplementationNotes = async () => {
+  // Uses derivedObservationCount from TanStack Query cache (no API call needed)
+  const hasImplementationNotes = () => {
     if (!action?.id) return false;
     
-    try {
-      const result = await apiService.get(`/action_implementation_updates?action_id=${action.id}&limit=1`);
-      const updates = result.data || [];
-      
-      return updates && updates.length > 0;
-    } catch (error) {
-      console.error('Error checking implementation updates:', error);
-      return false;
-    }
+    // Derive count from cache using the existing hook value
+    // derivedObservationCount is already computed at line 362
+    return (derivedObservationCount ?? 0) > 0;
   };
 
-  const checkImplementationMode = async (action: BaseAction) => {
+  const checkImplementationMode = (action: BaseAction) => {
     if (!action?.id) {
       setIsInImplementationMode(false);
       return;
     }
     
-    try {
-      const result = await apiService.get(`/action_implementation_updates?action_id=${action.id}&limit=1`);
-      const updates = result.data || [];
-      
-      setIsInImplementationMode(updates && updates.length > 0);
-    } catch (error) {
-      console.error('Error checking implementation mode:', error);
-      setIsInImplementationMode(false);
-    }
+    // Derive from cache using the existing hook value
+    // derivedObservationCount is already computed at line 362
+    setIsInImplementationMode((derivedObservationCount ?? 0) > 0);
   };
 
   const handleReadyForReview = async () => {
     if (!action?.id) return;
     
-    if (!(await hasImplementationNotes())) {
+    if (!hasImplementationNotes()) {
       toast({
         title: "Error",
         description: "Please add at least one implementation update before marking as ready for review",

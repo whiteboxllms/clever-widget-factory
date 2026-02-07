@@ -11,6 +11,7 @@ import { ProactiveVsReactiveChart } from '@/components/ProactiveVsReactiveChart'
 import InventoryTrackingChart from '@/components/InventoryTrackingChart';
 import InventoryUsageHeatmap from '@/components/InventoryUsageHeatmap';
 import ActionUpdatesChart from '@/components/ActionUpdatesChart';
+import ObservationsChart from '@/components/ObservationsChart';
 // Removed IssuesCreatedChart
 import { useEnhancedStrategicAttributes, type EnhancedAttributeAnalytics } from '@/hooks/useEnhancedStrategicAttributes';
 import { useScoredActions } from '@/hooks/useScoredActions';
@@ -296,6 +297,13 @@ export default function AnalyticsDashboard() {
 
             {/* Action Updates (stacked bar) */}
             <ActionUpdatesChart
+              startDate={effectiveStartDate}
+              endDate={effectiveEndDate}
+              selectedUsers={radarSelectedUsers}
+            />
+
+            {/* Observations (stacked bar) */}
+            <ObservationsChart
               startDate={effectiveStartDate}
               endDate={effectiveEndDate}
               selectedUsers={radarSelectedUsers}

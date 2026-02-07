@@ -3118,9 +3118,9 @@ exports.handler = async (event) => {
         LEFT JOIN profiles p ON a.assigned_to::text = p.user_id::text
         LEFT JOIN analysis_contexts scores ON a.id = scores.context_id AND scores.context_service = 'action_score'
         LEFT JOIN (
-          SELECT DISTINCT action_id 
-          FROM action_implementation_updates
-          WHERE update_type != 'policy_agreement' OR update_type IS NULL
+          SELECT DISTINCT sl.entity_id as action_id
+          FROM state_links sl
+          WHERE sl.entity_type = 'action'
         ) updates ON a.id = updates.action_id
         LEFT JOIN tools assets ON a.asset_id = assets.id
         LEFT JOIN issues linked_issue ON a.linked_issue_id = linked_issue.id
@@ -3409,9 +3409,9 @@ exports.handler = async (event) => {
           LEFT JOIN profiles om ON a.assigned_to = om.user_id
           LEFT JOIN analysis_contexts scores ON a.id = scores.context_id AND scores.context_service = 'action_score'
           LEFT JOIN (
-            SELECT DISTINCT action_id 
-            FROM action_implementation_updates
-            WHERE update_type != 'policy_agreement' OR update_type IS NULL
+            SELECT DISTINCT sl.entity_id as action_id
+            FROM state_links sl
+            WHERE sl.entity_type = 'action'
           ) updates ON a.id = updates.action_id
           LEFT JOIN tools assets ON a.asset_id = assets.id
           LEFT JOIN missions ON a.mission_id = missions.id
@@ -3476,12 +3476,13 @@ exports.handler = async (event) => {
       }
     }
 
-    // Action implementation updates endpoint
+    // Action implementation updates endpoint (now using states table)
     if (path.endsWith('/action_implementation_updates') || path.match(/\/action_implementation_updates\/[a-f0-9-]+$/)) {
       // DELETE by ID
       if (httpMethod === 'DELETE' && path.match(/\/action_implementation_updates\/[a-f0-9-]+$/)) {
         const updateId = path.split('/').pop();
-        const sql = `DELETE FROM action_implementation_updates WHERE id = '${escapeLiteral(updateId)}' RETURNING *`;
+        // Delete from states table (state_links will cascade delete)
+        const sql = `DELETE FROM states WHERE id = '${escapeLiteral(updateId)}' RETURNING *`;
         const result = await queryJSON(sql);
         return {
           statusCode: 200,
@@ -3494,7 +3495,11 @@ exports.handler = async (event) => {
       if (httpMethod === 'PUT' && path.match(/\/action_implementation_updates\/[a-f0-9-]+$/)) {
         const updateId = path.split('/').pop();
         const body = JSON.parse(event.body || '{}');
-        const updates = buildUpdateClauses(body, ['update_text', 'update_type']);
+        // Map update_text to state_text
+        const updates = [];
+        if (body.update_text !== undefined) {
+          updates.push(`state_text = ${formatSqlValue(body.update_text)}`);
+        }
         if (updates.length === 0) {
           return {
             statusCode: 400,
@@ -3503,7 +3508,7 @@ exports.handler = async (event) => {
           };
         }
         updates.push("updated_at = NOW()");
-        const sql = `UPDATE action_implementation_updates SET ${updates.join(', ')} WHERE id = '${escapeLiteral(updateId)}' RETURNING *`;
+        const sql = `UPDATE states SET ${updates.join(', ')} WHERE id = '${escapeLiteral(updateId)}' RETURNING *`;
         const result = await queryJSON(sql);
         return {
           statusCode: 200,
@@ -3524,17 +3529,50 @@ exports.handler = async (event) => {
           };
         }
         
-        const sql = `
-          INSERT INTO action_implementation_updates (action_id, update_text, updated_by)
-          VALUES ('${action_id}', '${update_text.replace(/'/g, "''")}', '${updated_by}')
+        const stateId = randomUUID();
+        
+        // Insert into states table
+        const stateSql = `
+          INSERT INTO states (id, organization_id, state_text, captured_by, captured_at, created_at, updated_at)
+          VALUES (
+            '${stateId}',
+            '${escapeLiteral(organizationId)}',
+            ${formatSqlValue(update_text)},
+            '${escapeLiteral(updated_by)}',
+            NOW(),
+            NOW(),
+            NOW()
+          )
           RETURNING *
         `;
         
-        const result = await queryJSON(sql);
+        const stateResult = await queryJSON(stateSql);
+        
+        // Insert into state_links table
+        const linkSql = `
+          INSERT INTO state_links (state_id, entity_type, entity_id, created_at)
+          VALUES (
+            '${stateId}',
+            'action',
+            '${escapeLiteral(action_id)}',
+            NOW()
+          )
+        `;
+        
+        await queryJSON(linkSql);
+        
+        // Return state with mapped field names for backward compatibility
+        const result = {
+          ...stateResult[0],
+          action_id: action_id,
+          update_text: stateResult[0].state_text,
+          updated_by: stateResult[0].captured_by
+        };
+        
         return {
           statusCode: 201,
           headers,
-          body: JSON.stringify({ data: result[0] })
+          body: JSON.stringify({ data: result })
         };
       }
       
@@ -3549,36 +3587,45 @@ exports.handler = async (event) => {
         }
         
         if (action_id) {
-          whereConditions.push(`aiu.action_id = '${action_id}'`);
+          whereConditions.push(`sl.entity_id = '${escapeLiteral(action_id)}'`);
         }
         if (start_date) {
-          whereConditions.push(`aiu.created_at >= '${start_date}'`);
+          whereConditions.push(`s.created_at >= '${start_date}'`);
         }
         if (end_date) {
-          whereConditions.push(`aiu.created_at <= '${end_date}'`);
+          whereConditions.push(`s.created_at <= '${end_date}'`);
         }
         if (user_ids) {
-          const ids = user_ids.split(',').map(id => `'${id}'`).join(',');
-          whereConditions.push(`aiu.updated_by IN (${ids})`);
+          const ids = user_ids.split(',').map(id => `'${escapeLiteral(id)}'`).join(',');
+          whereConditions.push(`s.captured_by IN (${ids})`);
         }
+        
+        // Always filter by entity_type = 'action'
+        whereConditions.push(`sl.entity_type = 'action'`);
         
         const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
         
         const sql = `SELECT json_agg(row_to_json(t)) FROM (
           SELECT 
-            aiu.*,
-            COALESCE(om.full_name, p.full_name, aiu.updated_by::text) as updated_by_name,
+            s.id,
+            sl.entity_id as action_id,
+            s.state_text as update_text,
+            s.captured_by as updated_by,
+            s.created_at,
+            s.updated_at,
+            COALESCE(om.full_name, p.full_name, s.captured_by::text) as updated_by_name,
             COALESCE(p.favorite_color, om.favorite_color) as updated_by_color
-          FROM action_implementation_updates aiu
-          LEFT JOIN actions a ON aiu.action_id = a.id
-          LEFT JOIN organization_members om ON aiu.updated_by::text = om.cognito_user_id::text
-          LEFT JOIN profiles p ON aiu.updated_by::text = p.user_id::text
+          FROM states s
+          JOIN state_links sl ON s.id = sl.state_id
+          LEFT JOIN actions a ON sl.entity_id = a.id
+          LEFT JOIN organization_members om ON s.captured_by::text = om.cognito_user_id::text
+          LEFT JOIN profiles p ON s.captured_by::text = p.user_id::text
           ${whereClause}
-          ORDER BY aiu.created_at DESC 
+          ORDER BY s.created_at DESC 
           LIMIT ${parseInt(limit)}
         ) t;`;
         
-        console.log('action_implementation_updates GET SQL:', sql);
+        console.log('action_implementation_updates GET SQL (now using states):', sql);
         
         try {
           const result = await queryJSON(sql);

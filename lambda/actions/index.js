@@ -113,7 +113,7 @@ exports.handler = async (event) => {
       };
     }
 
-    // Action implementation updates endpoint
+    // Action implementation updates endpoint (now using states table)
     if (httpMethod === 'GET' && path.endsWith('/action_implementation_updates')) {
       const { action_id, limit = 50 } = queryStringParameters || {};
       
@@ -126,9 +126,18 @@ exports.handler = async (event) => {
       }
       
       const sql = `SELECT json_agg(row_to_json(t)) FROM (
-        SELECT * FROM action_implementation_updates 
-        WHERE action_id = '${action_id}' 
-        ORDER BY created_at DESC 
+        SELECT 
+          s.id,
+          sl.entity_id as action_id,
+          s.state_text as update_text,
+          s.captured_by as updated_by,
+          s.created_at,
+          s.updated_at
+        FROM states s
+        JOIN state_links sl ON s.id = sl.state_id
+        WHERE sl.entity_type = 'action'
+          AND sl.entity_id = '${action_id}'
+        ORDER BY s.created_at DESC 
         LIMIT ${limit}
       ) t;`;
       

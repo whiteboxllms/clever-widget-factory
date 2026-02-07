@@ -9,7 +9,7 @@ import { BaseAction } from '@/types/actions';
 import { toast } from "@/hooks/use-toast";
 import { BaseIssue, ContextType, getContextBadgeColor, getContextIcon, getContextLabel, OrderIssue, getOrderIssueTypeLabel } from "@/types/issues";
 import { useGenericIssues } from "@/hooks/useGenericIssues";
-import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
+import { useEnabledMembers } from "@/hooks/useOrganizationMembers";
 import { useAssetScores } from "@/hooks/useAssetScores";
 import { useIssueActions } from "@/hooks/useIssueActions";
 import { offlineQueryConfig } from '@/lib/queryConfig';
@@ -60,7 +60,7 @@ export function GenericIssueCard({
   const [hasFiveWhysSession, setHasFiveWhysSession] = useState(false);
   const { user } = useAuth();
   const organizationId = useOrganizationId();
-  const { members: organizationMembers } = useOrganizationMembers();
+  const { members: organizationMembers } = useEnabledMembers();
   const { removeIssue, resolveIssue } = useGenericIssues();
   
   // Transform organization members to Profile format for UnifiedActionDialog
@@ -76,7 +76,7 @@ export function GenericIssueCard({
   const { getScoreForIssue } = useAssetScores();
   const { getActionsForIssue } = useIssueActions();
 
-  // Profiles now sourced from useOrganizationMembers (active members in current org)
+  // Profiles now sourced from useOrganizationMembers (enabled members in current org)
 
   // Use TanStack Query for scores and actions with proper caching
   const scoreQuery = useQuery({

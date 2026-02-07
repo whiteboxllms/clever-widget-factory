@@ -73,7 +73,7 @@ export interface ActionBorderStyle {
  * Yellow can only occur if there was first a plan (blue state)
  * 
  * @param action - The action object with status, policy, etc.
- * @param derivedCount - Optional observation count derived from TanStack cache (preferred over action.implementation_update_count)
+ * @param derivedCount - Optional observation count derived from TanStack cache (preferred over action.has_implementation_updates)
  */
 export function getActionBorderStyle(
   action: {
@@ -84,16 +84,17 @@ export function getActionBorderStyle(
     policy_agreed_at?: string | null;
     policy_agreed_by?: string | null;
     plan_commitment?: boolean;
-    implementation_update_count?: number;
+    has_implementation_updates?: boolean;
   },
   derivedCount?: number
 ): ActionBorderStyle {
   const hasPolicy = hasActualContent(action.policy);
   
-  // Prefer derived count from cache over database count
-  // If derivedCount is provided (even if 0), use it. Otherwise fall back to action.implementation_update_count
-  const observationCount = derivedCount !== undefined ? derivedCount : (action.implementation_update_count ?? 0);
-  const hasImplementationUpdates = observationCount > 0;
+  // Prefer derived count from cache, then fall back to has_implementation_updates boolean from API
+  // If derivedCount is provided (even if 0), use it. Otherwise use has_implementation_updates flag
+  const hasImplementationUpdates = derivedCount !== undefined 
+    ? derivedCount > 0 
+    : (action.has_implementation_updates ?? false);
   
   const isAssigned = Boolean(action.assigned_to);
   const hasPolicyAgreement = Boolean(action.policy_agreed_at || action.plan_commitment);

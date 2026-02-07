@@ -15,7 +15,7 @@ import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useAssetScores, AssetScore } from "@/hooks/useAssetScores";
 import { useIssueActions } from "@/hooks/useIssueActions";
 import { getIssueTypeIcon, getIssueTypeColor } from "@/lib/issueTypeUtils";
-import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
+import { useEnabledMembers } from "@/hooks/useOrganizationMembers";
 
 interface ToolIssue {
   id: string;
@@ -50,7 +50,7 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
   const [tool, setTool] = useState<any>(null);
   const [existingScore, setExistingScore] = useState<AssetScore | null>(null);
   const [existingActions, setExistingActions] = useState<any[]>([]);
-  const { members: organizationMembers } = useOrganizationMembers();
+  const { members: organizationMembers } = useEnabledMembers();
   const { getScoreForIssue } = useAssetScores();
   
   // Transform organization members to Profile format for UnifiedActionDialog
@@ -104,7 +104,7 @@ export function IssueCard({ issue, onResolve, onEdit, onRefresh }: IssueCardProp
     }
   };
 
-  // Profiles now sourced from useOrganizationMembers (active members in current org)
+  // Profiles now sourced from useOrganizationMembers (enabled members in current org)
 
   // Check for existing score and actions when component mounts
   useEffect(() => {

@@ -70,7 +70,7 @@ export default function AnalyticsDashboard() {
   const allUserAnalytics = useMemo(
     () =>
       (organizationMembers || [])
-        .filter((member) => member.is_active !== false)
+        .filter((member) => member.is_active !== false) // Only include enabled members
         .map((member) => ({
           userId: member.user_id,
           userName: member.full_name || 'Unknown User',

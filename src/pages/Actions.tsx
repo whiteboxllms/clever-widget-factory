@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { toast } from '@/hooks/use-toast';
-import { useOrganizationMembers } from '@/hooks/useOrganizationMembers';
+import { useEnabledMembers } from '@/hooks/useOrganizationMembers';
 import { useOrganizationId } from '@/hooks/useOrganizationId';
 import { offlineQueryConfig } from '@/lib/queryConfig';
 import { Bolt, Plus, Filter, Search, CheckCircle, AlertTriangle, ArrowLeft, X, SearchCheck, Info } from 'lucide-react';
@@ -40,7 +40,7 @@ export default function Actions() {
   const [semanticResults, setSemanticResults] = useState<string[]>([]);
   
   // Use organization members for consistent "Assigned to" dropdown
-  const { members: profiles } = useOrganizationMembers();
+  const { members: profiles } = useEnabledMembers();
   const organizationId = useOrganizationId();
   const [scoringAction, setScoringAction] = useState<BaseAction | null>(null);
 

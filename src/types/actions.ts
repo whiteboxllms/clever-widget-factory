@@ -36,7 +36,7 @@ export interface BaseAction {
   policy_agreed_at?: string | null;
   policy_agreed_by?: string | null;
   participants?: string[];
-  implementation_update_count?: number;
+  has_implementation_updates?: boolean; // Boolean flag from Lambda indicating if states exist
   
   // Related objects (populated by joins)
   assignee?: {

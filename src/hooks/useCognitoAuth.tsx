@@ -98,25 +98,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [queryClient]);
 
-  // Proactively refresh token every 50 minutes (tokens expire after 60 minutes)
-  useEffect(() => {
-    if (!user) return;
-
-    const refreshInterval = setInterval(async () => {
-      try {
-        console.log('Proactively refreshing auth token...');
-        const session = await fetchAuthSession({ forceRefresh: true });
-        setSession(session);
-        setIdToken(session.tokens?.idToken?.toString() || null);
-      } catch (error) {
-        console.error('Failed to refresh token:', error);
-        await handleSignOut();
-        window.location.href = '/login';
-      }
-    }, 50 * 60 * 1000); // 50 minutes
-
-    return () => clearInterval(refreshInterval);
-  }, [user]);
+  // Token refresh is handled automatically by Amplify on-demand
+  // When an API call is made with an expired access token, Amplify will:
+  // 1. Use the refresh token to get a new access token
+  // 2. Retry the API call with the new token
+  // This eliminates unnecessary background refresh calls while maintaining session continuity
 
   useEffect(() => {
     const checkAuthState = async () => {

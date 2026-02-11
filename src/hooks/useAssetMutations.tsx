@@ -8,7 +8,11 @@ export function useAssetMutations() {
 
   const createTool = useMutation({
     mutationFn: async (data: any) => {
-      const result = await apiService.post('/tools', data);
+      // Get tempId from data if it was added by onMutate
+      const tempId = data.__tempId;
+      delete data.__tempId; // Remove temp marker before sending to API
+      
+      const result = await apiService.post('/tools', data, { optimisticId: tempId });
       return result.data;
     },
     onMutate: async (newTool) => {
@@ -21,13 +25,10 @@ export function useAssetMutations() {
         old ? [...old, { ...newTool, id: tempId, created_at: new Date().toISOString() }] : [{ ...newTool, id: tempId }]
       );
       
+      // Add tempId to data so mutationFn can access it
+      newTool.__tempId = tempId;
+      
       return { previousTools, tempId };
-    },
-    onSuccess: (data, variables, context) => {
-      // Replace temp item with real data from server
-      queryClient.setQueryData(toolsQueryKey(), (old: any[]) => 
-        old?.map(tool => tool.id === context.tempId ? data : tool)
-      );
     },
     onError: (err, variables, context) => {
       if (context?.previousTools) {
@@ -39,7 +40,11 @@ export function useAssetMutations() {
 
   const createPart = useMutation({
     mutationFn: async (data: any) => {
-      const result = await apiService.post('/parts', data);
+      // Get tempId from data if it was added by onMutate
+      const tempId = data.__tempId;
+      delete data.__tempId; // Remove temp marker before sending to API
+      
+      const result = await apiService.post('/parts', data, { optimisticId: tempId });
       return result.data;
     },
     onMutate: async (newPart) => {
@@ -52,13 +57,10 @@ export function useAssetMutations() {
         old ? [...old, { ...newPart, id: tempId, created_at: new Date().toISOString() }] : [{ ...newPart, id: tempId }]
       );
       
+      // Add tempId to data so mutationFn can access it
+      newPart.__tempId = tempId;
+      
       return { previousParts, tempId };
-    },
-    onSuccess: (data, variables, context) => {
-      // Replace temp item with real data from server
-      queryClient.setQueryData(['parts'], (old: any[]) => 
-        old?.map(part => part.id === context.tempId ? data : part)
-      );
     },
     onError: (err, variables, context) => {
       if (context?.previousParts) {

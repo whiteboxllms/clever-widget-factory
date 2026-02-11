@@ -140,7 +140,7 @@ async function getIdToken(): Promise<string | null> {
  */
 async function apiRequest<T = any>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit & { optimisticId?: string } = {}
 ): Promise<T> {
   // Handle absolute URLs
   if (endpoint.startsWith('http')) {
@@ -247,7 +247,7 @@ async function apiRequest<T = any>(
     
     // Auto-update cache for mutations (POST, PUT, DELETE)
     if (globalQueryClient && ['POST', 'PUT', 'DELETE'].includes(options.method || '')) {
-      updateCacheFromResponse(endpoint, options.method || '', data);
+      updateCacheFromResponse(endpoint, options.method || '', data, options.optimisticId);
     }
     
     return data;
@@ -259,8 +259,9 @@ async function apiRequest<T = any>(
 
 /**
  * Automatically update TanStack Query cache based on API response
+ * Supports optimistic updates by replacing temp items with real data
  */
-function updateCacheFromResponse(endpoint: string, method: string, responseData: any) {
+function updateCacheFromResponse(endpoint: string, method: string, responseData: any, optimisticId?: string) {
   if (!globalQueryClient) return;
   
   // Extract the actual data (handle { data: ... } wrapper)
@@ -270,8 +271,15 @@ function updateCacheFromResponse(endpoint: string, method: string, responseData:
   // Determine which cache to update based on endpoint
   if (endpoint.includes('/tools')) {
     if (method === 'POST') {
-      // Add new tool to cache
-      globalQueryClient.setQueryData(toolsQueryKey(), (old: any[] = []) => [...old, data]);
+      if (optimisticId) {
+        // Replace optimistic temp item with real data
+        globalQueryClient.setQueryData(toolsQueryKey(), (old: any[] = []) => 
+          old.map(item => item.id === optimisticId ? data : item)
+        );
+      } else {
+        // Add new tool to cache (non-optimistic)
+        globalQueryClient.setQueryData(toolsQueryKey(), (old: any[] = []) => [...old, data]);
+      }
     } else if (method === 'PUT') {
       // Update existing tool in cache
       globalQueryClient.setQueryData(toolsQueryKey(), (old: any[] = []) => 
@@ -286,7 +294,13 @@ function updateCacheFromResponse(endpoint: string, method: string, responseData:
     }
   } else if (endpoint.includes('/actions')) {
     if (method === 'POST') {
-      globalQueryClient.setQueryData(actionsQueryKey(), (old: any[] = []) => [...old, data]);
+      if (optimisticId) {
+        globalQueryClient.setQueryData(actionsQueryKey(), (old: any[] = []) => 
+          old.map(item => item.id === optimisticId ? data : item)
+        );
+      } else {
+        globalQueryClient.setQueryData(actionsQueryKey(), (old: any[] = []) => [...old, data]);
+      }
     } else if (method === 'PUT') {
       globalQueryClient.setQueryData(actionsQueryKey(), (old: any[] = []) => 
         old.map(item => item.id === data.id ? data : item)
@@ -299,7 +313,13 @@ function updateCacheFromResponse(endpoint: string, method: string, responseData:
     }
   } else if (endpoint.includes('/issues')) {
     if (method === 'POST') {
-      globalQueryClient.setQueryData(issuesQueryKey(), (old: any[] = []) => [...old, data]);
+      if (optimisticId) {
+        globalQueryClient.setQueryData(issuesQueryKey(), (old: any[] = []) => 
+          old.map(item => item.id === optimisticId ? data : item)
+        );
+      } else {
+        globalQueryClient.setQueryData(issuesQueryKey(), (old: any[] = []) => [...old, data]);
+      }
     } else if (method === 'PUT') {
       globalQueryClient.setQueryData(issuesQueryKey(), (old: any[] = []) => 
         old.map(item => item.id === data.id ? data : item)
@@ -307,7 +327,13 @@ function updateCacheFromResponse(endpoint: string, method: string, responseData:
     }
   } else if (endpoint.includes('/missions')) {
     if (method === 'POST') {
-      globalQueryClient.setQueryData(missionsQueryKey(), (old: any[] = []) => [...old, data]);
+      if (optimisticId) {
+        globalQueryClient.setQueryData(missionsQueryKey(), (old: any[] = []) => 
+          old.map(item => item.id === optimisticId ? data : item)
+        );
+      } else {
+        globalQueryClient.setQueryData(missionsQueryKey(), (old: any[] = []) => [...old, data]);
+      }
     } else if (method === 'PUT') {
       globalQueryClient.setQueryData(missionsQueryKey(), (old: any[] = []) => 
         old.map(item => item.id === data.id ? data : item)
@@ -315,7 +341,13 @@ function updateCacheFromResponse(endpoint: string, method: string, responseData:
     }
   } else if (endpoint.includes('/explorations') || endpoint.includes('/exploration')) {
     if (method === 'POST') {
-      globalQueryClient.setQueryData(explorationsQueryKey(), (old: any[] = []) => [...old, data]);
+      if (optimisticId) {
+        globalQueryClient.setQueryData(explorationsQueryKey(), (old: any[] = []) => 
+          old.map(item => item.id === optimisticId ? data : item)
+        );
+      } else {
+        globalQueryClient.setQueryData(explorationsQueryKey(), (old: any[] = []) => [...old, data]);
+      }
     } else if (method === 'PUT') {
       globalQueryClient.setQueryData(explorationsQueryKey(), (old: any[] = []) => 
         old.map(item => item.id === data.id ? data : item)
@@ -323,7 +355,13 @@ function updateCacheFromResponse(endpoint: string, method: string, responseData:
     }
   } else if (endpoint.includes('/observations')) {
     if (method === 'POST') {
-      globalQueryClient.setQueryData(observationsQueryKey(), (old: any[] = []) => [...old, data]);
+      if (optimisticId) {
+        globalQueryClient.setQueryData(observationsQueryKey(), (old: any[] = []) => 
+          old.map(item => item.id === optimisticId ? data : item)
+        );
+      } else {
+        globalQueryClient.setQueryData(observationsQueryKey(), (old: any[] = []) => [...old, data]);
+      }
     } else if (method === 'PUT') {
       globalQueryClient.setQueryData(observationsQueryKey(), (old: any[] = []) => 
         old.map(item => item.id === data.id ? data : item)
@@ -353,8 +391,9 @@ export const apiService = {
 
   /**
    * POST request
+   * @param optimisticId - Optional temp ID for optimistic updates (will replace temp item with real data)
    */
-  async post<T = any>(endpoint: string, body?: any, options?: RequestInit): Promise<T> {
+  async post<T = any>(endpoint: string, body?: any, options?: RequestInit & { optimisticId?: string }): Promise<T> {
     return apiRequest<T>(endpoint, {
       ...options,
       method: 'POST',

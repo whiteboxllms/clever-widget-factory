@@ -39,6 +39,74 @@ exports.handler = async (event) => {
   try {
     await client.connect();
     
+    // Observations endpoint (states linked to tools or parts)
+    if (path.endsWith('/analytics/observations') && method === 'GET') {
+      const { start_date, end_date, user_ids } = queryParams;
+      
+      console.log('Query params:', { start_date, end_date, user_ids });
+      
+      if (!start_date || !end_date) {
+        return {
+          statusCode: 400,
+          headers: { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          },
+          body: JSON.stringify({ error: 'start_date and end_date required' })
+        };
+      }
+      
+      let userFilter = '';
+      if (user_ids) {
+        const userIdArray = Array.isArray(user_ids) 
+          ? user_ids 
+          : user_ids.includes(',') 
+            ? user_ids.split(',').map(id => id.trim()) 
+            : [user_ids];
+        if (userIdArray.length > 0) {
+          const userIdList = userIdArray.map(id => `'${id.replace(/'/g, "''")}'`).join(',');
+          userFilter = `AND s.captured_by IN (${userIdList})`;
+        }
+      }
+      
+      const query = `
+        SELECT 
+          s.created_at,
+          s.captured_by
+        FROM states s
+        JOIN state_links sl ON s.id = sl.state_id
+        LEFT JOIN tools t ON sl.entity_type = 'tool' AND sl.entity_id = t.id
+        LEFT JOIN parts p ON sl.entity_type = 'part' AND sl.entity_id = p.id
+        WHERE sl.entity_type IN ('tool', 'part')
+          AND (
+            (sl.entity_type = 'tool' AND t.organization_id = $1)
+            OR (sl.entity_type = 'part' AND p.organization_id = $1)
+          )
+          AND s.created_at >= $2::timestamp
+          AND s.created_at <= $3::timestamp
+          ${userFilter}
+        ORDER BY s.created_at
+      `;
+      
+      console.log('Executing observations query:', query);
+      console.log('Query params:', [organizationId, start_date, end_date]);
+      
+      const result = await client.query(query, [organizationId, start_date, end_date]);
+      
+      console.log('Query result count:', result.rows.length);
+      
+      return {
+        statusCode: 200,
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+          'Access-Control-Allow-Methods': 'GET,OPTIONS'
+        },
+        body: JSON.stringify({ data: result.rows })
+      };
+    }
+    
     if (path.endsWith('/analytics/action_updates') && method === 'GET') {
       const { start_date, end_date, user_ids } = queryParams;
       
@@ -71,15 +139,17 @@ exports.handler = async (event) => {
       
       const query = `
         SELECT 
-          aiu.created_at,
-          aiu.updated_by
-        FROM action_implementation_updates aiu
-        JOIN actions a ON aiu.action_id = a.id
-        WHERE a.organization_id = $1
-          AND aiu.created_at >= $2::timestamp
-          AND aiu.created_at <= $3::timestamp
-          ${userFilter}
-        ORDER BY aiu.created_at
+          s.created_at,
+          s.captured_by as updated_by
+        FROM states s
+        JOIN state_links sl ON s.id = sl.state_id
+        JOIN actions a ON sl.entity_id = a.id
+        WHERE sl.entity_type = 'action'
+          AND a.organization_id = $1
+          AND s.created_at >= $2::timestamp
+          AND s.created_at <= $3::timestamp
+          ${userFilter.replace('aiu.updated_by', 's.captured_by')}
+        ORDER BY s.created_at
       `;
       
       console.log('Executing query:', query);

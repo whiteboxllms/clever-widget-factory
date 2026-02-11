@@ -98,48 +98,11 @@ export const useToolHistory = () => {
       const historyResult = await apiService.get(`/history/tools/${toolId}`);
       const historyResponse = historyResult.data || { asset: null, timeline: [], checkouts: [], issues: [], actions: [], observations: [] };
       
-      // Use timeline if available (contains asset_history entries) - filter out observations since we get those separately
-      const timeline = (historyResponse.timeline || []).filter((entry: any) => entry.type !== 'observation');
-      
-      // Combine checkouts and issues into unified history
-      const checkouts = (historyResponse.checkouts || []).map((checkout: any) => ({
-        ...checkout,
-        type: 'checkout',
-        date: checkout.checkout_date || checkout.created_at
-      }));
-      
-      const issues = (historyResponse.issues || []).map((issue: any) => ({
-        ...issue,
-        type: 'issue',
-        date: issue.reported_at || issue.created_at,
-        user_name: issue.reported_by_name,
-        damage_assessment: issue.damage_assessment,
-        issue_description: issue.description
-      }));
-      
-      // Add actions
-      const actions = (historyResponse.actions || []).map((action: any) => ({
-        ...action,
-        type: 'action',
-        date: action.created_at,
-        user_name: action.created_by_name || 'System'
-      }));
-      
-      // Add observations
-      const observations = (historyResponse.observations || []).map((obs: any) => {
-        console.log('🔵 Raw observation from API:', obs);
-        return {
-          ...obs,
-          type: 'observation',
-          date: obs.observed_at
-        };
-      });
-      console.log('📊 Total observations:', observations.length);
-      
-      const historyData = [...timeline, ...checkouts, ...issues, ...actions, ...observations];
-      console.log('📋 History data before transform, observations:', historyData.filter(e => e.type === 'observation'));
+      // Use timeline directly - it's already sorted by backend
+      const historyData = historyResponse.timeline || [];
 
-      // Find current checkout (not returned)
+      // Find current checkout (not returned) - get from checkouts array
+      const checkouts = historyResponse.checkouts || [];
       const activeCheckout = checkouts.find(
         (entry: any) => !entry.is_returned
       );
@@ -148,128 +111,97 @@ export const useToolHistory = () => {
       // Transform to HistoryEntry format
       const allHistory: HistoryEntry[] = historyData.map((entry: any) => {
         switch (entry.type) {
-          case 'asset_change':
+          case 'observation':
             return {
-              id: entry.data?.id || entry.id || `asset-${Date.now()}-${Math.random()}`,
+              id: entry.data.id,
+              type: 'observation',
+              observation_text: entry.data.observation_text,
+              observed_by: entry.data.observed_by,
+              observed_by_name: entry.data.observed_by_name,
+              observed_at: entry.data.observed_at,
+              photos: entry.data.photos
+            } as ObservationHistoryEntry;
+
+          case 'asset_change':
+          case 'asset_created':
+            return {
+              id: entry.data?.id || `asset-${Date.now()}-${Math.random()}`,
               type: 'asset_change',
               asset_id: toolId,
-              change_type: entry.data?.change_type || 'updated',
-              changed_at: entry.timestamp || entry.data?.changed_at,
+              change_type: entry.type === 'asset_created' ? 'created' : (entry.data?.change_type || 'updated'),
+              changed_at: entry.timestamp,
               changed_by: entry.data?.changed_by || 'system',
               user_name: entry.data?.user_name || 'System',
               field_changed: entry.data?.field_changed,
               old_value: entry.data?.old_value,
               new_value: entry.data?.new_value,
-              notes: entry.data?.notes
+              notes: entry.data?.notes || entry.description
             } as AssetHistoryEntry;
 
           case 'checkout':
             return {
-              id: entry.id,
-              checkout_date: entry.date,
-              created_at: entry.date,
-              user_name: entry.user_display_name || entry.user_name || 'Unknown',
-              user_display_name: entry.user_display_name,
-              is_returned: entry.is_returned || false,
-              intended_usage: entry.intended_usage,
-              notes: entry.notes,
-              action_id: entry.action_id,
-              action_title: entry.action_title,
-              checkin: null
+              id: entry.data.id,
+              checkout_date: entry.data.checkout_date || entry.data.created_at,
+              created_at: entry.data.created_at,
+              user_name: entry.data.user_display_name || entry.data.user_name || 'Unknown',
+              user_display_name: entry.data.user_display_name,
+              is_returned: entry.data.is_returned || false,
+              intended_usage: entry.data.intended_usage,
+              notes: entry.data.notes,
+              action_id: entry.data.action_id,
+              action_title: entry.data.action_title,
+              checkin: undefined
             } as CheckoutHistory;
 
-          case 'action':
+          case 'action_created':
             return {
-              id: entry.id,
+              id: entry.data.id,
               type: 'asset_change',
               asset_id: toolId,
               change_type: 'action_created',
-              changed_at: entry.date,
-              changed_by: entry.created_by || 'system',
-              user_name: entry.user_name || 'System',
-              notes: entry.description,
-              action_id: entry.id,
-              action_title: entry.title,
-              action_status: entry.status
+              changed_at: entry.timestamp,
+              changed_by: entry.data.created_by || 'system',
+              user_name: entry.data.created_by_name || 'System',
+              notes: entry.data.description,
+              action_id: entry.data.id,
+              action_title: entry.data.title,
+              action_status: entry.data.status
             } as AssetHistoryEntry;
 
-          case 'issue':
+          case 'issue_reported':
+          case 'issue_resolved':
             return {
-              id: entry.id,
+              id: entry.data?.id || `issue-timeline-${Date.now()}-${Math.random()}`,
               type: 'issue_change',
-              issue_id: entry.id,
-              issue_description: entry.description || entry.issue_description,
-              issue_type: entry.issue_type,
-              change_type: 'created',
-              changed_at: entry.date,
-              changed_by: entry.reported_by || 'system',
-              user_name: entry.user_name || 'System',
-              old_status: null,
-              new_status: entry.status,
-              notes: entry.description,
-              damage_assessment: entry.damage_assessment
+              issue_id: entry.data?.id || '',
+              issue_description: entry.data?.description,
+              issue_type: entry.data?.issue_type,
+              change_type: entry.type === 'issue_resolved' ? 'resolved' : 'created',
+              changed_at: entry.timestamp,
+              changed_by: entry.data?.reported_by || 'system',
+              user_name: entry.data?.reported_by_name || 'System',
+              old_status: undefined,
+              new_status: entry.data?.status || (entry.type === 'issue_resolved' ? 'resolved' : 'active'),
+              notes: entry.data?.description,
+              damage_assessment: entry.data?.damage_assessment
             } as IssueHistoryEntry;
-
-          case 'issue_history':
-            return {
-              id: entry.id,
-              type: 'issue_change',
-              issue_id: entry.issue_id,
-              change_type: entry.change_type as 'created' | 'updated' | 'resolved' | 'removed',
-              changed_at: entry.date,
-              changed_by: entry.changed_by || 'system',
-              user_name: entry.user_name || 'System',
-              old_status: entry.old_status,
-              new_status: entry.new_status,
-              notes: entry.description || entry.notes
-            } as IssueHistoryEntry;
-
-          case 'observation':
-            console.log('🔍 Processing observation:', entry);
-            const obsEntry = {
-              id: entry.id,
-              type: 'observation',
-              observation_text: entry.observation_text,
-              observed_by: entry.observed_by,
-              observed_by_name: entry.observed_by_name,
-              observed_at: entry.observed_at || entry.date,
-              photos: entry.photos
-            } as ObservationHistoryEntry;
-            console.log('✅ Observation entry created:', obsEntry);
-            return obsEntry;
 
           default:
-            // Handle timeline entries without proper type
-            if (entry.type === 'issue_reported' || entry.type === 'issue_resolved') {
-              return {
-                id: entry.data?.id || `issue-timeline-${Date.now()}-${Math.random()}`,
-                type: 'issue_change',
-                issue_id: entry.data?.id || '',
-                issue_description: entry.data?.description,
-                issue_type: entry.data?.issue_type,
-                change_type: entry.type === 'issue_resolved' ? 'resolved' : 'created',
-                changed_at: entry.timestamp,
-                changed_by: entry.data?.reported_by || 'system',
-                user_name: entry.data?.reported_by_name || 'System',
-                old_status: null,
-                new_status: entry.data?.status || (entry.type === 'issue_resolved' ? 'resolved' : 'active'),
-                notes: entry.data?.description
-              } as IssueHistoryEntry;
-            }
-            return entry;
+            console.warn('Unknown timeline entry type:', entry.type, entry);
+            // Return a minimal entry to avoid breaking
+            return {
+              id: `unknown-${Date.now()}-${Math.random()}`,
+              type: 'asset_change',
+              asset_id: toolId,
+              change_type: 'updated',
+              changed_at: entry.timestamp || new Date().toISOString(),
+              changed_by: 'system',
+              user_name: 'System'
+            } as AssetHistoryEntry;
         }
       });
 
-      // Sort by date descending (most recent first)
-      allHistory.sort((a, b) => {
-        const dateA = 'checkout_date' in a ? (a.checkout_date || a.created_at) : 
-                      'observed_at' in a ? a.observed_at : a.changed_at;
-        const dateB = 'checkout_date' in b ? (b.checkout_date || b.created_at) : 
-                      'observed_at' in b ? b.observed_at : b.changed_at;
-        return new Date(dateB).getTime() - new Date(dateA).getTime();
-      });
-      
-      console.log('🟢 allHistory after sort, observations:', allHistory.filter(e => 'observed_at' in e));
+      // Timeline is already sorted by backend - no need to re-sort
 
       // Group entries that happened within 5 seconds of each other
       const groupedHistory: HistoryEntry[] = [];

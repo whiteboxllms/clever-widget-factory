@@ -49,14 +49,30 @@ Observations are **more important than actions for long-term success**, because 
 
 ---
 
-**Example:**  
+## Examples
+
+### Example 1: Tool Maintenance Failure
 A ladder left in the rain develops rust on pivot points, and the spring fails to return.  
-- **Observation**: Rust and broken spring detected (S')  
+- **Observation (S')**: Rust and broken spring detected  
 - **Context pulled**: Ladder was last used by team member X; no maintenance recorded in last 7 days  
-- **Inferred action**: No storage or maintenance after use (A)  
+- **Expected action E[A]**: No storage or maintenance after use (inferred from lack of documentation)  
 - **Scoring**:  
   - Best-practice adherence: -2  
   - Safety risk: High  
   - Financial impact: Medium negative  
   - Teamwork alignment: Low  
 - **Next step**: Generate corrective actions and preventive maintenance tasks
+
+### Example 2: Biological Asset Growth (Mani Mani Plant)
+User creates a mani mani plant record with initial photo, then captures observation weeks later with new photo.
+- **Initial state (S)**: Photo of newly planted mani mani seedling (Jan 15)
+- **Observation (S')**: Photo of mature mani mani plant with visible growth (Feb 11)
+- **Expected action E[A]**: Time passed + natural growth (biological process, no explicit human action)
+- **Context**: For biological assets, the "action" can be the passage of time and natural processes
+- **Future enhancement**: Image analysis could extract growth metrics (height, leaf count, health indicators)
+- **Experience value**: Tracks growth rate, identifies anomalies (too fast/slow), supports yield prediction
+- **Scoring dimensions**:
+  - Growth rate vs. expected (surprise factor)
+  - Health indicators (color, size, pest damage)
+  - Resource efficiency (water, nutrients used)
+  - Alignment with cultivation best practices

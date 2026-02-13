@@ -98,10 +98,16 @@ npm run test:ui          # Open Vitest UI
 npm run test:coverage    # Generate coverage report
 
 # Lambda Deployment
-./scripts/deploy-lambda-generic.sh <function-name>
-./scripts/deploy-actions-lambda.sh
-./scripts/deploy-semantic-search.sh
-./scripts/deploy-sari-sari-chat.sh
+# Deploy Lambda with layer (PREFERRED for new Lambdas)
+./scripts/deploy/deploy-lambda-with-layer.sh <lambda-dir> <function-name>
+# Example: ./scripts/deploy/deploy-lambda-with-layer.sh experiences cwf-experiences-lambda
+# - Creates or updates Lambda function
+# - Attaches cwf-common-nodejs layer (version 13) with shared utilities
+# - Configures environment variables from .env.local
+# - Sets timeout to 30s and memory to 512 MB
+
+# Deploy Lambda without layer (legacy)
+./scripts/deploy/deploy-lambda-generic.sh <lambda-dir> <function-name>
 
 # Database
 # Run migrations via Lambda:
@@ -110,7 +116,11 @@ aws lambda invoke --function-name cwf-db-migration \
   --region us-west-2 --cli-binary-format raw-in-base64-out
 
 # API Gateway
-./scripts/add-api-endpoint.sh /api/endpoint-name GET
+# Create endpoint with authorizer
+./scripts/add-api-endpoint.sh /api/endpoint-name GET cwf-lambda-function-name
+# Example: ./scripts/add-api-endpoint.sh /api/experiences POST cwf-experiences-lambda
+
+# Deploy API Gateway changes
 aws apigateway create-deployment --rest-api-id 0720au267k \
   --stage-name prod --region us-west-2
 

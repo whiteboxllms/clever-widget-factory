@@ -37,7 +37,7 @@ Observations are **more important than actions for long-term success**, because 
      - **Best-practice adherence**  
      - **Financial impact**  
      - **Safety risk**  
-     - **Teamwork and values alignment**
+     - **Team Operational Alignment**
    - The score serves as a reward signal (R) in the system and supports future learning.
 
 ## Key Principles
@@ -46,6 +46,66 @@ Observations are **more important than actions for long-term success**, because 
 - **Context-aware**: Include history and roles to improve inference of root causes.  
 - **Actionable**: Inferred or documented actions from observations feed the system for corrective measures, training, or preventive maintenance.  
 - **Supports RL and feedback**: Observation + inferred actions + scoring create (S, A, S', R) tuples for AI and system improvement.
+
+## Reward Structure
+
+### Core Concept
+
+Reward reflects how well the system (and human actions) preserved value, reduced risk, and aligned with operational standards.
+
+**Key points:**
+- Observation → S′ (actual observed state)
+- Compare with expected state (S_expected) based on previous state and natural degradation
+- Compute delta = S′ − S_expected
+- Reward is a function of delta and inferred/documented actions
+
+### Minimal Reward Formula
+
+R = Σᵢ wᵢ × Δᵢ
+
+Where Δᵢ are outcome deltas along different dimensions:
+
+| Dimension | Δ Definition | Weight |
+|-----------|--------------|--------|
+| **Asset Stewardship** | Δ_condition = Condition_current − Condition_expected | w₁ = 0.4 |
+| **Safety / Risk** | Δ_risk = Risk_baseline − Risk_observed | w₂ = 0.3 |
+| **Team Operational Alignment** | Δ_team = +1 if issues reported/mitigated, −1 if ignored | w₃ = 0.3 |
+
+### Reward Calculation Example: Ladder Scenario
+
+**Last known state (S):** Ladder stored properly, minor rust on pivot  
+**Expected state (S_expected):** Minor rust (normal degradation)  
+**Observed state (S′):** Ladder outside in rain, rust accelerated, spring broken
+
+**Compute deltas:**
+- Δ_condition = Condition_current − Condition_expected → **-2** (asset degraded more than expected)
+- Δ_risk = Risk_baseline − Risk_observed → **-2** (hazard present)
+- Δ_team = +1 if person documented/assigned corrective task, −1 if ignored → **-1** (ignored)
+
+**Reward:**
+```
+R = 0.4×(-2) + 0.3×(-2) + 0.3×(-1)
+R = -0.8 - 0.6 - 0.3
+R = -1.7
+```
+
+**Negative reward** → signals system "learning" that outcome was worse than expected
+
+**If person had documented/mitigated risk:** Δ_team = +1
+```
+R = 0.4×(-2) + 0.3×(-2) + 0.3×(+1)
+R = -0.8 - 0.6 + 0.3
+R = -1.1
+```
+Reward partially offsets damage through proper documentation and response.
+
+### Key Features of This Reward
+
+- **Delta-based**: Differentiates pre-existing vs new damage
+- **Outcome-focused**: No psychological inference, purely objective
+- **Action-incentivized**: Documentation, escalation, and mitigation increase reward
+- **Multi-dimensional**: Balances stewardship, safety, and operational alignment
+- **RL-compatible**: Directly usable in (S, A, S′, R) tuples for learning algorithms
 
 ---
 

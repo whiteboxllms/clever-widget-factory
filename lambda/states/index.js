@@ -183,9 +183,9 @@ async function createState(event, authContext, headers) {
   const organizationId = authContext.organization_id;
   const userId = authContext.user_id;
 
-  // Validation: Require at least one of state_text OR photos
+  // Validation: Require at least one of state_text OR photos with URLs
   const hasText = state_text && state_text.trim().length > 0;
-  const hasPhotos = photos && photos.length > 0;
+  const hasPhotos = photos && photos.some(p => p.photo_url && p.photo_url.trim().length > 0);
   
   if (!hasText && !hasPhotos) {
     return errorResponse(400, 'Please add observation text or at least one photo', headers);
@@ -298,7 +298,7 @@ async function updateState(event, id, authContext, headers) {
     const finalPhotos = photos !== undefined ? photos : currentState.photo_ids;
     
     const hasText = finalText && finalText.trim().length > 0;
-    const hasPhotos = Array.isArray(finalPhotos) && finalPhotos.length > 0;
+    const hasPhotos = Array.isArray(finalPhotos) && finalPhotos.some(p => (typeof p === 'string' && p.trim().length > 0) || (p.photo_url && p.photo_url.trim().length > 0));
     
     if (!hasText && !hasPhotos) {
       await client.query('ROLLBACK');

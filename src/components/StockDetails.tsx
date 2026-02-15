@@ -1,4 +1,4 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { CombinedAsset } from "@/hooks/useCombinedAssets";
 import { IssueCard } from "@/components/IssueCard";
 import { InventoryHistoryDialog } from "@/components/InventoryHistoryDialog";
+import { ExperienceCreationDialog } from "@/components/ExperienceCreationDialog";
+import { useState } from "react";
 
 interface StockDetailsProps {
   stock: CombinedAsset;
@@ -24,6 +26,8 @@ export const StockDetails = ({
   onEditIssue,
   onRefresh
 }: StockDetailsProps) => {
+  const [isExperienceDialogOpen, setIsExperienceDialogOpen] = useState(false);
+  
   const getStockStatusBadge = () => {
     if (stock.current_quantity === 0) {
       return <Badge variant="destructive">Out of Stock</Badge>;
@@ -48,6 +52,14 @@ export const StockDetails = ({
             <Badge variant="secondary">Stock Item</Badge>
           </div>
         </div>
+        <Button
+          variant="default"
+          size="sm"
+          onClick={() => setIsExperienceDialogOpen(true)}
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Create Experience
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -145,6 +157,14 @@ export const StockDetails = ({
           )}
         </div>
       </div>
+
+      <ExperienceCreationDialog
+        open={isExperienceDialogOpen}
+        onOpenChange={setIsExperienceDialogOpen}
+        entityType="part"
+        entityId={stock.id}
+        entityName={stock.name}
+      />
     </div>
   );
 };

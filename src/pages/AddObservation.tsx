@@ -99,7 +99,10 @@ export default function AddObservation() {
 
   const handleSubmit = async () => {
     // Validate that at least one of observationText or photos is provided
-    if (observationText.trim().length === 0 && photos.length === 0) {
+    const hasText = observationText.trim().length > 0;
+    const hasPhotos = photos.some(p => p.photo_url && !p.isUploading);
+    
+    if (!hasText && !hasPhotos) {
       toast({
         title: 'Validation Error',
         description: 'Please add observation text or at least one photo',
@@ -109,12 +112,14 @@ export default function AddObservation() {
     }
 
     const data: CreateObservationData = {
-      observation_text: observationText || undefined,
-      photos: photos.map((photo, index) => ({
-        photo_url: photo.photo_url,
-        photo_description: photo.photo_description,
-        photo_order: index
-      })),
+      observation_text: hasText ? observationText : undefined,
+      photos: photos
+        .filter(p => p.photo_url && !p.isUploading)
+        .map((photo, index) => ({
+          photo_url: photo.photo_url,
+          photo_description: photo.photo_description,
+          photo_order: index
+        })),
       links: [{
         entity_type: assetType === 'tools' ? 'tool' : 'part',
         entity_id: id!
@@ -256,7 +261,7 @@ export default function AddObservation() {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={isCreating || (observationText.trim().length === 0 && photos.length === 0)}
+              disabled={isCreating || (observationText.trim().length === 0 && photos.filter(p => p.photo_url && !p.isUploading).length === 0)}
             >
               {isCreating ? 'Saving...' : 'Save Observation'}
             </Button>

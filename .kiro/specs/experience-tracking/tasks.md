@@ -8,19 +8,19 @@ The implementation follows an incremental approach where each task builds on pre
 
 ## Tasks
 
-- [ ] 1. Database schema setup
-  - [ ] 1.1 Create experiences table migration
+- [x] 1. Database schema setup
+  - [x] 1.1 Create experiences table migration
     - Write SQL migration for experiences table with all fields and constraints
     - Include indexes for entity lookup, organization filtering, and created_at sorting
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8_
   
-  - [ ] 1.2 Create experience_components table migration
+  - [x] 1.2 Create experience_components table migration
     - Write SQL migration for experience_components junction table
     - Include CHECK constraints for component_type and state_id/action_id validation
     - Include indexes for experience_id, state_id, and action_id lookups
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10_
   
-  - [ ] 1.3 Execute database migrations
+  - [x] 1.3 Execute database migrations
     - Run migrations via cwf-db-migration Lambda function
     - Verify table creation and constraints using information_schema queries
     - _Requirements: 1.1, 2.1_
@@ -32,8 +32,8 @@ The implementation follows an incremental approach where each task builds on pre
     - Test foreign key cascade deletes
     - _Requirements: 1.3, 2.4, 2.5, 2.9, 2.10_
 
-- [ ] 2. Lambda function implementation
-  - [ ] 2.1 Create cwf-experiences-lambda directory structure
+- [x] 2. Lambda function implementation
+  - [x] 2.1 Create cwf-experiences-lambda directory structure
     - Create lambda/experiences/ directory
     - Create index.js handler file
     - Create package.json with pg dependency
@@ -41,7 +41,7 @@ The implementation follows an incremental approach where each task builds on pre
     - Note: Shared utilities (authorizerContext, db) will be provided by cwf-common-nodejs layer
     - _Requirements: 5.1, 9.1, 10.1_
   
-  - [ ] 2.2 Implement POST /api/experiences endpoint
+  - [x] 2.2 Implement POST /api/experiences endpoint
     - Parse and validate request body (entity_type, entity_id, initial_state_id, action_id, final_state_id)
     - Extract organization_id and user_id from authorizer context
     - Create experience record in database
@@ -49,14 +49,14 @@ The implementation follows an incremental approach where each task builds on pre
     - Return created experience with components
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8_
   
-  - [ ] 2.3 Implement GET /api/experiences endpoint
+  - [x] 2.3 Implement GET /api/experiences endpoint
     - Parse query parameters (entity_type, entity_id, limit, offset)
     - Filter by organization_id from authorizer context
     - Query experiences with LEFT JOIN to experience_components and states/actions
     - Return paginated results with component details
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9_
   
-  - [ ] 2.4 Implement GET /api/experiences/:id endpoint
+  - [x] 2.4 Implement GET /api/experiences/:id endpoint
     - Extract experience ID from path parameters
     - Filter by organization_id from authorizer context
     - Query single experience with all components and entity details
@@ -76,8 +76,8 @@ The implementation follows an incremental approach where each task builds on pre
 - [ ] 3. Checkpoint - Database and Lambda function complete
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 4. Lambda deployment and API Gateway integration
-  - [ ] 4.1 Deploy Lambda function with layer
+- [x] 4. Lambda deployment and API Gateway integration
+  - [x] 4.1 Deploy Lambda function with layer
     - Use scripts/deploy/deploy-lambda-with-layer.sh script
     - Run: ./scripts/deploy/deploy-lambda-with-layer.sh experiences cwf-experiences-lambda
     - Script will create function if it doesn't exist, or update code if it does
@@ -85,7 +85,7 @@ The implementation follows an incremental approach where each task builds on pre
     - Verify deployment with CodeSha256 check
     - _Requirements: 5.1, 9.1, 10.1_
   
-  - [ ] 4.2 Create API Gateway endpoints using add-api-endpoint.sh
+  - [x] 4.2 Create API Gateway endpoints using add-api-endpoint.sh
     - Create POST /api/experiences endpoint
     - Run: ./scripts/add-api-endpoint.sh /api/experiences POST cwf-experiences-lambda
     - Create GET /api/experiences endpoint
@@ -93,14 +93,14 @@ The implementation follows an incremental approach where each task builds on pre
     - Note: Path parameter endpoint (/api/experiences/{id}) requires manual setup or wire script
     - _Requirements: 5.1, 9.1_
   
-  - [ ] 4.3 Create wire-api-gateway.sh script for experiences
+  - [x] 4.3 Create wire-api-gateway.sh script for experiences
     - Create lambda/experiences/wire-api-gateway.sh following explorations pattern
     - Configure script to wire POST /api/experiences, GET /api/experiences, and GET /api/experiences/{id}
     - Include deployment step at the end
     - Run script to wire integrations and deploy
     - _Requirements: 5.1, 9.1, 9.10_
   
-  - [ ] 4.4 Verify API Gateway deployment
+  - [x] 4.4 Verify API Gateway deployment
     - Test POST /api/experiences with curl or Postman
     - Test GET /api/experiences with query parameters
     - Test GET /api/experiences/{id} with valid ID
@@ -108,18 +108,18 @@ The implementation follows an incremental approach where each task builds on pre
     - _Requirements: 5.1, 9.1, 9.10_
 
 - [ ] 5. Frontend API service integration
-  - [ ] 5.1 Add experience types to TypeScript definitions
+  - [x] 5.1 Add experience types to TypeScript definitions
     - Create Experience and ExperienceComponent interfaces in src/types/
     - Match database schema and API response structure
     - _Requirements: 5.1, 9.1, 9.10_
   
-  - [ ] 5.2 Implement experience API service methods
+  - [x] 5.2 Implement experience API service methods
     - Add createExperience() method to apiService
     - Add listExperiences() method with query parameters
     - Add getExperience() method for single experience retrieval
     - _Requirements: 5.1, 9.1, 9.10_
   
-  - [ ] 5.3 Create TanStack Query hooks for experiences
+  - [x] 5.3 Create TanStack Query hooks for experiences
     - Create useCreateExperience mutation hook
     - Create useExperiences query hook with filters
     - Create useExperience query hook for single experience
@@ -134,14 +134,14 @@ The implementation follows an incremental approach where each task builds on pre
     - _Requirements: 5.1, 9.1, 9.10_
 
 - [ ] 6. Experience creation UI component
-  - [ ] 6.1 Create ExperienceCreationDialog component
+  - [x] 6.1 Create ExperienceCreationDialog component
     - Create dialog component using shadcn-ui Dialog
     - Add form fields: entity (pre-filled), initial_state, action (optional), final_state
     - Use React Hook Form + Zod for validation
     - Implement state/action dropdowns with data from existing hooks
     - _Requirements: 5.1, 5.2, 5.3, 5.4_
   
-  - [ ] 6.2 Integrate dialog with tool/part detail pages
+  - [x] 6.2 Integrate dialog with tool/part detail pages
     - Add "Create Experience" button to tool detail page
     - Add "Create Experience" button to part detail page
     - Pass entity_type and entity_id as props to dialog

@@ -1,6 +1,0 @@
-{
-  "name": "cwf-observations-lambda",
-  "version": "1.0.0",
-  "description": "Observations CRUD endpoints",
-  "main": "index.js"
-}

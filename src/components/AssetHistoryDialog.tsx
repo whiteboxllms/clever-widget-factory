@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { History, Edit, Plus, AlertTriangle, Clock, LogOut, LogIn, Loader2, ExternalLink, Zap, Target, Camera } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useToolHistory, HistoryEntry, AssetHistoryEntry, CheckoutHistory, IssueHistoryEntry, ObservationHistoryEntry } from "@/hooks/tools/useToolHistory";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useCognitoAuth";
 
 // Type guard functions
 const isAssetHistory = (entry: HistoryEntry): entry is AssetHistoryEntry => {
@@ -41,12 +42,25 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
   const { toolHistory, assetInfo, loading, fetchToolHistory } = useToolHistory();
+  const { user, isAdmin } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (open) {
       fetchToolHistory(assetId);
     }
   }, [open, assetId, fetchToolHistory]);
+
+  /**
+   * Check if the current user can edit an observation
+   * @param observation - The observation to check permissions for
+   * @returns true if user is the creator or has admin permissions
+   */
+  const canEditObservation = (observation: ObservationHistoryEntry): boolean => {
+    if (!user) return false;
+    const isCreator = user.userId === observation.observed_by;
+    return isCreator || isAdmin;
+  };
 
   const getChangeIcon = (entry: HistoryEntry) => {
     if (isAssetHistory(entry)) {
@@ -408,9 +422,24 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
                       {/* Observation display section */}
                       {isObservation(entry) && (
                         <div className="text-sm bg-blue-50 border border-blue-200 p-3 rounded mt-2">
-                          {entry.observation_text && (
-                            <p className="text-blue-800 mb-2">{entry.observation_text}</p>
-                          )}
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="flex-1">
+                              {entry.observation_text && (
+                                <p className="text-blue-800">{entry.observation_text}</p>
+                              )}
+                            </div>
+                            {canEditObservation(entry) && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => navigate(`/observations/edit/${entry.id}`)}
+                                className="h-8 px-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100"
+                                aria-label="Edit observation"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                           {entry.photos && entry.photos.length > 0 && (
                             <div className="space-y-2 mt-2">
                               {entry.photos.map(photo => (

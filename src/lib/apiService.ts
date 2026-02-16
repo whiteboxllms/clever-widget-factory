@@ -15,7 +15,6 @@ import {
   missionsQueryKey,
   partsOrdersQueryKey,
   explorationsQueryKey,
-  observationsQueryKey,
   experiencesQueryKey
 } from './queryKeys';
 
@@ -352,25 +351,6 @@ function updateCacheFromResponse(endpoint: string, method: string, responseData:
     } else if (method === 'PUT') {
       globalQueryClient.setQueryData(explorationsQueryKey(), (old: any[] = []) => 
         old.map(item => item.id === data.id ? data : item)
-      );
-    }
-  } else if (endpoint.includes('/observations')) {
-    if (method === 'POST') {
-      if (optimisticId) {
-        globalQueryClient.setQueryData(observationsQueryKey(), (old: any[] = []) => 
-          old.map(item => item.id === optimisticId ? data : item)
-        );
-      } else {
-        globalQueryClient.setQueryData(observationsQueryKey(), (old: any[] = []) => [...old, data]);
-      }
-    } else if (method === 'PUT') {
-      globalQueryClient.setQueryData(observationsQueryKey(), (old: any[] = []) => 
-        old.map(item => item.id === data.id ? data : item)
-      );
-    } else if (method === 'DELETE') {
-      const observationId = endpoint.split('/').pop();
-      globalQueryClient.setQueryData(observationsQueryKey(), (old: any[] = []) => 
-        old.filter(item => item.id !== observationId)
       );
     }
   } else if (endpoint.includes('/experiences')) {

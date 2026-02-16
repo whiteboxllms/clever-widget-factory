@@ -56,10 +56,6 @@ export const partsOrdersQueryKey = (status?: string) => [
   status ?? 'all'
 ];
 
-// Observations query keys
-export const observationsQueryKey = () => ['observations'];
-export const observationQueryKey = (observationId: string) => ['observation', observationId];
-
 // States query keys (with entity filtering)
 export const statesQueryKey = (filters?: { entity_type?: string; entity_id?: string }) => 
   filters ? ['states', filters.entity_type ?? 'all', filters.entity_id ?? 'all'] : ['states'];

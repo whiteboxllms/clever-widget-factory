@@ -264,11 +264,42 @@ async function updateState(event, id, authContext, headers) {
   const body = JSON.parse(event.body || '{}');
   const { state_text, captured_at, photos, links } = body;
   const organizationId = authContext.organization_id;
+  const userId = authContext.user_id;
 
   const client = await getDbClient();
   
   try {
     await client.query('BEGIN');
+
+    // Check permissions before update
+    const permissionCheckSql = `
+      SELECT captured_by, organization_id
+      FROM states
+      WHERE id = ${formatSqlValue(id)}::uuid
+    `;
+    const permissionResult = await client.query(permissionCheckSql);
+    
+    if (permissionResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return errorResponse(404, 'State not found', headers);
+    }
+    
+    const state = permissionResult.rows[0];
+    
+    // Check if user is creator or has admin permission
+    const isCreator = state.captured_by === userId;
+    const isAdmin = authContext.permissions?.includes('data:write:all');
+    
+    if (!isCreator && !isAdmin) {
+      await client.query('ROLLBACK');
+      return errorResponse(403, 'You do not have permission to edit this state', headers);
+    }
+    
+    // Verify organization match
+    if (state.organization_id !== organizationId) {
+      await client.query('ROLLBACK');
+      return errorResponse(403, 'State does not belong to your organization', headers);
+    }
 
     // Validation: If updating text or photos, ensure at least one will remain
     // First, get current state to check what exists

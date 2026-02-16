@@ -183,9 +183,9 @@ async function createState(event, authContext, headers) {
   const organizationId = authContext.organization_id;
   const userId = authContext.user_id;
 
-  // Validation: Require at least one of state_text OR photos
+  // Validation: Require at least one of state_text OR photos with URLs
   const hasText = state_text && state_text.trim().length > 0;
-  const hasPhotos = photos && photos.length > 0;
+  const hasPhotos = photos && photos.some(p => p.photo_url && p.photo_url.trim().length > 0);
   
   if (!hasText && !hasPhotos) {
     return errorResponse(400, 'Please add observation text or at least one photo', headers);
@@ -264,11 +264,42 @@ async function updateState(event, id, authContext, headers) {
   const body = JSON.parse(event.body || '{}');
   const { state_text, captured_at, photos, links } = body;
   const organizationId = authContext.organization_id;
+  const userId = authContext.user_id;
 
   const client = await getDbClient();
   
   try {
     await client.query('BEGIN');
+
+    // Check permissions before update
+    const permissionCheckSql = `
+      SELECT captured_by, organization_id
+      FROM states
+      WHERE id = ${formatSqlValue(id)}::uuid
+    `;
+    const permissionResult = await client.query(permissionCheckSql);
+    
+    if (permissionResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return errorResponse(404, 'State not found', headers);
+    }
+    
+    const state = permissionResult.rows[0];
+    
+    // Check if user is creator or has admin permission
+    const isCreator = state.captured_by === userId;
+    const isAdmin = authContext.permissions?.includes('data:write:all');
+    
+    if (!isCreator && !isAdmin) {
+      await client.query('ROLLBACK');
+      return errorResponse(403, 'You do not have permission to edit this state', headers);
+    }
+    
+    // Verify organization match
+    if (state.organization_id !== organizationId) {
+      await client.query('ROLLBACK');
+      return errorResponse(403, 'State does not belong to your organization', headers);
+    }
 
     // Validation: If updating text or photos, ensure at least one will remain
     // First, get current state to check what exists
@@ -298,7 +329,7 @@ async function updateState(event, id, authContext, headers) {
     const finalPhotos = photos !== undefined ? photos : currentState.photo_ids;
     
     const hasText = finalText && finalText.trim().length > 0;
-    const hasPhotos = Array.isArray(finalPhotos) && finalPhotos.length > 0;
+    const hasPhotos = Array.isArray(finalPhotos) && finalPhotos.some(p => (typeof p === 'string' && p.trim().length > 0) || (p.photo_url && p.photo_url.trim().length > 0));
     
     if (!hasText && !hasPhotos) {
       await client.query('ROLLBACK');

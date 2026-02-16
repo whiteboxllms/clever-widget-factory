@@ -56,13 +56,14 @@ export const partsOrdersQueryKey = (status?: string) => [
   status ?? 'all'
 ];
 
-// Observations query keys
-export const observationsQueryKey = () => ['observations'];
-export const observationQueryKey = (observationId: string) => ['observation', observationId];
-
 // States query keys (with entity filtering)
 export const statesQueryKey = (filters?: { entity_type?: string; entity_id?: string }) => 
   filters ? ['states', filters.entity_type ?? 'all', filters.entity_id ?? 'all'] : ['states'];
 export const stateQueryKey = (stateId: string) => ['state', stateId];
+
+// Experiences query keys
+export const experiencesQueryKey = (filters?: { entity_type?: string; entity_id?: string }) => 
+  filters ? ['experiences', filters.entity_type ?? 'all', filters.entity_id ?? 'all'] : ['experiences'];
+export const experienceQueryKey = (experienceId: string) => ['experience', experienceId];
 
 

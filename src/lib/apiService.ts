@@ -15,7 +15,7 @@ import {
   missionsQueryKey,
   partsOrdersQueryKey,
   explorationsQueryKey,
-  observationsQueryKey
+  experiencesQueryKey
 } from './queryKeys';
 
 // Global query client instance for cache updates
@@ -353,23 +353,35 @@ function updateCacheFromResponse(endpoint: string, method: string, responseData:
         old.map(item => item.id === data.id ? data : item)
       );
     }
-  } else if (endpoint.includes('/observations')) {
+  } else if (endpoint.includes('/experiences')) {
     if (method === 'POST') {
       if (optimisticId) {
-        globalQueryClient.setQueryData(observationsQueryKey(), (old: any[] = []) => 
+        globalQueryClient.setQueryData(experiencesQueryKey(), (old: any[] = []) => 
           old.map(item => item.id === optimisticId ? data : item)
         );
       } else {
-        globalQueryClient.setQueryData(observationsQueryKey(), (old: any[] = []) => [...old, data]);
+        globalQueryClient.setQueryData(experiencesQueryKey(), (old: any[] = []) => [...old, data]);
+      }
+      // Also invalidate entity-specific queries if we have entity info
+      if (data.entity_type && data.entity_id) {
+        globalQueryClient.invalidateQueries({ 
+          queryKey: experiencesQueryKey({ entity_type: data.entity_type, entity_id: data.entity_id }) 
+        });
       }
     } else if (method === 'PUT') {
-      globalQueryClient.setQueryData(observationsQueryKey(), (old: any[] = []) => 
+      globalQueryClient.setQueryData(experiencesQueryKey(), (old: any[] = []) => 
         old.map(item => item.id === data.id ? data : item)
       );
+      // Also invalidate entity-specific queries
+      if (data.entity_type && data.entity_id) {
+        globalQueryClient.invalidateQueries({ 
+          queryKey: experiencesQueryKey({ entity_type: data.entity_type, entity_id: data.entity_id }) 
+        });
+      }
     } else if (method === 'DELETE') {
-      const observationId = endpoint.split('/').pop();
-      globalQueryClient.setQueryData(observationsQueryKey(), (old: any[] = []) => 
-        old.filter(item => item.id !== observationId)
+      const experienceId = endpoint.split('/').pop();
+      globalQueryClient.setQueryData(experiencesQueryKey(), (old: any[] = []) => 
+        old.filter(item => item.id !== experienceId)
       );
     }
   }
@@ -447,5 +459,60 @@ export function getApiData<T>(response: { data?: T }): T {
  */
 export function hasApiData(response: any): boolean {
   return response !== null && response !== undefined && response.data !== undefined;
+}
+
+/**
+ * Experience API Methods
+ */
+import type { 
+  Experience, 
+  CreateExperienceRequest, 
+  ExperienceListParams, 
+  ExperienceListResponse 
+} from '@/types/experiences';
+
+/**
+ * Create a new experience
+ */
+export async function createExperience(
+  request: CreateExperienceRequest
+): Promise<{ data: Experience }> {
+  return apiService.post<{ data: Experience }>('/experiences', request);
+}
+
+/**
+ * List experiences with optional filters
+ */
+export async function listExperiences(
+  params?: ExperienceListParams
+): Promise<ExperienceListResponse> {
+  const queryParams = new URLSearchParams();
+  
+  if (params?.entity_type) {
+    queryParams.append('entity_type', params.entity_type);
+  }
+  if (params?.entity_id) {
+    queryParams.append('entity_id', params.entity_id);
+  }
+  if (params?.limit !== undefined) {
+    queryParams.append('limit', params.limit.toString());
+  }
+  if (params?.offset !== undefined) {
+    queryParams.append('offset', params.offset.toString());
+  }
+  
+  const queryString = queryParams.toString();
+  const endpoint = queryString ? `/experiences?${queryString}` : '/experiences';
+  
+  return apiService.get<ExperienceListResponse>(endpoint);
+}
+
+/**
+ * Get a single experience by ID
+ */
+export async function getExperience(
+  experienceId: string
+): Promise<{ data: Experience }> {
+  return apiService.get<{ data: Experience }>(`/experiences/${experienceId}`);
 }
 

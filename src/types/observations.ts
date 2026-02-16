@@ -40,3 +40,17 @@ export interface CreateObservationData {
     entity_id: string;
   }>;
 }
+
+export interface UpdateObservationData {
+  observation_text?: string;
+  captured_at?: string;
+  photos?: Array<{
+    photo_url: string;
+    photo_description?: string;
+    photo_order?: number;
+  }>;
+  links?: Array<{
+    entity_type: string;
+    entity_id: string;
+  }>;
+}

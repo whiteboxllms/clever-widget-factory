@@ -131,6 +131,14 @@ function AppContent() {
           }
         />
         <Route
+          path="/observations/edit/:observationId"
+          element={
+            <ProtectedRoute>
+              <AddObservation />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/inventory"
           element={<Navigate to="/combined-assets?view=stock" replace />}
         />

@@ -51,7 +51,7 @@ if aws lambda get-function --function-name "$FUNCTION_NAME" --region "$REGION" &
     --layers "$LAYER_ARN" \
     --timeout 30 \
     --memory-size 512 \
-    --environment "Variables={DB_PASSWORD=$DB_PASSWORD}" \
+    --environment "Variables={DB_PASSWORD=$DB_PASSWORD,DB_HOST=$DB_HOST,DB_USER=$DB_USER,DB_NAME=$DB_NAME,DB_PORT=$DB_PORT}" \
     --region "$REGION" >/dev/null
 else
   echo "🆕 Creating new function..."
@@ -64,7 +64,7 @@ else
     --layers "$LAYER_ARN" \
     --timeout 30 \
     --memory-size 512 \
-    --environment "Variables={DB_PASSWORD=$DB_PASSWORD}" \
+    --environment "Variables={DB_PASSWORD=$DB_PASSWORD,DB_HOST=$DB_HOST,DB_USER=$DB_USER,DB_NAME=$DB_NAME,DB_PORT=$DB_PORT}" \
     --region "$REGION" >/dev/null
 fi
 

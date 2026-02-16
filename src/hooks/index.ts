@@ -4,5 +4,6 @@
  */
 
 export { useAuth, AuthProvider } from './useCognitoAuth';
+export { useExperiences, useExperience, useCreateExperience } from './useExperiences';
 
 

@@ -375,7 +375,7 @@ describe('AddObservation - Edit Mode', () => {
         expect(mockUpdateState).toHaveBeenCalledWith({
           id: 'state-123',
           data: expect.objectContaining({
-            observation_text: 'Updated observation text',
+            state_text: 'Updated observation text',
             captured_at: expect.any(String),
             photos: [],
             links: mockState.links,
@@ -690,7 +690,7 @@ describe('AddObservation - Edit Mode', () => {
         expect(mockUpdateState).toHaveBeenCalledWith({
           id: 'state-123',
           data: expect.objectContaining({
-            observation_text: undefined, // Empty text becomes undefined
+            state_text: undefined, // Empty text becomes undefined
             photos: expect.arrayContaining([
               expect.objectContaining({
                 photo_url: 'https://example.com/photo1.jpg',

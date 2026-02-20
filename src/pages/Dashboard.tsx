@@ -44,8 +44,17 @@ export default function Dashboard() {
     }
   };
 
-  const handleClearCache = () => {
+  const handleClearCache = async () => {
+    // Clear TanStack Query cache
     queryClient.clear();
+    
+    // Clear IndexedDB persisted cache
+    try {
+      await indexedDB.deleteDatabase('CWFQueryCache');
+    } catch (error) {
+      console.warn('Failed to clear IndexedDB cache:', error);
+    }
+    
     toast({
       title: "Cache cleared",
       description: "All cached data has been cleared. Refreshing...",

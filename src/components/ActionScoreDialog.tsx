@@ -66,7 +66,7 @@ export function ActionScoreDialog({
     }
   }, [prompts, selectedPromptId]);
 
-  // Fetch implementation updates (observations are stored as update_type = 'progress')
+  // Fetch implementation updates (stored in states table, linked via state_links)
   const { data: implementationUpdates = [] } = useQuery<ImplementationUpdate[]>({
     queryKey: actionImplementationUpdatesQueryKey(action.id),
     queryFn: async () => {
@@ -147,9 +147,9 @@ export function ActionScoreDialog({
 
   const selectedPrompt = prompts.find(p => p.id === selectedPromptId);
 
-  // Aggregate observations from implementation updates with update_type = 'progress'
+  // Aggregate observations from implementation updates
   const aggregatedObservations = implementationUpdates
-    .filter(update => update.update_type === 'progress')
+    .filter(update => update.update_text && update.update_text.trim()) // Filter out null/empty text
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
     .map(update => {
       const date = new Date(update.created_at).toLocaleDateString('en-US', {

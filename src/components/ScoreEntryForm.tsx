@@ -32,7 +32,6 @@ export function ScoreEntryForm({ initialScores = {}, rootCauses = [], onSave, on
                       JSON.stringify(prevInitialScoresRef.current) !== JSON.stringify(initialScores);
     
     if (hasChanged) {
-      console.log('ScoreEntryForm: initialScores content changed:', initialScores);
       setScores(initialScores);
       prevInitialScoresRef.current = initialScores;
     }

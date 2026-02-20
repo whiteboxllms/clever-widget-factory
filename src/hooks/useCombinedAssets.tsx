@@ -57,13 +57,8 @@ const fetchTools = async () => {
 };
 
 const fetchParts = async () => {
-  try {
-    const result = await apiService.get('/parts?limit=2000');
-    return result.data || [];
-  } catch (error) {
-    console.error('❌ Parts fetch error:', error);
-    return [];
-  }
+  const result = await apiService.get('/parts?limit=2000');
+  return result.data || [];
 };
 
 const fetchActions = async () => {

@@ -200,8 +200,6 @@ export const CombinedAssetsContainer = () => {
       const partsData = partsResponse?.results || partsResponse?.data?.results || [];
       const toolsData = toolsResponse?.results || toolsResponse?.data?.results || [];
       
-      console.log('Extracted:', partsData.length, 'parts,', toolsData.length, 'tools');
-      
       // Map API results to CombinedAsset format with type and distance
       const partsResults = partsData.map((r: any) => ({
         ...r,
@@ -214,10 +212,6 @@ export const CombinedAssetsContainer = () => {
         similarity_score: r.distance
       }));
       const allResults = [...partsResults, ...toolsResults].sort((a, b) => a.similarity_score - b.similarity_score);
-      
-      console.log('🤖 SEMANTIC SEARCH COMPLETE:');
-      console.log('  - Tools:', toolsResults.length, 'Parts:', partsResults.length);
-      console.log('  - Top 3:', allResults.slice(0, 3).map(r => `${r.name} (${r.distance?.toFixed(3)})`));
       
       setSemanticResults(allResults);
     } catch (error) {

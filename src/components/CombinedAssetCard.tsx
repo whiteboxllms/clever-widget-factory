@@ -279,7 +279,7 @@ export const CombinedAssetCard = memo(({
         {(asset.type === 'asset' || asset.category) && (
           <div className="flex flex-wrap gap-1 -mt-1">
             {asset.type === 'asset' && asset.is_checked_out && statusBadge}
-            {asset.category && asset.category !== 'Electric Tool' && (
+            {asset.category && asset.category !== 'Electric Tool' && asset.category !== 'Biological' && (
               <Badge variant="outline" className="text-xs">{asset.category}</Badge>
             )}
           </div>

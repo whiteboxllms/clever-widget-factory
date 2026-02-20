@@ -55,8 +55,6 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
     isExisting?: boolean;  // Flag to track if this is an existing photo
   }>>([]);
 
-  console.log('[StatesInline] Render - showAddForm:', showAddForm, 'editingStateId:', editingStateId);
-
   // States are automatically cached by TanStack Query
   // Components can derive counts using useActionObservationCount hook
   // No need to notify parent components of count changes
@@ -228,9 +226,6 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
   };
 
   const handleEdit = (state: Observation) => {
-    console.log('[StatesInline] handleEdit called for state:', state.id);
-    console.log('[StatesInline] Current showAddForm:', showAddForm);
-    
     // Load the observation data for editing
     setEditingStateId(state.id);
     setStateText(state.observation_text || '');
@@ -247,13 +242,9 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
     
     setShowAddForm(true);
     
-    console.log('[StatesInline] Set showAddForm to true, editingStateId:', state.id);
-    console.log('[StatesInline] Loaded', existingPhotos.length, 'existing photos');
-    
     // Scroll to the form after React has re-rendered
     setTimeout(() => {
       const formElement = document.querySelector('[data-edit-form]');
-      console.log('[StatesInline] Looking for form element:', formElement);
       if (formElement) {
         formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
       } else {

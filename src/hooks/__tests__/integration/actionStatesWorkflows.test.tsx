@@ -77,7 +77,7 @@ if (skipIfNotIntegrationEnv()) {
 
       // Create a state linked to the action
       const stateData = {
-        observation_text: 'Integration test state - work in progress',
+        state_text: 'Integration test state - work in progress',
         photos: [],
         links: [{ entity_type: 'action' as const, entity_id: testAction.id }]
       };
@@ -117,7 +117,7 @@ if (skipIfNotIntegrationEnv()) {
 
       // Create initial state
       const initialState = await stateService.createState({
-        observation_text: 'Initial observation text',
+        state_text: 'Initial observation text',
         photos: [],
         links: [{ entity_type: 'action', entity_id: testAction.id }]
       });
@@ -133,7 +133,7 @@ if (skipIfNotIntegrationEnv()) {
 
       // Update the state
       const updateData = {
-        observation_text: 'Updated observation text - work completed'
+        state_text: 'Updated observation text - work completed'
       };
 
       result.current.updateState({
@@ -177,13 +177,13 @@ if (skipIfNotIntegrationEnv()) {
 
       // Create two states
       const state1 = await stateService.createState({
-        observation_text: 'First observation',
+        state_text: 'First observation',
         photos: [],
         links: [{ entity_type: 'action', entity_id: testAction.id }]
       });
 
       const state2 = await stateService.createState({
-        observation_text: 'Second observation',
+        state_text: 'Second observation',
         photos: [],
         links: [{ entity_type: 'action', entity_id: testAction.id }]
       });
@@ -257,7 +257,7 @@ if (skipIfNotIntegrationEnv()) {
 
       // Create state
       const stateData = {
-        observation_text: 'First observation',
+        state_text: 'First observation',
         photos: [],
         links: [{ entity_type: 'action' as const, entity_id: testAction.id }]
       };
@@ -274,7 +274,7 @@ if (skipIfNotIntegrationEnv()) {
 
       // Create another state (simulating user staying in dialog)
       const stateData2 = {
-        observation_text: 'Second observation',
+        state_text: 'Second observation',
         photos: [],
         links: [{ entity_type: 'action' as const, entity_id: testAction.id }]
       };
@@ -321,7 +321,7 @@ if (skipIfNotIntegrationEnv()) {
 
       // Operation 1: Create state
       const stateData = {
-        observation_text: 'Initial observation',
+        state_text: 'Initial observation',
         photos: [],
         links: [{ entity_type: 'action' as const, entity_id: testAction.id }]
       };
@@ -351,7 +351,7 @@ if (skipIfNotIntegrationEnv()) {
       // Operation 2: Update state
       result.current.updateState({
         id: stateId,
-        data: { observation_text: 'Updated observation' }
+        data: { state_text: 'Updated observation' }
       });
 
       await waitFor(() => {
@@ -405,7 +405,7 @@ if (skipIfNotIntegrationEnv()) {
 
       // Create text-only state
       const textOnlyData = {
-        observation_text: 'Text-only observation',
+        state_text: 'Text-only observation',
         photos: [],
         links: [{ entity_type: 'action' as const, entity_id: testAction.id }]
       };
@@ -427,7 +427,7 @@ if (skipIfNotIntegrationEnv()) {
 
       // Create photo-only state (with empty text)
       const photoOnlyData = {
-        observation_text: '',
+        state_text: '',
         photos: ['https://example.com/photo1.jpg'],
         links: [{ entity_type: 'action' as const, entity_id: testAction.id }]
       };
@@ -474,7 +474,7 @@ if (skipIfNotIntegrationEnv()) {
       const statePromises = [];
       for (let i = 1; i <= 5; i++) {
         const stateData = {
-          observation_text: `Observation ${i}`,
+          state_text: `Observation ${i}`,
           photos: [],
           links: [{ entity_type: 'action' as const, entity_id: testAction.id }]
         };

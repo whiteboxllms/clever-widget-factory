@@ -146,7 +146,7 @@ export default function AddObservation() {
     }
 
     const data: CreateObservationData = {
-      observation_text: hasText ? observationText : undefined,
+      state_text: hasText ? observationText : undefined,
       captured_at: new Date(capturedAt).toISOString(), // Convert datetime-local to ISO string
       photos: photos
         .filter(p => p.photo_url && !p.isUploading)

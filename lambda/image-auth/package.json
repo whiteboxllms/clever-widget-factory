@@ -1,0 +1,16 @@
+{
+  "name": "cwf-image-auth",
+  "version": "1.0.0",
+  "description": "Cookie Generator Lambda for CloudFront signed cookies",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^1.0.0"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  }
+}

@@ -25,9 +25,6 @@ const isIssueHistory = (entry: HistoryEntry): entry is IssueHistoryEntry => {
 
 const isObservation = (entry: HistoryEntry): entry is ObservationHistoryEntry => {
   const result = 'observation_text' in entry && 'observed_at' in entry;
-  if (result) {
-    console.log('✅ isObservation TRUE for:', entry);
-  }
   return result;
 };
 
@@ -175,7 +172,6 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
           ) : (
             <div className="space-y-4">
               {toolHistory.map((entry, index) => {
-                console.log(`🔍 Rendering entry ${index}:`, entry.id, 'has observed_at:', 'observed_at' in entry, 'type:', 'type' in entry ? entry.type : 'no-type');
                 return (
                 <Card key={entry.id} className="p-4">
                   <div className="flex items-start gap-3">

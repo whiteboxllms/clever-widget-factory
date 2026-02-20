@@ -129,7 +129,15 @@ exports.handler = async (event) => {
         SELECT 
           s.id,
           sl.entity_id as action_id,
-          s.state_text as update_text,
+          COALESCE(
+            s.state_text,
+            (
+              SELECT string_agg(sp.photo_description, E'\\n' ORDER BY sp.photo_order)
+              FROM state_photos sp
+              WHERE sp.state_id = s.id AND sp.photo_description IS NOT NULL AND sp.photo_description != ''
+            ),
+            ''
+          ) as update_text,
           s.captured_by as updated_by,
           s.created_at,
           s.updated_at

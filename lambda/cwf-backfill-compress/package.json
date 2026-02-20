@@ -1,5 +1,5 @@
 {
-  "name": "cwf-image-compressor",
+  "name": "cwf-backfill-compress",
   "version": "1.0.0",
   "type": "module",
   "dependencies": {

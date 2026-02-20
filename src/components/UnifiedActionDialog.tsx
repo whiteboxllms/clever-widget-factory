@@ -411,8 +411,6 @@ export function UnifiedActionDialog({
         const requiredStockChanged = JSON.stringify([...(action.required_stock || [])].sort()) !== JSON.stringify([...(prev.required_stock || [])].sort());
         
         if (attachmentsChanged || requiredToolsChanged || requiredStockChanged) {
-            timeSinceUpload
-          });
           return {
             ...action,
             plan_commitment: action.plan_commitment || false,
@@ -1156,15 +1154,6 @@ export function UnifiedActionDialog({
         // NOTE: estimated_duration, actual_duration, estimated_completion_date removed in migration 005
         // Explicitly exclude these fields to prevent errors with stale cached data
       };
-      
-      // Track attachment updates
-          newCount: actionData.attachments.length,
-          oldAttachments: action.attachments,
-          newAttachments: actionData.attachments
-        });
-      }
-
-
 
       const savedAction = await saveActionMutation.mutateAsync(isCreating || !action?.id ? actionData : { ...actionData, id: action.id });
       
@@ -1375,9 +1364,6 @@ export function UnifiedActionDialog({
                       variant="outline"
                       className="w-full"
                       onClick={() => {
-                          showExplorationDialog,
-                          isExploration 
-                        });
                         setShowExplorationDialog(true);
                       }}
                       disabled={!actionId}

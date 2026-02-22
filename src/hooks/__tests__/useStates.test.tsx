@@ -423,8 +423,8 @@ describe('useStateMutations', () => {
 
       // Trigger two updates concurrently
       await Promise.all([
-        result.current.updateState({ id: 'state-123', data: { observation_text: 'First update' } }),
-        result.current.updateState({ id: 'state-123', data: { observation_text: 'Second update' } }),
+        result.current.updateState({ id: 'state-123', data: { state_text: 'First update' } }),
+        result.current.updateState({ id: 'state-123', data: { state_text: 'Second update' } }),
       ]);
 
       // Last write wins - should have second update
@@ -500,7 +500,7 @@ describe('useStateMutations', () => {
       );
 
       const data: CreateObservationData = {
-        observation_text: 'Test observation',
+        state_text: 'Test observation',
         photos: [],
         links: [{ entity_type: 'action', entity_id: 'action-1' }],
       };

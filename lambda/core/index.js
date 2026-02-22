@@ -590,6 +590,13 @@ exports.handler = async (event) => {
     // GET /parts - List parts
     if (path.endsWith('/parts') && httpMethod === 'GET') {
       const { limit = 50, offset = 0 } = event.queryStringParameters || {};
+      
+      // Build WHERE clause for organization filtering
+      let whereClause = '';
+      if (!hasDataReadAll && organizationId) {
+        whereClause = `WHERE parts.organization_id::text = '${escapeLiteral(organizationId)}'`;
+      }
+      
       const sql = `SELECT json_agg(row_to_json(t)) FROM (
         SELECT 
           parts.id, parts.name, parts.description, parts.policy, parts.category, 
@@ -606,6 +613,7 @@ exports.handler = async (event) => {
           parts.created_at, parts.updated_at 
         FROM parts
         LEFT JOIN tools parent_tool ON parts.parent_structure_id = parent_tool.id
+        ${whereClause}
         ORDER BY parts.name 
         LIMIT ${limit} OFFSET ${offset}
       ) t;`;
@@ -3609,7 +3617,15 @@ exports.handler = async (event) => {
           SELECT 
             s.id,
             sl.entity_id as action_id,
-            s.state_text as update_text,
+            COALESCE(
+              s.state_text,
+              (
+                SELECT string_agg(sp.photo_description, E'\\n' ORDER BY sp.photo_order)
+                FROM state_photos sp
+                WHERE sp.state_id = s.id AND sp.photo_description IS NOT NULL AND sp.photo_description != ''
+              ),
+              ''
+            ) as update_text,
             s.captured_by as updated_by,
             s.created_at,
             s.updated_at,

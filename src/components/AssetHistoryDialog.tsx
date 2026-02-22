@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useToolHistory, HistoryEntry, AssetHistoryEntry, CheckoutHistory, IssueHistoryEntry, ObservationHistoryEntry } from "@/hooks/tools/useToolHistory";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useCognitoAuth";
+import { getImageUrl } from '@/lib/imageUtils';
 
 // Type guard functions
 const isAssetHistory = (entry: HistoryEntry): entry is AssetHistoryEntry => {
@@ -25,9 +26,6 @@ const isIssueHistory = (entry: HistoryEntry): entry is IssueHistoryEntry => {
 
 const isObservation = (entry: HistoryEntry): entry is ObservationHistoryEntry => {
   const result = 'observation_text' in entry && 'observed_at' in entry;
-  if (result) {
-    console.log('✅ isObservation TRUE for:', entry);
-  }
   return result;
 };
 
@@ -175,7 +173,6 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
           ) : (
             <div className="space-y-4">
               {toolHistory.map((entry, index) => {
-                console.log(`🔍 Rendering entry ${index}:`, entry.id, 'has observed_at:', 'observed_at' in entry, 'type:', 'type' in entry ? entry.type : 'no-type');
                 return (
                 <Card key={entry.id} className="p-4">
                   <div className="flex items-start gap-3">
@@ -448,7 +445,7 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
                                     <p className="text-blue-800 flex-1">{photo.photo_description}</p>
                                   )}
                                   <a 
-                                    href={photo.photo_url}
+                                    href={getImageUrl(photo.photo_url) || ''}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1 whitespace-nowrap"

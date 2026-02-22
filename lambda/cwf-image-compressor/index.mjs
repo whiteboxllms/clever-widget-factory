@@ -33,15 +33,24 @@ export const handler = async (event) => {
       console.log('Downloaded:', { size: imageBuffer.length });
       
       // Compress with sharp - downsample long side to max 2400px, preserve aspect ratio
+      // CRITICAL: withMetadata() preserves EXIF (GPS, timestamps, camera info)
       const compressed = await sharp(imageBuffer)
+        .withMetadata()  // Preserve EXIF, ICC profile, orientation, etc.
         .resize(2400, 2400, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 85, mozjpeg: true })
         .toBuffer();
       
-      console.log('Compressed:', { 
+      // Generate thumbnail - 150x150 cover crop, no metadata needed, target 15-30KB
+      const thumbnail = await sharp(imageBuffer)
+        .resize(150, 150, { fit: 'cover' })
+        .webp({ quality: 60 })
+        .toBuffer();
+      
+      console.log('Processed:', { 
         originalSize: imageBuffer.length, 
         compressedSize: compressed.length,
-        ratio: ((1 - compressed.length / imageBuffer.length) * 100).toFixed(1) + '%'
+        thumbnailSize: thumbnail.length,
+        compressionRatio: ((1 - compressed.length / imageBuffer.length) * 100).toFixed(1) + '%'
       });
       
       // Upload compressed to final location
@@ -55,6 +64,18 @@ export const handler = async (event) => {
       
       await s3Client.send(putCommand);
       console.log('Uploaded compressed:', finalKey);
+      
+      // Upload thumbnail to thumb/ subfolder
+      const thumbnailKey = finalKey.replace(/^(mission-attachments\/)/, '$1thumb/').replace(/\.(jpg|jpeg|png)$/i, '.webp');
+      const putThumbnailCommand = new PutObjectCommand({
+        Bucket: bucket,
+        Key: thumbnailKey,
+        Body: thumbnail,
+        ContentType: 'image/webp',
+      });
+      
+      await s3Client.send(putThumbnailCommand);
+      console.log('Uploaded thumbnail:', thumbnailKey);
       
     } catch (error) {
       console.error('Error processing image:', error);

@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Search, Plus, X, Wrench } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useToolsData } from "@/hooks/tools/useToolsData";
+import { getImageUrl } from '@/lib/imageUtils';
 
 interface Asset {
   id: string;
@@ -298,7 +299,7 @@ export function AssetSelector({ formData, setFormData, onAssetClick }: AssetSele
               >
                 {asset.image_url && (
                   <img 
-                    src={asset.image_url} 
+                    src={getImageUrl(asset.image_url) || ''}
                     alt={asset.name}
                     className="w-12 h-12 object-cover rounded"
                   />

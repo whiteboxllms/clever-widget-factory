@@ -27,8 +27,7 @@ export interface ObservationLink {
 }
 
 export interface CreateObservationData {
-  state_text?: string;  // Lambda and database use state_text
-  observation_text?: string;  // Deprecated, kept for backwards compatibility
+  state_text?: string;  // Backend field name (general concept)
   captured_at?: string;
   photos: Array<{
     photo_url: string;
@@ -42,7 +41,7 @@ export interface CreateObservationData {
 }
 
 export interface UpdateObservationData {
-  observation_text?: string;
+  state_text?: string;  // Backend field name (general concept)
   captured_at?: string;
   photos?: Array<{
     photo_url: string;

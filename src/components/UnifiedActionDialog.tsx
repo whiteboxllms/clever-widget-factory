@@ -195,13 +195,9 @@ export function UnifiedActionDialog({
           : (isCreating || !action?.id ? "Action created successfully" : "Action updated successfully")
       });
       // Don't close dialog if uploads are in progress OR if this is an auto-save from upload
-      console.log('[DIALOG] onSuccess - isUploading:', isUploading, 'isLocalUploading:', isLocalUploading, 'isAutoSavingFromUpload:', isAutoSavingFromUploadRef.current);
       if (!isUploading && !isLocalUploading && !isAutoSavingFromUploadRef.current) {
-        console.log('[DIALOG] Closing dialog');
         onActionSaved(updatedAction as BaseAction);
         onOpenChange(false);
-      } else {
-        console.log('[DIALOG] Keeping dialog open - skipping callbacks');
       }
     },
     onError: (error, variables, context) => {
@@ -237,6 +233,7 @@ export function UnifiedActionDialog({
   const [isLocalUploading, setIsLocalUploading] = useState(false);
   const uploadCompletedTimeRef = useRef<number>(0);
   const isAutoSavingFromUploadRef = useRef<boolean>(false);
+  const [attachmentFiles, setAttachmentFiles] = useState<Map<string, File>>(new Map());
   
   // Exploration-related state
   const [isExploration, setIsExploration] = useState(false);
@@ -348,7 +345,6 @@ export function UnifiedActionDialog({
           
           // Initialize exploration state from action
           const hasExploration = !!(action as any).is_exploration;
-          console.log('Action has exploration flag:', hasExploration, 'Action ID:', action.id);
           setIsExploration(hasExploration);
           // Exploration code will be loaded via React Query hook above
           setExplorationCode('');
@@ -416,11 +412,6 @@ export function UnifiedActionDialog({
         const requiredStockChanged = JSON.stringify([...(action.required_stock || [])].sort()) !== JSON.stringify([...(prev.required_stock || [])].sort());
         
         if (attachmentsChanged || requiredToolsChanged || requiredStockChanged) {
-          console.log('[DIALOG] useEffect syncing from cache - OVERWRITING formData!', {
-            actionAttachments: action.attachments?.length,
-            prevAttachments: prev.attachments?.length,
-            timeSinceUpload
-          });
           return {
             ...action,
             plan_commitment: action.plan_commitment || false,
@@ -472,12 +463,8 @@ export function UnifiedActionDialog({
 
   // Sync exploration code from query data
   useEffect(() => {
-    console.log('Exploration data changed:', explorationData);
     if (explorationData?.exploration_code) {
-      console.log('Setting exploration code from query:', explorationData.exploration_code);
       setExplorationCode(explorationData.exploration_code);
-    } else if (explorationData && !explorationData.exploration_code) {
-      console.log('Exploration data exists but no code:', explorationData);
     }
   }, [explorationData]);
 
@@ -512,12 +499,10 @@ export function UnifiedActionDialog({
   // Load exploration code when dialog opens with an exploration action
   useEffect(() => {
     if (open && action?.id && (action as any).is_exploration && !explorationCode) {
-      console.log('Loading exploration code for action:', action.id);
       (async () => {
         try {
           const exploration = await explorationService.getExplorationByActionId(action.id);
           if (exploration?.exploration_code) {
-            console.log('Loaded exploration code:', exploration.exploration_code);
             setExplorationCode(exploration.exploration_code);
           }
         } catch (error) {
@@ -864,15 +849,12 @@ export function UnifiedActionDialog({
         !codeValidationState.isChecking
       ) {
         try {
-          console.log('Auto-saving exploration code:', explorationCode);
           const existingExploration = await explorationService.getExplorationByActionId(action.id);
           
           if (existingExploration && existingExploration.exploration_code !== explorationCode) {
-            console.log('Updating exploration code from', existingExploration.exploration_code, 'to', explorationCode);
             await explorationService.updateExplorationByActionId(action.id, {
               exploration_code: explorationCode
             });
-            console.log('Exploration code saved successfully');
             
             // Invalidate the exploration query cache so it reloads with the new code
             queryClient.invalidateQueries({ queryKey: explorationByActionIdQueryKey(action.id) });
@@ -1026,6 +1008,15 @@ export function UnifiedActionDialog({
       
       const newAttachments = [...(formData.attachments || []), ...uploadedUrls];
       
+      // Store File objects for local preview (avoid fetching from S3)
+      setAttachmentFiles(prev => {
+        const next = new Map(prev);
+        uploadedUrls.forEach((url, index) => {
+          next.set(url, fileArray[index]);
+        });
+        return next;
+      });
+      
       // Update formData immediately
       setFormData(prev => ({
         ...prev,
@@ -1075,6 +1066,15 @@ export function UnifiedActionDialog({
 
 
   const removeAttachment = (index: number) => {
+    const urlToRemove = formData.attachments?.[index];
+    if (urlToRemove) {
+      // Clean up File object if it exists
+      setAttachmentFiles(prev => {
+        const next = new Map(prev);
+        next.delete(urlToRemove);
+        return next;
+      });
+    }
     setFormData(prev => ({
       ...prev,
       attachments: (prev.attachments || []).filter((_, i) => i !== index)
@@ -1173,31 +1173,15 @@ export function UnifiedActionDialog({
         // NOTE: estimated_duration, actual_duration, estimated_completion_date removed in migration 005
         // Explicitly exclude these fields to prevent errors with stale cached data
       };
-      
-      // Debug logging for attachment updates
-      if (action?.id && action.attachments?.length !== actionData.attachments.length) {
-        console.log('Attachments changed:', {
-          actionId: action.id,
-          oldCount: action.attachments?.length || 0,
-          newCount: actionData.attachments.length,
-          oldAttachments: action.attachments,
-          newAttachments: actionData.attachments
-        });
-      }
-
-
 
       const savedAction = await saveActionMutation.mutateAsync(isCreating || !action?.id ? actionData : { ...actionData, id: action.id });
       
       // Create or update exploration record if this is an exploration action
       if (isExploration && explorationCode && savedAction?.id) {
-        console.log('Saving exploration code:', explorationCode, 'for action:', savedAction.id);
         try {
           // Check if exploration already exists
           const existingExploration = await explorationService.getExplorationByActionId(savedAction.id);
-          console.log('Existing exploration:', existingExploration);
           if (!existingExploration) {
-            console.log('Creating new exploration');
             await explorationService.createExploration({
               action_id: savedAction.id,
               exploration_code: explorationCode,
@@ -1205,7 +1189,6 @@ export function UnifiedActionDialog({
             });
           } else {
             // Update existing exploration with new code
-            console.log('Updating existing exploration with code:', explorationCode);
             await explorationService.updateExplorationByActionId(savedAction.id, {
               exploration_code: explorationCode
             });
@@ -1214,8 +1197,6 @@ export function UnifiedActionDialog({
           console.error('Error creating/updating exploration record:', error);
           // Don't fail the action save if exploration creation fails
         }
-      } else {
-        console.log('Not saving exploration - isExploration:', isExploration, 'explorationCode:', explorationCode, 'savedAction?.id:', savedAction?.id);
       }
     } catch (error) {
       // Error handled by mutation onError
@@ -1366,19 +1347,8 @@ export function UnifiedActionDialog({
           </div>
 
           {/* Exploration Fields */}
-          <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
-            <div className="flex items-center space-x-3">
-              <Switch
-                id="is-exploration"
-                checked={isExploration}
-                onCheckedChange={handleExplorationToggle}
-              />
-              <Label htmlFor="is-exploration" className="text-sm font-medium">
-                This is an exploration action
-              </Label>
-            </div>
-            
-            {isExploration && (
+          {isExploration && (
+            <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
               <div className="space-y-4 pl-6 border-l-2 border-primary/20">
                 {/* Linked Explorations Display */}
                 {linkedExplorationIds.length > 0 ? (
@@ -1413,12 +1383,6 @@ export function UnifiedActionDialog({
                       variant="outline"
                       className="w-full"
                       onClick={() => {
-                        console.log('[LINK EXPLORATION] Button clicked', { 
-                          actionId, 
-                          actionFromCache: action?.id,
-                          showExplorationDialog,
-                          isExploration 
-                        });
                         setShowExplorationDialog(true);
                       }}
                       disabled={!actionId}
@@ -1433,8 +1397,8 @@ export function UnifiedActionDialog({
                   </div>
                 )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Description */}
           <div>
@@ -1746,6 +1710,11 @@ export function UnifiedActionDialog({
                   {(formData.attachments || []).map((url, index) => {
                     const isPdf = url.toLowerCase().endsWith('.pdf');
                     const fullUrl = url.startsWith('http') ? url : `https://cwf-dev-assets.s3.us-west-2.amazonaws.com/${url}`;
+                    
+                    // Use local File object if available (just uploaded), otherwise fetch from S3
+                    const file = attachmentFiles.get(url);
+                    const displayUrl = file ? URL.createObjectURL(file) : fullUrl;
+                    
                     return (
                       <div key={index} className="relative">
                         {isPdf ? (
@@ -1759,7 +1728,7 @@ export function UnifiedActionDialog({
                           </div>
                         ) : (
                           <img
-                            src={fullUrl}
+                            src={displayUrl}
                             alt={`Attachment ${index + 1}`}
                             className="h-16 w-16 object-cover rounded border cursor-pointer"
                             onClick={() => window.open(fullUrl, '_blank')}
@@ -1867,7 +1836,6 @@ export function UnifiedActionDialog({
           actionId={actionId}
           isOpen={showExplorationDialog}
           onClose={() => {
-            console.log('[EXPLORATION DIALOG] Closing dialog');
             setShowExplorationDialog(false);
           }}
           onLinked={handleExplorationLinked}

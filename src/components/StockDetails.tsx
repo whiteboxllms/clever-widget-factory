@@ -8,6 +8,7 @@ import { IssueCard } from "@/components/IssueCard";
 import { InventoryHistoryDialog } from "@/components/InventoryHistoryDialog";
 import { ExperienceCreationDialog } from "@/components/ExperienceCreationDialog";
 import { useState } from "react";
+import { getImageUrl } from '@/lib/imageUtils';
 
 interface StockDetailsProps {
   stock: CombinedAsset;
@@ -148,7 +149,7 @@ export const StockDetails = ({
             <Card>
               <CardContent className="p-4">
                 <img
-                  src={stock.image_url}
+                  src={getImageUrl(stock.image_url) || ''}
                   alt={stock.name}
                   className="w-full h-64 object-cover rounded-md"
                 />

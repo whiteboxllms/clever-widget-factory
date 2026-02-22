@@ -66,7 +66,7 @@ describe('Action States Workflows', () => {
       );
 
       const data: CreateObservationData = {
-        observation_text: 'Test observation',
+        state_text: 'Test observation',
         photos: [],
         links: [{ entity_type: 'action', entity_id: 'action-1' }],
       };
@@ -110,7 +110,7 @@ describe('Action States Workflows', () => {
       );
 
       const data: CreateObservationData = {
-        observation_text: 'Work in progress',
+        state_text: 'Work in progress',
         photos: [],
         links: [{ entity_type: 'action', entity_id: 'action-1' }],
       };
@@ -151,7 +151,7 @@ describe('Action States Workflows', () => {
 
       await result.current.updateState({
         id: 'state-1',
-        data: { observation_text: 'Updated observation' },
+        data: { state_text: 'Updated observation' },
       });
 
       await waitFor(() => {
@@ -242,7 +242,7 @@ describe('Action States Workflows', () => {
 
       // Create first state
       await result.current.createState({
-        observation_text: 'First observation',
+        state_text: 'First observation',
         photos: [],
         links: [{ entity_type: 'action', entity_id: 'action-1' }],
       });
@@ -253,7 +253,7 @@ describe('Action States Workflows', () => {
 
       // Create second state (simulating user staying in dialog)
       await result.current.createState({
-        observation_text: 'Second observation',
+        state_text: 'Second observation',
         photos: [],
         links: [{ entity_type: 'action', entity_id: 'action-1' }],
       });
@@ -301,7 +301,7 @@ describe('Action States Workflows', () => {
 
       // Create
       await result.current.createState({
-        observation_text: 'Initial observation',
+        state_text: 'Initial observation',
         photos: [],
         links: [{ entity_type: 'action', entity_id: 'action-1' }],
       });
@@ -313,7 +313,7 @@ describe('Action States Workflows', () => {
       // Update
       await result.current.updateState({
         id: 'state-1',
-        data: { observation_text: 'Updated observation' },
+        data: { state_text: 'Updated observation' },
       });
 
       await waitFor(() => {
@@ -363,7 +363,7 @@ describe('Action States Workflows', () => {
       );
 
       await result.current.createState({
-        observation_text: 'Text-only observation',
+        state_text: 'Text-only observation',
         photos: [],
         links: [{ entity_type: 'action', entity_id: 'action-1' }],
       });
@@ -373,7 +373,7 @@ describe('Action States Workflows', () => {
       });
 
       expect(stateService.createState).toHaveBeenCalledWith({
-        observation_text: 'Text-only observation',
+        state_text: 'Text-only observation',
         photos: [],
         links: [{ entity_type: 'action', entity_id: 'action-1' }],
       });
@@ -401,7 +401,7 @@ describe('Action States Workflows', () => {
       );
 
       await result.current.createState({
-        observation_text: '',
+        state_text: '',
         photos: ['https://example.com/photo1.jpg'],
         links: [{ entity_type: 'action', entity_id: 'action-1' }],
       });
@@ -411,7 +411,7 @@ describe('Action States Workflows', () => {
       });
 
       expect(stateService.createState).toHaveBeenCalledWith({
-        observation_text: '',
+        state_text: '',
         photos: ['https://example.com/photo1.jpg'],
         links: [{ entity_type: 'action', entity_id: 'action-1' }],
       });
@@ -443,7 +443,7 @@ describe('Action States Workflows', () => {
       );
 
       await result.current.createState({
-        observation_text: 'Part observation',
+        state_text: 'Part observation',
         photos: [],
         links: [{ entity_type: 'part', entity_id: 'part-1' }],
       });

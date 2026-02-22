@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Deployment packages
+*.zip
+
+# Test coverage
+coverage/
+
+# Environment variables (use .env.local in project root)
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

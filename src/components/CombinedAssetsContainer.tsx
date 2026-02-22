@@ -36,6 +36,7 @@ import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
 import { InventoryItemForm } from "./InventoryItemForm";
+import { getImageUrl, getThumbnailUrl } from '@/lib/imageUtils';
 
 
 export const CombinedAssetsContainer = () => {
@@ -200,8 +201,6 @@ export const CombinedAssetsContainer = () => {
       const partsData = partsResponse?.results || partsResponse?.data?.results || [];
       const toolsData = toolsResponse?.results || toolsResponse?.data?.results || [];
       
-      console.log('Extracted:', partsData.length, 'parts,', toolsData.length, 'tools');
-      
       // Map API results to CombinedAsset format with type and distance
       const partsResults = partsData.map((r: any) => ({
         ...r,
@@ -214,10 +213,6 @@ export const CombinedAssetsContainer = () => {
         similarity_score: r.distance
       }));
       const allResults = [...partsResults, ...toolsResults].sort((a, b) => a.similarity_score - b.similarity_score);
-      
-      console.log('🤖 SEMANTIC SEARCH COMPLETE:');
-      console.log('  - Tools:', toolsResults.length, 'Parts:', partsResults.length);
-      console.log('  - Top 3:', allResults.slice(0, 3).map(r => `${r.name} (${r.distance?.toFixed(3)})`));
       
       setSemanticResults(allResults);
     } catch (error) {
@@ -1008,9 +1003,19 @@ export const CombinedAssetsContainer = () => {
                   <div>
                     <h3 className="font-medium">Image</h3>
                     <img 
-                      src={selectedAsset.image_url} 
+                      src={getThumbnailUrl(selectedAsset.image_url) || ''}
                       alt={selectedAsset.name}
-                      className="mt-2 max-w-xs rounded-lg"
+                      className="mt-2 max-w-xs rounded-lg cursor-pointer hover:opacity-80"
+                      onClick={() => window.open(getImageUrl(selectedAsset.image_url) || '', '_blank')}
+                      onError={(e) => {
+                        // Fallback to full image if thumbnail doesn't exist
+                        const target = e.target as HTMLImageElement;
+                        const fullUrl = getImageUrl(selectedAsset.image_url);
+                        if (fullUrl && target.src !== fullUrl) {
+                          target.src = fullUrl;
+                        }
+                      }}
+                      title="Click to view full size"
                     />
                   </div>
                 )}

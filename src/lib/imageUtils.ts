@@ -1,94 +1,78 @@
-import imageCompression from 'browser-image-compression';
+/**
+ * Utility functions for handling image URLs
+ */
 
-export interface CompressionResult {
-  file: File;
-  originalSize: number;
-  compressedSize: number;
-  compressionRatio: number;
-}
-
-export interface CompressionOptions {
-  maxSizeMB?: number;
-  maxWidthOrHeight?: number;
-  useWebWorker?: boolean;
-  fileType?: string;
-  initialQuality?: number;
-}
+const S3_BUCKET_URL = 'https://cwf-dev-assets.s3.us-west-2.amazonaws.com';
 
 /**
- * Compresses an image file with smart defaults for web upload
+ * Converts an S3 key or full URL to a complete S3 URL
+ * @param urlOrKey - Either a full URL (starts with http) or an S3 key
+ * @returns Full S3 URL
  */
-export const compressImage = async (
-  file: File,
-  options: CompressionOptions = {}
-): Promise<CompressionResult> => {
-  const defaultOptions = {
-    maxSizeMB: 0.5, // Target 500KB
-    maxWidthOrHeight: 1920,
-    useWebWorker: true,
-    fileType: 'image/webp', // Use WebP for better compression
-    initialQuality: 0.8,
-    ...options,
-  };
-
-  try {
-    const originalSize = file.size;
-    
-    // Compress the image
-    const compressedFile = await imageCompression(file, defaultOptions);
-    
-    // If WebP isn't supported or compression failed, fallback to JPEG
-    let finalFile = compressedFile;
-    if (compressedFile.size >= originalSize * 0.9) {
-      const jpegOptions = {
-        ...defaultOptions,
-        fileType: 'image/jpeg',
-        initialQuality: 0.7,
-      };
-      finalFile = await imageCompression(file, jpegOptions);
-    }
-
-    const compressedSize = finalFile.size;
-    const compressionRatio = ((originalSize - compressedSize) / originalSize) * 100;
-
-    return {
-      file: finalFile,
-      originalSize,
-      compressedSize,
-      compressionRatio,
-    };
-  } catch (error) {
-    console.error('Image compression failed:', error);
-    // Return original file if compression fails
-    return {
-      file,
-      originalSize: file.size,
-      compressedSize: file.size,
-      compressionRatio: 0,
-    };
+export function getImageUrl(urlOrKey: string | null | undefined): string | null {
+  if (!urlOrKey) return null;
+  
+  // If it's already a full URL, return as-is
+  if (urlOrKey.startsWith('http://') || urlOrKey.startsWith('https://')) {
+    return urlOrKey;
   }
-};
+  
+  // Otherwise, construct the full S3 URL
+  // Remove leading slash if present
+  const key = urlOrKey.startsWith('/') ? urlOrKey.slice(1) : urlOrKey;
+  return `${S3_BUCKET_URL}/${key}`;
+}
 
 /**
- * Formats file size for display
+ * Extracts the S3 key from a full URL or returns the key as-is
+ * @param urlOrKey - Either a full URL or an S3 key
+ * @returns S3 key without the bucket URL
  */
-export const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 Bytes';
+export function getImageKey(urlOrKey: string | null | undefined): string | null {
+  if (!urlOrKey) return null;
   
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  // If it's a full S3 URL, extract the key
+  if (urlOrKey.startsWith(S3_BUCKET_URL)) {
+    return urlOrKey.replace(`${S3_BUCKET_URL}/`, '');
+  }
   
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-};
+  // If it's another full URL, return as-is (external image)
+  if (urlOrKey.startsWith('http://') || urlOrKey.startsWith('https://')) {
+    return urlOrKey;
+  }
+  
+  // Otherwise, it's already a key
+  return urlOrKey;
+}
 
 /**
- * Creates a thumbnail version of an image
+ * Converts an image URL/key to its thumbnail version
+ * Thumbnails are stored in mission-attachments/thumb/ folder as WebP
+ * @param urlOrKey - Either a full URL or an S3 key
+ * @returns Full S3 URL to thumbnail, or null if not applicable
  */
-export const createThumbnail = async (file: File): Promise<CompressionResult> => {
-  return compressImage(file, {
-    maxSizeMB: 0.05, // 50KB target for thumbnails
-    maxWidthOrHeight: 300,
-    initialQuality: 0.7,
-  });
-};
+export function getThumbnailUrl(urlOrKey: string | null | undefined): string | null {
+  if (!urlOrKey) return null;
+  
+  // Get the key (strip bucket URL if present)
+  const key = getImageKey(urlOrKey);
+  if (!key) return null;
+  
+  // Only convert mission-attachments images to thumbnails
+  if (!key.startsWith('mission-attachments/')) {
+    // For non-mission-attachments, return original URL
+    return getImageUrl(urlOrKey);
+  }
+  
+  // Skip if already a thumbnail
+  if (key.includes('/thumb/')) {
+    return getImageUrl(urlOrKey);
+  }
+  
+  // Convert to thumbnail path: mission-attachments/file.jpg -> mission-attachments/thumb/file.webp
+  const thumbnailKey = key
+    .replace(/^(mission-attachments\/)/, '$1thumb/')
+    .replace(/\.(jpg|jpeg|png)$/i, '.webp');
+  
+  return `${S3_BUCKET_URL}/${thumbnailKey}`;
+}

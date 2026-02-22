@@ -17,7 +17,7 @@
 const sharp = require('sharp');
 const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
 
-const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-west-2' });
+const s3Client = new S3Client({ region: process.env.S3_REGION || process.env.AWS_REGION || 'us-west-2' });
 
 /**
  * Parse query string into key-value object

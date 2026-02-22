@@ -126,7 +126,7 @@ if aws lambda get-function --function-name $FUNCTION_NAME --region $REGION 2>/de
     --handler $HANDLER \
     --timeout $TIMEOUT \
     --memory-size $MEMORY \
-    --environment Variables="{S3_BUCKET=cwf-dev-assets,AWS_REGION=us-west-2}" \
+    --environment Variables="{S3_BUCKET=cwf-dev-assets,S3_REGION=us-west-2}" \
     --region $REGION
   
   echo "Function updated successfully!"
@@ -141,7 +141,7 @@ else
     --zip-file fileb://cwf-image-resizer-edge.zip \
     --timeout $TIMEOUT \
     --memory-size $MEMORY \
-    --environment Variables="{S3_BUCKET=cwf-dev-assets,AWS_REGION=us-west-2}" \
+    --environment Variables="{S3_BUCKET=cwf-dev-assets,S3_REGION=us-west-2}" \
     --region $REGION
   
   echo "Function created successfully!"

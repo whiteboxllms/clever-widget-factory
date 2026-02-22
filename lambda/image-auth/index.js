@@ -7,22 +7,22 @@
  * Environment Variables:
  * - CLOUDFRONT_DOMAIN: CloudFront distribution domain (e.g., d1234567890.cloudfront.net)
  * - CLOUDFRONT_KEY_PAIR_ID: CloudFront public key ID for signed URLs
- * - CLOUDFRONT_PRIVATE_KEY_SECRET_NAME: AWS Secrets Manager secret containing private key
+ * - CLOUDFRONT_PRIVATE_KEY_PARAMETER_NAME: SSM Parameter Store path containing private key
  * - COOKIE_EXPIRATION_SECONDS: Cookie expiration time (default: 3600 = 1 hour)
  * 
  * Validates: Requirements 2.1-2.7, 6.1-6.7
  */
 
-const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
+const { SSMClient, GetParameterCommand } = require('@aws-sdk/client-ssm');
 const crypto = require('crypto');
 
-// Initialize Secrets Manager client
-const secretsManager = new SecretsManagerClient({ region: process.env.AWS_REGION || 'us-west-2' });
+// Initialize SSM client
+const ssmClient = new SSMClient({ region: process.env.AWS_REGION || 'us-west-2' });
 
 // Environment configuration with validation
 const CLOUDFRONT_DOMAIN = process.env.CLOUDFRONT_DOMAIN;
 const CLOUDFRONT_KEY_PAIR_ID = process.env.CLOUDFRONT_KEY_PAIR_ID;
-const CLOUDFRONT_PRIVATE_KEY_SECRET_NAME = process.env.CLOUDFRONT_PRIVATE_KEY_SECRET_NAME || 'cloudfront-private-key';
+const CLOUDFRONT_PRIVATE_KEY_PARAMETER_NAME = process.env.CLOUDFRONT_PRIVATE_KEY_PARAMETER_NAME || '/cloudfront/private-key';
 const COOKIE_EXPIRATION_SECONDS = parseInt(process.env.COOKIE_EXPIRATION_SECONDS || '3600', 10);
 
 // Validate required environment variables
@@ -37,11 +37,11 @@ if (!CLOUDFRONT_KEY_PAIR_ID) {
 let cachedPrivateKey = null;
 
 /**
- * Fetch CloudFront private key from AWS Secrets Manager
- * Implements caching to avoid repeated Secrets Manager calls
+ * Fetch CloudFront private key from AWS Systems Manager Parameter Store
+ * Implements caching to avoid repeated SSM calls
  * 
  * @returns {Promise<string>} PEM-formatted private key
- * @throws {Error} If secret fetch fails
+ * @throws {Error} If parameter fetch fails
  */
 async function getPrivateKey() {
   if (cachedPrivateKey) {
@@ -50,30 +50,19 @@ async function getPrivateKey() {
   }
 
   try {
-    console.log(`Fetching private key from Secrets Manager: ${CLOUDFRONT_PRIVATE_KEY_SECRET_NAME}`);
-    const command = new GetSecretValueCommand({
-      SecretId: CLOUDFRONT_PRIVATE_KEY_SECRET_NAME
+    console.log(`Fetching private key from SSM Parameter Store: ${CLOUDFRONT_PRIVATE_KEY_PARAMETER_NAME}`);
+    const command = new GetParameterCommand({
+      Name: CLOUDFRONT_PRIVATE_KEY_PARAMETER_NAME,
+      WithDecryption: true // Decrypt SecureString parameter
     });
     
-    const response = await secretsManager.send(command);
+    const response = await ssmClient.send(command);
     
-    if (!response.SecretString) {
-      throw new Error('Secret value is empty');
+    if (!response.Parameter || !response.Parameter.Value) {
+      throw new Error('Parameter value is empty');
     }
 
-    // Parse secret (may be JSON or plain text)
-    let privateKey;
-    try {
-      const secretData = JSON.parse(response.SecretString);
-      privateKey = secretData.privateKey || secretData.private_key || secretData.key;
-    } catch {
-      // If not JSON, assume plain text PEM
-      privateKey = response.SecretString;
-    }
-
-    if (!privateKey) {
-      throw new Error('Private key not found in secret');
-    }
+    const privateKey = response.Parameter.Value;
 
     // Validate PEM format
     if (!privateKey.includes('BEGIN RSA PRIVATE KEY') && !privateKey.includes('BEGIN PRIVATE KEY')) {
@@ -84,8 +73,8 @@ async function getPrivateKey() {
     console.log('Private key fetched and cached successfully');
     return privateKey;
   } catch (error) {
-    console.error('Failed to fetch private key from Secrets Manager:', error);
-    throw new Error(`Secrets Manager fetch failed: ${error.message}`);
+    console.error('Failed to fetch private key from SSM Parameter Store:', error);
+    throw new Error(`SSM Parameter Store fetch failed: ${error.message}`);
   }
 }
 
@@ -192,26 +181,31 @@ async function generateSignedCookies(organizationId) {
 }
 
 /**
- * Extract organization_id from Cognito token claims
+ * Extract organization_id from authorizer context
  * 
  * @param {object} event - API Gateway event
  * @returns {string|null} Organization UUID or null if not found
  */
 function extractOrganizationId(event) {
   try {
-    // Organization ID is in authorizer context (set by API Gateway Cognito authorizer)
-    const claims = event.requestContext?.authorizer?.claims;
+    const authorizer = event.requestContext?.authorizer;
     
-    if (!claims) {
-      console.error('No authorizer claims found in request context');
+    if (!authorizer) {
+      console.error('No authorizer found in request context');
       return null;
     }
 
-    // Check for organization_id in custom claims
-    const orgId = claims['custom:organization_id'] || claims.organization_id;
+    // Check multiple possible locations for organization_id
+    // 1. Direct from custom authorizer context
+    let orgId = authorizer.organization_id || authorizer.organizationId;
+    
+    // 2. From Cognito claims (if using Cognito authorizer)
+    if (!orgId && authorizer.claims) {
+      orgId = authorizer.claims['custom:organization_id'] || authorizer.claims.organization_id;
+    }
     
     if (!orgId) {
-      console.error('organization_id not found in token claims:', Object.keys(claims));
+      console.error('organization_id not found in authorizer context:', JSON.stringify(authorizer));
       return null;
     }
 
@@ -294,12 +288,12 @@ exports.handler = async (event) => {
     console.log(`[${correlationId}] Successfully generated cookies for organization ${organizationId}`);
 
     // Return success response with Set-Cookie headers
+    // Note: Use multiValueHeaders for multiple Set-Cookie headers
     return {
       statusCode: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Set-Cookie': cookies
+        'Access-Control-Allow-Origin': '*'
       },
       multiValueHeaders: {
         'Set-Cookie': cookies

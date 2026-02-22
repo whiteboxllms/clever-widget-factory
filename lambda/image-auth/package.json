@@ -4,7 +4,7 @@
   "description": "Cookie Generator Lambda for CloudFront signed cookies",
   "main": "index.js",
   "dependencies": {
-    "@aws-sdk/client-secrets-manager": "^3.0.0"
+    "@aws-sdk/client-ssm": "^3.0.0"
   },
   "devDependencies": {
     "vitest": "^1.0.0"

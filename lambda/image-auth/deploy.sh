@@ -75,9 +75,8 @@ if aws lambda get-function --function-name $FUNCTION_NAME --region $REGION > /de
     --environment Variables="{
       CLOUDFRONT_DOMAIN=$CLOUDFRONT_DOMAIN,
       CLOUDFRONT_KEY_PAIR_ID=$CLOUDFRONT_KEY_PAIR_ID,
-      CLOUDFRONT_PRIVATE_KEY_SECRET_NAME=${CLOUDFRONT_PRIVATE_KEY_SECRET_NAME:-cloudfront-private-key},
-      COOKIE_EXPIRATION_SECONDS=${COOKIE_EXPIRATION_SECONDS:-3600},
-      AWS_REGION=$REGION
+      CLOUDFRONT_PRIVATE_KEY_PARAMETER_NAME=${CLOUDFRONT_PRIVATE_KEY_PARAMETER_NAME:-/cloudfront/private-key},
+      COOKIE_EXPIRATION_SECONDS=${COOKIE_EXPIRATION_SECONDS:-3600}
     }" \
     --region $REGION
   
@@ -105,9 +104,8 @@ else
     --environment Variables="{
       CLOUDFRONT_DOMAIN=$CLOUDFRONT_DOMAIN,
       CLOUDFRONT_KEY_PAIR_ID=$CLOUDFRONT_KEY_PAIR_ID,
-      CLOUDFRONT_PRIVATE_KEY_SECRET_NAME=${CLOUDFRONT_PRIVATE_KEY_SECRET_NAME:-cloudfront-private-key},
-      COOKIE_EXPIRATION_SECONDS=${COOKIE_EXPIRATION_SECONDS:-3600},
-      AWS_REGION=$REGION
+      CLOUDFRONT_PRIVATE_KEY_PARAMETER_NAME=${CLOUDFRONT_PRIVATE_KEY_PARAMETER_NAME:-/cloudfront/private-key},
+      COOKIE_EXPIRATION_SECONDS=${COOKIE_EXPIRATION_SECONDS:-3600}
     }" \
     --region $REGION
   
@@ -131,7 +129,7 @@ aws lambda get-function --function-name $FUNCTION_NAME --region $REGION --query 
 
 echo ""
 echo "Next steps:"
-echo "1. Verify Lambda execution role has Secrets Manager permissions"
+echo "1. Verify Lambda execution role has SSM Parameter Store permissions"
 echo "2. Configure API Gateway endpoint: POST /api/images/auth"
 echo "3. Test with: curl -X POST <api-gateway-url>/api/images/auth -H 'Authorization: Bearer <token>'"
 echo ""

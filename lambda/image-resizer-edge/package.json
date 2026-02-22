@@ -1,0 +1,28 @@
+{
+  "name": "cwf-image-resizer-edge",
+  "version": "1.0.0",
+  "description": "Lambda@Edge function for on-demand image resizing at CloudFront edge locations",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest",
+    "test:run": "vitest --run",
+    "test:coverage": "vitest --coverage"
+  },
+  "keywords": [
+    "lambda",
+    "lambda-edge",
+    "cloudfront",
+    "image-resizing",
+    "sharp"
+  ],
+  "author": "CWF Team",
+  "license": "MIT",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.450.0",
+    "sharp": "^0.33.0"
+  },
+  "devDependencies": {
+    "vitest": "^1.0.0",
+    "fast-check": "^3.15.0"
+  }
+}

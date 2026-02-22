@@ -33,44 +33,45 @@ If issues occur at any stage:
 ### Task 1: Create CloudFront Key Pair and Store Private Key
 - [x] 1.1 Generate CloudFront key pair in AWS Console (CloudFront → Key Management)
 - [x] 1.2 Download private key PEM file
-- [x] 1.3 Store private key in AWS Secrets Manager (name: `cloudfront-private-key`)
-- [x] 1.4 Note the CloudFront Key Pair ID for Lambda configuration
+- [x] 1.3 Store private key in AWS Systems Manager Parameter Store (name: `/cloudfront/private-key`) - **Changed from Secrets Manager to save $0.40/month**
+- [x] 1.4 Note the CloudFront Key Pair ID for Lambda configuration (K2H8GDNHZGWA0K)
 - [x] 1.5 Verify key pair is active in CloudFront
 
 ### Task 2: Create Origin Access Identity for CloudFront
-- [ ] 2.1 Create Origin Access Identity in CloudFront Console
-- [ ] 2.2 Note the OAI ID (format: `origin-access-identity/cloudfront/E...`)
-- [ ] 2.3 Note the OAI canonical user ID for S3 bucket policy
+- [x] 2.1 Create Origin Access Identity in CloudFront Console
+- [x] 2.2 Note the OAI ID (E32HS5MSM349PK)
+- [x] 2.3 Note the OAI canonical user ID for S3 bucket policy
 
 ### Task 3: Prepare S3 Bucket Policy (DO NOT APPLY YET)
-- [ ] 3.1 Backup current S3 bucket policy
-- [ ] 3.2 Draft new bucket policy allowing both public read AND CloudFront OAI access
-- [ ] 3.3 Document the policy change (will be applied in Phase 6 after verification)
-- [ ] 3.4 Document rollback procedure
-- [ ] 3.5 **NOTE: Keep existing public access until Phase 6 verification complete**
+- [x] 3.1 Backup current S3 bucket policy
+- [x] 3.2 Draft new bucket policy allowing both public read AND CloudFront OAI access
+- [x] 3.3 Document the policy change (will be applied in Phase 6 after verification)
+- [x] 3.4 Document rollback procedure
+- [x] 3.5 **NOTE: Keep existing public access until Phase 6 verification complete**
 
-### Task 4: Deploy Lambda@Edge Image Resizer Function
-- [ ] 4.1 Create Lambda function in us-east-1 region (Lambda@Edge requirement)
+### Task 4: Deploy Lambda@Edge Image Resizer Function (OPTIONAL - DEFERRED)
+- [x] 4.1 Create Lambda function in us-east-1 region (Lambda@Edge requirement)
 - [ ] 4.2 Install Sharp library compiled for Lambda environment
 - [ ] 4.3 Implement image resizing logic with query parameter parsing
 - [ ] 4.4 Configure function: 512MB memory, 5s timeout
 - [ ] 4.5 Grant S3 read permissions to Lambda execution role
 - [ ] 4.6 Publish Lambda version (Lambda@Edge requires versioned functions)
 - [ ] 4.7 Test function with sample images and resize parameters
+- [ ] **NOTE: This is optional and can be added later. Not required for basic signed cookie functionality.**
 
 ### Task 5: Create CloudFront Distribution
-- [ ] 5.1 Create CloudFront distribution with S3 origin (cwf-dev-assets)
-- [ ] 5.2 Configure Origin Access Identity for S3 access
-- [ ] 5.3 Set behavior path pattern: `/organizations/*`
-- [ ] 5.4 Enable HTTPS only (redirect HTTP to HTTPS)
-- [ ] 5.5 Configure trusted signers with CloudFront Key Pair ID
-- [ ] 5.6 Attach Lambda@Edge function to origin-request event
-- [ ] 5.7 Configure cache policy (whitelist query strings: width, height, quality, format)
-- [ ] 5.8 Set cache TTL: min=86400s, default=86400s, max=31536000s
-- [ ] 5.9 Enable compression
-- [ ] 5.10 Add security headers policy (HSTS, X-Content-Type-Options)
-- [ ] 5.11 Wait for distribution deployment (~15 minutes)
-- [ ] 5.12 Note CloudFront domain name (e.g., d1234567890.cloudfront.net)
+- [x] 5.1 Create CloudFront distribution with S3 origin (cwf-dev-assets)
+- [ ] 5.2 Configure Origin Access Identity for S3 access - **NEEDS MANUAL FIX IN AWS CONSOLE**
+- [x] 5.3 Set behavior path pattern: `/organizations/*`
+- [x] 5.4 Enable HTTPS only (redirect HTTP to HTTPS)
+- [x] 5.5 Configure trusted key groups with CloudFront Key Pair ID
+- [ ] 5.6 Attach Lambda@Edge function to origin-request event (OPTIONAL - deferred)
+- [x] 5.7 Configure cache policy (CachingOptimized)
+- [x] 5.8 Set cache TTL via cache policy
+- [x] 5.9 Enable compression
+- [ ] 5.10 Add security headers policy (can add later)
+- [x] 5.11 Wait for distribution deployment (~15 minutes)
+- [x] 5.12 Note CloudFront domain name (d3l6r2sq70ysui.cloudfront.net)
 
 ## Phase 2: Backend Implementation
 
@@ -79,23 +80,23 @@ If issues occur at any stage:
 - [x] 6.2 Implement Cognito token validation logic
 - [x] 6.3 Implement organization_id extraction from token claims
 - [x] 6.4 Implement CloudFront signed cookie generation
-- [x] 6.5 Fetch private key from Secrets Manager
+- [x] 6.5 Fetch private key from SSM Parameter Store (changed from Secrets Manager)
 - [x] 6.6 Build CloudFront policy with organization-scoped resource path
 - [x] 6.7 Sign policy using RSA-SHA1
 - [x] 6.8 Return Set-Cookie headers with all three cookies
 - [x] 6.9 Configure environment variables (CLOUDFRONT_DOMAIN, KEY_PAIR_ID, etc.)
 - [x] 6.10 Add error handling for missing org_id, signing failures
 - [x] 6.11 Add CloudWatch logging for all requests
-- [x] 6.12 Write unit tests for cookie generation logic
+- [x] 6.12 Write unit tests for cookie generation logic (tests exist, need to update for SSM)
 
 ### Task 7: Create API Gateway Endpoint for Cookie Generation
-- [ ] 7.1 Add POST /api/images/auth endpoint to API Gateway
-- [ ] 7.2 Configure Cognito authorizer for endpoint
-- [ ] 7.3 Integrate with cwf-image-auth Lambda
-- [ ] 7.4 Configure CORS headers
-- [ ] 7.5 Deploy API Gateway changes
-- [ ] 7.6 Test endpoint with valid Cognito token
-- [ ] 7.7 Verify cookies are set in response headers
+- [x] 7.1 Add POST /api/images/auth endpoint to API Gateway
+- [x] 7.2 Configure Cognito authorizer for endpoint
+- [x] 7.3 Integrate with cwf-image-auth Lambda
+- [x] 7.4 Configure CORS headers
+- [x] 7.5 Deploy API Gateway changes
+- [ ] 7.6 Test endpoint with valid Cognito token (requires user login)
+- [ ] 7.7 Verify cookies are set in response headers (requires user login)
 
 ### Task 8: Update Presigned Upload Lambda for UUID-Based Keys
 - [ ] 8.1 Update cwf-presigned-upload Lambda code

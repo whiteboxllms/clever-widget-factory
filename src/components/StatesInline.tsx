@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useStates, useStateMutations } from '@/hooks/useStates';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useToast } from '@/hooks/use-toast';
+import { getImageUrl } from '@/lib/imageUtils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -448,10 +449,10 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
                   {state.photos && state.photos.length > 0 && (
                     <div className="flex-shrink-0 w-1/3">
                       <img
-                        src={state.photos[0].photo_url}
+                        src={getImageUrl(state.photos[0].photo_url) || ''}
                         alt={state.photos[0].photo_description || 'Photo'}
                         className="w-full aspect-square object-cover rounded cursor-pointer"
-                        onClick={() => window.open(state.photos[0].photo_url, '_blank')}
+                        onClick={() => window.open(getImageUrl(state.photos[0].photo_url) || '', '_blank')}
                         title={state.photos.length > 1 ? `${state.photos.length} photos` : undefined}
                       />
                       {state.photos.length > 1 && (

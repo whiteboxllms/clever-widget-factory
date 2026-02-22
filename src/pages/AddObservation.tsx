@@ -10,6 +10,7 @@ import { ArrowLeft, Upload, X, Loader2 } from 'lucide-react';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useStateMutations, useStateById } from '@/hooks/useStates';
 import { useToast } from '@/components/ui/use-toast';
+import { getImageUrl } from '@/lib/imageUtils';
 import type { CreateObservationData } from '@/types/observations';
 
 export default function AddObservation() {
@@ -267,10 +268,10 @@ export default function AddObservation() {
                         <TableCell className="align-top">
                           <div className="relative">
                             <img
-                              src={photo.previewUrl || photo.photo_url}
+                              src={photo.previewUrl || getImageUrl(photo.photo_url) || ''}
                               alt={`Photo ${index + 1}`}
                               className="w-full max-h-48 object-contain rounded cursor-pointer"
-                              onClick={() => !photo.isUploading && photo.photo_url && window.open(photo.photo_url, '_blank')}
+                              onClick={() => !photo.isUploading && photo.photo_url && window.open(getImageUrl(photo.photo_url) || '', '_blank')}
                             />
                             {photo.isUploading && (
                               <div className="absolute top-2 right-2 bg-background/90 rounded-full p-2 shadow-lg">

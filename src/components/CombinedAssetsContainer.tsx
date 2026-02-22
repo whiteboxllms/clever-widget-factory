@@ -36,6 +36,7 @@ import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
 import { InventoryItemForm } from "./InventoryItemForm";
+import { getImageUrl } from '@/lib/imageUtils';
 
 
 export const CombinedAssetsContainer = () => {
@@ -1002,7 +1003,7 @@ export const CombinedAssetsContainer = () => {
                   <div>
                     <h3 className="font-medium">Image</h3>
                     <img 
-                      src={selectedAsset.image_url} 
+                      src={getImageUrl(selectedAsset.image_url) || ''}
                       alt={selectedAsset.name}
                       className="mt-2 max-w-xs rounded-lg"
                     />

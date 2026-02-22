@@ -74,43 +74,65 @@ async function compressImage(key) {
       return { skipped: true, reason: 'PDF', key };
     }
     
-    // Compress with sharp
+    // Compress with sharp - preserve metadata (EXIF, GPS, timestamps)
     const compressed = await sharp(imageBuffer)
+      .withMetadata()  // Preserve EXIF, ICC profile, orientation, etc.
       .resize(2400, 2400, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 85, mozjpeg: true })
       .toBuffer();
     
+    // Generate thumbnail - 150x150 cover crop, target 15-30KB
+    const thumbnail = await sharp(imageBuffer)
+      .resize(150, 150, { fit: 'cover' })
+      .webp({ quality: 60 })
+      .toBuffer();
+    
     const compressedSize = compressed.length;
+    const thumbnailSize = thumbnail.length;
     const ratio = ((1 - compressedSize / originalSize) * 100).toFixed(1);
     console.log(`Compressed: ${(compressedSize / 1024 / 1024).toFixed(2)} MB (${ratio}% reduction)`);
+    console.log(`Thumbnail: ${(thumbnailSize / 1024).toFixed(2)} KB`);
     
     // Upload to organization-scoped location
     // Extract filename from original key and strip timestamp
     const originalFilename = key.split('/').pop();
     
     // Remove timestamp prefix if present (format: 1769225129062-random-filename.jpg)
-    // Keep only random-filename.jpg
+    // Keep only random-filename.jpg to match database format
     const filenameWithoutTimestamp = originalFilename.replace(/^\d{13}-/, '');
+    const baseFilename = filenameWithoutTimestamp.replace(/\.(jpg|jpeg|png)$/i, '');
     
+    // Upload compressed image
     const finalKey = `organizations/${orgId}/images/${filenameWithoutTimestamp}`;
-    
     const putCommand = new PutObjectCommand({
       Bucket: BUCKET,
       Key: finalKey,
       Body: compressed,
       ContentType: 'image/jpeg',
     });
-    
     await s3Client.send(putCommand);
-    console.log(`Uploaded to: ${finalKey}`);
+    console.log(`Uploaded compressed: ${finalKey}`);
+    
+    // Upload thumbnail
+    const thumbnailKey = `organizations/${orgId}/thumbnails/${baseFilename}.webp`;
+    const putThumbnailCommand = new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: thumbnailKey,
+      Body: thumbnail,
+      ContentType: 'image/webp',
+    });
+    await s3Client.send(putThumbnailCommand);
+    console.log(`Uploaded thumbnail: ${thumbnailKey}`);
     
     return { 
       success: true, 
       key, 
       finalKey,
+      thumbnailKey,
       orgId,
       originalSize, 
-      compressedSize, 
+      compressedSize,
+      thumbnailSize,
       ratio: parseFloat(ratio)
     };
     
@@ -216,10 +238,13 @@ export const handler = async (event) => {
         const orgId = await getOrganizationIdForImage(obj.Key);
         const originalFilename = obj.Key.split('/').pop();
         const filenameWithoutTimestamp = originalFilename.replace(/^\d{13}-/, '');
+        const baseFilename = filenameWithoutTimestamp.replace(/\.(jpg|jpeg|png)$/i, '');
         const finalKey = `organizations/${orgId}/images/${filenameWithoutTimestamp}`;
+        const thumbnailKey = `organizations/${orgId}/thumbnails/${baseFilename}.webp`;
         results.details.push({ 
           key: obj.Key, 
           finalKey,
+          thumbnailKey,
           orgId,
           dryRun: true 
         });
@@ -235,6 +260,7 @@ export const handler = async (event) => {
         results.success++;
         results.totalOriginalSize += result.originalSize;
         results.totalCompressedSize += result.compressedSize;
+        results.totalThumbnailSize = (results.totalThumbnailSize || 0) + (result.thumbnailSize || 0);
       } else {
         results.failed++;
       }
@@ -251,6 +277,7 @@ export const handler = async (event) => {
       skipped: results.skipped,
       totalOriginalMB: (results.totalOriginalSize / 1024 / 1024).toFixed(2),
       totalCompressedMB: (results.totalCompressedSize / 1024 / 1024).toFixed(2),
+      totalThumbnailKB: ((results.totalThumbnailSize || 0) / 1024).toFixed(2),
       averageReduction: results.totalOriginalSize > 0 
         ? ((1 - results.totalCompressedSize / results.totalOriginalSize) * 100).toFixed(1) + '%'
         : 'N/A',

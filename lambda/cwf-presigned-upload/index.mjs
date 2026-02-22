@@ -1,8 +1,14 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-const s3Client = new S3Client({ region: 'us-west-2' });
+const USE_TRANSFER_ACCELERATION = true; // Routes uploads through CloudFront edge locations
 const BUCKET = 'cwf-dev-assets';
+
+// Configure S3 client with Transfer Acceleration
+const s3Client = new S3Client({ 
+  region: 'us-west-2',
+  useAccelerateEndpoint: USE_TRANSFER_ACCELERATION
+});
 
 export const handler = async (event) => {
   console.log('Presigned URL request:', JSON.stringify(event, null, 2));
@@ -18,10 +24,10 @@ export const handler = async (event) => {
       };
     }
     
-    // Generate unique key
-    const timestamp = Date.now();
+    // Generate unique key with GUID at front (not timestamp)
+    // Format: abc123-filename.jpg (GUID stays consistent across all versions)
     const random = Math.random().toString(36).substring(2, 11);
-    const key = `mission-attachments/uploads/${timestamp}-${random}-${filename}`;
+    const key = `mission-attachments/uploads/${random}-${filename}`;
     
     // Generate presigned URL for PUT
     const command = new PutObjectCommand({
@@ -35,6 +41,7 @@ export const handler = async (event) => {
     });
     
     // Public URL is the final location after compression (without /uploads/)
+    // Filename stays the same: abc123-filename.jpg
     const finalKey = key.replace('/uploads/', '/');
     const publicUrl = `https://${BUCKET}.s3.us-west-2.amazonaws.com/${finalKey}`;
     

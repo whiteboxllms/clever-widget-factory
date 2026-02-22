@@ -233,6 +233,7 @@ export function UnifiedActionDialog({
   const [isLocalUploading, setIsLocalUploading] = useState(false);
   const uploadCompletedTimeRef = useRef<number>(0);
   const isAutoSavingFromUploadRef = useRef<boolean>(false);
+  const [attachmentFiles, setAttachmentFiles] = useState<Map<string, File>>(new Map());
   
   // Exploration-related state
   const [isExploration, setIsExploration] = useState(false);
@@ -1007,6 +1008,15 @@ export function UnifiedActionDialog({
       
       const newAttachments = [...(formData.attachments || []), ...uploadedUrls];
       
+      // Store File objects for local preview (avoid fetching from S3)
+      setAttachmentFiles(prev => {
+        const next = new Map(prev);
+        uploadedUrls.forEach((url, index) => {
+          next.set(url, fileArray[index]);
+        });
+        return next;
+      });
+      
       // Update formData immediately
       setFormData(prev => ({
         ...prev,
@@ -1056,6 +1066,15 @@ export function UnifiedActionDialog({
 
 
   const removeAttachment = (index: number) => {
+    const urlToRemove = formData.attachments?.[index];
+    if (urlToRemove) {
+      // Clean up File object if it exists
+      setAttachmentFiles(prev => {
+        const next = new Map(prev);
+        next.delete(urlToRemove);
+        return next;
+      });
+    }
     setFormData(prev => ({
       ...prev,
       attachments: (prev.attachments || []).filter((_, i) => i !== index)
@@ -1691,6 +1710,11 @@ export function UnifiedActionDialog({
                   {(formData.attachments || []).map((url, index) => {
                     const isPdf = url.toLowerCase().endsWith('.pdf');
                     const fullUrl = url.startsWith('http') ? url : `https://cwf-dev-assets.s3.us-west-2.amazonaws.com/${url}`;
+                    
+                    // Use local File object if available (just uploaded), otherwise fetch from S3
+                    const file = attachmentFiles.get(url);
+                    const displayUrl = file ? URL.createObjectURL(file) : fullUrl;
+                    
                     return (
                       <div key={index} className="relative">
                         {isPdf ? (
@@ -1704,7 +1728,7 @@ export function UnifiedActionDialog({
                           </div>
                         ) : (
                           <img
-                            src={fullUrl}
+                            src={displayUrl}
                             alt={`Attachment ${index + 1}`}
                             className="h-16 w-16 object-cover rounded border cursor-pointer"
                             onClick={() => window.open(fullUrl, '_blank')}

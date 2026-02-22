@@ -36,7 +36,7 @@ import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
 import { InventoryItemForm } from "./InventoryItemForm";
-import { getImageUrl } from '@/lib/imageUtils';
+import { getImageUrl, getThumbnailUrl } from '@/lib/imageUtils';
 
 
 export const CombinedAssetsContainer = () => {
@@ -1003,9 +1003,19 @@ export const CombinedAssetsContainer = () => {
                   <div>
                     <h3 className="font-medium">Image</h3>
                     <img 
-                      src={getImageUrl(selectedAsset.image_url) || ''}
+                      src={getThumbnailUrl(selectedAsset.image_url) || ''}
                       alt={selectedAsset.name}
-                      className="mt-2 max-w-xs rounded-lg"
+                      className="mt-2 max-w-xs rounded-lg cursor-pointer hover:opacity-80"
+                      onClick={() => window.open(getImageUrl(selectedAsset.image_url) || '', '_blank')}
+                      onError={(e) => {
+                        // Fallback to full image if thumbnail doesn't exist
+                        const target = e.target as HTMLImageElement;
+                        const fullUrl = getImageUrl(selectedAsset.image_url);
+                        if (fullUrl && target.src !== fullUrl) {
+                          target.src = fullUrl;
+                        }
+                      }}
+                      title="Click to view full size"
                     />
                   </div>
                 )}

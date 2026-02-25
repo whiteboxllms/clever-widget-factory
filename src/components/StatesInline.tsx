@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useStates, useStateMutations } from '@/hooks/useStates';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useToast } from '@/hooks/use-toast';
-import { getImageUrl } from '@/lib/imageUtils';
+import { getImageUrl, getThumbnailUrl } from '@/lib/imageUtils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -67,12 +67,16 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
     const fileArray = Array.from(files);
     
     // Add files to local state with previews
-    const newPhotos = fileArray.map((file, index) => ({
-      file,
-      photo_description: '',
-      photo_order: photos.length + index,
-      previewUrl: URL.createObjectURL(file)
-    }));
+    const newPhotos = fileArray.map((file, index) => {
+      const blobUrl = URL.createObjectURL(file);
+      console.log('[StatesInline] Created blob URL:', blobUrl, 'for file:', file.name);
+      return {
+        file,
+        photo_description: '',
+        photo_order: photos.length + index,
+        previewUrl: blobUrl
+      };
+    });
     
     setPhotos(prev => [...prev, ...newPhotos]);
     e.target.value = '';
@@ -81,7 +85,8 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
   const handleRemovePhoto = (index: number) => {
     const photo = photos[index];
     // Only revoke object URLs for new photos (not existing S3 URLs)
-    if (photo.previewUrl && !photo.isExisting) {
+    // Check if it's a blob URL before revoking
+    if (photo.previewUrl && !photo.isExisting && photo.previewUrl.startsWith('blob:')) {
       URL.revokeObjectURL(photo.previewUrl);
     }
     setPhotos(prev => prev.filter((_, i) => i !== index).map((photo, i) => ({
@@ -97,9 +102,9 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
   };
 
   const resetForm = () => {
-    // Clean up preview URLs (only for new photos, not existing S3 URLs)
+    // Clean up preview URLs (only for new photos with blob URLs, not existing S3 URLs)
     photos.forEach(p => {
-      if (!p.isExisting && p.previewUrl) {
+      if (!p.isExisting && p.previewUrl && p.previewUrl.startsWith('blob:')) {
         URL.revokeObjectURL(p.previewUrl);
       }
     });
@@ -123,12 +128,16 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
     try {
       setUploadingPhotos(true);
       
+      // CRITICAL: Store current photos state to preserve blob URLs during upload
+      // This prevents re-renders from breaking the preview during the save process
+      const photosSnapshot = [...photos];
+      
       // Process photos: upload new ones, keep existing ones
       let uploadedPhotos: Array<{ photo_url: string; photo_description: string; photo_order: number }> = [];
       
-      if (photos.length > 0) {
-        const newPhotos = photos.filter(p => !p.isExisting);
-        const existingPhotos = photos.filter(p => p.isExisting);
+      if (photosSnapshot.length > 0) {
+        const newPhotos = photosSnapshot.filter(p => !p.isExisting);
+        const existingPhotos = photosSnapshot.filter(p => p.isExisting);
         
         if (newPhotos.length > 0) {
           setUploadProgress(`Uploading ${newPhotos.length} new photo${newPhotos.length > 1 ? 's' : ''}...`);
@@ -144,7 +153,7 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
           
           setUploadProgress(`Uploading photo ${i + 1} of ${newPhotos.length}...`);
           
-          const uploadResults = await uploadFiles([photo.file], { bucket: 'cwf-uploads' });
+          const uploadResults = await uploadFiles([photo.file], { bucket: 'mission-attachments' });
           const resultsArray = Array.isArray(uploadResults) ? uploadResults : [uploadResults];
           const photoUrl = resultsArray[0].url;
           
@@ -202,9 +211,10 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
         });
       }
 
-      // Reset form and clean up preview URLs (only for new photos)
-      photos.forEach(p => {
-        if (!p.isExisting && p.previewUrl) {
+      // Reset form and clean up preview URLs (only for new photos with blob URLs)
+      // Use the snapshot to ensure we're cleaning up the right URLs
+      photosSnapshot.forEach(p => {
+        if (!p.isExisting && p.previewUrl && p.previewUrl.startsWith('blob:')) {
           URL.revokeObjectURL(p.previewUrl);
         }
       });
@@ -337,6 +347,17 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
                         src={photo.previewUrl}
                         alt={`Photo ${index + 1}`}
                         className="w-full aspect-square object-cover rounded"
+                        onLoad={() => {
+                          console.log('[StatesInline] Image loaded successfully:', photo.previewUrl);
+                        }}
+                        onError={(e) => {
+                          // If preview fails to load, log error but don't crash
+                          console.error('[StatesInline] Failed to load preview:', photo.previewUrl);
+                          console.error('[StatesInline] Is blob URL?', photo.previewUrl.startsWith('blob:'));
+                          console.error('[StatesInline] Is existing?', photo.isExisting);
+                          // Prevent infinite error loops
+                          e.currentTarget.style.display = 'none';
+                        }}
                       />
                     </div>
                     <div className="flex-1 flex flex-col">
@@ -449,11 +470,23 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
                   {state.photos && state.photos.length > 0 && (
                     <div className="flex-shrink-0 w-1/3">
                       <img
-                        src={getImageUrl(state.photos[0].photo_url) || ''}
+                        src={getThumbnailUrl(state.photos[0].photo_url) || ''}
                         alt={state.photos[0].photo_description || 'Photo'}
                         className="w-full aspect-square object-cover rounded cursor-pointer"
                         onClick={() => window.open(getImageUrl(state.photos[0].photo_url) || '', '_blank')}
                         title={state.photos.length > 1 ? `${state.photos.length} photos` : undefined}
+                        onError={(e) => {
+                          // If thumbnail fails to load, try original image
+                          const originalUrl = getImageUrl(state.photos[0].photo_url);
+                          if (e.currentTarget.src !== originalUrl && originalUrl) {
+                            console.warn('[StatesInline] Thumbnail failed, trying original:', state.photos[0].photo_url);
+                            e.currentTarget.src = originalUrl;
+                          } else {
+                            // If original also fails (CORS/ORB error), hide it gracefully
+                            console.warn('[StatesInline] Failed to load observation image:', state.photos[0].photo_url);
+                            e.currentTarget.style.display = 'none';
+                          }
+                        }}
                       />
                       {state.photos.length > 1 && (
                         <p className="text-xs text-muted-foreground text-center mt-1">

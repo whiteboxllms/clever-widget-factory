@@ -10,7 +10,7 @@ import { ArrowLeft, Upload, X, Loader2 } from 'lucide-react';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useStateMutations, useStateById } from '@/hooks/useStates';
 import { useToast } from '@/components/ui/use-toast';
-import { getImageUrl } from '@/lib/imageUtils';
+import { getImageUrl, getThumbnailUrl } from '@/lib/imageUtils';
 import type { CreateObservationData } from '@/types/observations';
 
 export default function AddObservation() {
@@ -58,6 +58,17 @@ export default function AddObservation() {
     }
   }, [existingState, isEditMode]);
 
+  // Cleanup blob URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      photos.forEach(p => {
+        if (p.previewUrl && p.previewUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(p.previewUrl);
+        }
+      });
+    };
+  }, [photos]);
+
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -82,19 +93,20 @@ export default function AddObservation() {
       // Upload all files in parallel
       const uploadPromises = fileArray.map(async (file, index) => {
         const tempId = placeholders[index].tempId;
-        const uploadResults = await uploadFiles([file], { bucket: 'cwf-uploads' });
+        const uploadResults = await uploadFiles([file], { bucket: 'mission-attachments' });
         const resultsArray = Array.isArray(uploadResults) ? uploadResults : [uploadResults];
         
         // Update progress as each upload completes
         setUploadProgress(prev => prev ? { current: prev.current + 1, total: prev.total } : null);
         
         // Replace placeholder with actual S3 URL using tempId to match
+        // Keep blob URL for display (S3 compressed version may not exist yet)
         setPhotos(prev => prev.map(p => {
           if (p.tempId === tempId) {
-            if (p.previewUrl) URL.revokeObjectURL(p.previewUrl);
             return {
-              photo_url: resultsArray[0].url,
-              photo_description: p.photo_description, // Preserve any description user may have typed
+              photo_url: resultsArray[0].url, // S3 URL for database
+              previewUrl: p.previewUrl, // Keep blob URL for display
+              photo_description: p.photo_description,
               photo_order: p.photo_order,
               isUploading: false
             };
@@ -268,7 +280,7 @@ export default function AddObservation() {
                         <TableCell className="align-top">
                           <div className="relative">
                             <img
-                              src={photo.previewUrl || getImageUrl(photo.photo_url) || ''}
+                              src={photo.previewUrl || getThumbnailUrl(photo.photo_url) || getImageUrl(photo.photo_url) || ''}
                               alt={`Photo ${index + 1}`}
                               className="w-full max-h-48 object-contain rounded cursor-pointer"
                               onClick={() => !photo.isUploading && photo.photo_url && window.open(getImageUrl(photo.photo_url) || '', '_blank')}

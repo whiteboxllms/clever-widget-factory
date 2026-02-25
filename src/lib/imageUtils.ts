@@ -47,7 +47,7 @@ export function getImageKey(urlOrKey: string | null | undefined): string | null 
 
 /**
  * Converts an image URL/key to its thumbnail version
- * Thumbnails are stored in mission-attachments/thumb/ folder as WebP
+ * Thumbnails are stored in thumb/ subfolder as WebP
  * @param urlOrKey - Either a full URL or an S3 key
  * @returns Full S3 URL to thumbnail, or null if not applicable
  */
@@ -58,21 +58,21 @@ export function getThumbnailUrl(urlOrKey: string | null | undefined): string | n
   const key = getImageKey(urlOrKey);
   if (!key) return null;
   
-  // Only convert mission-attachments images to thumbnails
-  if (!key.startsWith('mission-attachments/')) {
-    // For non-mission-attachments, return original URL
-    return getImageUrl(urlOrKey);
-  }
-  
   // Skip if already a thumbnail
   if (key.includes('/thumb/')) {
     return getImageUrl(urlOrKey);
   }
   
-  // Convert to thumbnail path: mission-attachments/file.jpg -> mission-attachments/thumb/file.webp
-  const thumbnailKey = key
-    .replace(/^(mission-attachments\/)/, '$1thumb/')
-    .replace(/\.(jpg|jpeg|png)$/i, '.webp');
+  // Handle organization-scoped images
+  if (key.startsWith('organizations/')) {
+    // Convert to thumbnail path: organizations/{org}/images/file.jpg -> organizations/{org}/images/thumb/file.webp
+    const thumbnailKey = key
+      .replace(/\/images\//, '/images/thumb/')
+      .replace(/\.(jpg|jpeg|png)$/i, '.webp');
+    
+    return `${S3_BUCKET_URL}/${thumbnailKey}`;
+  }
   
-  return `${S3_BUCKET_URL}/${thumbnailKey}`;
+  // For other paths, return original URL
+  return getImageUrl(urlOrKey);
 }

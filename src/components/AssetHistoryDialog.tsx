@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useToolHistory, HistoryEntry, AssetHistoryEntry, CheckoutHistory, IssueHistoryEntry, ObservationHistoryEntry } from "@/hooks/tools/useToolHistory";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useCognitoAuth";
-import { getImageUrl } from '@/lib/imageUtils';
+import { getImageUrl, getThumbnailUrl } from '@/lib/imageUtils';
 
 // Type guard functions
 const isAssetHistory = (entry: HistoryEntry): entry is AssetHistoryEntry => {
@@ -445,7 +445,7 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
                                     <p className="text-blue-800 flex-1">{photo.photo_description}</p>
                                   )}
                                   <a 
-                                    href={getImageUrl(photo.photo_url) || ''}
+                                    href={getThumbnailUrl(photo.photo_url) || getImageUrl(photo.photo_url) || ''}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1 whitespace-nowrap"

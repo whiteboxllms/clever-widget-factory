@@ -6,7 +6,7 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/comp
 import { InventoryHistoryDialog } from "./InventoryHistoryDialog";
 import { AssetHistoryDialog } from "./AssetHistoryDialog";
 import { Link } from "react-router-dom";
-import { getImageUrl } from '@/lib/imageUtils';
+import { getThumbnailUrl } from '@/lib/imageUtils';
 
 import { useMemo, memo, useRef } from "react";
 
@@ -291,7 +291,7 @@ export const CombinedAssetCard = memo(({
         {asset.image_url && (
           <div className="mb-2 w-full h-32 md:h-40 rounded-md border bg-muted overflow-hidden flex-shrink-0">
             <img
-              src={getImageUrl(asset.image_url) || ''}
+              src={getThumbnailUrl(asset.image_url) || ''}
               alt={asset.name}
               className="w-full h-full object-cover"
               loading="lazy"

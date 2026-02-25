@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Send, Bot, User, ShoppingCart, Loader2, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiService, getApiData } from '@/lib/apiService';
-import { getImageUrl } from '@/lib/imageUtils';
+import { getThumbnailUrl } from '@/lib/imageUtils';
 
 interface Message {
   id: string;
@@ -385,7 +385,7 @@ export default function SariSariChat() {
                               <div className="w-full h-32 bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center overflow-hidden">
                                 {product.image_url ? (
                                   <img 
-                                    src={getImageUrl(product.image_url) || ''}
+                                    src={getThumbnailUrl(product.image_url) || ''}
                                     alt={product.name}
                                     className="w-full h-full object-cover"
                                   />

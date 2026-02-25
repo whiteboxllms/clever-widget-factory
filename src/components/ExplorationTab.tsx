@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { useImageUpload } from '@/hooks/useImageUpload';
+import { getThumbnailUrl } from '@/lib/imageUtils';
 import { Sparkles, Loader2, Save, AlertCircle, Camera, X, Image } from 'lucide-react';
 import { ExplorationService, ExplorationResponse, UpdateExplorationRequest } from '@/services/explorationService';
 import { AIContentService, ExplorationSuggestionRequest } from '@/services/aiContentService';
@@ -344,13 +345,17 @@ export function ExplorationTab({ action, onUpdate }: ExplorationTabProps) {
           <div className="space-y-2">
             <Label className="text-sm font-medium">Uploaded Photos ({formData.key_photos.length})</Label>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {formData.key_photos.map((photoUrl, index) => (
+              {formData.key_photos.map((photoUrl, index) => {
+                const fullUrl = photoUrl.startsWith('http') ? photoUrl : `https://cwf-dev-assets.s3.us-west-2.amazonaws.com/${photoUrl}`;
+                const thumbnailUrl = getThumbnailUrl(photoUrl) || fullUrl;
+                
+                return (
                 <div key={index} className="relative group">
                   <img
-                    src={photoUrl.startsWith('http') ? photoUrl : `https://cwf-dev-assets.s3.us-west-2.amazonaws.com/${photoUrl}`}
+                    src={thumbnailUrl}
                     alt={`Exploration photo ${index + 1}`}
                     className="w-full h-24 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
-                    onClick={() => window.open(photoUrl.startsWith('http') ? photoUrl : `https://cwf-dev-assets.s3.us-west-2.amazonaws.com/${photoUrl}`, '_blank')}
+                    onClick={() => window.open(fullUrl, '_blank')}
                   />
                   <Button
                     size="sm"
@@ -361,7 +366,8 @@ export function ExplorationTab({ action, onUpdate }: ExplorationTabProps) {
                     <X className="h-3 w-3" />
                   </Button>
                 </div>
-              ))}
+              );
+              })}
             </div>
           </div>
         )}

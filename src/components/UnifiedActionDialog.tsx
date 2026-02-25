@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useAuth } from "@/hooks/useCognitoAuth";
+import { getThumbnailUrl } from '@/lib/imageUtils';
 import TiptapEditor from './TiptapEditor';
 import { StatesInline } from './StatesInline';
 import { AssetSelector } from './AssetSelector';
@@ -321,6 +322,9 @@ export function UnifiedActionDialog({
       
       // Only reset form if it's a different action/context or first time opening
       if (!isSameSession || !isFormInitialized) {
+        // Clear attachment files when opening a different action
+        setAttachmentFiles(new Map());
+        
         if (action && !isCreating) {
           // Editing existing action - update formData when action changes from cache
           setFormData(prev => {
@@ -1253,6 +1257,12 @@ export function UnifiedActionDialog({
           });
           return;
         }
+        
+        // Clear attachment files when closing dialog
+        if (!newOpen) {
+          setAttachmentFiles(new Map());
+        }
+        
         onOpenChange(newOpen);
       }}
     >
@@ -1713,7 +1723,8 @@ export function UnifiedActionDialog({
                     
                     // Use local File object if available (just uploaded), otherwise fetch from S3
                     const file = attachmentFiles.get(url);
-                    const displayUrl = file ? URL.createObjectURL(file) : fullUrl;
+                    const thumbnailUrl = getThumbnailUrl(url);
+                    const displayUrl = file ? URL.createObjectURL(file) : (thumbnailUrl || fullUrl);
                     
                     return (
                       <div key={index} className="relative">

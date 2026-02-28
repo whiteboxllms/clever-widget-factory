@@ -28,8 +28,8 @@ fi
 echo "📦 Installing dependencies..."
 npm install --production
 
-echo "📦 Packaging Lambda (index.js + local files + node_modules/)..."
-zip -r function.zip index.js node_modules/ package.json *.js -x "*.test.js" "deploy.sh" "wire-api-gateway.sh"
+echo "📦 Packaging Lambda (index.* + local files + node_modules/)..."
+zip -r function.zip index.* node_modules/ package.json *.js *.mjs -x "*.test.js" "deploy.sh" "wire-api-gateway.sh"
 
 echo "🚀 Deploying to AWS Lambda ($FUNCTION_NAME)..."
 if aws lambda get-function --function-name "$FUNCTION_NAME" --region "$REGION" &>/dev/null; then

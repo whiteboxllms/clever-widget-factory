@@ -47,6 +47,7 @@ export function MetricDialog({ open, onOpenChange, onSave, metric, isSubmitting 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     
     if (!formData.name.trim()) {
       return;

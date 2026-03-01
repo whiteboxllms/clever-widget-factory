@@ -75,23 +75,23 @@
 - [x] 6.5 Deploy API Gateway changes
 - [ ] 6.6 Test endpoint with valid Cognito token
 
-### Task 7: Update Presigned Upload Lambda for Thumbnail Generation
-- [ ] 7.1 Update cwf-presigned-upload Lambda code
-- [ ] 7.2 Extract organization_id from Cognito token claims
-- [ ] 7.3 Add feature flag: USE_ORG_SCOPED_KEYS (default: false)
-- [ ] 7.4 Generate UUID using crypto.randomUUID() for guaranteed uniqueness
-- [ ] 7.5 When flag enabled: use pattern `organizations/{org_id}/images/{size}/{uuid}.{extension}`
-  - [ ] 7.5.1 Save original: `organizations/{org_id}/images/original/{uuid}.jpg`
-  - [ ] 7.5.2 Generate thumbnail: `organizations/{org_id}/images/thumb-200/{uuid}.webp` (200px, 75% quality)
-  - [ ] 7.5.3 Generate preview: `organizations/{org_id}/images/preview-800/{uuid}.webp` (800px, 85% quality)
-- [ ] 7.6 Install Sharp library: `npm install --arch=x64 --platform=linux sharp`
-- [ ] 7.7 Implement thumbnail generation using Sharp
-- [ ] 7.8 Upload all three versions to S3
-- [ ] 7.9 Return metadata with all three S3 keys
-- [ ] 7.10 Add validation for organization_id presence
-- [ ] 7.11 Deploy updated Lambda with flag disabled
-- [ ] 7.12 Test upload flow with old key structure (verify no breakage)
-
+### Task 7: Update Upload Path to Organization-Scoped Structure
+- [x] 7.1 Update cwf-presigned-upload Lambda to extract organization_id from Cognito token claims
+- [x] 7.2 Add feature flag: USE_ORG_SCOPED_KEYS (default: false)
+- [x] 7.3 When flag enabled: generate presigned URL for `organizations/{org_id}/images/uploads/{uuid}.{extension}`
+- [x] 7.4 When flag disabled: use existing pattern `mission-attachments/uploads/{random}-{filename}`
+- [x] 7.5 Generate UUID using crypto.randomUUID() for guaranteed uniqueness (when flag enabled)
+- [ ] 7.6 Update cwf-image-compressor Lambda to handle organization-scoped paths:
+  - [x] 7.6.1 Detect path pattern (mission-attachments vs organizations)
+  - [x] 7.6.2 For mission-attachments: keep existing behavior (mission-attachments/{file}, mission-attachments/thumb/{file}.webp)
+  - [x] 7.6.3 For organizations: save compressed to `organizations/{org_id}/images/{uuid}.jpg`
+  - [x] 7.6.4 For organizations: save thumbnail to `organizations/{org_id}/images/thumb/{uuid}.webp`
+  - [x] 7.6.5 Add CacheControl headers for both compressed and thumbnail uploads
+- [x] 7.7 Deploy cwf-presigned-upload Lambda with flag disabled
+- [x] 7.8 Deploy cwf-image-compressor Lambda (backward compatible)
+- [ ] 7.9 Test upload flow with old key structure (verify no breakage)
+- [ ] 7.10 Enable USE_ORG_SCOPED_KEYS flag and test organization-scoped uploads
+- [ ] 7.11 Verify compression and thumbnail generation work for both path patterns
 ---
 
 ## Phase 3: Frontend Implementation

@@ -61,6 +61,14 @@ export interface ObservationHistoryEntry {
     photo_description?: string;
     photo_order: number;
   }>;
+  metrics?: Array<{
+    snapshot_id: string;
+    metric_id: string;
+    metric_name: string;
+    value: string;
+    unit?: string;
+    notes?: string;
+  }>;
 }
 
 export interface AssetHistoryEntry {
@@ -119,7 +127,8 @@ export const useToolHistory = () => {
               observed_by: entry.data.observed_by,
               observed_by_name: entry.data.observed_by_name,
               observed_at: entry.data.observed_at,
-              photos: entry.data.photos
+              photos: entry.data.photos,
+              metrics: entry.data.metrics
             } as ObservationHistoryEntry;
 
           case 'asset_change':

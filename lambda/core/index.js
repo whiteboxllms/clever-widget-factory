@@ -194,6 +194,20 @@ exports.handler = async (event) => {
       if (httpMethod === 'PUT') {
         const toolId = path.split('/').pop();
         const body = JSON.parse(event.body || '{}');
+        
+        // Fetch current tool data to compare changes
+        const currentToolSql = `SELECT * FROM tools WHERE id = '${toolId}'`;
+        const currentToolResult = await queryJSON(currentToolSql);
+        const currentTool = currentToolResult[0];
+        
+        if (!currentTool) {
+          return {
+            statusCode: 404,
+            headers,
+            body: JSON.stringify({ error: 'Tool not found' })
+          };
+        }
+        
         const updates = buildUpdateClauses(body, [
           'status',
           'actual_location',
@@ -219,13 +233,26 @@ exports.handler = async (event) => {
         const sql = `UPDATE tools SET ${updates.join(', ')} WHERE id = '${toolId}' RETURNING *`;
         const result = await queryJSON(sql);
         
-        // Log to asset_history
+        // Log to asset_history - only log fields that actually changed
         const userId = authContext.cognito_user_id;
         if (userId && organizationId) {
           console.log('📝 Logging asset update:', { toolId, userId, organizationId });
-          const fields = Object.keys(body).filter(k => ['status','actual_location','storage_location','name','description','category','serial_number','policy'].includes(k));
-          for (const field of fields) {
-            const historySql = `INSERT INTO asset_history (asset_id, change_type, field_changed, new_value, changed_by, organization_id, changed_at) VALUES ('${toolId}', 'updated', '${field}', ${formatSqlValue(body[field])}, '${userId}', '${organizationId}', NOW())`;
+          const trackableFields = ['status','actual_location','storage_location','name','description','category','serial_number','policy','parent_structure_id','accountable_person_id'];
+          const changedFields = Object.keys(body).filter(k => {
+            if (!trackableFields.includes(k)) return false;
+            // Compare old and new values - only log if different
+            const oldValue = currentTool[k];
+            const newValue = body[k];
+            // Handle null/undefined/empty string as equivalent
+            const normalizedOld = oldValue === null || oldValue === undefined ? '' : String(oldValue);
+            const normalizedNew = newValue === null || newValue === undefined ? '' : String(newValue);
+            return normalizedOld !== normalizedNew;
+          });
+          
+          for (const field of changedFields) {
+            const oldValue = currentTool[field];
+            const newValue = body[field];
+            const historySql = `INSERT INTO asset_history (asset_id, change_type, field_changed, old_value, new_value, changed_by, organization_id, changed_at) VALUES ('${toolId}', 'updated', '${field}', ${formatSqlValue(oldValue)}, ${formatSqlValue(newValue)}, '${userId}', '${organizationId}', NOW())`;
             await queryJSON(historySql).catch(e => console.error('History log error:', e));
           }
         }

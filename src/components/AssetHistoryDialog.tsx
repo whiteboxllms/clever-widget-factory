@@ -4,12 +4,13 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { History, Edit, Plus, AlertTriangle, Clock, LogOut, LogIn, Loader2, ExternalLink, Zap, Target, Camera } from "lucide-react";
+import { History, Edit, Plus, AlertTriangle, Clock, LogOut, LogIn, Loader2, ExternalLink, Zap, Target, Camera, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useToolHistory, HistoryEntry, AssetHistoryEntry, CheckoutHistory, IssueHistoryEntry, ObservationHistoryEntry } from "@/hooks/tools/useToolHistory";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { getImageUrl, getThumbnailUrl } from '@/lib/imageUtils';
+import { useStateMutations } from "@/hooks/useStates";
 
 // Type guard functions
 const isAssetHistory = (entry: HistoryEntry): entry is AssetHistoryEntry => {
@@ -42,6 +43,8 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
   const { toolHistory, assetInfo, loading, fetchToolHistory } = useToolHistory();
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const { deleteState, isDeleting } = useStateMutations();
+  const [deletingHistoryId, setDeletingHistoryId] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -58,6 +61,87 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
     if (!user) return false;
     const isCreator = user.userId === observation.observed_by;
     return isCreator || isAdmin;
+  };
+
+  /**
+   * Check if the current user can delete an asset history entry
+   * @param entry - The asset history entry to check permissions for
+   * @returns true if user is the creator or has admin permissions
+   */
+  const canDeleteAssetHistory = (entry: AssetHistoryEntry): boolean => {
+    if (!user) return false;
+    const isCreator = user.userId === entry.changed_by;
+    return isCreator || isAdmin;
+  };
+
+  /**
+   * Handle deleting an observation
+   */
+  const handleDeleteObservation = async (observationId: string) => {
+    if (!confirm('Are you sure you want to delete this observation? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await deleteState(observationId);
+      toast({
+        title: 'Observation deleted',
+        description: 'The observation has been deleted successfully.'
+      });
+      // Refresh history
+      fetchToolHistory(assetId);
+    } catch (error) {
+      console.error('Failed to delete observation:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete observation. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  /**
+   * Handle deleting an asset history entry
+   */
+  const handleDeleteAssetHistory = async (historyId: string) => {
+    if (!confirm('Are you sure you want to delete this history entry? This action cannot be undone.')) {
+      return;
+    }
+
+    setDeletingHistoryId(historyId);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/history/asset-history/${historyId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${await (async () => {
+            const { fetchAuthSession } = await import('aws-amplify/auth');
+            const session = await fetchAuthSession();
+            return session.tokens?.idToken?.toString() || '';
+          })()}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete history entry');
+      }
+
+      toast({
+        title: 'History entry deleted',
+        description: 'The history entry has been deleted successfully.'
+      });
+      // Refresh history and wait for it to complete
+      await fetchToolHistory(assetId);
+    } catch (error) {
+      console.error('Failed to delete history entry:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete history entry. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setDeletingHistoryId(null);
+    }
   };
 
   const getChangeIcon = (entry: HistoryEntry) => {
@@ -194,9 +278,23 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
                             {getChangeBadge(entry)}
                           </Badge>
                         </div>
-                        <span className="text-sm text-muted-foreground">
-                          {new Date(getChangeDate(entry)).toLocaleDateString()} {new Date(getChangeDate(entry)).toLocaleTimeString()}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">
+                            {new Date(getChangeDate(entry)).toLocaleDateString()} {new Date(getChangeDate(entry)).toLocaleTimeString()}
+                          </span>
+                          {isAssetHistory(entry) && entry.change_type === 'updated' && canDeleteAssetHistory(entry) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteAssetHistory(entry.id)}
+                              disabled={deletingHistoryId === entry.id}
+                              className="h-6 px-2 text-red-600 hover:text-red-800 hover:bg-red-100"
+                              aria-label="Delete history entry"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                       
                       <p className="text-sm text-muted-foreground mb-2">
@@ -421,22 +519,50 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
                         <div className="text-sm bg-blue-50 border border-blue-200 p-3 rounded mt-2">
                           <div className="flex items-start justify-between gap-2 mb-2">
                             <div className="flex-1">
-                              {entry.observation_text && (
+                              {entry.observation_text ? (
                                 <p className="text-blue-800">{entry.observation_text}</p>
+                              ) : entry.metrics && entry.metrics.length > 0 ? (
+                                <p className="text-blue-600 italic">Observation (metrics only)</p>
+                              ) : (
+                                <p className="text-blue-600 italic">Observation</p>
                               )}
                             </div>
                             {canEditObservation(entry) && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => navigate(`/observations/edit/${entry.id}`)}
-                                className="h-8 px-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100"
-                                aria-label="Edit observation"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => navigate(`/observations/edit/${entry.id}`)}
+                                  className="h-8 px-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100"
+                                  aria-label="Edit observation"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteObservation(entry.id)}
+                                  disabled={isDeleting}
+                                  className="h-8 px-2 text-red-600 hover:text-red-800 hover:bg-red-100"
+                                  aria-label="Delete observation"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
                             )}
                           </div>
+                          {entry.metrics && entry.metrics.length > 0 && (
+                            <div className="space-y-1 mt-2 bg-blue-100 p-2 rounded">
+                              <p className="font-medium text-blue-900 text-xs">Metrics:</p>
+                              {entry.metrics.map(metric => (
+                                <div key={metric.snapshot_id} className="flex items-center gap-2 text-blue-800">
+                                  <span className="font-medium">{metric.metric_name}:</span>
+                                  <span>{metric.value}</span>
+                                  {metric.unit && <span className="text-blue-600">{metric.unit}</span>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                           {entry.photos && entry.photos.length > 0 && (
                             <div className="space-y-2 mt-2">
                               {entry.photos.map(photo => (

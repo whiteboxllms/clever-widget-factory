@@ -1,9 +1,15 @@
 const { getAuthorizerContext, buildOrganizationFilter, hasPermission } = require('/opt/nodejs/authorizerContext');
-const { query } = require('/opt/nodejs/db');
+const { getDbClient } = require('/opt/nodejs/db');
 const { escapeLiteral } = require('/opt/nodejs/sqlUtils');
 
 async function queryJSON(sql) {
-  return await query(sql);
+  const client = await getDbClient();
+  try {
+    const result = await client.query(sql);
+    return result.rows;
+  } finally {
+    client.release();
+  }
 }
 
 exports.handler = async (event) => {
@@ -15,7 +21,7 @@ exports.handler = async (event) => {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-    'Access-Control-Allow-Methods': 'GET,OPTIONS'
+    'Access-Control-Allow-Methods': 'GET,DELETE,OPTIONS'
   };
   
   if (httpMethod === 'OPTIONS') {
@@ -124,7 +130,20 @@ exports.handler = async (event) => {
             ) ORDER BY sp.photo_order)
             FROM state_photos sp
             WHERE sp.state_id = s.id
-          ) as photos
+          ) as photos,
+          (
+            SELECT json_agg(json_build_object(
+              'snapshot_id', ms.snapshot_id,
+              'metric_id', ms.metric_id,
+              'metric_name', m.name,
+              'value', ms.value,
+              'unit', m.unit,
+              'notes', ms.notes
+            ))
+            FROM metric_snapshots ms
+            JOIN metrics m ON ms.metric_id = m.metric_id
+            WHERE ms.state_id = s.id
+          ) as metrics
         FROM states s
         JOIN state_links sl ON sl.state_id = s.id
         LEFT JOIN organization_members om ON s.captured_by::text = om.cognito_user_id::text
@@ -284,7 +303,20 @@ exports.handler = async (event) => {
             ) ORDER BY sp.photo_order)
             FROM state_photos sp
             WHERE sp.state_id = s.id
-          ) as photos
+          ) as photos,
+          (
+            SELECT json_agg(json_build_object(
+              'snapshot_id', ms.snapshot_id,
+              'metric_id', ms.metric_id,
+              'metric_name', m.name,
+              'value', ms.value,
+              'unit', m.unit,
+              'notes', ms.notes
+            ))
+            FROM metric_snapshots ms
+            JOIN metrics m ON ms.metric_id = m.metric_id
+            WHERE ms.state_id = s.id
+          ) as metrics
         FROM states s
         JOIN state_links sl ON sl.state_id = s.id
         LEFT JOIN organization_members om ON s.captured_by::text = om.cognito_user_id::text
@@ -336,6 +368,65 @@ exports.handler = async (event) => {
             actions: actionsResult?.[0]?.json_agg || []
           }
         })
+      };
+    }
+    
+    // DELETE /history/asset-history/{id} - Delete asset history entry
+    if (httpMethod === 'DELETE' && path.match(/\/history\/asset-history\/[a-f0-9-]+$/)) {
+      const historyId = path.split('/').pop();
+      const userId = authContext.cognito_user_id;
+      
+      // Check if user created this history entry or is admin
+      const checkSql = `
+        SELECT changed_by, organization_id 
+        FROM asset_history 
+        WHERE id::text = '${escapeLiteral(historyId)}'
+      `;
+      const checkResult = await queryJSON(checkSql);
+      
+      if (checkResult.length === 0) {
+        return {
+          statusCode: 404,
+          headers,
+          body: JSON.stringify({ error: 'History entry not found' })
+        };
+      }
+      
+      const historyEntry = checkResult[0];
+      
+      // Verify organization match
+      if (historyEntry.organization_id !== organizationId) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'History entry does not belong to your organization' })
+        };
+      }
+      
+      // Check if user is creator or admin
+      const isCreator = historyEntry.changed_by === userId;
+      const isAdmin = hasPermission(authContext, 'data:write:all');
+      
+      if (!isCreator && !isAdmin) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'You do not have permission to delete this history entry' })
+        };
+      }
+      
+      // Delete the history entry
+      const deleteSql = `
+        DELETE FROM asset_history 
+        WHERE id::text = '${escapeLiteral(historyId)}'
+        RETURNING id
+      `;
+      await queryJSON(deleteSql);
+      
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ message: 'History entry deleted', id: historyId })
       };
     }
     

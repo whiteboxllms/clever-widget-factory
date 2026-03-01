@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { TOOL_CATEGORY_OPTIONS } from "@/lib/constants";
 import { LocationFieldsGroup } from "@/components/shared/LocationFieldsGroup";
 import { FileAttachmentManager } from "@/components/shared/FileAttachmentManager";
+import { MetricsSection } from "@/components/tools/metrics/MetricsSection";
 import { useParentStructures } from "@/hooks/tools/useParentStructures";
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { useActionProfiles } from "@/hooks/useActionProfiles";
@@ -218,6 +219,10 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, isLeadership = f
               )}
             </div>
           </div>
+
+          {editData.serial_number && editData.serial_number.trim() && tool && (
+            <MetricsSection toolId={tool.id} />
+          )}
 
           <FileAttachmentManager
             attachments={editData.attachments}

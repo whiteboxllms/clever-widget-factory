@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Paperclip, X } from "lucide-react";
 import { useFileUpload } from "@/hooks/useFileUpload";
+import { getThumbnailUrl } from "@/lib/imageUtils";
 
 interface FileAttachmentManagerProps {
   attachments: string[];
@@ -100,7 +101,7 @@ export const FileAttachmentManager = ({
                     </div>
                   ) : (
                     <img
-                      src={url}
+                      src={getThumbnailUrl(url) || ''}
                       alt={`Attachment ${index + 1}`}
                       className="h-16 w-16 object-cover rounded border cursor-pointer"
                       onClick={() => window.open(url, '_blank')}

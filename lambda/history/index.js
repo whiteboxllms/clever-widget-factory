@@ -337,7 +337,7 @@ exports.handler = async (event) => {
           COALESCE(om.full_name, i.reported_by::text) as reported_by_name
         FROM issues i
         LEFT JOIN organization_members om ON i.reported_by::text = om.cognito_user_id::text
-        WHERE i.context_type = 'part' AND i.context_id::text = '${escapeLiteral(partId)}'
+        WHERE i.context_type = 'inventory' AND i.context_id::text = '${escapeLiteral(partId)}'
         ORDER BY i.reported_at DESC
       ) t;`;
       const issuesResult = await queryJSON(issuesSql);

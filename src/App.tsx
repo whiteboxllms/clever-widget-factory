@@ -7,6 +7,7 @@ import { offlineQueryConfig, offlineMutationConfig } from "@/lib/queryConfig";
 import { queryCachePersister, QUERY_CACHE_MAX_AGE } from "@/lib/queryPersistAdapter";
 import { setQueryClient } from "@/lib/apiService";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { AuthProvider } from "@/hooks/useCognitoAuth";
 import { OrganizationProvider } from "@/hooks/useOrganization";
 import { AppSettingsProvider } from "@/hooks/useAppSettings";
@@ -75,9 +76,15 @@ setQueryClient(queryClient);
 
 function AppContent() {
   useSessionMonitor();
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    // Mark as hydrated after first render to prevent flash
+    setIsHydrated(true);
+  }, []);
 
   return (
-    <>
+    <div style={{ opacity: isHydrated ? 1 : 0, transition: 'opacity 0.1s' }}>
       <TokenRefreshIndicator />
       <Routes>
         <Route path="/auth" element={<Auth />} />
@@ -289,7 +296,7 @@ function AppContent() {
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>
-    </>
+    </div>
   );
 }
 

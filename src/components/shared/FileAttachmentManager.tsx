@@ -105,6 +105,14 @@ export const FileAttachmentManager = ({
                       alt={`Attachment ${index + 1}`}
                       className="h-16 w-16 object-cover rounded border cursor-pointer"
                       onClick={() => window.open(url, '_blank')}
+                      onError={(e) => {
+                        // Fallback to original image if thumbnail doesn't exist yet
+                        const target = e.target as HTMLImageElement;
+                        const originalUrl = url.startsWith('http') ? url : `https://cwf-dev-assets.s3.us-west-2.amazonaws.com/${url}`;
+                        if (target.src !== originalUrl) {
+                          target.src = originalUrl;
+                        }
+                      }}
                     />
                   )}
                   <Button

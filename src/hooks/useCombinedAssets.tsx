@@ -169,7 +169,9 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
 
   // Process and paginate data
   const processedAssets = useMemo(() => {
-    if (loading) {
+    // Don't clear results during loading - keep showing previous results
+    // This prevents the display from flickering/clearing while typing
+    if (loading && (toolsData.length === 0 && partsData.length === 0)) {
       return [];
     }
     

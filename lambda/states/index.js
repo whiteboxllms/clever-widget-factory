@@ -183,13 +183,8 @@ async function createState(event, authContext, headers) {
   const organizationId = authContext.organization_id;
   const userId = authContext.user_id;
 
-  // Validation: Require at least one of state_text OR photos with URLs
-  const hasText = state_text && state_text.trim().length > 0;
-  const hasPhotos = photos && photos.some(p => p.photo_url && p.photo_url.trim().length > 0);
-  
-  if (!hasText && !hasPhotos) {
-    return errorResponse(400, 'Please add observation text or at least one photo', headers);
-  }
+  // Note: Validation is handled on frontend - observations can have text, photos, or metrics
+  // Metrics are saved separately via snapshots endpoint after state creation
 
   const client = await getDbClient();
   
@@ -301,40 +296,8 @@ async function updateState(event, id, authContext, headers) {
       return errorResponse(403, 'State does not belong to your organization', headers);
     }
 
-    // Validation: If updating text or photos, ensure at least one will remain
-    // First, get current state to check what exists
-    const currentStateSql = `
-      SELECT 
-        s.state_text,
-        COALESCE(
-          json_agg(sp.id) FILTER (WHERE sp.id IS NOT NULL),
-          '[]'
-        ) as photo_ids
-      FROM states s
-      LEFT JOIN state_photos sp ON s.id = sp.state_id
-      WHERE s.id = ${formatSqlValue(id)}::uuid AND s.organization_id = ${formatSqlValue(organizationId)}::uuid
-      GROUP BY s.id, s.state_text
-    `;
-    
-    const currentStateResult = await client.query(currentStateSql);
-    if (currentStateResult.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return errorResponse(404, 'State not found', headers);
-    }
-    
-    const currentState = currentStateResult.rows[0];
-    
-    // Determine final state after update
-    const finalText = state_text !== undefined ? state_text : currentState.state_text;
-    const finalPhotos = photos !== undefined ? photos : currentState.photo_ids;
-    
-    const hasText = finalText && finalText.trim().length > 0;
-    const hasPhotos = Array.isArray(finalPhotos) && finalPhotos.some(p => (typeof p === 'string' && p.trim().length > 0) || (p.photo_url && p.photo_url.trim().length > 0));
-    
-    if (!hasText && !hasPhotos) {
-      await client.query('ROLLBACK');
-      return errorResponse(400, 'Please add observation text or at least one photo', headers);
-    }
+    // Note: Validation is handled on frontend - observations can have text, photos, or metrics
+    // Metrics are saved separately via snapshots endpoint
 
     const updates = [];
     if (state_text !== undefined) updates.push(`state_text = ${formatSqlValue(state_text)}`);

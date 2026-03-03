@@ -1,0 +1,7 @@
+{
+  "name": "cwf-snapshots-lambda",
+  "version": "1.0.0",
+  "description": "Lambda function for metric snapshot CRUD operations",
+  "main": "index.js",
+  "dependencies": {}
+}

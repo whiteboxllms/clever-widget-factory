@@ -26,12 +26,7 @@ window.addEventListener('error', (event) => {
   });
 });
 
-// Hide initial loading state when React mounts
+// Hide initial loading state when React mounts (no-op now, but kept for compatibility)
 const rootElement = document.getElementById("root")!;
-const loadingElement = document.getElementById("initial-loading");
-if (loadingElement) {
-  // Hide immediately when React starts rendering
-  loadingElement.style.display = 'none';
-}
 
 createRoot(rootElement).render(<App />);

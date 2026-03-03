@@ -6,12 +6,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Upload, X, Loader2 } from 'lucide-react';
+import { ArrowLeft, Upload, X, Loader2, Info } from 'lucide-react';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useStateMutations, useStateById } from '@/hooks/useStates';
 import { useToast } from '@/components/ui/use-toast';
 import { getImageUrl, getThumbnailUrl } from '@/lib/imageUtils';
 import type { CreateObservationData } from '@/types/observations';
+import { MetricsInput } from '@/components/observations/MetricsInput';
+import { useSnapshots } from '@/hooks/useSnapshots';
+import { snapshotService } from '@/services/snapshotService';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export default function AddObservation() {
   const { assetType, id, observationId } = useParams<{ 
@@ -30,10 +34,14 @@ export default function AddObservation() {
   // Fetch existing state when in edit mode
   const { data: existingState, isLoading: isLoadingState } = useStateById(observationId || '');
 
+  // Fetch existing snapshots when editing
+  const { data: existingSnapshots } = useSnapshots(isEditMode ? observationId : undefined);
+
   const [photos, setPhotos] = useState<Array<{ tempId?: string; photo_url: string; photo_description: string; photo_order: number; isUploading?: boolean; previewUrl?: string }>>([]);
   const [observationText, setObservationText] = useState('');
   const [capturedAt, setCapturedAt] = useState<string>(new Date().toISOString().slice(0, 16)); // Format for datetime-local input
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
+  const [metricValues, setMetricValues] = useState<Record<string, string>>({});
 
   // Pre-populate form fields when editing an existing state
   useEffect(() => {
@@ -57,6 +65,17 @@ export default function AddObservation() {
       }
     }
   }, [existingState, isEditMode]);
+
+  // Pre-populate metric values when editing
+  useEffect(() => {
+    if (existingSnapshots && isEditMode) {
+      const values: Record<string, string> = {};
+      existingSnapshots.forEach(snapshot => {
+        values[snapshot.metric_id] = snapshot.value;
+      });
+      setMetricValues(values);
+    }
+  }, [existingSnapshots, isEditMode]);
 
   // Cleanup blob URLs when component unmounts
   useEffect(() => {
@@ -145,22 +164,36 @@ export default function AddObservation() {
   };
 
   const handleSubmit = async () => {
-    // Validate that at least one of observationText or photos is provided
+    // Validate that at least one of observationText, photos, or metrics is provided
     const hasText = observationText.trim().length > 0;
     const hasPhotos = photos.some(p => p.photo_url && !p.isUploading);
+    const hasMetrics = Object.values(metricValues).some(value => value.trim().length > 0);
     
-    if (!hasText && !hasPhotos) {
+    if (!hasText && !hasPhotos && !hasMetrics) {
       toast({
         title: 'Validation Error',
-        description: 'Please add observation text or at least one photo',
+        description: 'Please add observation text, at least one photo, or at least one metric value',
         variant: 'destructive'
       });
       return;
     }
 
+    // Convert datetime-local value to UTC ISO string
+    // datetime-local gives us "2026-03-01T20:02" which is local time
+    // We need to convert it to UTC for the database
+    let capturedAtUTC: string;
+    if (capturedAt) {
+      // Parse as local time by creating a Date object from the datetime-local string
+      // The Date constructor interprets this as local time
+      const localDate = new Date(capturedAt);
+      capturedAtUTC = localDate.toISOString();
+    } else {
+      capturedAtUTC = new Date().toISOString();
+    }
+
     const data: CreateObservationData = {
       state_text: hasText ? observationText : undefined,
-      captured_at: new Date(capturedAt).toISOString(), // Convert datetime-local to ISO string
+      captured_at: capturedAtUTC,
       photos: photos
         .filter(p => p.photo_url && !p.isUploading)
         .map((photo, index) => ({
@@ -175,19 +208,65 @@ export default function AddObservation() {
     };
 
     try {
+      let stateId: string;
+      
       if (isEditMode) {
         await updateState({ id: observationId!, data });
-        toast({
-          title: 'Observation updated',
-          description: 'Your changes have been saved successfully.'
-        });
+        stateId = observationId!;
+      } else {
+        const result = await createState(data);
+        stateId = result.id;
+      }
+
+      // Save metric snapshots if there are any values
+      if (assetType === 'tools' && Object.keys(metricValues).length > 0) {
+        try {
+          // Get existing snapshots to determine what to create/update/delete
+          const existingSnapshotsMap = new Map(
+            (existingSnapshots || []).map(s => [s.metric_id, s])
+          );
+
+          // Process each metric value
+          for (const [metricId, value] of Object.entries(metricValues)) {
+            const existingSnapshot = existingSnapshotsMap.get(metricId);
+            
+            if (value.trim()) {
+              // Create or update snapshot
+              if (existingSnapshot) {
+                await snapshotService.updateSnapshot(existingSnapshot.snapshot_id, { value });
+              } else {
+                await snapshotService.createSnapshot(stateId, {
+                  metric_id: metricId,
+                  value
+                });
+              }
+            }
+          }
+
+          // Delete snapshots that were removed (exist in DB but not in current values)
+          for (const [metricId, snapshot] of existingSnapshotsMap.entries()) {
+            if (!metricValues[metricId] || !metricValues[metricId].trim()) {
+              await snapshotService.deleteSnapshot(snapshot.snapshot_id);
+            }
+          }
+        } catch (snapshotError) {
+          console.error('Failed to save metric snapshots:', snapshotError);
+          toast({
+            title: 'Warning',
+            description: 'Observation saved but some metrics failed to save. Please try editing the observation to update metrics.',
+            variant: 'destructive'
+          });
+        }
+      }
+
+      toast({
+        title: isEditMode ? 'Observation updated' : 'Observation saved',
+        description: isEditMode ? 'Your changes have been saved successfully.' : 'Your observation has been saved successfully.'
+      });
+      
+      if (isEditMode) {
         navigate(-1); // Go back to previous page (preserves filters)
       } else {
-        await createState(data);
-        toast({
-          title: 'Observation saved',
-          description: 'Your observation has been saved successfully.'
-        });
         navigate('/combined-assets');
       }
     } catch (error) {
@@ -307,46 +386,95 @@ export default function AddObservation() {
                 </Table>
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
 
-            <div>
-              <Label htmlFor="observation-text">Details</Label>
-              <Textarea
-                id="observation-text"
-                placeholder="Details not captured elsewhere..."
-                value={observationText}
-                onChange={(e) => setObservationText(e.target.value)}
-                rows={4}
-              />
-            </div>
+      {/* Metrics Section - only show for tools with metrics */}
+      {!isEditMode || !isLoadingState ? (
+        (() => {
+          // In edit mode, get tool ID from existing state links
+          // In create mode, get from URL params
+          const toolId = isEditMode && existingState?.links?.[0]?.entity_type === 'tool' 
+            ? existingState.links[0].entity_id 
+            : (assetType === 'tools' ? id : null);
+          
+          return toolId ? (
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle>Metrics</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <MetricsInput
+                  toolId={toolId}
+                  values={metricValues}
+                  onChange={setMetricValues}
+                />
+              </CardContent>
+            </Card>
+          ) : null;
+        })()
+      ) : null}
 
-            <div>
-              <Label htmlFor="captured-at">Captured At</Label>
+      {/* Details Section */}
+      {!isEditMode || !isLoadingState ? (
+        <Card className="mt-4">
+          <CardContent className="pt-6">
+            <Textarea
+              id="observation-text"
+              placeholder="Details not captured elsewhere..."
+              value={observationText}
+              onChange={(e) => setObservationText(e.target.value)}
+              rows={4}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Captured At Section */}
+      {!isEditMode || !isLoadingState ? (
+        <Card className="mt-4">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="captured-at" className="min-w-[100px]">Captured At</Label>
               <Input
                 id="captured-at"
                 type="datetime-local"
                 value={capturedAt}
                 onChange={(e) => setCapturedAt(e.target.value)}
+                className="flex-1"
               />
-            </div>
-
-            <div className="flex gap-2 justify-end">
-              <Button
-                variant="outline"
-                onClick={() => navigate('/combined-assets')}
-                disabled={isCreating || isUpdating}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={isCreating || isUpdating || (observationText.trim().length === 0 && photos.filter(p => p.photo_url && !p.isUploading).length === 0)}
-              >
-                {isCreating || isUpdating ? 'Saving...' : isEditMode ? 'Update Observation' : 'Save Observation'}
-              </Button>
             </div>
           </CardContent>
         </Card>
-      )}
+      ) : null}
+
+      {/* Action Buttons */}
+      {!isEditMode || !isLoadingState ? (
+        <div className="flex gap-2 justify-end mt-4">
+          <Button
+            variant="outline"
+            onClick={() => navigate('/combined-assets')}
+            disabled={isCreating || isUpdating}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={
+              isCreating || 
+              isUpdating || 
+              (
+                observationText.trim().length === 0 && 
+                photos.filter(p => p.photo_url && !p.isUploading).length === 0 &&
+                Object.values(metricValues).every(value => !value || value.trim().length === 0)
+              )
+            }
+          >
+            {isCreating || isUpdating ? 'Saving...' : isEditMode ? 'Update Observation' : 'Save Observation'}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

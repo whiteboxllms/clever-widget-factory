@@ -8,6 +8,7 @@ import { CheckoutHistory, HistoryEntry, IssueHistoryEntry, AssetHistoryEntry } f
 import { ToolStatusBadge } from "./ToolStatusBadge";
 import { ExperienceCreationDialog } from "@/components/ExperienceCreationDialog";
 import { useState } from "react";
+import { getThumbnailUrl } from '@/lib/imageUtils';
 
 import { AlertTriangle, Bug, Shield, Wrench, Clock } from "lucide-react";
 import { getIssueTypeIconName } from "@/lib/issueTypeUtils";
@@ -400,7 +401,7 @@ export const ToolDetails = ({
             <Card>
               <CardContent className="p-4">
                 <img
-                  src={tool.image_url}
+                  src={getThumbnailUrl(tool.image_url) || ''}
                   alt={tool.name}
                   className="w-full h-64 object-cover rounded-md"
                 />

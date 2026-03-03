@@ -4,10 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { History, TrendingUp, TrendingDown, Edit, Plus, ExternalLink } from 'lucide-react';
+import { History, TrendingUp, TrendingDown, Edit, Plus, ExternalLink, Camera } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { apiService } from '@/lib/apiService';
+import { getThumbnailUrl, getImageUrl } from '@/lib/imageUtils';
 
 interface HistoryEntry {
   id: string;
@@ -28,6 +29,25 @@ interface HistoryEntry {
   action_status?: string | null;
 }
 
+interface Observation {
+  id: string;
+  observation_text: string | null;
+  observed_by: string;
+  observed_by_name: string;
+  observed_at: string;
+  photos?: Array<{
+    id: string;
+    photo_url: string;
+    photo_description: string | null;
+  }>;
+  metrics?: Array<{
+    snapshot_id: string;
+    metric_name: string;
+    value: number;
+    unit: string | null;
+  }>;
+}
+
 interface InventoryHistoryDialogProps {
   partId: string;
   partName: string;
@@ -36,6 +56,7 @@ interface InventoryHistoryDialogProps {
 
 export function InventoryHistoryDialog({ partId, partName, children }: InventoryHistoryDialogProps) {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [observations, setObservations] = useState<Observation[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
@@ -45,12 +66,12 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
     
     setLoading(true);
     try {
-      // Fetch from AWS API Gateway endpoint using apiService (automatically adds Authorization header)
-      const result = await apiService.get<{ data: HistoryEntry[] }>(
-        `/parts_history?part_id=${partId}&limit=100`
-      );
+      // Fetch from unified history endpoint
+      const result = await apiService.get(`/history/parts/${partId}`);
+      const data = result.data || {};
       
-      const partsHistory: HistoryEntry[] = result.data || [];
+      const partsHistory: HistoryEntry[] = data.history || [];
+      const observationsData: Observation[] = data.observations || [];
 
       // Deduplicate records by id - keep the most recent one if duplicates exist
       const historyMap = new Map<string, HistoryEntry>();
@@ -67,6 +88,9 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
       );
 
       setHistory(allHistory);
+      setObservations(observationsData.sort(
+        (a, b) => new Date(b.observed_at).getTime() - new Date(a.observed_at).getTime()
+      ));
     } catch (error) {
       console.error('Error fetching history:', error);
       toast({
@@ -166,12 +190,100 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
-          ) : history.length === 0 ? (
+          ) : history.length === 0 && observations.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               No history records found for this item.
             </div>
           ) : (
             <div className="space-y-6">
+              {/* Observations Section */}
+              {observations.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                      {observations.length}
+                    </Badge>
+                    Observations
+                  </h3>
+                  <div className="space-y-3">
+                    {observations.map((observation) => (
+                      <Card key={observation.id} className="p-4 border-l-4 border-l-blue-400">
+                        <CardContent className="p-0">
+                          <div className="flex items-start gap-3">
+                            <Camera className="h-4 w-4 text-blue-600 mt-1 flex-shrink-0" />
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{observation.observed_by_name}</span>
+                                  <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                                    Observation
+                                  </Badge>
+                                </div>
+                                <span className="text-sm text-muted-foreground">
+                                  {format(new Date(observation.observed_at), 'PPpp')}
+                                </span>
+                              </div>
+                              
+                              {observation.observation_text && (
+                                <p className="text-sm text-blue-800 mb-2">
+                                  {observation.observation_text}
+                                </p>
+                              )}
+                              
+                              {observation.metrics && observation.metrics.length > 0 && (
+                                <div className="space-y-1 mt-2 bg-blue-50 p-2 rounded">
+                                  <p className="font-medium text-blue-900 text-xs">Metrics:</p>
+                                  {observation.metrics.map(metric => (
+                                    <div key={metric.snapshot_id} className="flex items-center gap-2 text-blue-800 text-sm">
+                                      <span className="font-medium">{metric.metric_name}:</span>
+                                      <span>{metric.value}</span>
+                                      {metric.unit && <span className="text-blue-600">{metric.unit}</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              
+                              {observation.photos && observation.photos.length > 0 && (
+                                <div className="grid grid-cols-2 gap-2 mt-2">
+                                  {observation.photos.map(photo => (
+                                    <div key={photo.id} className="relative group">
+                                      <a 
+                                        href={getImageUrl(photo.photo_url) || ''}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="block"
+                                      >
+                                        <img 
+                                          src={getThumbnailUrl(photo.photo_url) || getImageUrl(photo.photo_url) || ''}
+                                          alt={photo.photo_description || 'Observation photo'}
+                                          className="w-full h-32 object-cover rounded border border-blue-200 hover:border-blue-400 transition-colors"
+                                          onError={(e) => {
+                                            const target = e.target as HTMLImageElement;
+                                            const fullUrl = getImageUrl(photo.photo_url);
+                                            if (fullUrl && target.src !== fullUrl) {
+                                              target.src = fullUrl;
+                                            }
+                                          }}
+                                        />
+                                      </a>
+                                      {photo.photo_description && (
+                                        <p className="text-xs text-blue-700 mt-1">
+                                          {photo.photo_description}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Usage History Summary */}
               {usageEntries.length > 0 && (
                 <div>

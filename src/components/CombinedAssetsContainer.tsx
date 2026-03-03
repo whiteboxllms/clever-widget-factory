@@ -48,11 +48,12 @@ export const CombinedAssetsContainer = () => {
   const viewParam = urlParams.get('view');
   const showLowStockParam = urlParams.get('showLowStock') === 'true';
   const editParam = urlParams.get('edit');
+  const searchParam = urlParams.get('search') || '';
   const { toast } = useToast();
   const { updatePart, updateTool, createPartsHistory, deletePart } = useAssetMutations();
   const organizationId = useOrganizationId();
   const { uploadImages, isUploading } = useImageUpload();
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(searchParam);
   const [semanticResults, setSemanticResults] = useState<CombinedAsset[]>([]);
   const [isSemanticSearching, setIsSemanticSearching] = useState(false);
   const [showMyCheckedOut, setShowMyCheckedOut] = useState(false);
@@ -83,6 +84,7 @@ export const CombinedAssetsContainer = () => {
   // Image state for stock editing
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [stockAttachments, setStockAttachments] = useState<string[]>([]);
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   
   // Stock dialog states
   const [showQuantityDialog, setShowQuantityDialog] = useState(false);
@@ -239,6 +241,16 @@ export const CombinedAssetsContainer = () => {
       if (term !== searchRef.current) {
         searchRef.current = term;
       }
+      
+      // Update URL with search term to persist across app switches
+      const newUrl = new URL(window.location.href);
+      if (term) {
+        newUrl.searchParams.set('search', term);
+      } else {
+        newUrl.searchParams.delete('search');
+      }
+      window.history.replaceState({}, '', newUrl.toString());
+      
       // Reset to page 0 when filters change
       if (page !== 0) {
         setPage(0);
@@ -881,6 +893,8 @@ export const CombinedAssetsContainer = () => {
       {/* Edit Stock Item Dialog */}
       {selectedAsset && selectedAsset.type === 'stock' && (
         <Dialog open={showEditDialog} onOpenChange={(open) => {
+          // Prevent closing while uploading or submitting
+          if (!open && (isUploadingFiles || isUploading)) return;
           if (!open) {
             setShowEditDialog(false);
             setSelectedAssetId(null);
@@ -909,6 +923,7 @@ export const CombinedAssetsContainer = () => {
               editingPart={selectedAsset as any}
               attachments={stockAttachments}
               onAttachmentsChange={setStockAttachments}
+              onUploadStateChange={setIsUploadingFiles}
               onSubmit={handleStockEditSubmit}
               onCancel={() => {
                 setShowEditDialog(false);

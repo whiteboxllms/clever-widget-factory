@@ -53,6 +53,7 @@ interface InventoryItemFormProps {
   initialData?: Partial<FormData>;
   attachments: string[];
   onAttachmentsChange: (attachments: string[]) => void;
+  onUploadStateChange?: (isUploading: boolean) => void;
   isLoading: boolean;
   onSubmit: (data: FormData, useMinimumQuantity: boolean) => void;
   onCancel: () => void;
@@ -69,6 +70,7 @@ export function InventoryItemForm({
   initialData,
   attachments,
   onAttachmentsChange,
+  onUploadStateChange,
   isLoading,
   onSubmit,
   onCancel,
@@ -313,6 +315,7 @@ export function InventoryItemForm({
           <FileAttachmentManager
             attachments={attachments}
             onAttachmentsChange={onAttachmentsChange}
+            onUploadStateChange={onUploadStateChange}
             bucket="tool-images"
             label="Item Images & Documents"
             disabled={isLoading}

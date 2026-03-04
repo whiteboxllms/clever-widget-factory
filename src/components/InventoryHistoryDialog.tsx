@@ -234,10 +234,10 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
                                 <div className="space-y-1 mt-2 bg-blue-50 p-2 rounded">
                                   <p className="font-medium text-blue-900 text-xs">Metrics:</p>
                                   {observation.metrics.map(metric => (
-                                    <div key={metric.snapshot_id} className="flex items-center gap-2 text-blue-800 text-sm">
-                                      <span className="font-medium">{metric.metric_name}:</span>
-                                      <span>{metric.value}</span>
-                                      {metric.unit && <span className="text-blue-600">{metric.unit}</span>}
+                                    <div key={metric.snapshot_id} className="flex items-center gap-2 text-blue-800 text-sm w-full">
+                                      <span className="font-medium whitespace-nowrap">{metric.metric_name}:</span>
+                                      <span className="flex-1">{metric.value}</span>
+                                      {metric.unit && <span className="text-blue-600 whitespace-nowrap">{metric.unit}</span>}
                                     </div>
                                   ))}
                                 </div>

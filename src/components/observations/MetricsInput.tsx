@@ -40,8 +40,8 @@ export function MetricsInput({ toolId, values, onChange }: MetricsInputProps) {
       <div className="space-y-2">
         {metrics.map((metric) => (
           <div key={metric.metric_id} className="flex gap-2 items-center">
-            <div className="flex items-center gap-1 w-[180px] flex-shrink-0">
-              <Label htmlFor={`metric-${metric.metric_id}`} className="text-sm">
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <Label htmlFor={`metric-${metric.metric_id}`} className="text-sm whitespace-nowrap">
                 {metric.name}
               </Label>
               {(metric.benchmark_value !== null || metric.details) && (
@@ -70,27 +70,24 @@ export function MetricsInput({ toolId, values, onChange }: MetricsInputProps) {
               value={values[metric.metric_id] || ''}
               onChange={(e) => handleChange(metric.metric_id, e.target.value)}
               placeholder="Enter value"
-              className="flex-1"
+              className="flex-1 min-w-0"
             />
-            <div className="w-[60px] flex-shrink-0">
-              {metric.unit && (
-                <span className="text-sm text-muted-foreground whitespace-nowrap">
-                  {metric.unit}
-                </span>
-              )}
-            </div>
-            <div className="w-[40px] flex-shrink-0">
-              {values[metric.metric_id] && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleDelete(metric.metric_id)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
+            {metric.unit && (
+              <span className="text-sm text-muted-foreground whitespace-nowrap flex-shrink-0">
+                {metric.unit}
+              </span>
+            )}
+            {values[metric.metric_id] && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => handleDelete(metric.metric_id)}
+                className="flex-shrink-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         ))}
       </div>

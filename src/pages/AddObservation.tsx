@@ -219,7 +219,12 @@ export default function AddObservation() {
       }
 
       // Save metric snapshots if there are any values
-      if (assetType === 'tools' && Object.keys(metricValues).length > 0) {
+      // In edit mode, check entity type from existing state; in create mode, check URL param
+      const isToolObservation = isEditMode 
+        ? existingState?.links?.[0]?.entity_type === 'tool'
+        : assetType === 'tools';
+      
+      if (isToolObservation && Object.keys(metricValues).length > 0) {
         try {
           // Get existing snapshots to determine what to create/update/delete
           const existingSnapshotsMap = new Map(

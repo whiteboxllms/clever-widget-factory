@@ -13,6 +13,7 @@ import { OrganizationProvider } from "@/hooks/useOrganization";
 import { AppSettingsProvider } from "@/hooks/useAppSettings";
 import { useSessionMonitor } from "@/hooks/useSessionMonitor";
 import { TokenRefreshIndicator } from "@/components/TokenRefreshIndicator";
+import { GlobalMaxwellFAB } from "@/components/GlobalMaxwellFAB";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminRoute from "@/components/AdminRoute";
 import LeadershipRoute from "@/components/LeadershipRoute";
@@ -86,6 +87,7 @@ function AppContent() {
   return (
     <div style={{ opacity: isHydrated ? 1 : 0, transition: 'opacity 0.1s' }}>
       <TokenRefreshIndicator />
+      <GlobalMaxwellFAB />
       <Routes>
         <Route path="/auth" element={<Auth />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />

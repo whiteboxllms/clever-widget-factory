@@ -310,7 +310,7 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
                               <div className="flex items-center gap-2">
                                 <span className="font-medium text-blue-900">Action:</span>
                                 <Link
-                                  to={`/actions?action=${entry.action_id}`}
+                                  to={`/actions/${entry.action_id}`}
                                   className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
                                   onClick={(e) => e.stopPropagation()}
                                 >
@@ -397,7 +397,7 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
                           )}
                           {entry.action_id && (
                             <Link
-                              to={`/actions?action=${entry.action_id}`}
+                              to={`/actions/${entry.action_id}`}
                               className="text-purple-600 hover:text-purple-800 underline flex items-center gap-1 mt-2 text-sm"
                               onClick={(e) => e.stopPropagation()}
                             >

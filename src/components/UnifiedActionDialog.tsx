@@ -42,8 +42,7 @@ import {
   Flag,
   Copy,
   Sparkles,
-  Search,
-  Bot
+  Search
 } from "lucide-react";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useAuth } from "@/hooks/useCognitoAuth";
@@ -63,7 +62,6 @@ import { aiContentService } from "@/services/aiContentService";
 import { ExplorationTab } from "./ExplorationTab";
 import { ExplorationAssociationDialog } from "./ExplorationAssociationDialog";
 import { useActionObservationCount } from "@/hooks/useActionObservationCount";
-import { MaxwellPanel } from "./MaxwellPanel";
 
 interface UnifiedActionDialogProps {
   open: boolean;
@@ -248,7 +246,6 @@ export function UnifiedActionDialog({
   const [showExplorationDialog, setShowExplorationDialog] = useState(false);
   const [linkedExplorationIds, setLinkedExplorationIds] = useState<string[]>([]);
   const [linkedExplorations, setLinkedExplorations] = useState<Array<{ id: string; exploration_code: string; name?: string }>>([]);
-  const [isMaxwellOpen, setIsMaxwellOpen] = useState(false);
 
   // Derive observation count from TanStack cache (preferred over database count)
   const derivedObservationCount = useActionObservationCount(action?.id || '');
@@ -1269,10 +1266,39 @@ export function UnifiedActionDialog({
         onOpenChange(newOpen);
       }}
     >
-      <DialogContent className={cn(
-        "max-w-lg sm:max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-y-auto p-3 sm:p-6",
-        borderStyle.borderColor
-      )}>
+      <DialogContent 
+        className={cn(
+          "max-w-lg sm:max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-y-auto p-3 sm:p-6",
+          borderStyle.borderColor
+        )}
+        onInteractOutside={(e) => {
+          // Prevent dialog from closing when clicking outside
+          // The FAB is at z-index 9999, but the dialog overlay at z-50 is catching clicks
+          // We need to check if the click coordinates are within the FAB bounds
+          const target = e.target as HTMLElement;
+          
+          // Find the FAB button
+          const fabButton = document.querySelector('[aria-label="Open Maxwell Assistant"]');
+          
+          if (fabButton) {
+            const fabRect = fabButton.getBoundingClientRect();
+            const clickX = (e as any).clientX;
+            const clickY = (e as any).clientY;
+            
+            // Check if click is within FAB bounds
+            const isWithinFAB = clickX >= fabRect.left && 
+                               clickX <= fabRect.right && 
+                               clickY >= fabRect.top && 
+                               clickY <= fabRect.bottom;
+            
+            if (isWithinFAB) {
+              console.log('[UnifiedActionDialog] Click is within FAB bounds, preventing close');
+              e.preventDefault();
+              return;
+            }
+          }
+        }}
+      >
         <DialogHeader>
           <div className="flex items-center gap-2">
             <DialogTitle>{getDialogTitle()}</DialogTitle>
@@ -1291,15 +1317,6 @@ export function UnifiedActionDialog({
                     ) : (
                       <Copy className="h-4 w-4" />
                     )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsMaxwellOpen(true)}
-                    className="h-7 w-7 p-0"
-                    title="Ask Maxwell about this action"
-                  >
-                    <Bot className="h-4 w-4" />
                   </Button>
                 </>
               )}
@@ -1865,19 +1882,6 @@ export function UnifiedActionDialog({
           }}
           onLinked={handleExplorationLinked}
           currentExplorationId={linkedExplorationIds[0]}
-        />
-      )}
-
-      {/* Maxwell Panel */}
-      {!isCreating && action?.id && (
-        <MaxwellPanel
-          open={isMaxwellOpen}
-          onOpenChange={setIsMaxwellOpen}
-          entityId={action.id}
-          entityType="action"
-          entityName={action.title}
-          policy={action.policy || ''}
-          implementation={action.description || ''}
         />
       )}
     </Dialog>

@@ -155,6 +155,8 @@ export default function Actions() {
   // Profiles are now handled by useActionProfiles hook for consistency
 
   const handleEditAction = async (action: BaseAction) => {
+    // Navigate to the action URL to make it shareable and enable FAB
+    navigate(`/actions/${action.id}`);
     setEditingActionId(action.id);
     setIsCreating(false);
     setIsEditDialogOpen(true);
@@ -173,10 +175,8 @@ export default function Actions() {
     setIsEditDialogOpen(false);
     setEditingActionId(null);
     setIsCreating(false);
-    // If we navigated here with an actionId, go back to main actions page
-    if (actionId) {
-      navigate('/actions');
-    }
+    // Navigate back to main actions page
+    navigate('/actions');
   };
 
   const handleCreateAction = () => {
@@ -660,10 +660,8 @@ export default function Actions() {
             if (!open) {
               setEditingActionId(null);
               setIsCreating(false);
-              // Navigate away if we came from a direct action link
-              if (actionId) {
-                navigate('/actions');
-              }
+              // Navigate back to main actions page
+              navigate('/actions');
             }
           }}
           actionId={editingActionId || undefined}

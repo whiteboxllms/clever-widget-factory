@@ -1,4 +1,4 @@
-import { ArrowLeft, Plus, Bot } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,7 +7,6 @@ import { CombinedAsset } from "@/hooks/useCombinedAssets";
 import { IssueCard } from "@/components/IssueCard";
 import { InventoryHistoryDialog } from "@/components/InventoryHistoryDialog";
 import { ExperienceCreationDialog } from "@/components/ExperienceCreationDialog";
-import { MaxwellPanel } from "@/components/MaxwellPanel";
 import { useState } from "react";
 import { getThumbnailUrl } from '@/lib/imageUtils';
 
@@ -29,7 +28,6 @@ export const StockDetails = ({
   onRefresh
 }: StockDetailsProps) => {
   const [isExperienceDialogOpen, setIsExperienceDialogOpen] = useState(false);
-  const [isMaxwellOpen, setIsMaxwellOpen] = useState(false);
   
   const getStockStatusBadge = () => {
     if (stock.current_quantity === 0) {
@@ -55,24 +53,14 @@ export const StockDetails = ({
             <Badge variant="secondary">Stock Item</Badge>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsMaxwellOpen(true)}
-          >
-            <Bot className="h-4 w-4 mr-2" />
-            Maxwell
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => setIsExperienceDialogOpen(true)}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Create Experience
-          </Button>
-        </div>
+        <Button
+          variant="default"
+          size="sm"
+          onClick={() => setIsExperienceDialogOpen(true)}
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Create Experience
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -177,16 +165,6 @@ export const StockDetails = ({
         entityType="part"
         entityId={stock.id}
         entityName={stock.name}
-      />
-
-      <MaxwellPanel
-        open={isMaxwellOpen}
-        onOpenChange={setIsMaxwellOpen}
-        entityId={stock.id}
-        entityType="part"
-        entityName={stock.name}
-        policy={stock.description || ''}
-        implementation=""
       />
     </div>
   );

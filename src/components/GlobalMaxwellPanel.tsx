@@ -1,11 +1,11 @@
 import { useRef, useEffect, useState, KeyboardEvent } from 'react';
+import { createPortal } from 'react-dom';
 import type { JSX } from 'react';
 import { X, Send, RefreshCw, Loader2, Copy, Check, Code, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMaxwell, MaxwellSessionAttributes, MaxwellMessage } from '@/hooks/useMaxwell';
 import { useMaxwellStorage, EntityContext } from '@/hooks/useMaxwellStorage';
 import { useEntityContext } from '@/hooks/useEntityContext';
-import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { PrismIcon } from '@/components/icons/PrismIcon';
 
 const STARTER_QUESTIONS_ACTION = [
@@ -195,17 +195,30 @@ export function GlobalMaxwellPanel({
     }
   }, [open]);
 
-  // Keyboard support: Escape key closes panel
+  // Keyboard support: Escape key closes panel (capture phase so it fires before Radix Dialog)
   useEffect(() => {
     const handleEscape = (e: globalThis.KeyboardEvent) => {
       if (e.key === 'Escape' && open) {
+        e.stopPropagation();
         onOpenChange(false);
       }
     };
     
+    // Block pointerdown events originating inside the panel from reaching Radix's
+    // document-level outside-click listener (which runs in the capture phase)
+    const blockOutsideClick = (e: PointerEvent) => {
+      if (panelRef.current?.contains(e.target as Node)) {
+        e.stopPropagation();
+      }
+    };
+    
     if (open) {
-      document.addEventListener('keydown', handleEscape);
-      return () => document.removeEventListener('keydown', handleEscape);
+      document.addEventListener('keydown', handleEscape, true); // capture phase
+      document.addEventListener('pointerdown', blockOutsideClick, true); // capture phase
+      return () => {
+        document.removeEventListener('keydown', handleEscape, true);
+        document.removeEventListener('pointerdown', blockOutsideClick, true);
+      };
     }
   }, [open, onOpenChange]);
 
@@ -312,7 +325,7 @@ export function GlobalMaxwellPanel({
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <>
       {/* No backdrop overlay - allow interaction with main content */}
 
@@ -321,8 +334,10 @@ export function GlobalMaxwellPanel({
         ref={panelRef}
         role="complementary"
         aria-label="Maxwell Assistant"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
         className={cn(
-          'fixed z-50 bg-background shadow-xl flex flex-col border-l',
+          'fixed z-[200] bg-background shadow-xl flex flex-col border-l',
           'max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:h-[90vh] max-md:rounded-t-2xl',
           'md:top-0 md:right-0 md:h-full md:w-[40%] lg:w-[35%]',
           'transition-transform duration-300 ease-out',
@@ -358,7 +373,7 @@ export function GlobalMaxwellPanel({
               </button>
             )}
             <button
-              onClick={() => onOpenChange(false)}
+              onClick={(e) => { e.stopPropagation(); onOpenChange(false); }}
               className="rounded-full p-1.5 text-muted-foreground hover:bg-muted"
               aria-label="Close Maxwell"
             >
@@ -395,9 +410,6 @@ export function GlobalMaxwellPanel({
         <div className="flex-1 overflow-y-auto px-4 py-2 pb-4 space-y-3 overscroll-contain touch-pan-y">
           {messages.length === 0 && !isLoading && (
             <div className="space-y-2 pt-2">
-              <p className="text-xs text-muted-foreground text-center">
-                Ask Maxwell about this {activeContext?.entityType}
-              </p>
               {starterQuestions.map((q) => (
                 <button
                   key={q}
@@ -462,6 +474,7 @@ export function GlobalMaxwellPanel({
           </button>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }

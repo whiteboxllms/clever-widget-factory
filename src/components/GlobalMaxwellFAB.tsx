@@ -8,13 +8,10 @@ export function GlobalMaxwellFAB() {
   const [currentContext, setCurrentContext] = useState<EntityContext | null>(null);
   const fabRef = useRef<HTMLButtonElement>(null);
   
-  // Detect if we're on an entity detail page
   const entityContext = useEntityContext();
   
-  // Focus management: return focus to FAB when panel closes
   useEffect(() => {
     if (!isPanelOpen && fabRef.current) {
-      // Small delay to ensure panel is fully closed
       const timer = setTimeout(() => {
         fabRef.current?.focus();
       }, 100);
@@ -22,21 +19,19 @@ export function GlobalMaxwellFAB() {
     }
   }, [isPanelOpen]);
   
-  // Only render FAB when context is available (entity detail pages)
-  if (!entityContext) {
+  // Show FAB on entity detail pages. Keep panel alive if already open.
+  if (!entityContext && !isPanelOpen) {
     return null;
   }
   
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Capture current context when FAB is clicked
     setCurrentContext(entityContext);
     setIsPanelOpen(true);
   };
   
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Support Enter key to open panel
     if (e.key === 'Enter') {
       e.preventDefault();
       e.stopPropagation();
@@ -47,8 +42,7 @@ export function GlobalMaxwellFAB() {
   
   return (
     <>
-      {/* Floating Action Button - hide when panel is open */}
-      {!isPanelOpen && (
+      {!isPanelOpen && entityContext && (
         <button
           ref={fabRef}
           onClick={handleClick}
@@ -62,8 +56,6 @@ export function GlobalMaxwellFAB() {
           </div>
         </button>
       )}
-      
-      {/* Panel */}
       <GlobalMaxwellPanel
         open={isPanelOpen}
         onOpenChange={setIsPanelOpen}

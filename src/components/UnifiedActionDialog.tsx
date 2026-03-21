@@ -26,7 +26,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { apiService, getApiData } from '@/lib/apiService';
-import { missionsQueryKey, explorationByActionIdQueryKey } from '@/lib/queryKeys';
+import { missionsQueryKey } from '@/lib/queryKeys';
 import {
   Paperclip, 
   Calendar as CalendarIcon, 
@@ -42,7 +42,8 @@ import {
   Flag,
   Copy,
   Sparkles,
-  Search
+  Search,
+  Pencil
 } from "lucide-react";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useAuth } from "@/hooks/useCognitoAuth";
@@ -57,11 +58,11 @@ import { cn, sanitizeRichText, getActionBorderStyle } from "@/lib/utils";
 import { BaseAction, Profile, ActionCreationContext } from "@/types/actions";
 import { autoCheckinToolsForAction, activatePlannedCheckoutsIfNeeded } from '@/lib/autoToolCheckout';
 import { generateActionUrl, copyToClipboard } from "@/lib/urlUtils";
-import { explorationService } from "@/services/explorationService";
 import { aiContentService } from "@/services/aiContentService";
-import { ExplorationTab } from "./ExplorationTab";
-import { ExplorationAssociationDialog } from "./ExplorationAssociationDialog";
 import { useActionObservationCount } from "@/hooks/useActionObservationCount";
+import { PrismIcon } from "@/components/icons/PrismIcon";
+import { MaxwellInlinePanel } from "@/components/MaxwellInlinePanel";
+import { EntityContext } from "@/hooks/useEntityContext";
 
 interface UnifiedActionDialogProps {
   open: boolean;
@@ -71,6 +72,9 @@ interface UnifiedActionDialogProps {
   profiles: Profile[];
   onActionSaved: (saved?: BaseAction) => void;
   isCreating?: boolean;
+  isMaxwellOpen?: boolean;
+  onMaxwellOpenChange?: (open: boolean) => void;
+  maxwellContext?: EntityContext | null;
 }
 
 export function UnifiedActionDialog({
@@ -80,7 +84,10 @@ export function UnifiedActionDialog({
   context,
   profiles,
   onActionSaved,
-  isCreating = false
+  isCreating = false,
+  isMaxwellOpen = false,
+  onMaxwellOpenChange,
+  maxwellContext = null,
 }: UnifiedActionDialogProps) {
   const queryClient = useQueryClient();
   
@@ -235,31 +242,12 @@ export function UnifiedActionDialog({
   const uploadCompletedTimeRef = useRef<number>(0);
   const isAutoSavingFromUploadRef = useRef<boolean>(false);
   const [attachmentFiles, setAttachmentFiles] = useState<Map<string, File>>(new Map());
-  
-  // Exploration-related state
-  const [isExploration, setIsExploration] = useState(false);
-  const [explorationCode, setExplorationCode] = useState('');
-  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
-  const [hasExplorationData, setHasExplorationData] = useState(false);
-  const [checkingExploration, setCheckingExploration] = useState(false);
-  const [showExplorationDialog, setShowExplorationDialog] = useState(false);
-  const [linkedExplorationIds, setLinkedExplorationIds] = useState<string[]>([]);
-  const [linkedExplorations, setLinkedExplorations] = useState<Array<{ id: string; exploration_code: string; name?: string }>>([]);
+  const [isTitleEditing, setIsTitleEditing] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   // Derive observation count from TanStack cache (preferred over database count)
   const derivedObservationCount = useActionObservationCount(action?.id || '');
-  const [codeValidationState, setCodeValidationState] = useState<{
-    isValid: boolean;
-    isUnique: boolean;
-    isChecking: boolean;
-    message: string;
-  }>({
-    isValid: true,
-    isUnique: true,
-    isChecking: false,
-    message: ''
-  });
 
   const preferName = (value?: string | null) => {
     if (!value) return null;
@@ -347,12 +335,6 @@ export function UnifiedActionDialog({
             return prev;
           });
           
-          // Initialize exploration state from action
-          const hasExploration = !!(action as any).is_exploration;
-          setIsExploration(hasExploration);
-          // Exploration code will be loaded via React Query hook above
-          setExplorationCode('');
-          
           // NOTE: estimatedDate removed - field no longer exists
         } else if (context?.prefilledData) {
           // Creating new action with context
@@ -378,10 +360,6 @@ export function UnifiedActionDialog({
             attachments: []
           });
           
-          // Initialize exploration state for new actions
-          setIsExploration(false);
-          setExplorationCode('');
-          
           // NOTE: estimatedDate removed - field no longer exists
         }
         
@@ -401,6 +379,7 @@ export function UnifiedActionDialog({
       setIsFormInitialized(false);
       setStoredActionId(null);
       setCurrentContextType(null);
+      setIsTitleEditing(false);
     }
   }, [open, actionId, context?.type, isCreating, action]);
 
@@ -429,7 +408,7 @@ export function UnifiedActionDialog({
         return prev;
       });
     }
-  }, [action?.attachments?.length, action?.required_tools, action?.required_stock, action?.implementation_update_count, isCreating, isFormInitialized, isUploading, isLocalUploading]);
+  }, [action?.attachments?.length, action?.required_tools, action?.required_stock, isCreating, isFormInitialized, isUploading, isLocalUploading]);
 
   // Fetch mission data when action has mission_id - use TanStack Query cache
   const { data: missions = [] } = useQuery({
@@ -442,19 +421,6 @@ export function UnifiedActionDialog({
     ...offlineQueryConfig,
   });
 
-  // Fetch exploration data if this is an exploration action
-  const explorationQueryEnabled = !!(action?.id && action?.is_exploration && open);
-  
-  const { data: explorationData } = useQuery({
-    queryKey: explorationByActionIdQueryKey(action?.id || ''),
-    queryFn: async () => {
-      if (!action?.id) return null;
-      return await explorationService.getExplorationByActionId(action.id);
-    },
-    enabled: explorationQueryEnabled,
-    ...offlineQueryConfig,
-  });
-
   // Find mission from cached data
   useEffect(() => {
     if (formData.mission_id && missions.length > 0) {
@@ -464,80 +430,6 @@ export function UnifiedActionDialog({
       setMissionData(null);
     }
   }, [formData.mission_id, missions]);
-
-  // Sync exploration code from query data
-  useEffect(() => {
-    if (explorationData?.exploration_code) {
-      setExplorationCode(explorationData.exploration_code);
-    }
-  }, [explorationData]);
-
-  // Load linked explorations when action loads
-  useEffect(() => {
-    const loadLinkedExplorations = async () => {
-      if (!action?.id || !open) return;
-      
-      try {
-        const result = await apiService.get(`/explorations?action_id=${action.id}`);
-        const explorations = result.data || [];
-        const explorationIds = explorations.map((e: any) => e.id);
-        setLinkedExplorationIds(explorationIds);
-        setLinkedExplorations(explorations.map((e: any) => ({ 
-          id: e.id, 
-          exploration_code: e.exploration_code,
-          name: e.name 
-        })));
-        
-        // Also set is_exploration flag if there are linked explorations
-        if (explorationIds.length > 0) {
-          setIsExploration(true);
-        }
-      } catch (error) {
-        console.error('Error loading linked explorations:', error);
-      }
-    };
-    
-    loadLinkedExplorations();
-  }, [action?.id, open]);
-
-  // Load exploration code when dialog opens with an exploration action
-  useEffect(() => {
-    if (open && action?.id && (action as any).is_exploration && !explorationCode) {
-      (async () => {
-        try {
-          const exploration = await explorationService.getExplorationByActionId(action.id);
-          if (exploration?.exploration_code) {
-            setExplorationCode(exploration.exploration_code);
-          }
-        } catch (error) {
-          console.error('Error loading exploration code:', error);
-        }
-      })();
-    }
-  }, [open, action?.id]);
-
-  // Check if action has exploration data
-  useEffect(() => {
-    const checkExplorationData = async () => {
-      if (!action?.id || isCreating) {
-        setHasExplorationData(false);
-        return;
-      }
-
-      try {
-        setCheckingExploration(true);
-        const exploration = await explorationService.getExplorationByActionId(action.id);
-        setHasExplorationData(!!exploration);
-      } catch (error) {
-        console.error('Error checking exploration data:', error);
-        setHasExplorationData(false);
-      } finally {
-        setCheckingExploration(false);
-      }
-    };
-
-    checkExplorationData();
-  }, [action?.id, isCreating]);
 
   const getDialogTitle = () => {
     // If we have an actionId, we're editing (even if action not in cache yet)
@@ -705,185 +597,6 @@ export function UnifiedActionDialog({
     }
   };
 
-  // Handle exploration checkbox change
-  const handleExplorationToggle = (checked: boolean) => {
-    setIsExploration(checked);
-    
-    if (checked) {
-      // Open the exploration association dialog
-      setShowExplorationDialog(true);
-    } else {
-      // Clear exploration association when unchecked
-      setLinkedExplorationIds([]);
-      setLinkedExplorations([]);
-      setExplorationCode('');
-    }
-  };
-
-  // Handle exploration linked from dialog
-  const handleExplorationLinked = async (exploration: { id: string; exploration_code: string; name?: string }) => {
-    setLinkedExplorationIds([exploration.id]);
-    setLinkedExplorations([{ id: exploration.id, exploration_code: exploration.exploration_code, name: exploration.name }]);
-    setShowExplorationDialog(false);
-    toast({
-      title: "Success",
-      description: "Exploration linked successfully"
-    });
-  };
-
-  // Generate exploration code
-  const generateExplorationCode = async () => {
-    setIsGeneratingCode(true);
-    try {
-      const code = await explorationService.generateExplorationCode(new Date());
-      setExplorationCode(code);
-      // Validate the generated code
-      await validateExplorationCode(code);
-    } catch (error) {
-      console.error('Error generating exploration code:', error);
-      toast({
-        title: "Error",
-        description: "Failed to generate exploration code",
-        variant: "destructive"
-      });
-    } finally {
-      setIsGeneratingCode(false);
-    }
-  };
-
-  // Validate exploration code format and uniqueness
-  const validateExplorationCode = async (code: string) => {
-    if (!code) {
-      setCodeValidationState({
-        isValid: true,
-        isUnique: true,
-        isChecking: false,
-        message: ''
-      });
-      return;
-    }
-
-    // Check format first (synchronously)
-    const formatRegex = /^[A-Z]{2}\d{6}[A-Z]{2}\d{2,}$/;
-    const isValidFormat = formatRegex.test(code);
-
-    if (!isValidFormat) {
-      setCodeValidationState({
-        isValid: false,
-        isUnique: true,
-        isChecking: false,
-        message: 'Invalid format. Expected: SF<mmddyy><SUFFIX><number> (e.g., SF010126EX01 or SF122925CT01)'
-      });
-      return;
-    }
-
-    // Format is valid - now check uniqueness via backend (show yellow while checking)
-    setCodeValidationState({
-      isValid: true,
-      isUnique: true,
-      isChecking: true,
-      message: 'Validating...'
-    });
-
-    try {
-      const codeExists = await explorationService.codeExists(code);
-      
-      if (!codeExists) {
-        // Code doesn't exist anywhere - it's available
-        setCodeValidationState({
-          isValid: true,
-          isUnique: true,
-          isChecking: false,
-          message: 'Code is valid and unique'
-        });
-        return;
-      }
-      
-      // Code exists - check if it belongs to current action
-      if (action?.id) {
-        const existingExploration = await explorationService.getExplorationByActionId(action.id);
-        
-        if (existingExploration?.exploration_code === code) {
-          // Code belongs to this action - it's valid
-          setCodeValidationState({
-            isValid: true,
-            isUnique: true,
-            isChecking: false,
-            message: 'Code is valid (current code for this action)'
-          });
-        } else {
-          // Code exists but belongs to a different action
-          setCodeValidationState({
-            isValid: true,
-            isUnique: false,
-            isChecking: false,
-            message: '⚠️ Code is already in use - please choose a different code'
-          });
-        }
-      } else {
-        // No action context but code exists
-        setCodeValidationState({
-          isValid: true,
-          isUnique: false,
-          isChecking: false,
-          message: '⚠️ Code is already in use - please choose a different code'
-        });
-      }
-    } catch (error) {
-      console.error('Error validating exploration code:', error);
-      // If validation fails, allow the code but warn the user
-      setCodeValidationState({
-        isValid: true,
-        isUnique: true,
-        isChecking: false,
-        message: 'Unable to validate uniqueness'
-      });
-    }
-  };
-
-  // Auto-save exploration code when it's valid and unique
-  useEffect(() => {
-    const autoSaveExplorationCode = async () => {
-      if (
-        action?.id &&
-        isExploration &&
-        explorationCode &&
-        codeValidationState.isValid &&
-        codeValidationState.isUnique &&
-        !codeValidationState.isChecking
-      ) {
-        try {
-          const existingExploration = await explorationService.getExplorationByActionId(action.id);
-          
-          if (existingExploration && existingExploration.exploration_code !== explorationCode) {
-            await explorationService.updateExplorationByActionId(action.id, {
-              exploration_code: explorationCode
-            });
-            
-            // Invalidate the exploration query cache so it reloads with the new code
-            queryClient.invalidateQueries({ queryKey: explorationByActionIdQueryKey(action.id) });
-          }
-        } catch (error) {
-          console.error('Error auto-saving exploration code:', error);
-        }
-      }
-    };
-
-    autoSaveExplorationCode();
-  }, [explorationCode, codeValidationState.isValid, codeValidationState.isUnique, codeValidationState.isChecking, action?.id, isExploration, queryClient]);
-
-  // Handle exploration code input change with debounced validation
-  const handleExplorationCodeChange = (value: string) => {
-    setExplorationCode(value);
-    
-    // Debounce validation to avoid too many API calls
-    const timeoutId = setTimeout(() => {
-      validateExplorationCode(value);
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
-  };
-
   // Generate AI summary policy text
   const generateAISummaryPolicy = async () => {
     if (!formData.description && !formData.policy) {
@@ -962,7 +675,7 @@ export function UnifiedActionDialog({
         actionId,
         user.id,
         formData.title || action?.title || 'Unknown Action',
-        action?.mission_id,
+        action?.mission_id ?? undefined,
         queryClient // Pass queryClient to use cached parts data
       );
     } catch (error: any) {
@@ -1129,17 +842,7 @@ export function UnifiedActionDialog({
     }
 
     // Validate exploration fields if exploration is enabled
-    if (isExploration) {
-      // Check if exploration is linked (via linkedExplorationIds)
-      if (!linkedExplorationIds || linkedExplorationIds.length === 0) {
-        toast({
-          title: "Error",
-          description: "Please link an exploration using the 'Link Exploration' button",
-          variant: "destructive"
-        });
-        return;
-      }
-    }
+    // (exploration feature removed)
 
     setIsSubmitting(true);
     
@@ -1170,38 +873,11 @@ export function UnifiedActionDialog({
         plan_commitment: formData.plan_commitment || false,
         policy_agreed_at: formData.policy_agreed_at || null,
         policy_agreed_by: formData.policy_agreed_by || null,
-        created_by: isCreating || !action?.id ? userId : action.created_by || userId,
+        created_by: isCreating || !action?.id ? userId : (action as any).created_by || userId,
         updated_by: userId,
-        // Exploration flag only (code stored in exploration table)
-        is_exploration: isExploration
-        // NOTE: estimated_duration, actual_duration, estimated_completion_date removed in migration 005
-        // Explicitly exclude these fields to prevent errors with stale cached data
       };
 
       const savedAction = await saveActionMutation.mutateAsync(isCreating || !action?.id ? actionData : { ...actionData, id: action.id });
-      
-      // Create or update exploration record if this is an exploration action
-      if (isExploration && explorationCode && savedAction?.id) {
-        try {
-          // Check if exploration already exists
-          const existingExploration = await explorationService.getExplorationByActionId(savedAction.id);
-          if (!existingExploration) {
-            await explorationService.createExploration({
-              action_id: savedAction.id,
-              exploration_code: explorationCode,
-              public_flag: false
-            });
-          } else {
-            // Update existing exploration with new code
-            await explorationService.updateExplorationByActionId(savedAction.id, {
-              exploration_code: explorationCode
-            });
-          }
-        } catch (error) {
-          console.error('Error creating/updating exploration record:', error);
-          // Don't fail the action save if exploration creation fails
-        }
-      }
     } catch (error) {
       // Error handled by mutation onError
     } finally {
@@ -1216,7 +892,6 @@ export function UnifiedActionDialog({
     policy: formData.policy || action?.policy,
     assigned_to: formData.assigned_to || action?.assigned_to,
     plan_commitment: formData.plan_commitment ?? action?.plan_commitment ?? false,
-    implementation_update_count: action?.implementation_update_count || 0 // Fallback for when cache isn't loaded
   };
   
   const borderStyle = getActionBorderStyle(borderStyleInput, derivedObservationCount);
@@ -1271,37 +946,33 @@ export function UnifiedActionDialog({
           "max-w-lg sm:max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-y-auto p-3 sm:p-6",
           borderStyle.borderColor
         )}
-        onInteractOutside={(e) => {
-          // Prevent dialog from closing when clicking outside
-          // The FAB is at z-index 9999, but the dialog overlay at z-50 is catching clicks
-          // We need to check if the click coordinates are within the FAB bounds
-          const target = e.target as HTMLElement;
-          
-          // Find the FAB button
-          const fabButton = document.querySelector('[aria-label="Open Maxwell Assistant"]');
-          
-          if (fabButton) {
-            const fabRect = fabButton.getBoundingClientRect();
-            const clickX = (e as any).clientX;
-            const clickY = (e as any).clientY;
-            
-            // Check if click is within FAB bounds
-            const isWithinFAB = clickX >= fabRect.left && 
-                               clickX <= fabRect.right && 
-                               clickY >= fabRect.top && 
-                               clickY <= fabRect.bottom;
-            
-            if (isWithinFAB) {
-              console.log('[UnifiedActionDialog] Click is within FAB bounds, preventing close');
-              e.preventDefault();
-              return;
-            }
-          }
-        }}
       >
         <DialogHeader>
-          <div className="flex items-center gap-2">
-            <DialogTitle>{getDialogTitle()}</DialogTitle>
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {!isCreating && action?.id ? (
+              isTitleEditing ? (
+                <Input
+                  ref={titleInputRef}
+                  value={formData.title || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                  onBlur={() => setIsTitleEditing(false)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') setIsTitleEditing(false); }}
+                  className="h-7 text-base font-semibold flex-1"
+                  autoFocus
+                />
+              ) : (
+                <div
+                  className="flex items-center gap-1.5 group min-w-0 cursor-pointer"
+                  onClick={() => setIsTitleEditing(true)}
+                  title="Edit title"
+                >
+                  <DialogTitle className="truncate">{formData.title || action?.title || 'Untitled'}</DialogTitle>
+                  <Pencil className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              )
+            ) : (
+              <DialogTitle>{getDialogTitle()}</DialogTitle>
+            )}
             <div className="flex items-center gap-2">
               {!isCreating && action?.id && (
                 <>
@@ -1329,11 +1000,23 @@ export function UnifiedActionDialog({
               >
                 <Flag className="h-4 w-4" />
               </Button>
+              {!isCreating && action?.id && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={() => onMaxwellOpenChange?.(!isMaxwellOpen)}
+                  className={`h-7 w-7 p-0 ${isMaxwellOpen ? 'bg-primary/10 border-primary/50 text-primary' : ''}`}
+                  title="Ask Maxwell"
+                >
+                  <PrismIcon size={22} />
+                </Button>
+              )}
             </div>
           </div>
-          <DialogDescription>
-            {isCreating ? 'Create a new action with details and assignments' : 'Edit action details and assignments'}
-          </DialogDescription>
+          {isCreating && (
+            <DialogDescription>Create a new action with details and assignments</DialogDescription>
+          )}
         </DialogHeader>
         
         <div className="space-y-6">
@@ -1373,71 +1056,35 @@ export function UnifiedActionDialog({
             </div>
           )}
 
-          {/* Title */}
-          <div>
-            <Label htmlFor="actionTitle" className="text-sm font-medium break-words">
-              Title *
-            </Label>
-            <Input
-              id="actionTitle"
-              value={formData.title || ''}
-              onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-              placeholder="Short description of what must be done"
-              className="mt-1"
-            />
+          {/* Maxwell panel — animated expand above title */}
+          <div
+            className={`grid transition-all duration-300 ease-in-out ${isMaxwellOpen && !isCreating && action?.id ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+          >
+            <div className="overflow-hidden">
+              <div className="rounded-xl border overflow-hidden" style={{ height: '420px' }}>
+                <MaxwellInlinePanel
+                  context={maxwellContext}
+                  onClose={() => onMaxwellOpenChange?.(false)}
+                  className="h-full rounded-none border-0"
+                  hideHeader
+                />
+              </div>
+            </div>
           </div>
 
-          {/* Exploration Fields */}
-          {isExploration && (
-            <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
-              <div className="space-y-4 pl-6 border-l-2 border-primary/20">
-                {/* Linked Explorations Display */}
-                {linkedExplorationIds.length > 0 ? (
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Linked Exploration</Label>
-                    <div className="flex items-center justify-between p-3 bg-white border rounded-md">
-                      <div className="flex-1">
-                        {linkedExplorations.map((exp, idx) => (
-                          <p key={exp.id} className="text-sm">
-                            <span className="font-medium font-mono">{exp.exploration_code}</span>
-                            {exp.name && <span className="text-muted-foreground"> - {exp.name}</span>}
-                          </p>
-                        ))}
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowExplorationDialog(true)}
-                        disabled={!actionId}
-                        title={!actionId ? "Save action first to change exploration" : ""}
-                      >
-                        Change
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Link Exploration</Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => {
-                        setShowExplorationDialog(true);
-                      }}
-                      disabled={!actionId}
-                      title={!actionId ? "Save action first to link exploration" : ""}
-                    >
-                      <Plus className="mr-2 h-4 w-4" />
-                      Link Exploration
-                    </Button>
-                    {!actionId && (
-                      <p className="text-xs text-muted-foreground">Save the action first to link an exploration</p>
-                    )}
-                  </div>
-                )}
-              </div>
+          {/* Title — only shown when creating; edit mode uses inline title in header */}
+          {isCreating && (
+            <div>
+              <Label htmlFor="actionTitle" className="text-sm font-medium break-words">
+                Title *
+              </Label>
+              <Input
+                id="actionTitle"
+                value={formData.title || ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                placeholder="Short description of what must be done"
+                className="mt-1"
+              />
             </div>
           )}
 
@@ -1584,7 +1231,7 @@ export function UnifiedActionDialog({
                       // Also activate any existing planned checkouts
                       if (action?.id && checked) {
                         try {
-                          await activatePlannedCheckoutsIfNeeded(action.id, organizationId);
+                          await activatePlannedCheckoutsIfNeeded(action.id, organizationId ?? undefined);
                         } catch (error) {
                           console.error('Error activating checkouts:', error);
                         }
@@ -1635,14 +1282,10 @@ export function UnifiedActionDialog({
             </div>
           </div>
 
-          {/* Rich Text Content */}
           <Tabs value={activeTab || getDefaultTab()} onValueChange={setActiveTab} className="w-full">
-            <TabsList className={`grid w-full ${hasExplorationData ? 'grid-cols-3' : 'grid-cols-2'}`}>
+            <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="plan">Policy</TabsTrigger>
               <TabsTrigger value="observations">Implementation</TabsTrigger>
-              {hasExplorationData && (
-                <TabsTrigger value="exploration">Exploration</TabsTrigger>
-              )}
             </TabsList>
             
             <TabsContent value="plan" className="mt-4">
@@ -1689,27 +1332,6 @@ export function UnifiedActionDialog({
               )}
             </TabsContent>
 
-            {hasExplorationData && (
-              <TabsContent value="exploration" className="mt-4">
-                {action?.id ? (
-                  <ExplorationTab
-                    action={action}
-                    onUpdate={() => {
-                      // Refresh exploration data check after updates
-                      if (action?.id) {
-                        explorationService.getExplorationByActionId(action.id)
-                          .then(exploration => setHasExplorationData(!!exploration))
-                          .catch(() => setHasExplorationData(false));
-                      }
-                    }}
-                  />
-                ) : (
-                  <div className="text-center text-muted-foreground py-8">
-                    <p>Save the action first to view exploration data</p>
-                  </div>
-                )}
-              </TabsContent>
-            )}
           </Tabs>
 
           {/* Attachments */}
@@ -1872,18 +1494,6 @@ export function UnifiedActionDialog({
         </DialogContent>
       </Dialog>
 
-      {/* Exploration Association Dialog */}
-      {actionId && (
-        <ExplorationAssociationDialog
-          actionId={actionId}
-          isOpen={showExplorationDialog}
-          onClose={() => {
-            setShowExplorationDialog(false);
-          }}
-          onLinked={handleExplorationLinked}
-          currentExplorationId={linkedExplorationIds[0]}
-        />
-      )}
     </Dialog>
   );
 }

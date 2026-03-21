@@ -22,7 +22,8 @@ cd "$SCRIPT_DIR/../../lambda/$LAMBDA_DIR"
 # Load environment variables from .env.local
 if [ -f "$SCRIPT_DIR/../../.env.local" ]; then
   echo "📋 Loading environment variables from .env.local..."
-  export $(grep -v '^#' "$SCRIPT_DIR/../../.env.local" | grep -E '^(DB_PASSWORD|DB_HOST|DB_USER|DB_NAME|DB_PORT)=' | xargs)
+  # Export all non-comment, non-empty lines that look like KEY=VALUE
+  export $(grep -v '^#' "$SCRIPT_DIR/../../.env.local" | grep -v '^$' | grep '=' | xargs)
 fi
 
 echo "📦 Installing dependencies..."
@@ -45,16 +46,45 @@ if aws lambda get-function --function-name "$FUNCTION_NAME" --region "$REGION" &
     exit 1
   fi
   
+  echo "⏳ Waiting for code update to complete..."
+  aws lambda wait function-updated --function-name "$FUNCTION_NAME" --region "$REGION"
+  
   echo "⚙️  Updating configuration with layer and environment variables..."
+  # Build environment variables JSON - include all common Lambda env vars
+  ENV_VARS="{"
+  [ -n "$DB_PASSWORD" ] && ENV_VARS="${ENV_VARS}DB_PASSWORD=$DB_PASSWORD,"
+  [ -n "$DB_HOST" ] && ENV_VARS="${ENV_VARS}DB_HOST=$DB_HOST,"
+  [ -n "$DB_USER" ] && ENV_VARS="${ENV_VARS}DB_USER=$DB_USER,"
+  [ -n "$DB_NAME" ] && ENV_VARS="${ENV_VARS}DB_NAME=$DB_NAME,"
+  [ -n "$DB_PORT" ] && ENV_VARS="${ENV_VARS}DB_PORT=$DB_PORT,"
+  [ -n "$MAXWELL_AGENT_ID" ] && ENV_VARS="${ENV_VARS}MAXWELL_AGENT_ID=$MAXWELL_AGENT_ID,"
+  [ -n "$MAXWELL_AGENT_ALIAS_ID" ] && ENV_VARS="${ENV_VARS}MAXWELL_AGENT_ALIAS_ID=$MAXWELL_AGENT_ALIAS_ID,"
+  [ -n "$BEDROCK_REGION" ] && ENV_VARS="${ENV_VARS}BEDROCK_REGION=$BEDROCK_REGION,"
+  # Remove trailing comma and close JSON
+  ENV_VARS="${ENV_VARS%,}}"
+  
   aws lambda update-function-configuration \
     --function-name "$FUNCTION_NAME" \
     --layers "$LAYER_ARN" \
     --timeout 30 \
     --memory-size 512 \
-    --environment "Variables={DB_PASSWORD=$DB_PASSWORD,DB_HOST=$DB_HOST,DB_USER=$DB_USER,DB_NAME=$DB_NAME,DB_PORT=$DB_PORT}" \
+    --environment "Variables=$ENV_VARS" \
     --region "$REGION" >/dev/null
 else
   echo "🆕 Creating new function..."
+  # Build environment variables JSON - include all common Lambda env vars
+  ENV_VARS="{"
+  [ -n "$DB_PASSWORD" ] && ENV_VARS="${ENV_VARS}DB_PASSWORD=$DB_PASSWORD,"
+  [ -n "$DB_HOST" ] && ENV_VARS="${ENV_VARS}DB_HOST=$DB_HOST,"
+  [ -n "$DB_USER" ] && ENV_VARS="${ENV_VARS}DB_USER=$DB_USER,"
+  [ -n "$DB_NAME" ] && ENV_VARS="${ENV_VARS}DB_NAME=$DB_NAME,"
+  [ -n "$DB_PORT" ] && ENV_VARS="${ENV_VARS}DB_PORT=$DB_PORT,"
+  [ -n "$MAXWELL_AGENT_ID" ] && ENV_VARS="${ENV_VARS}MAXWELL_AGENT_ID=$MAXWELL_AGENT_ID,"
+  [ -n "$MAXWELL_AGENT_ALIAS_ID" ] && ENV_VARS="${ENV_VARS}MAXWELL_AGENT_ALIAS_ID=$MAXWELL_AGENT_ALIAS_ID,"
+  [ -n "$BEDROCK_REGION" ] && ENV_VARS="${ENV_VARS}BEDROCK_REGION=$BEDROCK_REGION,"
+  # Remove trailing comma and close JSON
+  ENV_VARS="${ENV_VARS%,}}"
+  
   aws lambda create-function \
     --function-name "$FUNCTION_NAME" \
     --runtime nodejs18.x \
@@ -64,7 +94,7 @@ else
     --layers "$LAYER_ARN" \
     --timeout 30 \
     --memory-size 512 \
-    --environment "Variables={DB_PASSWORD=$DB_PASSWORD,DB_HOST=$DB_HOST,DB_USER=$DB_USER,DB_NAME=$DB_NAME,DB_PORT=$DB_PORT}" \
+    --environment "Variables=$ENV_VARS" \
     --region "$REGION" >/dev/null
 fi
 

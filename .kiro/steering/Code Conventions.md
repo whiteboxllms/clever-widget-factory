@@ -295,3 +295,27 @@ Can you help me narrow this down?"
 ```
 
 **ALWAYS investigate thoroughly before implementing. One careful fix is better than ten speculative changes.**
+
+
+## CRITICAL: Spec Requirements Process
+
+**NEVER write a requirements document without first discussing each requirement with the user.**
+
+### Requirements Discussion Protocol:
+
+1. **DISCUSS BEFORE WRITING** — When starting a new spec, have a conversation first:
+   - Ask clarifying questions about scope, entity types, entry points, and edge cases
+   - Propose the requirement areas and get explicit confirmation on each
+   - Surface assumptions and validate them before encoding them in a document
+
+2. **CONFIRM SCOPE** — Before writing any requirement, confirm:
+   - What entities/contexts does this apply to? (Don't assume — ask)
+   - What are the entry points in the UI?
+   - What permissions/roles are involved?
+   - What should be deferred to a future spec?
+
+3. **WRITE ONLY AFTER AGREEMENT** — Only write the requirements document after the user has confirmed the scope and approach through conversation.
+
+4. **ITERATE IN CHAT, NOT IN DOCS** — Use conversation to refine ideas. Documents should reflect agreed decisions, not be a place to explore options.
+
+### Example of WRONG approach:

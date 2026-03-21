@@ -42,7 +42,8 @@ import {
   Flag,
   Copy,
   Sparkles,
-  Search
+  Search,
+  Bot
 } from "lucide-react";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useAuth } from "@/hooks/useCognitoAuth";
@@ -62,6 +63,7 @@ import { aiContentService } from "@/services/aiContentService";
 import { ExplorationTab } from "./ExplorationTab";
 import { ExplorationAssociationDialog } from "./ExplorationAssociationDialog";
 import { useActionObservationCount } from "@/hooks/useActionObservationCount";
+import { MaxwellPanel } from "./MaxwellPanel";
 
 interface UnifiedActionDialogProps {
   open: boolean;
@@ -246,6 +248,7 @@ export function UnifiedActionDialog({
   const [showExplorationDialog, setShowExplorationDialog] = useState(false);
   const [linkedExplorationIds, setLinkedExplorationIds] = useState<string[]>([]);
   const [linkedExplorations, setLinkedExplorations] = useState<Array<{ id: string; exploration_code: string; name?: string }>>([]);
+  const [isMaxwellOpen, setIsMaxwellOpen] = useState(false);
 
   // Derive observation count from TanStack cache (preferred over database count)
   const derivedObservationCount = useActionObservationCount(action?.id || '');
@@ -1275,19 +1278,30 @@ export function UnifiedActionDialog({
             <DialogTitle>{getDialogTitle()}</DialogTitle>
             <div className="flex items-center gap-2">
               {!isCreating && action?.id && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCopyLink}
-                  className={`h-7 w-7 p-0 ${linkCopied ? 'border-green-500 border-2' : ''}`}
-                  title="Copy action link"
-                >
-                  {linkCopied ? (
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCopyLink}
+                    className={`h-7 w-7 p-0 ${linkCopied ? 'border-green-500 border-2' : ''}`}
+                    title="Copy action link"
+                  >
+                    {linkCopied ? (
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsMaxwellOpen(true)}
+                    className="h-7 w-7 p-0"
+                    title="Ask Maxwell about this action"
+                  >
+                    <Bot className="h-4 w-4" />
+                  </Button>
+                </>
               )}
               <Button
                 variant="outline"
@@ -1851,6 +1865,19 @@ export function UnifiedActionDialog({
           }}
           onLinked={handleExplorationLinked}
           currentExplorationId={linkedExplorationIds[0]}
+        />
+      )}
+
+      {/* Maxwell Panel */}
+      {!isCreating && action?.id && (
+        <MaxwellPanel
+          open={isMaxwellOpen}
+          onOpenChange={setIsMaxwellOpen}
+          entityId={action.id}
+          entityType="action"
+          entityName={action.title}
+          policy={action.policy || ''}
+          implementation={action.description || ''}
         />
       )}
     </Dialog>

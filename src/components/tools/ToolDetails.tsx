@@ -1,4 +1,4 @@
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Plus, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,6 +7,7 @@ import { Tool } from "@/hooks/tools/useToolsData";
 import { CheckoutHistory, HistoryEntry, IssueHistoryEntry, AssetHistoryEntry } from "@/hooks/tools/useToolHistory";
 import { ToolStatusBadge } from "./ToolStatusBadge";
 import { ExperienceCreationDialog } from "@/components/ExperienceCreationDialog";
+import { MaxwellPanel } from "@/components/MaxwellPanel";
 import { useState } from "react";
 import { getThumbnailUrl } from '@/lib/imageUtils';
 
@@ -27,6 +28,7 @@ export const ToolDetails = ({
   onBack
 }: ToolDetailsProps) => {
   const [isExperienceDialogOpen, setIsExperienceDialogOpen] = useState(false);
+  const [isMaxwellOpen, setIsMaxwellOpen] = useState(false);
   
   const isAssetHistory = (record: HistoryEntry): record is AssetHistoryEntry => {
     return (record as AssetHistoryEntry).type === 'asset_change';
@@ -76,14 +78,24 @@ export const ToolDetails = ({
             )}
           </div>
         </div>
-        <Button
-          variant="default"
-          size="sm"
-          onClick={() => setIsExperienceDialogOpen(true)}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Create Experience
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsMaxwellOpen(true)}
+          >
+            <Bot className="h-4 w-4 mr-2" />
+            Maxwell
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => setIsExperienceDialogOpen(true)}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Experience
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -417,6 +429,16 @@ export const ToolDetails = ({
         entityType="tool"
         entityId={tool.id}
         entityName={tool.name}
+      />
+
+      <MaxwellPanel
+        open={isMaxwellOpen}
+        onOpenChange={setIsMaxwellOpen}
+        entityId={tool.id}
+        entityType="tool"
+        entityName={tool.name}
+        policy={tool.description || ''}
+        implementation=""
       />
     </div>
   );

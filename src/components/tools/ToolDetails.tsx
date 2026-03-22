@@ -263,7 +263,7 @@ export const ToolDetails = ({
                               <span className="font-medium">Intended Usage:</span>{' '}
                               {record.action_id ? (
                                 <a 
-                                  href={`/actions?action=${record.action_id}`}
+                                  href={`/actions/${record.action_id}`}
                                   className="text-blue-600 hover:text-blue-800 underline"
                                   target="_blank"
                                   rel="noopener noreferrer"

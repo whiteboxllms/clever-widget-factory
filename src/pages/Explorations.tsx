@@ -144,7 +144,7 @@ export default function Explorations() {
   };
 
   const handleViewAction = (exploration: ExplorationListItem) => {
-    navigate(`/actions?action=${exploration.action_id}`);
+    navigate(`/actions/${exploration.action_id}`);
   };
 
   const clearDateRange = () => {

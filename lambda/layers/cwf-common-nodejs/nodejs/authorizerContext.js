@@ -59,12 +59,25 @@ function getAuthorizerContext(event) {
 
 /**
  * Parse JSON string safely
+ * Also handles comma-separated strings for permissions
  */
 function parseJSON(jsonString, defaultValue = null) {
   if (!jsonString) return defaultValue;
+  
+  // If it's already an array, return it
+  if (Array.isArray(jsonString)) return jsonString;
+  
   try {
     return JSON.parse(jsonString);
   } catch (e) {
+    // If JSON parsing fails, try splitting by comma (for permissions string)
+    if (typeof jsonString === 'string' && jsonString.includes(',')) {
+      return jsonString.split(',').map(s => s.trim());
+    }
+    // If it's a single string value, wrap it in an array
+    if (typeof jsonString === 'string' && jsonString.length > 0) {
+      return [jsonString];
+    }
     console.error('Failed to parse JSON:', jsonString, e);
     return defaultValue;
   }

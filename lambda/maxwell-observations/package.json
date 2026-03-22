@@ -1,0 +1,7 @@
+{
+  "name": "cwf-maxwell-observations",
+  "version": "1.0.0",
+  "description": "Bedrock Action Group tool Lambda for Maxwell — retrieves entity observations",
+  "main": "index.js",
+  "dependencies": {}
+}

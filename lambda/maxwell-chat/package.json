@@ -1,0 +1,9 @@
+{
+  "name": "cwf-maxwell-chat",
+  "version": "1.0.0",
+  "description": "Thin pass-through Lambda for Maxwell — forwards chat to Bedrock Agent and returns reply",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-bedrock-agent-runtime": "^3.0.0"
+  }
+}

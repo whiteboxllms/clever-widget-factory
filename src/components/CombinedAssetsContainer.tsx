@@ -37,6 +37,9 @@ import { useImageUpload } from "@/hooks/useImageUpload";
 import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
 import { InventoryItemForm } from "./InventoryItemForm";
 import { getImageUrl, getThumbnailUrl } from '@/lib/imageUtils';
+import { MaxwellInlinePanel } from "@/components/MaxwellInlinePanel";
+import { PrismIcon } from "@/components/icons/PrismIcon";
+import { EntityContext } from "@/hooks/useEntityContext";
 
 
 export const CombinedAssetsContainer = () => {
@@ -80,6 +83,7 @@ export const CombinedAssetsContainer = () => {
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [selectedAssetForDetails, setSelectedAssetForDetails] = useState<CombinedAsset | null>(null);
+  const [isMaxwellOpen, setIsMaxwellOpen] = useState(false);
   
   // Image state for stock editing
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -944,17 +948,53 @@ export const CombinedAssetsContainer = () => {
           <div className="bg-background rounded-lg w-full max-w-6xl max-h-[90vh] overflow-y-auto m-4">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">Asset Details</h2>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowViewDialog(false);
-                    setSelectedAssetId(null);
-                  }}
-                >
-                  Close
-                </Button>
+                <h2 className="text-lg font-semibold">{selectedAsset.name}</h2>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    onClick={() => setIsMaxwellOpen(v => !v)}
+                    className={`h-8 w-8 p-0 [&_svg]:size-auto ${isMaxwellOpen ? 'bg-primary/10 border-primary/50 text-primary' : ''}`}
+                    title="Ask Maxwell"
+                  >
+                    <PrismIcon size={28} />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowViewDialog(false);
+                      setSelectedAssetId(null);
+                      setIsMaxwellOpen(false);
+                    }}
+                  >
+                    Close
+                  </Button>
+                </div>
               </div>
+
+              {/* Maxwell inline panel */}
+              <div
+                className={`grid transition-all duration-300 ease-in-out mb-4 ${isMaxwellOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+              >
+                <div className="overflow-hidden">
+                  <div className="rounded-xl border overflow-hidden" style={{ height: '420px' }}>
+                    <MaxwellInlinePanel
+                      context={{
+                        entityId: selectedAsset.id,
+                        entityType: selectedAsset.type === 'asset' ? 'tool' : 'part',
+                        entityName: selectedAsset.name,
+                        policy: selectedAsset.description || '',
+                        implementation: '',
+                      } as EntityContext}
+                      onClose={() => setIsMaxwellOpen(false)}
+                      className="h-full rounded-none border-0"
+                      hideHeader
+                    />
+                  </div>
+                </div>
+              </div>
+
               <ToolDetails
                 tool={selectedAsset as any}
                 toolHistory={toolHistory}
@@ -962,6 +1002,7 @@ export const CombinedAssetsContainer = () => {
                 onBack={() => {
                   setShowViewDialog(false);
                   setSelectedAssetId(null);
+                  setIsMaxwellOpen(false);
                 }}
               />
             </div>

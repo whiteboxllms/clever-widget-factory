@@ -1,7 +1,6 @@
 import { useState, useEffect, forwardRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { History, Edit, Plus, AlertTriangle, Clock, LogOut, LogIn, Loader2, ExternalLink, Zap, Target, Camera, Trash2 } from "lucide-react";
@@ -11,6 +10,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { getImageUrl, getThumbnailUrl } from '@/lib/imageUtils';
 import { useStateMutations } from "@/hooks/useStates";
+import { MaxwellInlinePanel } from "@/components/MaxwellInlinePanel";
+import { PrismIcon } from "@/components/icons/PrismIcon";
 
 // Type guard functions
 const isAssetHistory = (entry: HistoryEntry): entry is AssetHistoryEntry => {
@@ -39,6 +40,7 @@ interface AssetHistoryDialogProps {
 export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogProps>(
   ({ assetId, assetName, children }, ref) => {
   const [open, setOpen] = useState(false);
+  const [isMaxwellOpen, setIsMaxwellOpen] = useState(false);
   const { toast } = useToast();
   const { toolHistory, assetInfo, loading, fetchToolHistory } = useToolHistory();
   const { user, isAdmin } = useAuth();
@@ -49,6 +51,8 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
   useEffect(() => {
     if (open) {
       fetchToolHistory(assetId);
+    } else {
+      setIsMaxwellOpen(false);
     }
   }, [open, assetId, fetchToolHistory]);
 
@@ -234,15 +238,47 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="max-w-3xl max-h-[80vh]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <History className="h-5 w-5" />
-            Asset History - {assetName}
-          </DialogTitle>
+      <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
+          <div className="flex items-center gap-2 pr-8">
+            <History className="h-5 w-5 flex-shrink-0" />
+            <DialogTitle className="flex-1">Asset History - {assetName}</DialogTitle>
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={() => setIsMaxwellOpen(v => !v)}
+              className={`h-8 w-8 p-0 flex-shrink-0 [&_svg]:size-auto ${isMaxwellOpen ? 'bg-primary/10 text-primary' : ''}`}
+              title="Ask Maxwell"
+            >
+              <PrismIcon size={28} />
+            </Button>
+          </div>
         </DialogHeader>
+
+        {/* Maxwell inline panel */}
+        <div
+          className={`flex-shrink-0 grid transition-all duration-300 ease-in-out ${isMaxwellOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+        >
+          <div className="overflow-hidden">
+            <div className="rounded-xl border overflow-hidden" style={{ height: '320px' }}>
+              <MaxwellInlinePanel
+                context={{
+                  entityId: assetId,
+                  entityType: 'tool',
+                  entityName: assetName,
+                  policy: '',
+                  implementation: '',
+                }}
+                onClose={() => setIsMaxwellOpen(false)}
+                className="h-full rounded-none border-0"
+                hideHeader
+                hidePrompts
+              />
+            </div>
+          </div>
+        </div>
         
-        <ScrollArea className="h-96 pr-4">
+        <div className="flex-1 min-h-0 overflow-y-auto pr-4">
           {loading ? (
             <div className="flex items-center justify-center py-8">
               <div className="text-center">
@@ -310,7 +346,7 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
                               <div className="flex items-center gap-2">
                                 <span className="font-medium text-blue-900">Action:</span>
                                 <Link
-                                  to={`/actions?action=${entry.action_id}`}
+                                  to={`/actions/${entry.action_id}`}
                                   className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
                                   onClick={(e) => e.stopPropagation()}
                                 >
@@ -397,7 +433,7 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
                           )}
                           {entry.action_id && (
                             <Link
-                              to={`/actions?action=${entry.action_id}`}
+                              to={`/actions/${entry.action_id}`}
                               className="text-purple-600 hover:text-purple-800 underline flex items-center gap-1 mt-2 text-sm"
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -619,7 +655,7 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
               )}
             </div>
           )}
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,24 +9,23 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { toast } from '@/hooks/use-toast';
 import { useEnabledMembers } from '@/hooks/useOrganizationMembers';
-import { useOrganizationId } from '@/hooks/useOrganizationId';
 import { offlineQueryConfig } from '@/lib/queryConfig';
 import { Bolt, Plus, Filter, Search, CheckCircle, AlertTriangle, ArrowLeft, X, SearchCheck, Info } from 'lucide-react';
 import { UnifiedActionDialog } from '@/components/UnifiedActionDialog';
 import { ActionScoreDialog } from '@/components/ActionScoreDialog';
 import { ActionListItemCard } from '@/components/ActionListItemCard';
 import { useActionScores, ActionScore } from '@/hooks/useActionScores';
-import { BaseAction, Profile } from '@/types/actions';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { BaseAction } from '@/types/actions';
+import { useNavigate, useParams } from 'react-router-dom';
 import { apiService } from '@/lib/apiService';
 import { actionsQueryKey, actionQueryKey } from '@/lib/queryKeys';
+import { EntityContext } from '@/hooks/useEntityContext';
 
 // Using unified BaseAction interface from types/actions.ts
 
 export default function Actions() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const { actionId } = useParams<{ actionId?: string }>();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -41,7 +40,6 @@ export default function Actions() {
   
   // Use organization members for consistent "Assigned to" dropdown
   const { members: profiles } = useEnabledMembers();
-  const organizationId = useOrganizationId();
   const [scoringAction, setScoringAction] = useState<BaseAction | null>(null);
 
   // Helper function to get user color
@@ -50,16 +48,17 @@ export default function Actions() {
     return profile?.favorite_color || '#6B7280'; // Default gray if no color set
   };
   const [existingScore, setExistingScore] = useState<ActionScore | null>(null);
-  const processedUrlRef = useRef<string | null>(null);
+  const [isMaxwellOpen, setIsMaxwellOpen] = useState(false);
+  const [maxwellContext, setMaxwellContext] = useState<EntityContext | null>(null);
 
   const { getScoreForAction } = useActionScores();
 
-  const fetchActions = async () => {
+  const fetchActions = async (): Promise<BaseAction[]> => {
     const result = await apiService.get('/actions');
     return result.data || [];
   };
 
-  const fetchSingleAction = async (id: string) => {
+  const fetchSingleAction = async (id: string): Promise<BaseAction | null> => {
     const result = await apiService.get(`/actions?id=${id}`);
     const actions = result.data || [];
     return actions[0] || null;
@@ -68,8 +67,8 @@ export default function Actions() {
   const queryClient = useQueryClient();
 
   // If we have an actionId in URL, check cache first, then fetch only if needed
-  const hasActionIdInUrl = !!actionId || !!searchParams.get('action');
-  const targetActionId = actionId || searchParams.get('action') || '';
+  const hasActionIdInUrl = !!actionId;
+  const targetActionId = actionId || '';
   
   // Check if action is already in cache (from save mutation or previous fetch)
   const cachedActionsForLookup = queryClient.getQueryData<BaseAction[]>(actionsQueryKey());
@@ -81,24 +80,23 @@ export default function Actions() {
     queryFn: () => fetchSingleAction(targetActionId),
     enabled: hasActionIdInUrl && !!targetActionId && !cachedAction, // Only fetch if not in cache
     ...offlineQueryConfig,
-    onSuccess: (action) => {
-      // Update the actions list cache with this single action
-      if (action) {
-        queryClient.setQueryData<BaseAction[]>(actionsQueryKey(), (old) => {
-          if (!old) return [action];
-          const existingIndex = old.findIndex(a => a.id === action.id);
-          if (existingIndex >= 0) {
-            // Update existing action in cache
-            const updated = [...old];
-            updated[existingIndex] = action;
-            return updated;
-          }
-          // Add new action to cache
-          return [...old, action];
-        });
-      }
-    },
   });
+  
+  // Update the actions list cache when single action is fetched
+  useEffect(() => {
+    if (singleAction) {
+      queryClient.setQueryData<BaseAction[]>(actionsQueryKey(), (old) => {
+        if (!old) return [singleAction];
+        const existingIndex = old.findIndex((a: BaseAction) => a.id === singleAction.id);
+        if (existingIndex >= 0) {
+          const updated = [...old];
+          updated[existingIndex] = singleAction;
+          return updated;
+        }
+        return [...old, singleAction];
+      });
+    }
+  }, [singleAction, queryClient]);
   
   // Use cached action if available, otherwise use fetched single action
   const singleActionData = cachedAction || singleAction;
@@ -155,28 +153,17 @@ export default function Actions() {
   // Profiles are now handled by useActionProfiles hook for consistency
 
   const handleEditAction = async (action: BaseAction) => {
+    // Navigate to the action URL to make it shareable and enable FAB
+    navigate(`/actions/${action.id}`);
     setEditingActionId(action.id);
     setIsCreating(false);
     setIsEditDialogOpen(true);
   };
 
   const handleSaveAction = async () => {
-    // Cache is already updated by saveActionMutation.onSuccess
-    // Don't close dialog immediately - let the mutation's onSuccess handle it
-    // This prevents navigation/reload issues
     setIsEditDialogOpen(false);
     setEditingActionId(null);
     setIsCreating(false);
-  };
-
-  const handleCancelEdit = () => {
-    setIsEditDialogOpen(false);
-    setEditingActionId(null);
-    setIsCreating(false);
-    // If we navigated here with an actionId, go back to main actions page
-    if (actionId) {
-      navigate('/actions');
-    }
   };
 
   const handleCreateAction = () => {
@@ -236,8 +223,7 @@ export default function Actions() {
       });
 
       if (response.data && response.data.results && Array.isArray(response.data.results)) {
-        // Extract unique action IDs from results
-        const actionIds = [...new Set(response.data.results.map((r: any) => r.entity_id))];
+        const actionIds = [...new Set(response.data.results.map((r: { entity_id: string }) => r.entity_id))] as string[];
         setSemanticResults(actionIds);
         
         toast({
@@ -267,58 +253,18 @@ export default function Actions() {
 
 
 
-  // Handle URL parameters for direct action links (both search params and path params)
+  // Handle URL parameters for direct action links
   useEffect(() => {
-    const searchActionId = searchParams.get('action');
     const urlActionId = actionId;
-    const currentId = searchActionId || urlActionId;
     
-    // Skip if we've already processed this ID
-    if (!currentId || processedUrlRef.current === currentId) {
-      return;
+    // If we have an actionId in the URL and the dialog isn't open for it, open it
+    // Guard: only open if editingActionId is null (not mid-close) to prevent reopen race
+    if (urlActionId && !isEditDialogOpen && editingActionId === null && !isCreating) {
+      setEditingActionId(urlActionId);
+      setIsEditDialogOpen(true);
+      setIsCreating(false);
     }
-    
-    // Wait for the action to be loaded (from cache or single fetch)
-    // Use singleActionData (direct fetch) or cachedAction (from cache) - don't use allActions
-    // to avoid infinite loop when allActions array reference changes
-    const action = singleActionData || cachedAction;
-    
-    if (searchActionId) {
-      if (action) {
-        setEditingActionId(searchActionId);
-        setIsEditDialogOpen(true);
-        setIsCreating(false);
-        processedUrlRef.current = searchActionId;
-        // Clear the URL parameter after opening the action
-        setSearchParams({});
-      } else if (!singleActionLoading && !allActionsLoading && !cachedAction) {
-        // Action not found after loading completed and not in cache
-        toast({
-          title: "Error",
-          description: "Action not found",
-          variant: "destructive",
-        });
-        navigate('/actions');
-        processedUrlRef.current = searchActionId;
-      }
-    } else if (urlActionId && organizationId) {
-      if (action) {
-        setEditingActionId(urlActionId);
-        setIsEditDialogOpen(true);
-        setIsCreating(false);
-        processedUrlRef.current = urlActionId;
-      } else if (!singleActionLoading && !allActionsLoading && !cachedAction) {
-        // Action not found after loading completed and not in cache
-        toast({
-          title: "Error",
-          description: "Action not found",
-          variant: "destructive",
-        });
-        navigate('/actions');
-        processedUrlRef.current = urlActionId;
-      }
-    }
-  }, [actionId, organizationId, searchParams, singleActionData, singleActionLoading, allActionsLoading, cachedAction, navigate, setSearchParams]);
+  }, [actionId]);
 
   // Reset assignee filter if the selected assignee is not in active profiles
   useEffect(() => {
@@ -356,7 +302,7 @@ export default function Actions() {
         return action.title.toLowerCase().includes(searchLower) ||
                action.description?.toLowerCase().includes(searchLower) ||
                stripHtmlAndSearch(action.policy) ||
-               stripHtmlAndSearch(action.observations) ||
+               stripHtmlAndSearch((action as any).observations) ||
                action.issue_reference?.toLowerCase().includes(searchLower) ||
                action.asset?.name?.toLowerCase().includes(searchLower) ||
                action.issue_tool?.name?.toLowerCase().includes(searchLower) ||
@@ -654,22 +600,35 @@ export default function Actions() {
         <UnifiedActionDialog
           open={isEditDialogOpen}
           onOpenChange={(open) => {
-            // Let the dialog control its own close behavior
-            // It will block close during uploads and call this when actually ready to close
             setIsEditDialogOpen(open);
             if (!open) {
               setEditingActionId(null);
               setIsCreating(false);
-              // Navigate away if we came from a direct action link
-              if (actionId) {
-                navigate('/actions');
-              }
+              setIsMaxwellOpen(false);
+              navigate('/actions');
             }
           }}
           actionId={editingActionId || undefined}
           onActionSaved={handleSaveAction}
           profiles={profiles}
           isCreating={isCreating}
+          isMaxwellOpen={isMaxwellOpen}
+          maxwellContext={maxwellContext}
+          onMaxwellOpenChange={(open) => {
+            if (open && editingActionId) {
+              const action = allActions.find(a => a.id === editingActionId);
+              if (action) {
+                setMaxwellContext({
+                  entityId: action.id,
+                  entityType: 'action',
+                  entityName: action.title || 'Untitled Action',
+                  policy: action.policy || '',
+                  implementation: (action as any).observations || '',
+                });
+              }
+            }
+            setIsMaxwellOpen(open);
+          }}
        />
 
        {/* Score Dialog */}

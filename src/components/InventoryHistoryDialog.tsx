@@ -3,12 +3,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { History, TrendingUp, TrendingDown, Edit, Plus, ExternalLink, Camera } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { apiService } from '@/lib/apiService';
 import { getThumbnailUrl, getImageUrl } from '@/lib/imageUtils';
+import { MaxwellInlinePanel } from '@/components/MaxwellInlinePanel';
+import { PrismIcon } from '@/components/icons/PrismIcon';
 
 interface HistoryEntry {
   id: string;
@@ -59,10 +60,14 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
   const [observations, setObservations] = useState<Observation[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [isMaxwellOpen, setIsMaxwellOpen] = useState(false);
   const { toast } = useToast();
 
   const fetchHistory = async () => {
-    if (!open) return;
+    if (!open) {
+      setIsMaxwellOpen(false);
+      return;
+    }
     
     setLoading(true);
     try {
@@ -177,15 +182,47 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="max-w-3xl max-h-[80vh]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <History className="h-5 w-5" />
-            History - {partName}
-          </DialogTitle>
+      <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
+          <div className="flex items-center gap-2 pr-8">
+            <History className="h-5 w-5 flex-shrink-0" />
+            <DialogTitle className="flex-1">History - {partName}</DialogTitle>
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={() => setIsMaxwellOpen(v => !v)}
+              className={`h-8 w-8 p-0 flex-shrink-0 [&_svg]:size-auto ${isMaxwellOpen ? 'bg-primary/10 text-primary' : ''}`}
+              title="Ask Maxwell"
+            >
+              <PrismIcon size={28} />
+            </Button>
+          </div>
         </DialogHeader>
+
+        {/* Maxwell inline panel */}
+        <div
+          className={`flex-shrink-0 grid transition-all duration-300 ease-in-out ${isMaxwellOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+        >
+          <div className="overflow-hidden">
+            <div className="rounded-xl border overflow-hidden" style={{ height: '320px' }}>
+              <MaxwellInlinePanel
+                context={{
+                  entityId: partId,
+                  entityType: 'part',
+                  entityName: partName,
+                  policy: '',
+                  implementation: '',
+                }}
+                onClose={() => setIsMaxwellOpen(false)}
+                className="h-full rounded-none border-0"
+                hideHeader
+                hidePrompts
+              />
+            </div>
+          </div>
+        </div>
         
-        <ScrollArea className="h-96 pr-4">
+        <div className="flex-1 min-h-0 overflow-y-auto pr-4">
           {loading ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -415,7 +452,7 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
               )}
             </div>
           )}
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );

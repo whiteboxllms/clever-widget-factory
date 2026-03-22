@@ -7,14 +7,15 @@ export function PrismIcon({ className, size = 24 }: PrismIconProps) {
   return (
     <svg 
       xmlns="http://www.w3.org/2000/svg" 
-      viewBox="0 0 100 100"
+      viewBox="5 15 90 70"
       width={size}
       height={size}
+      style={{ display: 'block' }}
       className={className}
       aria-label="Maxwell - Entropy Reduction Assistant"
     >
       {/* Light gray background for white light visibility */}
-      <rect x="0" y="0" width="100" height="100" fill="#f5f5f5" rx="8" />
+      <rect x="5" y="15" width="90" height="70" fill="#f5f5f5" rx="8" />
       
       <polygon 
         points="12.7,81.8 50,18 87.3,81.8" 

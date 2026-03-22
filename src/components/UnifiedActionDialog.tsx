@@ -42,8 +42,7 @@ import {
   Flag,
   Copy,
   Sparkles,
-  Search,
-  Pencil
+  Search
 } from "lucide-react";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useAuth } from "@/hooks/useCognitoAuth";
@@ -962,12 +961,11 @@ export function UnifiedActionDialog({
                 />
               ) : (
                 <div
-                  className="flex items-center gap-1.5 group min-w-0 cursor-pointer"
+                  className="min-w-0 cursor-pointer"
                   onClick={() => setIsTitleEditing(true)}
                   title="Edit title"
                 >
                   <DialogTitle className="truncate">{formData.title || action?.title || 'Untitled'}</DialogTitle>
-                  <Pencil className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
               )
             ) : (
@@ -1002,14 +1000,14 @@ export function UnifiedActionDialog({
               </Button>
               {!isCreating && action?.id && (
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
                   type="button"
                   onClick={() => onMaxwellOpenChange?.(!isMaxwellOpen)}
-                  className={`h-7 w-7 p-0 ${isMaxwellOpen ? 'bg-primary/10 border-primary/50 text-primary' : ''}`}
+                  className={`h-8 w-8 p-0 [&_svg]:size-auto ${isMaxwellOpen ? 'bg-primary/10 text-primary' : ''}`}
                   title="Ask Maxwell"
                 >
-                  <PrismIcon size={22} />
+                  <PrismIcon size={28} />
                 </Button>
               )}
             </div>

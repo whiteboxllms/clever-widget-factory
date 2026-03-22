@@ -6,6 +6,7 @@ import { useMaxwell, MaxwellSessionAttributes, MaxwellMessage } from '@/hooks/us
 import { useMaxwellStorage } from '@/hooks/useMaxwellStorage';
 import { EntityContext } from '@/hooks/useEntityContext';
 import { PrismIcon } from '@/components/icons/PrismIcon';
+import { getImageUrl } from '@/lib/imageUtils';
 
 const STARTER_QUESTIONS: Record<string, string[]> = {
   action: [
@@ -33,6 +34,8 @@ export interface MaxwellInlinePanelProps {
   className?: string;
   /** Hide the "Maxwell / entity name" header — useful when context is already visible */
   hideHeader?: boolean;
+  /** Hide the starter question prompts */
+  hidePrompts?: boolean;
 }
 
 function MessageBubble({ message }: { message: MaxwellMessage }) {
@@ -66,10 +69,11 @@ function MessageBubble({ message }: { message: MaxwellMessage }) {
       if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
       const alt = match[1];
       const url = match[2];
+      const resolvedUrl = getImageUrl(url) || url;
       parts.push(
-        <a key={`img-${imageIndex++}`} href={url} target="_blank" rel="noopener noreferrer" className="block mt-2">
+        <a key={`img-${imageIndex++}`} href={resolvedUrl} target="_blank" rel="noopener noreferrer" className="block mt-2">
           <img
-            src={url}
+            src={resolvedUrl}
             alt={alt}
             title={`${alt} (click to view full resolution)`}
             className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
@@ -141,7 +145,7 @@ function MessageBubble({ message }: { message: MaxwellMessage }) {
  * MaxwellInlinePanel — renders inline inside any container (no portal, no fixed positioning).
  * Safe to use inside Radix dialogs, sheets, or any other overlay.
  */
-export function MaxwellInlinePanel({ context, onClose, className, hideHeader = false }: MaxwellInlinePanelProps) {
+export function MaxwellInlinePanel({ context, onClose, className, hideHeader = false, hidePrompts = false }: MaxwellInlinePanelProps) {
   const { saveConversation, clearConversation } = useMaxwellStorage();
   const [input, setInput] = useState('');
   const [copiedAll, setCopiedAll] = useState(false);
@@ -277,7 +281,7 @@ export function MaxwellInlinePanel({ context, onClose, className, hideHeader = f
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3 min-h-0">
-        {messages.length === 0 && !isLoading && (
+        {messages.length === 0 && !isLoading && !hidePrompts && (
           <div className="space-y-2 pt-1">
             {starterQuestions.map((q) => (
               <button

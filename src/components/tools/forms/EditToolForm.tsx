@@ -14,6 +14,8 @@ import { MetricsSection } from "@/components/tools/metrics/MetricsSection";
 import { useParentStructures } from "@/hooks/tools/useParentStructures";
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { useActionProfiles } from "@/hooks/useActionProfiles";
+import { MaxwellInlinePanel } from "@/components/MaxwellInlinePanel";
+import { PrismIcon } from "@/components/icons/PrismIcon";
 
 interface EditToolFormProps {
   tool: Tool | null;
@@ -37,6 +39,8 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, isLeadership = f
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
+  const [isMaxwellOpen, setIsMaxwellOpen] = useState(false);
+  const [isNameEditing, setIsNameEditing] = useState(false);
   const { toast } = useToast();
   const { parentStructures, areaItemCounts, loading: isLoadingParentStructures } = useParentStructures();
   const { isAdmin } = useAuth();
@@ -105,24 +109,66 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, isLeadership = f
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
       if (!open && (isUploadingFiles || isSubmitting)) return;
+      setIsNameEditing(false);
+      setIsMaxwellOpen(false);
       onClose();
     }}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Asset: {tool.name}</DialogTitle>
+          <div className="flex items-center gap-2 pr-8">
+            {isNameEditing ? (
+              <Input
+                value={editData.name}
+                onChange={(e) => setEditData(prev => ({ ...prev, name: e.target.value }))}
+                onBlur={() => setIsNameEditing(false)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') setIsNameEditing(false); }}
+                className="h-7 text-base font-semibold flex-1"
+                autoFocus
+              />
+            ) : (
+              <div
+                className="cursor-pointer min-w-0"
+                onClick={() => setIsNameEditing(true)}
+                title="Edit name"
+              >
+                <DialogTitle className="truncate">{editData.name || tool.name}</DialogTitle>
+              </div>
+            )}
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={() => setIsMaxwellOpen(v => !v)}
+              className={`h-8 w-8 p-0 flex-shrink-0 [&_svg]:size-auto ${isMaxwellOpen ? 'bg-primary/10 text-primary' : ''}`}
+              title="Ask Maxwell"
+            >
+              <PrismIcon size={28} />
+            </Button>
+          </div>
         </DialogHeader>
+
+        {/* Maxwell inline panel */}
+        <div
+          className={`grid transition-all duration-300 ease-in-out ${isMaxwellOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+        >
+          <div className="overflow-hidden">
+            <div className="rounded-xl border overflow-hidden" style={{ height: '420px' }}>
+              <MaxwellInlinePanel
+                context={{
+                  entityId: tool.id,
+                  entityType: 'tool',
+                  entityName: tool.name,
+                  policy: tool.description || '',
+                  implementation: '',
+                }}
+                onClose={() => setIsMaxwellOpen(false)}
+                className="h-full rounded-none border-0"
+                hideHeader
+              />
+            </div>
+          </div>
+        </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="edit-name">Asset Name *</Label>
-            <Input
-              id="edit-name"
-              value={editData.name}
-              onChange={(e) => setEditData(prev => ({ ...prev, name: e.target.value }))}
-              required
-            />
-          </div>
-
           <div>
             <Label htmlFor="edit-description">Description</Label>
             <Textarea

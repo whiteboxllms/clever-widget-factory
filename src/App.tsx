@@ -17,6 +17,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminRoute from "@/components/AdminRoute";
 import LeadershipRoute from "@/components/LeadershipRoute";
 import SuperAdminRoute from "@/components/SuperAdminRoute";
+import { GlobalMaxwellFAB } from "@/components/GlobalMaxwellFAB";
 
 
 import Index from "./pages/Index";
@@ -296,6 +297,7 @@ function AppContent() {
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>
+      <GlobalMaxwellFAB />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { useMaxwell, MaxwellSessionAttributes, MaxwellMessage } from '@/hooks/us
 import { useMaxwellStorage, EntityContext } from '@/hooks/useMaxwellStorage';
 import { useEntityContext } from '@/hooks/useEntityContext';
 import { PrismIcon } from '@/components/icons/PrismIcon';
+import { getImageUrl } from '@/lib/imageUtils';
 
 const STARTER_QUESTIONS_ACTION = [
   'Summarize what has happened so far and given our policy and observations what are next steps',
@@ -19,6 +20,12 @@ const STARTER_QUESTIONS_ASSET = [
   'Describe the telos (ultimate purpose) of this asset',
   'Look at the history and describe the degree to which we\'ve achieved entelecheia (are we following the best practice).',
   'What are options on reducing entropy in this context in an energy efficient way.',
+];
+
+const STARTER_QUESTIONS_GENERAL = [
+  'Where should I store a new item?',
+  'What tools do we have for metalworking?',
+  'Help me find something in inventory',
 ];
 
 interface GlobalMaxwellPanelProps {
@@ -64,16 +71,17 @@ function MessageBubble({ message }: { message: MaxwellMessage }) {
       // Add the image (clickable to open full resolution)
       const alt = match[1];
       const url = match[2];
+      const resolvedUrl = getImageUrl(url) || url;
       parts.push(
         <a
           key={`img-${imageIndex++}`}
-          href={url}
+          href={resolvedUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="block mt-2"
         >
           <img
-            src={url}
+            src={resolvedUrl}
             alt={alt}
             title={`${alt} (click to view full resolution)`}
             className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
@@ -263,8 +271,9 @@ export function GlobalMaxwellPanel({
   }, [activeContext, messages, saveConversation]);
 
   // Select starter questions based on entity type
-  const starterQuestions =
-    activeContext?.entityType === 'action'
+  const starterQuestions = !activeContext
+    ? STARTER_QUESTIONS_GENERAL
+    : activeContext.entityType === 'action'
       ? STARTER_QUESTIONS_ACTION
       : STARTER_QUESTIONS_ASSET;
 
@@ -286,7 +295,7 @@ export function GlobalMaxwellPanel({
 
   const handleSend = async () => {
     const text = input.trim();
-    if (!text || isLoading || !sessionAttributes) return;
+    if (!text || isLoading) return;
     setInput('');
     await sendMessage(text);
   };
@@ -301,8 +310,8 @@ export function GlobalMaxwellPanel({
   const handleClearConversation = () => {
     if (activeContext) {
       clearConversation(activeContext);
-      resetSession();
     }
+    resetSession();
   };
 
   const handleSwitchToCurrentPage = () => {

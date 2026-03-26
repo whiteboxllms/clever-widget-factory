@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useEntityContext, EntityContext } from '@/hooks/useEntityContext';
 import { PrismIcon } from '@/components/icons/PrismIcon';
 import { GlobalMaxwellPanel } from '@/components/GlobalMaxwellPanel';
@@ -9,6 +10,8 @@ export function GlobalMaxwellFAB() {
   const fabRef = useRef<HTMLButtonElement>(null);
   
   const entityContext = useEntityContext();
+  const location = useLocation();
+  const isDashboard = location.pathname === '/' || location.pathname === '/dashboard';
   
   useEffect(() => {
     if (!isPanelOpen && fabRef.current) {
@@ -19,8 +22,8 @@ export function GlobalMaxwellFAB() {
     }
   }, [isPanelOpen]);
   
-  // Show FAB on entity detail pages. Keep panel alive if already open.
-  if (!entityContext && !isPanelOpen) {
+  // Show FAB on entity detail pages and dashboard. Keep panel alive if already open.
+  if (!entityContext && !isDashboard && !isPanelOpen) {
     return null;
   }
   
@@ -42,7 +45,7 @@ export function GlobalMaxwellFAB() {
   
   return (
     <>
-      {!isPanelOpen && entityContext && (
+      {!isPanelOpen && (entityContext || isDashboard) && (
         <button
           ref={fabRef}
           onClick={handleClick}

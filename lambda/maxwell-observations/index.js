@@ -163,9 +163,15 @@ exports.handler = async (event) => {
         ? `Found ${observations.length} observation${observations.length === 1 ? '' : 's'}`
         : 'No observations have been recorded for this entity';
 
+    // Self-contained instructions tell the agent how to present these results.
+    const instructions = observations.length > 0
+      ? 'Analyze the observations chronologically. Cite dates and observer names. When observations include photos, display them inline using markdown: ![photo_description](photo_url). Place photos near the relevant text as evidence. When metrics are present, include them in your analysis. Present patterns objectively without judgment.'
+      : 'No observations exist for this entity. Inform the user clearly and suggest they record observations to build a history.';
+
     return buildActionGroupResponse(actionGroup, apiPath, httpMethod, 200, {
       observations,
       message,
+      instructions,
     });
   } catch (error) {
     console.error('Maxwell observations error:', error);

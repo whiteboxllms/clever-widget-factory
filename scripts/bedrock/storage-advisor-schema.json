@@ -1,0 +1,59 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "SuggestStorageLocation API",
+    "version": "1.0.0",
+    "description": "Searches inventory for similar items and returns their storage locations to help users decide where to store new items."
+  },
+  "paths": {
+    "/suggestStorageLocation": {
+      "post": {
+        "summary": "Search inventory for similar items and suggest storage locations",
+        "description": "Use this tool when a user asks where to store, place, or put something, or asks for storage recommendations for a new item. This tool searches the organization's inventory for similar tools and parts using semantic search and returns their current storage locations.",
+        "operationId": "suggestStorageLocation",
+        "parameters": [
+          {
+            "name": "description",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "A rich natural language description of the item to search for. If the user provides only a name, expand it with your knowledge of what the item is, what it's used for, and what related items it might be stored near."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response with similar items and their storage locations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "entity_type": { "type": "string" },
+                          "entity_id": { "type": "string" },
+                          "name": { "type": "string" },
+                          "similarity": { "type": "number" },
+                          "area_name": { "type": "string" },
+                          "storage_location": { "type": "string" },
+                          "image_url": { "type": "string" },
+                          "embedding_source": { "type": "string" }
+                        }
+                      }
+                    },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

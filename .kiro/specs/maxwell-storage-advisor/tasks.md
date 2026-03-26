@@ -1,0 +1,95 @@
+# Tasks: Maxwell Storage Location Advisor
+
+## Task List
+
+- [x] 1. Create cwf-maxwell-storage-advisor Lambda
+  - [x] 1.1 Set up Lambda directory structure
+    - Create `lambda/maxwell-storage-advisor/` directory
+    - Create `lambda/maxwell-storage-advisor/shared/` directory
+    - Copy `lambda/unified-search/shared/embeddings.js` to `lambda/maxwell-storage-advisor/shared/embeddings.js`
+    - Create `lambda/maxwell-storage-advisor/package.json` with `@aws-sdk/client-bedrock-runtime` and `pg` dependencies
+    - _Requirements: 1.1, 1.4_
+  - [x] 1.2 Implement the Lambda handler
+    - Create `lambda/maxwell-storage-advisor/index.js`
+    - Import `getDbClient` and `escapeLiteral` from `/opt/nodejs/` layer
+    - Import `generateEmbeddingV1` from `./shared/embeddings`
+    - Implement `parseActionGroupParams` and `buildActionGroupResponse` helpers (same pattern as cwf-maxwell-observations)
+    - Extract `organization_id` from `event.sessionAttributes`
+    - Extract `description` from parameters
+    - Validate `description` is present and non-empty; return structured error if missing
+    - Validate `organization_id` is present; return structured error if missing
+    - Generate embedding via `generateEmbeddingV1(description)`
+    - Execute the SQL query: vector similarity search on `unified_embeddings` filtered to `entity_type IN ('tool', 'part')` and `organization_id`, joined to `tools` and `parts` tables for name, storage_location, parent_structure_name (area_name), and image_url
+    - Return top 10 results ordered by similarity descending
+    - Return `{ results, message }` in Bedrock Action Group response format
+    - Handle errors gracefully (embedding failure, DB failure) with structured error responses
+    - _Requirements: 1.1, 1.2, 2.1, 2.2, 2.3, 2.4, 2.5, 7.1, 7.2, 7.3, 7.4_
+  - [x] 1.3 Install dependencies and verify packaging
+    - Run `npm install --production` in `lambda/maxwell-storage-advisor/`
+    - Verify `shared/embeddings.js` is included in the zip by the deploy script (deploy script zips `*.js` files)
+    - _Requirements: 1.4_
+
+- [x] 2. Deploy Lambda and configure Bedrock Agent
+  - [x] 2.1 Deploy the Lambda to AWS
+    - Run `./scripts/deploy/deploy-lambda-with-layer.sh maxwell-storage-advisor cwf-maxwell-storage-advisor`
+    - Verify Lambda is created with cwf-common-nodejs layer attached
+    - _Requirements: 1.4, 1.5_
+  - [x] 2.2 Add resource-based policy for Bedrock Agent invocation
+    - Run: `aws lambda add-permission --function-name cwf-maxwell-storage-advisor --statement-id AllowBedrockAgent --action lambda:InvokeFunction --principal bedrock.amazonaws.com --source-arn arn:aws:bedrock:us-west-2:131745734428:agent/CNV04Q1OAZ --region us-west-2`
+    - _Requirements: 1.5_
+  - [x] 2.3 Add SuggestStorageLocation Action Group to Bedrock Agent
+    - In AWS Console, navigate to Bedrock Agent `CNV04Q1OAZ`
+    - Add new Action Group named `SuggestStorageLocation`
+    - Set the OpenAPI schema with `suggestStorageLocation` operation and `description` parameter (as defined in design doc)
+    - Point to `cwf-maxwell-storage-advisor` Lambda ARN
+    - _Requirements: 1.1, 1.2, 1.3_
+  - [x] 2.4 Update Maxwell system prompt
+    - Add storage advisor instructions to the existing system prompt (as defined in design doc)
+    - Instructions cover: when to use the tool, description enrichment, 3 suggestions with reasoning, duplicate detection with photos, placement strategies
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 4.1, 4.2, 4.3, 4.4, 5.1, 5.2, 5.3_
+  - [x] 2.5 Update IAM role and publish agent alias
+    - Add `lambda:InvokeFunction` for `cwf-maxwell-storage-advisor` to `maxwell-bedrock-agent-role`
+    - Publish a new version of the agent alias to activate changes
+    - _Requirements: 1.5_
+
+- [x] 3. Add Dashboard FAB and general-purpose starter questions
+  - [x] 3.1 Wire GlobalMaxwellFAB into App.tsx
+    - Import `GlobalMaxwellFAB` in `src/App.tsx`
+    - Add `<GlobalMaxwellFAB />` after the `<Routes>` component inside `AppContent`
+    - _Requirements: 6.1_
+  - [x] 3.2 Update GlobalMaxwellFAB to render on dashboard
+    - In `src/components/GlobalMaxwellFAB.tsx`, import `useLocation` from react-router-dom
+    - Add dashboard route detection: `const isDashboard = location.pathname === '/' || location.pathname === '/dashboard'`
+    - Update visibility condition: render FAB when `entityContext` is available OR `isDashboard` is true OR `isPanelOpen` is true
+    - When clicked on dashboard (no entity context), open panel with `null` context
+    - _Requirements: 6.1, 6.4_
+  - [x] 3.3 Add general-purpose starter questions to GlobalMaxwellPanel
+    - In `src/components/GlobalMaxwellPanel.tsx`, add `STARTER_QUESTIONS_GENERAL` array with context-free questions: "Where should I store a new item?", "What tools do we have for metalworking?", "Help me find something in inventory"
+    - Update starter question selection: if `activeContext` is null, use `STARTER_QUESTIONS_GENERAL`
+    - _Requirements: 6.3_
+  - [x] 3.4 Handle context-free Maxwell sessions
+    - In `GlobalMaxwellPanel`, when `activeContext` is null, pass empty/minimal session attributes to `useMaxwell` (already handled by existing fallback)
+    - Verify the panel header shows "Maxwell" without entity context info when opened from dashboard
+    - Ensure `sendMessage` works without entity context (the chat Lambda and Bedrock Agent handle this gracefully)
+    - _Requirements: 6.2, 6.5_
+
+- [x] 4. Test end-to-end
+  - [x] 4.1 Test storage advisor via Maxwell chat
+    - Open Maxwell from dashboard
+    - Ask "where should I store a tap and die set?" — verify 3 location suggestions with reasoning
+    - Ask "where should I put nails?" — verify it finds related items (hammers, fasteners)
+    - Ask about an item that already exists in inventory — verify duplicate detection with photo
+    - Ask about something with no similar items — verify graceful "no results" message
+    - _Requirements: 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4, 4.1, 4.2, 4.3_
+  - [x] 4.2 Test dashboard FAB
+    - Navigate to dashboard (`/`) — verify FAB appears
+    - Navigate to `/dashboard` — verify FAB appears
+    - Open Maxwell from dashboard — verify general starter questions shown
+    - Navigate to entity detail page — verify entity-specific starter questions
+    - Navigate to settings — verify FAB does not appear
+    - _Requirements: 6.1, 6.2, 6.3, 6.4_
+  - [x] 4.3 Test agent tool selection
+    - From entity page, ask "what observations have been recorded?" — verify agent calls GetEntityObservations (not SuggestStorageLocation)
+    - From dashboard, ask "where should I store X?" — verify agent calls SuggestStorageLocation
+    - Ask a general question — verify agent responds without calling tools
+    - _Requirements: 1.3, 5.1, 5.2_

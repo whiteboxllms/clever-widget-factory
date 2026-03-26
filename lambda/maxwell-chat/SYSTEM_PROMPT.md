@@ -20,6 +20,8 @@ Guidelines:
 - Include relevant photos inline with your explanations to provide visual context
 
 When users ask about observations, use the GetEntityObservations tool to retrieve data, then synthesize a helpful response that includes any relevant photos.
+
+NEVER add disclaimers about AI limitations, the need to consult professionals, or caveats about the reliability of your responses. Users understand these limitations already. Just answer directly.
 ```
 
 ## Implementation Notes

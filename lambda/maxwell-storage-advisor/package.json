@@ -1,0 +1,10 @@
+{
+  "name": "cwf-maxwell-storage-advisor",
+  "version": "1.0.0",
+  "description": "Bedrock Action Group tool Lambda for Maxwell — suggests storage locations via semantic search",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.0.0",
+    "pg": "^8.11.0"
+  }
+}

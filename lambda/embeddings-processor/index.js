@@ -1,4 +1,4 @@
-const { generateEmbeddingV1 } = require('@cwf/embeddings');
+const { generateEmbeddingV1 } = require('./shared/embeddings');
 const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
 const { summarizeAction, summarizeIssue, shouldSummarize } = require('/opt/nodejs/ai-summarizer');
 const {
@@ -6,8 +6,9 @@ const {
   composeToolEmbeddingSource,
   composeActionEmbeddingSource,
   composeIssueEmbeddingSource,
-  composePolicyEmbeddingSource
-} = require('/opt/nodejs/lib/embedding-composition');
+  composePolicyEmbeddingSource,
+  composeStateEmbeddingSource
+} = require('/opt/nodejs/embedding-composition');
 
 const lambda = new LambdaClient({ region: 'us-west-2' });
 
@@ -118,6 +119,8 @@ async function getEmbeddingSource(entityType, fields, assets = []) {
       return composeIssueEmbeddingSource(fields);
     case 'policy':
       return composePolicyEmbeddingSource(fields);
+    case 'state':
+      return composeStateEmbeddingSource(fields);
     default:
       throw new Error(`Unknown entity type: ${entityType}`);
   }
@@ -135,7 +138,7 @@ exports.handler = async (event) => {
       console.log(`Processing ${entity_type} ${entity_id}`);
       
       // Validate entity type (includes action variants like action_existing_state)
-      const validTypes = ['part', 'tool', 'action', 'issue', 'policy', 'action_existing_state'];
+      const validTypes = ['part', 'tool', 'action', 'issue', 'policy', 'action_existing_state', 'state'];
       if (!validTypes.includes(entity_type)) {
         console.log(`Skipping ${entity_type} - not a valid entity type`);
         continue;

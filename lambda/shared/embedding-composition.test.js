@@ -10,7 +10,8 @@ const {
   composeToolEmbeddingSource,
   composeActionEmbeddingSource,
   composeIssueEmbeddingSource,
-  composePolicyEmbeddingSource
+  composePolicyEmbeddingSource,
+  composeStateEmbeddingSource
 } = require('./embedding-composition');
 
 describe('composePartEmbeddingSource', () => {
@@ -256,6 +257,186 @@ describe('composePolicyEmbeddingSource', () => {
     const result = composePolicyEmbeddingSource(policy);
 
     assert.strictEqual(result, 'Organic Pest Control');
+  });
+});
+
+describe('composeStateEmbeddingSource', () => {
+  test('should compose with all fields populated', () => {
+    const state = {
+      entity_names: ['Banana Plant', 'Pruning Shears'],
+      state_text: 'Leaves yellowing at tips, possible nutrient deficiency',
+      photo_descriptions: ['Close-up of leaf damage', 'Wide shot of plant'],
+      metrics: [
+        { display_name: 'Girth', value: 45, unit: 'cm' },
+        { display_name: 'Height', value: 2.1, unit: 'm' }
+      ]
+    };
+
+    const result = composeStateEmbeddingSource(state);
+
+    assert.strictEqual(
+      result,
+      'Banana Plant. Pruning Shears. Leaves yellowing at tips, possible nutrient deficiency. Close-up of leaf damage. Wide shot of plant. Girth: 45 cm. Height: 2.1 m'
+    );
+  });
+
+  test('should compose with only state_text', () => {
+    const state = {
+      entity_names: [],
+      state_text: 'General field observation about soil conditions',
+      photo_descriptions: [],
+      metrics: []
+    };
+
+    const result = composeStateEmbeddingSource(state);
+
+    assert.strictEqual(result, 'General field observation about soil conditions');
+  });
+
+  test('should return empty string when all fields are empty or null', () => {
+    const state = {
+      entity_names: [],
+      state_text: null,
+      photo_descriptions: [],
+      metrics: []
+    };
+
+    const result = composeStateEmbeddingSource(state);
+
+    assert.strictEqual(result, '');
+  });
+
+  test('should return empty string for empty object', () => {
+    const result = composeStateEmbeddingSource({});
+
+    assert.strictEqual(result, '');
+  });
+
+  test('should return empty string when fields are undefined', () => {
+    const state = {
+      entity_names: undefined,
+      state_text: undefined,
+      photo_descriptions: undefined,
+      metrics: undefined
+    };
+
+    const result = composeStateEmbeddingSource(state);
+
+    assert.strictEqual(result, '');
+  });
+
+  test('should not include photo URLs in output', () => {
+    const state = {
+      entity_names: ['Banana Plant'],
+      state_text: 'Observation text',
+      photo_descriptions: ['Close-up of leaf damage'],
+      metrics: []
+    };
+    // photo URLs are not part of the input shape — only descriptions are passed
+    const result = composeStateEmbeddingSource(state);
+
+    assert.ok(!result.includes('https://'));
+    assert.ok(!result.includes('.jpg'));
+    assert.ok(!result.includes('s3.amazonaws.com'));
+    assert.strictEqual(
+      result,
+      'Banana Plant. Observation text. Close-up of leaf damage'
+    );
+  });
+
+  test('should not include entity type prefixes', () => {
+    const state = {
+      entity_names: ['Banana Plant', 'Hand Drill', 'Applied compost'],
+      state_text: 'Observation text',
+      photo_descriptions: [],
+      metrics: []
+    };
+
+    const result = composeStateEmbeddingSource(state);
+
+    // Entity names appear directly without "part:", "tool:", "action:" prefixes
+    assert.ok(!result.includes('part:'));
+    assert.ok(!result.includes('tool:'));
+    assert.ok(!result.includes('action:'));
+    assert.strictEqual(
+      result,
+      'Banana Plant. Hand Drill. Applied compost. Observation text'
+    );
+  });
+
+  test('should format metric with unit', () => {
+    const state = {
+      entity_names: [],
+      state_text: null,
+      photo_descriptions: [],
+      metrics: [{ display_name: 'Girth', value: 45, unit: 'cm' }]
+    };
+
+    const result = composeStateEmbeddingSource(state);
+
+    assert.strictEqual(result, 'Girth: 45 cm');
+  });
+
+  test('should format metric without unit', () => {
+    const state = {
+      entity_names: [],
+      state_text: null,
+      photo_descriptions: [],
+      metrics: [{ display_name: 'Count', value: 12 }]
+    };
+
+    const result = composeStateEmbeddingSource(state);
+
+    assert.strictEqual(result, 'Count: 12');
+  });
+
+  test('should handle multiple entity names from different entity types', () => {
+    const state = {
+      entity_names: ['Banana Plant', 'Hand Drill', 'Applied compost to banana plants'],
+      state_text: null,
+      photo_descriptions: [],
+      metrics: []
+    };
+
+    const result = composeStateEmbeddingSource(state);
+
+    assert.strictEqual(
+      result,
+      'Banana Plant. Hand Drill. Applied compost to banana plants'
+    );
+  });
+
+  test('should handle mixed metrics with and without units', () => {
+    const state = {
+      entity_names: [],
+      state_text: 'Measurement session',
+      photo_descriptions: [],
+      metrics: [
+        { display_name: 'Girth', value: 45, unit: 'cm' },
+        { display_name: 'Leaf Count', value: 8 },
+        { display_name: 'Weight', value: 3.5, unit: 'kg' }
+      ]
+    };
+
+    const result = composeStateEmbeddingSource(state);
+
+    assert.strictEqual(
+      result,
+      'Measurement session. Girth: 45 cm. Leaf Count: 8. Weight: 3.5 kg'
+    );
+  });
+
+  test('should handle single entity name with metrics only', () => {
+    const state = {
+      entity_names: ['Banana Plant'],
+      state_text: null,
+      photo_descriptions: [],
+      metrics: [{ display_name: 'Height', value: 2.1, unit: 'm' }]
+    };
+
+    const result = composeStateEmbeddingSource(state);
+
+    assert.strictEqual(result, 'Banana Plant. Height: 2.1 m');
   });
 });
 

@@ -2,6 +2,87 @@ const { getAuthorizerContext, buildOrganizationFilter } = require('/opt/nodejs/a
 const { successResponse, errorResponse } = require('/opt/nodejs/response');
 const { getDbClient } = require('/opt/nodejs/db');
 const { formatSqlValue } = require('/opt/nodejs/sqlUtils');
+const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
+const { composeStateEmbeddingSource } = require('/opt/nodejs/embedding-composition');
+
+const sqs = new SQSClient({ region: 'us-west-2' });
+const EMBEDDINGS_QUEUE_URL = 'https://sqs.us-west-2.amazonaws.com/131745734428/cwf-embeddings-queue';
+
+/**
+ * Resolve state composition data and queue embedding generation via SQS.
+ * Uses its own DB client from the pool since this runs after the main transaction's client is released.
+ */
+async function resolveAndQueueEmbedding(stateId, organizationId) {
+  const client = await getDbClient();
+  try {
+    const result = await client.query(`
+      SELECT
+        s.state_text,
+        COALESCE(
+          array_agg(DISTINCT
+            CASE sl.entity_type
+              WHEN 'part' THEN p.name
+              WHEN 'tool' THEN t.name
+              WHEN 'action' THEN a.description
+            END
+          ) FILTER (WHERE sl.id IS NOT NULL),
+          ARRAY[]::text[]
+        ) AS entity_names,
+        COALESCE(
+          array_agg(DISTINCT sp.photo_description)
+          FILTER (WHERE sp.photo_description IS NOT NULL AND sp.photo_description != ''),
+          ARRAY[]::text[]
+        ) AS photo_descriptions,
+        COALESCE(
+          json_agg(
+            json_build_object('display_name', m.name, 'value', ms.value, 'unit', m.unit)
+          ) FILTER (WHERE ms.snapshot_id IS NOT NULL),
+          '[]'::json
+        ) AS metrics
+      FROM states s
+      LEFT JOIN state_links sl ON sl.state_id = s.id
+      LEFT JOIN parts p ON sl.entity_type = 'part' AND sl.entity_id = p.id
+      LEFT JOIN tools t ON sl.entity_type = 'tool' AND sl.entity_id = t.id
+      LEFT JOIN actions a ON sl.entity_type = 'action' AND sl.entity_id = a.id
+      LEFT JOIN state_photos sp ON sp.state_id = s.id
+      LEFT JOIN metric_snapshots ms ON ms.state_id = s.id
+      LEFT JOIN metrics m ON ms.metric_id = m.metric_id
+      WHERE s.id = $1
+    `, [stateId]);
+
+    if (result.rows.length === 0) {
+      console.warn('State not found for embedding resolution:', stateId);
+      return;
+    }
+
+    const row = result.rows[0];
+    const embeddingSource = composeStateEmbeddingSource({
+      entity_names: row.entity_names,
+      state_text: row.state_text,
+      photo_descriptions: row.photo_descriptions,
+      metrics: row.metrics
+    });
+
+    if (!embeddingSource || !embeddingSource.trim()) {
+      console.log('Empty embedding source for state', stateId, '— skipping SQS send');
+      return;
+    }
+
+    await sqs.send(new SendMessageCommand({
+      QueueUrl: EMBEDDINGS_QUEUE_URL,
+      MessageBody: JSON.stringify({
+        entity_type: 'state',
+        entity_id: stateId,
+        embedding_source: embeddingSource,
+        organization_id: organizationId
+      })
+    }));
+
+    console.log('Queued embedding for state', stateId);
+  } finally {
+    client.release();
+  }
+}
 
 const headers = {
   'Content-Type': 'application/json',
@@ -246,6 +327,10 @@ async function createState(event, authContext, headers) {
 
     await client.query('COMMIT');
 
+    // Fire-and-forget: resolve composition data and queue embedding generation
+    resolveAndQueueEmbedding(state.id, organizationId)
+      .catch(err => console.error('Failed to queue state embedding:', err));
+
     return await getState(state.id, authContext, headers);
   } catch (error) {
     await client.query('ROLLBACK');
@@ -358,6 +443,10 @@ async function updateState(event, id, authContext, headers) {
     }
 
     await client.query('COMMIT');
+
+    // Fire-and-forget: resolve composition data and queue embedding generation
+    resolveAndQueueEmbedding(id, organizationId)
+      .catch(err => console.error('Failed to queue state embedding:', err));
 
     return await getState(id, authContext, headers);
   } catch (error) {

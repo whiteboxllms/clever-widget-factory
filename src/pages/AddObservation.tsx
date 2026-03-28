@@ -39,7 +39,17 @@ export default function AddObservation() {
 
   const [photos, setPhotos] = useState<Array<{ tempId?: string; photo_url: string; photo_description: string; photo_order: number; isUploading?: boolean; previewUrl?: string }>>([]);
   const [observationText, setObservationText] = useState('');
-  const [capturedAt, setCapturedAt] = useState<string>(new Date().toISOString().slice(0, 16)); // Format for datetime-local input
+  // Format current local time for datetime-local input (YYYY-MM-DDTHH:MM)
+  // Must use local time components — toISOString() returns UTC which causes timezone offset bugs
+  const [capturedAt, setCapturedAt] = useState<string>(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  });
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [metricValues, setMetricValues] = useState<Record<string, string>>({});
 

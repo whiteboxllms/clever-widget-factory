@@ -157,7 +157,7 @@ export async function processStockConsumption(
   for (const stockItem of requiredStock) {
     try {
       // Parts should already be loaded into TanStack Query cache
-      // via useOfflineData, useCombinedAssets, or StockSelector hooks
+      // via useCombinedAssets hook
       // If they're not in cache, that's an error condition
       const cachedParts = queryClient.getQueryData(['parts']) as any[] | undefined;
       
@@ -165,7 +165,7 @@ export async function processStockConsumption(
         throw new Error(
           `Parts data not found in TanStack Query cache. ` +
           `This indicates parts haven't been loaded yet. ` +
-          `Ensure useOfflineData, useCombinedAssets, or StockSelector is used in the component tree.`
+          `Ensure useCombinedAssets is used in the component tree.`
         );
       }
       

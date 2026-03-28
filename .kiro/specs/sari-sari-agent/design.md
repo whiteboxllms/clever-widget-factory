@@ -1,1216 +1,448 @@
-# Sari Sari Agent Design Document
+# Design Document: Sari-Sari Agent
 
 ## Overview
 
-The Sari Sari Agent is a cost-effective, extensible conversational AI system that enables customers to interact with a self-serve store through text-based chat. The system integrates with existing farm inventory management and provides intelligent product recommendations, pricing calculations, and purchase assistance while maintaining operational costs under $50/month.
+This design migrates the sari-sari store chat backend from a custom 5-step SearchPipeline Lambda (with fragile regex-based JSON extraction) to an AWS Bedrock Agent architecture. The new system follows the proven Maxwell pattern: a thin chat Lambda (`sari-sari-agent-chat/index.js`) that proxies requests to a Bedrock Agent, plus an action group Lambda (`sari-sari-product-search/index.js`) that performs embedding similarity search against sellable products.
 
-The architecture prioritizes modularity and extensibility, allowing future integration of voice capabilities, multilingual support, and sensor-based customer detection without requiring core system redesign.
+The existing frontend (`SariSariChat.tsx`) remains completely unchanged — the new chat Lambda returns the exact same response shape (`{ response, products, conversationHistory, sessionId }`).
+
+### Key Design Decisions
+
+1. **Follow Maxwell pattern exactly**: Thin chat Lambda + action group Lambda, same `InvokeAgentCommand` flow, same session attribute forwarding for org scoping.
+2. **Preserve conversational style**: The agent's system instructions replicate the current sari-sari-chat response generation prompt — brief (1-2 sentences), bilingual (English/Tagalog), natural health benefit mentions, 2-3 product selections.
+3. **Delimiter-based product extraction**: The agent embeds structured product JSON in its response using `<!-- PRODUCTS [...] -->` delimiters. The chat Lambda strips this block and returns it as the `products` array. This is more reliable than the current `text.match(/\{[\s\S]*\}/)` regex approach because the delimiter is a fixed, non-LLM-generated pattern.
+4. **Reuse shared infrastructure**: The action group Lambda uses `generateEmbeddingV1` from the shared embeddings module and `getDbClient`/`escapeLiteral` from the common Lambda layer, matching maxwell-storage-advisor.
 
 ## Architecture
 
-### High-Level Architecture with Bedrock Agent
-
 ```mermaid
-graph TB
-    subgraph "Customer Interface"
-        UI[Web Interface]
-        Chat[Chat Component]
-    end
-    
-    subgraph "AWS Bedrock Agent"
-        Agent[Bedrock Agent]
-        Claude[Claude 3 Haiku]
-        ActionGroup[Action Groups]
-    end
-    
-    subgraph "Lambda Tools"
-        SearchTool[pgvector Search Tool]
-        InventoryTool[Inventory Tool]
-        PricingTool[Pricing Tool]
-    end
-    
-    subgraph "Data Layer"
-        RDS[(RDS with pgvector)]
-        Cache[(Redis Cache)]
-    end
-    
-    subgraph "Infrastructure"
-        CDK[CDK Templates]
-        IAM[IAM Roles]
-        CloudWatch[Monitoring]
-    end
-    
-    UI --> Chat
-    Chat --> Agent
-    Agent --> Claude
-    Agent --> ActionGroup
-    ActionGroup --> SearchTool
-    ActionGroup --> InventoryTool
-    ActionGroup --> PricingTool
-    
-    SearchTool --> RDS
-    InventoryTool --> RDS
-    PricingTool --> RDS
-    
-    CDK --> IAM
-    CDK --> SearchTool
-    CDK --> InventoryTool
-    CDK --> PricingTool
-    
-    Agent --> CloudWatch
-    SearchTool --> CloudWatch
+sequenceDiagram
+    participant FE as SariSariChat.tsx
+    participant GW as API Gateway
+    participant CL as sari-sari-agent-chat Lambda
+    participant BA as Bedrock Agent (Sari-Sari)
+    participant PS as sari-sari-product-search Lambda
+    participant DB as RDS PostgreSQL
+    participant BR as Bedrock (Titan Embed v1)
+
+    FE->>GW: POST /api/sari-sari/chat {message, sessionId, conversationHistory}
+    GW->>CL: Lambda event (with authorizer context)
+    CL->>BA: InvokeAgentCommand (inputText, sessionAttributes: {organization_id})
+    BA->>PS: Action Group: ProductSearch(query)
+    PS->>BR: Generate embedding for query
+    BR-->>PS: 1536-dim vector
+    PS->>DB: SELECT from unified_embeddings JOIN parts (sellable=true, org scoped)
+    DB-->>PS: Product rows with similarity scores
+    PS-->>BA: buildActionGroupResponse({results, instructions})
+    BA-->>CL: Streamed response with <!-- PRODUCTS [...] --> delimiter
+    CL->>CL: Extract products from delimiter, strip delimiter from text
+    CL->>CL: Transform products to Frontend_Response_Shape
+    CL-->>GW: {response, products, conversationHistory, sessionId}
+    GW-->>FE: JSON response
 ```
 
-### Bedrock Agent Architecture
+### Component Mapping to Maxwell
 
-**Core Components:**
-
-1. **AWS Bedrock Agent**: Managed AI service that orchestrates conversations
-   - Uses Claude 3 Haiku for cost-effective processing
-   - Handles conversation state and context management
-   - Routes tool calls based on customer queries
-
-2. **Lambda Tools**: Serverless functions that provide business capabilities
-   - **pgvector Search Tool**: Semantic product search using vector embeddings
-   - **Inventory Tool**: Product availability and stock management
-   - **Pricing Tool**: Dynamic pricing with negotiation support
-
-3. **Action Groups**: Define how the agent can use tools
-   - Product search actions for semantic queries
-   - Inventory management actions for stock checking
-   - Pricing actions for cost calculations and negotiations
-
-**Deployment Architecture:**
-
-```mermaid
-graph TB
-    subgraph "15-Minute Deployment Process"
-        CDK_Deploy[CDK Deploy<br/>Lambda + IAM<br/>5 minutes]
-        Console_Config[Console Setup<br/>Agent + Tools + Personality<br/>5 minutes]
-        Test_Verify[Test & Verify<br/>Query Testing<br/>2 minutes]
-        Frontend_Integration[Frontend Integration<br/>Amplify + Bedrock API<br/>3 minutes]
-    end
-    
-    CDK_Deploy --> Console_Config
-    Console_Config --> Test_Verify
-    Test_Verify --> Frontend_Integration
-```
-
-### Cost-Optimized AWS Architecture
-
-**Estimated Monthly Costs:**
-
-**MVP Configuration (Using Existing Infrastructure):**
-- **AWS Lambda**: $5-10 (1M requests, 512MB, 3s avg duration)
-- **Existing RDS Database**: $0 (already running - just add new tables/columns + pgvector)
-- **Existing API Gateway**: $0 (already running - just add new endpoints)
-- **Amazon Bedrock (Claude + Titan Embeddings)**: $12-20 (NLP + embedding generation)
-- **GitHub Pages Hosting**: $0 (free static hosting)
-- **CloudWatch**: $2-3 (basic monitoring)
-- **Total: $19-33/month** (Still extremely cost-effective!)
-
-**Optimized Configuration (Add Redis Later):**
-- **Above MVP costs**: $15-28
-- **Amazon ElastiCache (Redis)**: $15-20 (when ready for optimization)
-- **Total with Redis**: $30-48/month** (Still well under budget!)
-
-**Hybrid Configuration (Cloud + Local RTX 4060):**
-- **AWS Services** (reduced): $17-27 (lower Bedrock usage, no DynamoDB)
-- **Local AI Infrastructure**: $5-10 (electricity, cooling)
-- **VPN/Connectivity**: $3-5 (secure connection to farm)
-- **Total: $25-42/month** (Even better savings with existing RDS)
-
-**Cost Optimization with Local AI:**
-- Route 70% of simple queries to local RTX 4060
-- Use cloud AI for complex negotiations and new customer interactions
-- Implement intelligent caching to reduce both cloud and local compute
-- Potential 30-40% cost reduction at scale
-
-*Note: Local AI setup requires initial investment in Ollama/LM Studio setup but provides long-term cost benefits and data privacy.*
+| Maxwell Component | Sari-Sari Equivalent | Notes |
+|---|---|---|
+| `maxwell-chat/index.js` | `sari-sari-agent-chat/index.js` | Same InvokeAgentCommand pattern, but returns `{response, products, conversationHistory, sessionId}` instead of `{reply, sessionId}` |
+| `maxwell-storage-advisor/index.js` | `sari-sari-product-search/index.js` | Same `parseActionGroupParams` + `buildActionGroupResponse` pattern, but queries sellable parts instead of storage locations |
+| `MAXWELL_AGENT_ID` env var | `SARI_SARI_AGENT_ID` env var | Separate Bedrock Agent |
+| `MAXWELL_AGENT_ALIAS_ID` env var | `SARI_SARI_AGENT_ALIAS_ID` env var | Separate alias |
 
 ## Components and Interfaces
 
-### Bedrock Agent Configuration
+### 1. Sari-Sari Agent Chat Lambda (`sari-sari-agent-chat/index.js`)
 
-The AWS Bedrock Agent serves as the central orchestration layer, managing conversations and tool invocations.
+Thin proxy Lambda that receives HTTP requests from the frontend and invokes the Bedrock Agent.
 
-**Agent Configuration:**
+**Input** (from API Gateway):
 ```json
 {
-  "agentName": "SariSariAgent",
-  "modelId": "anthropic.claude-3-haiku-20240307-v1:0",
-  "instruction": "You are Aling Maria, a warm and knowledgeable sari-sari store owner who loves helping customers find exactly what they need. You have a friendly, conversational personality and deep knowledge about your products.\n\nYour conversation style:\n- Always greet customers warmly and ask how you can help\n- When customers ask vague questions, ask follow-up questions to understand their needs better\n- Provide 2-3 specific product suggestions with reasons why each is perfect for their needs\n- Tell stories about your products - where they come from, how to use them, what makes them special\n- Use Filipino cultural context when appropriate (but keep it accessible)\n- Engage in friendly price negotiations while respecting your business needs\n- Suggest complementary items that would be useful\n- If something is unavailable, enthusiastically suggest alternatives and explain why they're great substitutes\n\nExample responses:\n- Instead of 'Here are noodles under 30 pesos:', say 'Ah, looking for affordable noodles! I have three perfect options for you...'\n- Instead of listing features, tell stories: 'This pancit canton is my customers' favorite because it cooks so quickly and the flavor is just right for busy families'\n- Ask engaging questions: 'Are you cooking for the family tonight? Or maybe preparing something special?'\n\nAlways be helpful, engaging, and make customers feel like they're talking to a real person who cares about their needs.",
-  "actionGroups": [
-    {
-      "actionGroupName": "ProductSearch",
-      "description": "Search for products using semantic search and return results for conversational recommendations",
-      "actionGroupExecutor": {
-        "lambda": "arn:aws:lambda:region:account:function:pgvector-search-tool"
-      }
-    },
-    {
-      "actionGroupName": "InventoryManagement", 
-      "description": "Check product availability and get detailed product information for storytelling",
-      "actionGroupExecutor": {
-        "lambda": "arn:aws:lambda:region:account:function:inventory-tool"
-      }
-    },
-    {
-      "actionGroupName": "PricingCalculation",
-      "description": "Calculate prices and handle friendly negotiations with personality",
-      "actionGroupExecutor": {
-        "lambda": "arn:aws:lambda:region:account:function:pricing-tool"
-      }
+  "body": "{\"message\": \"do you have organic vegetables?\", \"sessionId\": \"session-123\", \"conversationHistory\": []}",
+  "requestContext": {
+    "authorizer": {
+      "organization_id": "org-uuid"
     }
-  ]
-}
-```
-
-### Lambda Tool Interfaces
-
-**pgvector Search Tool:**
-```typescript
-interface PgvectorSearchTool {
-  searchProducts(query: string, filters?: SearchFilters): Promise<ConversationalSearchResult>
-  getSimilarProducts(productId: string, limit?: number): Promise<Product[]>
-  getProductStories(productIds: string[]): Promise<ProductStory[]>
-}
-
-interface SearchFilters {
-  priceRange?: [number, number]
-  category?: string
-  sellableOnly?: boolean
-  excludeTerms?: string[]
-}
-
-interface ConversationalSearchResult {
-  products: ProductWithContext[]
-  searchContext: {
-    originalQuery: string
-    interpretedIntent: string
-    suggestedFollowUp?: string
   }
-  totalFound: number
-}
-
-interface ProductWithContext {
-  product: Product
-  similarity: number
-  relevanceReason: string // Why this product matches the customer's need
-  sellingPoints: string[] // Key benefits to highlight in conversation
-  complementaryItems?: string[] // Products that go well with this one
-}
-
-interface ProductStory {
-  productId: string
-  origin: string
-  bestUses: string[]
-  customerFavorites: string
-  preparationTips?: string
 }
 ```
 
-**Inventory Tool:**
-```typescript
-interface InventoryTool {
-  checkAvailability(productId: string): Promise<ConversationalAvailabilityInfo>
-  getProductDetails(productId: string): Promise<DetailedProductInfo>
-  reserveProduct(productId: string, quantity: number): Promise<ReservationResult>
-  updateStock(productId: string, quantity: number): Promise<void>
-  suggestAlternatives(unavailableProductId: string): Promise<AlternativeRecommendation[]>
-}
+**Processing**:
+1. Validate request: `message` required, `organization_id` from authorizer context required, agent env vars required
+2. Generate `sessionId` if not provided: `sari-sari-session-{timestamp}-{random}`
+3. Invoke Bedrock Agent via `InvokeAgentCommand` with:
+   - `agentId` / `agentAliasId` from env vars
+   - `inputText`: the user's message
+   - `sessionId`: effective session ID
+   - `sessionState.sessionAttributes`: `{ organization_id }`
+4. Collect streamed response chunks into a single string
+5. Extract product JSON from `<!-- PRODUCTS [...] -->` delimiter (if present)
+6. Strip the delimiter block from the response text
+7. Transform each product to the frontend shape
+8. Build updated `conversationHistory` (keep last 6 messages = 3 exchanges)
 
-interface ConversationalAvailabilityInfo {
-  available: boolean
-  stockLevel: number
-  stockDescription: string // "plenty in stock", "only a few left", "just restocked"
-  estimatedRestockDate?: Date
-  alternatives?: AlternativeRecommendation[]
-  upsellOpportunities?: Product[]
-}
-
-interface AlternativeRecommendation {
-  product: Product
-  similarityReason: string
-  advantagesOverOriginal?: string[]
-  priceComparison: 'cheaper' | 'similar' | 'premium'
-}
-
-interface DetailedProductInfo {
-  product: Product
-  freshness: string
-  origin: string
-  nutritionalHighlights?: string[]
-  cookingTips?: string[]
-  customerReviews?: string
-  seasonalNotes?: string
-}
-```
-
-**Pricing Tool:**
-```typescript
-interface PricingTool {
-  calculatePrice(productId: string, quantity: number): Promise<ConversationalPriceInfo>
-  evaluateNegotiation(productId: string, customerOffer: number, context: NegotiationContext): Promise<NegotiationResponse>
-  applyPromotions(cart: CartItem[]): Promise<PromotionResult>
-  suggestBudgetOptions(budget: number, category?: string): Promise<BudgetRecommendation[]>
-}
-
-interface ConversationalPriceInfo {
-  basePrice: number
-  finalPrice: number
-  discounts: Discount[]
-  valueProposition: string // Why this price is fair/good value
-  negotiable: boolean
-  minAcceptablePrice?: number
-  bulkDiscountAvailable?: boolean
-  seasonalPricing?: string
-}
-
-interface NegotiationContext {
-  customerPersonality: 'friendly' | 'serious' | 'price-conscious' | 'quality-focused'
-  previousPurchases?: number
-  currentCartValue?: number
-  timeOfDay: string
-}
-
-interface NegotiationResponse {
-  accept: boolean
-  counterOffer?: number
-  reason: string
-  conversationalResponse: string // Friendly response for the customer
-  finalOffer: boolean
-  alternativeOffers?: string[] // "Buy 2 get discount", "Bundle with X for better price"
-}
-
-interface BudgetRecommendation {
-  product: Product
-  whyGoodValue: string
-  quantityForBudget: number
-  alternativeUses?: string[]
-}
-```
-
-### IAM Role Configuration
-
-**BedrockExecutionRole:**
+**Output** (to frontend):
 ```json
 {
-  "Version": "2012-10-17",
-  "Statement": [
+  "response": "We have fresh organic lettuce and kale today!",
+  "products": [
     {
-      "Effect": "Allow",
-      "Action": [
-        "lambda:InvokeFunction"
-      ],
-      "Resource": [
-        "arn:aws:lambda:*:*:function:pgvector-search-tool",
-        "arn:aws:lambda:*:*:function:inventory-tool", 
-        "arn:aws:lambda:*:*:function:pricing-tool"
-      ]
-    },
-    {
-      "Effect": "Allow",
-      "Action": [
-        "bedrock:InvokeModel"
-      ],
-      "Resource": "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-haiku-20240307-v1:0"
+      "id": "uuid",
+      "name": "Organic Lettuce",
+      "description": "Fresh organic lettuce from the farm",
+      "price": 45.00,
+      "stock_level": 20,
+      "in_stock": true,
+      "status_label": "In stock",
+      "similarity_score": 0.8921,
+      "unit": "bunch",
+      "image_url": "https://..."
     }
-  ]
+  ],
+  "conversationHistory": [
+    {"role": "user", "content": "do you have organic vegetables?"},
+    {"role": "assistant", "content": "We have fresh organic lettuce and kale today!"}
+  ],
+  "sessionId": "sari-sari-session-1234567890-abc123"
 }
 ```
 
-**Lambda Execution Roles:**
+**Error Responses**:
+- `400`: Missing `message`
+- `401`: No `organization_id` in authorizer context
+- `429`: Bedrock `ThrottlingException`
+- `500`: Agent not configured (missing env vars) or internal error
+
+### 2. Sari-Sari Product Search Lambda (`sari-sari-product-search/index.js`)
+
+Action group Lambda invoked by the Bedrock Agent to search sellable products.
+
+**Input** (from Bedrock Agent action group):
 ```json
 {
-  "Version": "2012-10-17", 
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "rds:DescribeDBInstances",
-        "rds-db:connect"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Effect": "Allow",
-      "Action": [
-        "logs:CreateLogGroup",
-        "logs:CreateLogStream", 
-        "logs:PutLogEvents"
-      ],
-      "Resource": "arn:aws:logs:*:*:*"
+  "actionGroup": "ProductSearch",
+  "apiPath": "/searchProducts",
+  "httpMethod": "POST",
+  "parameters": [
+    {"name": "query", "type": "string", "value": "organic vegetables"}
+  ],
+  "sessionAttributes": {
+    "organization_id": "org-uuid"
+  }
+}
+```
+
+**Processing**:
+1. Parse parameters via `parseActionGroupParams(event)` → `{ query }`
+2. Extract `organization_id` from `event.sessionAttributes`
+3. Validate: query non-empty, organization_id present
+4. Generate embedding for query via `generateEmbeddingV1(query)`
+5. Execute SQL: `unified_embeddings` JOIN `parts` WHERE `sellable = true` AND `organization_id` matches, ORDER BY cosine similarity DESC, LIMIT 10
+6. Format results with product fields + similarity score
+7. Return via `buildActionGroupResponse` with results and instructions text
+
+**Output** (to Bedrock Agent via action group response envelope):
+```json
+{
+  "messageVersion": "1.0",
+  "response": {
+    "actionGroup": "ProductSearch",
+    "apiPath": "/searchProducts",
+    "httpMethod": "POST",
+    "httpStatusCode": 200,
+    "responseBody": {
+      "application/json": {
+        "body": "{\"results\": [...], \"message\": \"Found 5 products\", \"instructions\": \"...\"}"
+      }
     }
-  ]
-}
-```
-
-### Agent Core
-
-The central orchestration component that manages conversation flow, context, and business logic integration.
-
-**Key Responsibilities:**
-- Conversation state management
-- Intent recognition and routing
-- Business logic coordination
-- Response generation
-
-**Interface:**
-```typescript
-interface AgentCore {
-  processMessage(sessionId: string, message: string): Promise<AgentResponse>
-  initializeSession(customerId?: string): Promise<SessionInfo>
-  endSession(sessionId: string): Promise<void>
-}
-
-interface AgentResponse {
-  text: string
-  suggestions?: string[]
-  products?: ProductInfo[]
-  actions?: ActionItem[]
-  metadata: ResponseMetadata
-}
-```
-
-### NLP Service
-
-Provides natural language understanding with pluggable AI backends for flexibility and cost optimization.
-
-**Supported Backends:**
-- **Amazon Bedrock (Claude)** - Cloud-based, cost-effective for initial deployment
-- **Local RTX 4060** - On-premises inference using Ollama/LM Studio for cost reduction at scale
-- **Hybrid Mode** - Route simple queries locally, complex ones to cloud
-
-**Key Features:**
-- Intent classification (browse, inquire, purchase, negotiate, help)
-- Entity extraction (product names, quantities, preferences, personality traits)
-- **Product description identification** - Extract searchable product terms from natural language queries
-- Context-aware response generation with personality adaptation
-- Conversation memory and customer profiling
-- Negotiation and upselling capabilities
-- Personality framework for testing different agent behaviors
-- **Semantic search integration** - Coordinate with semantic search service for product discovery
-
-**Interface:**
-```typescript
-interface NLPService {
-  analyzeIntent(message: string, context: ConversationContext): Promise<Intent>
-  extractEntities(message: string): Promise<Entity[]>
-  extractProductDescription(message: string): Promise<ProductSearchTerm>
-  extractNegations(message: string): Promise<NegationFilter[]>
-  generateResponse(intent: Intent, context: BusinessContext, personality: PersonalityProfile): Promise<string>
-  detectCustomerPersonality(conversationHistory: Message[]): Promise<PersonalityInsights>
-  suggestUpsells(currentCart: CartItem[], customerProfile: CustomerProfile): Promise<UpsellSuggestion[]>
-  formatSearchResults(searchResults: Product[], originalQuery: string, negations?: NegationFilter[]): Promise<string>
-}
-
-interface ProductSearchTerm {
-  extractedTerm: string
-  confidence: number
-  originalQuery: string
-  searchType: 'characteristic' | 'name' | 'category' | 'description'
-  negations?: NegationFilter[]
-}
-
-interface NegationFilter {
-  negatedTerm: string
-  negationType: 'characteristic' | 'ingredient' | 'category' | 'attribute'
-  confidence: number
-  originalPhrase: string
-}
-
-interface PersonalityProfile {
-  negotiationStyle: 'friendly' | 'professional' | 'playful' | 'assertive'
-  upsellAggressiveness: number // 1-10 scale
-  humorLevel: number // 1-10 scale
-  culturalAdaptation: string[]
-  bargainingEnabled: boolean
-}
-
-interface UpsellSuggestion {
-  productId: string
-  reason: string
-  discountOffered?: number
-  bundleOpportunity?: string[]
-}
-```
-
-**Local AI Integration Architecture:**
-```mermaid
-graph TB
-    subgraph "NLP Service"
-        Router[AI Router]
-        Cloud[Bedrock/Claude]
-        Local[Local RTX 4060]
-        Cache[Response Cache]
-    end
-    
-    Router --> |Complex/New| Cloud
-    Router --> |Simple/Cached| Local
-    Router --> Cache
-    
-    Local --> |Ollama/LM Studio| GPU[RTX 4060]
-    Cloud --> |API| Bedrock[Amazon Bedrock]
-```
-
-### Semantic Search Service
-
-Provides vector-based semantic search capabilities for product discovery using natural language understanding.
-
-**Key Responsibilities:**
-- Convert product descriptions and search terms into vector embeddings
-- Perform semantic similarity search across product catalog
-- Maintain and update product embedding vectors
-- Log search operations for analytics and improvement
-- Handle embedding model updates and reindexing
-
-**Architecture:**
-```mermaid
-graph TB
-    subgraph "Semantic Search Pipeline"
-        Query[Customer Query]
-        Extract[NLP: Extract Product Term]
-        Embed[Generate Query Embedding]
-        Search[Vector Similarity Search]
-        Filter[Agent: Filter Results]
-        Response[Formatted Response]
-    end
-    
-    subgraph "Vector Storage"
-        ProductDB[(Product Database)]
-        EmbedDB[(Embedding Vectors)]
-        SearchLog[(Search Analytics)]
-    end
-    
-    Query --> Extract
-    Extract --> Embed
-    Embed --> Search
-    Search --> Filter
-    Filter --> Response
-    
-    Search --> EmbedDB
-    Search --> SearchLog
-    EmbedDB --> ProductDB
-```
-
-**Interface:**
-```typescript
-interface SemanticSearchService {
-  searchProducts(searchTerm: string, limit?: number, negations?: NegationFilter[], sellableOnly?: boolean): Promise<SemanticSearchResult[]>
-  generateEmbedding(text: string): Promise<number[]>
-  updateProductEmbeddings(products: Product[]): Promise<void>
-  logSearch(searchTerm: string, results: SemanticSearchResult[], sessionId: string, negations?: NegationFilter[], sellabilityFiltered?: boolean): Promise<void>
-  getSimilarProducts(productId: string, limit?: number, sellableOnly?: boolean): Promise<Product[]>
-  filterNegatedProducts(products: SemanticSearchResult[], negations: NegationFilter[]): Promise<SemanticSearchResult[]>
-}
-
-interface SemanticSearchResult {
-  product: Product
-  similarity: number
-  searchTerm: string
-  timestamp: Date
-}
-```
-
-**Implementation Details:**
-- **Embedding Model**: Use Amazon Bedrock Titan Embeddings or local sentence-transformers
-- **Vector Storage**: PostgreSQL with pgvector extension (leveraging existing RDS)
-- **Similarity Metric**: Cosine similarity for semantic matching
-- **Indexing Strategy**: Batch update embeddings during low-traffic periods
-- **Fallback**: Text-based search when semantic search fails
-- **Sellability Filtering**: ALL customer-facing searches MUST include `WHERE sellable = true` in database queries
-- **Default Behavior**: `sellableOnly` parameter defaults to `true` for customer-facing operations
-
-### Inventory Service
-
-Integrates with existing farm inventory system with enhanced sellability controls and customer-facing product management.
-
-**Key Responsibilities:**
-- Product availability checking with sellability filtering
-- Stock level monitoring for customer-facing items
-- Product information retrieval with sales optimization
-- Inventory updates for purchases and reservations
-- Sellability toggle management for store vs. farm-only items
-
-**Interface:**
-```typescript
-interface InventoryService {
-  getAvailableProducts(filters?: ProductFilter): Promise<Product[]>
-  getSellableProducts(filters?: ProductFilter): Promise<Product[]> // Only items marked for sale
-  searchProductsSemantically(searchTerm: string, filters?: ProductFilter): Promise<SemanticSearchResult[]>
-  getProductDetails(productId: string): Promise<ProductDetails>
-  checkAvailability(productId: string, quantity: number): Promise<AvailabilityInfo>
-  reserveItems(items: CartItem[]): Promise<ReservationResult>
-  updateStock(transactions: StockTransaction[]): Promise<void>
-  toggleSellability(productId: string, sellable: boolean): Promise<void>
-}
-
-interface ProductFilter {
-  category?: string
-  priceRange?: [number, number]
-  inStock?: boolean
-  sellableOnly?: boolean // New filter for customer-facing products
-}
-```
-
-### Agent Personality Framework
-
-Enables testing and deployment of different agent personalities with negotiation and upselling capabilities.
-
-**Key Features:**
-- Configurable personality profiles for A/B testing
-- Customer personality detection and adaptation
-- Dynamic negotiation strategies
-- Upselling behavior customization
-- Cultural and linguistic adaptation
-
-**Personality Configuration:**
-```typescript
-interface PersonalityConfig {
-  id: string
-  name: string
-  description: string
-  hidden?: boolean // For secret/unlockable personalities
-  traits: {
-    friendliness: number // 1-10
-    assertiveness: number // 1-10
-    humor: number // 1-10
-    patience: number // 1-10
-    salesAggressiveness: number // 1-10
-    playfulness: number // 1-10 (for cheeky/flirty personalities)
-  }
-  negotiationRules: {
-    maxDiscount: number // Maximum % discount allowed
-    minProfitMargin: number // Minimum profit margin to maintain
-    bargainingRounds: number // Max negotiation rounds
-    walkAwayThreshold: number // When to end negotiation
-  }
-  upsellBehavior: {
-    frequency: number // How often to suggest upsells (1-10)
-    timing: 'early' | 'mid' | 'late' | 'adaptive'
-    bundlePreference: boolean
-    crossSellEnabled: boolean
-  }
-  responsePatterns: {
-    greetings: string[]
-    negotiations: string[]
-    upsells: string[]
-    closings: string[]
-    specialResponses?: string[] // For unique personality quirks
-  }
-  contentFilters: {
-    appropriatenessLevel: 'family' | 'adult' | 'cheeky' | 'spicy'
-    contextAwareness: boolean // Adapt based on time/customer
-    activationTrigger?: string // Secret code or condition
   }
 }
 ```
 
-**Personality Matching System:**
-- Real-time customer personality detection
-- Dynamic personality adaptation during conversation
-- Performance metrics per personality type
-- **Secret personality unlocks** - Hidden personalities activated by special triggers
-- **Context-aware content filtering** - Appropriate responses based on setting and customer
+### 3. Bedrock Agent Configuration (Sari-Sari Agent)
 
-**Example Personality Profiles:**
-- **"Professional Pat"** - Formal, efficient, business-focused
-- **"Friendly Farmer"** - Warm, community-oriented, educational
-- **"Bargain Betty"** - Playful negotiator, loves a good deal
-- **"Smooth Seller"** - Charming, persuasive, slightly flirtatious
-- **"Cheeky Charlie"** - Hidden personality with playful innuendo (unlockable)
-- **"Cultural Chameleon"** - Adapts to customer's cultural background
+**System Instructions** (derived from current sari-sari-chat response generation prompt):
 
-### Price Calculator
+```
+You are a friendly store assistant for Stargazer Farm's sari-sari store.
 
-Computes dynamic pricing with negotiation support based on inventory, demand, and business rules.
+RULES:
+1. Match the customer's language — respond in English or Tagalog/Filipino based on their message
+2. Be brief and direct — 1-2 sentences maximum
+3. When products have health benefits (in the policy field), mention them naturally in your response
+4. Select 2-3 most relevant products from search results to highlight
+5. Always show prices in Philippine Pesos (₱)
+6. If no products match, suggest the customer try different terms or browse available items
 
-**Key Features:**
-- Base pricing calculation with negotiation bounds
-- Quantity discount application
-- Seasonal promotion handling
-- Tax and fee computation
-- Dynamic negotiation pricing
-- Personality-based discount authorization
+PRODUCT EMBEDDING FORMAT:
+When you present products, you MUST embed the product data in your response using this exact format:
+<!-- PRODUCTS [{"id":"...","name":"...","description":"...","policy":"...","price":0,"unit":"...","current_quantity":0,"image_url":"...","similarity_score":0.0}] -->
 
-**Interface:**
-```typescript
-interface PriceCalculator {
-  calculatePrice(productId: string, quantity: number): Promise<PriceBreakdown>
-  getPromotions(productIds: string[]): Promise<Promotion[]>
-  applyDiscounts(cart: CartItem[], customer?: CustomerInfo): Promise<PricingResult>
-  // New negotiation methods
-  calculateNegotiationRange(productId: string, customerProfile: PersonalityInsights): Promise<PriceRange>
-  evaluateCounterOffer(productId: string, offer: number, context: NegotiationContext): Promise<NegotiationResponse>
-  suggestCounterPrice(productId: string, customerOffer: number, personality: PersonalityProfile): Promise<number>
-  canAcceptOffer(productId: string, offer: number, minMargin: number): Promise<boolean>
-}
+Place this block at the END of your response, after your conversational text.
+Only include products you are actually recommending (2-3 items).
+Use the exact field values from the search results — do not modify prices or quantities.
+```
 
-interface PriceRange {
-  min: number // Absolute minimum (cost + min margin)
-  max: number // Listed price
-  suggested: number // AI-suggested starting negotiation price
-  flexibility: number // How much room for negotiation (1-10)
-}
+**Action Group**: `ProductSearch`
+- API Path: `/searchProducts`
+- Method: POST
+- Parameter: `query` (string, required) — the search terms
 
-interface NegotiationResponse {
-  accept: boolean
-  counterOffer?: number
-  reason: string
-  finalOffer: boolean // Is this the final offer?
+### 4. Product Data Transformation
+
+The chat Lambda transforms products from the action group format to the frontend format:
+
+| Action Group Field | Frontend Field | Transformation |
+|---|---|---|
+| `id` | `id` | Direct copy |
+| `name` | `name` | Direct copy |
+| `description` | `description` | Direct copy |
+| `price` (cost_per_unit) | `price` | `parseFloat` |
+| `current_quantity` | `stock_level` | Direct copy |
+| — | `in_stock` | `current_quantity > 0` |
+| — | `status_label` | `current_quantity > 0 ? 'In stock' : 'Out of stock'` |
+| `similarity_score` | `similarity_score` | Direct copy |
+| `unit` | `unit` | Direct copy |
+| `image_url` | `image_url` | Direct copy |
+
+### 5. Product Delimiter Extraction
+
+The chat Lambda uses a simple, deterministic extraction approach:
+
+```javascript
+function extractProducts(responseText) {
+  const delimiterRegex = /<!-- PRODUCTS (\[.*?\]) -->/s;
+  const match = responseText.match(delimiterRegex);
+  
+  if (!match) {
+    return { text: responseText.trim(), products: [] };
+  }
+  
+  const cleanText = responseText.replace(delimiterRegex, '').trim();
+  
+  try {
+    const products = JSON.parse(match[1]);
+    return { text: cleanText, products };
+  } catch (e) {
+    console.error('Failed to parse product JSON from delimiter:', e);
+    return { text: cleanText, products: [] };
+  }
 }
 ```
+
+This is fundamentally different from the current approach: the delimiter `<!-- PRODUCTS ... -->` is an HTML comment pattern that the LLM is instructed to produce verbatim. If parsing fails, the response degrades gracefully (text-only, no products) rather than crashing.
 
 ## Data Models
 
-### Core Entities
+### Existing Tables (No Changes)
 
-```typescript
-interface Product {
-  id: string
-  name: string
-  description: string
-  category: string
-  unit: string
-  basePrice: number
-  stockQuantity: number
-  harvestDate?: Date
-  expiryDate?: Date
-  nutritionalInfo?: NutritionalData
-  tags: string[]
-  // New field for MVP store functionality
-  sellable: boolean // Toggle for customer-facing availability
-}
+**`parts` table** (relevant columns):
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID | Primary key |
+| `name` | VARCHAR | Product name |
+| `description` | TEXT | Product description |
+| `policy` | TEXT | Health benefits, usage notes |
+| `cost_per_unit` | DECIMAL | Price in PHP |
+| `unit` | VARCHAR | e.g., "bunch", "kg", "bottle" |
+| `current_quantity` | INTEGER | Stock level |
+| `image_url` | TEXT | S3 URL |
+| `sellable` | BOOLEAN | Whether available for sale |
+| `organization_id` | UUID | Multi-tenancy scope |
 
-interface ConversationSession {
-  sessionId: string
-  customerId?: string
-  startTime: Date
-  lastActivity: Date
-  context: ConversationContext
-  cart: CartItem[]
-  status: SessionStatus
-}
+**`unified_embeddings` table** (relevant columns):
+| Column | Type | Notes |
+|---|---|---|
+| `entity_type` | VARCHAR | 'part' for products |
+| `entity_id` | UUID | FK to parts.id |
+| `embedding` | VECTOR(1536) | Titan v1 embedding |
+| `embedding_source` | TEXT | Composed text used for embedding |
+| `organization_id` | UUID | Multi-tenancy scope |
 
-interface ConversationContext {
-  currentIntent?: string
-  entities: Record<string, any>
-  conversationHistory: Message[]
-  preferences: CustomerPreferences
-  // Simplified for MVP
-  negotiationHistory: NegotiationAttempt[]
-  upsellAttempts: UpsellAttempt[]
-  searchHistory: SearchAttempt[]
-}
+### SQL Query (Product Search Lambda)
 
-interface SearchAttempt {
-  originalQuery: string
-  extractedSearchTerm: string
-  searchResults: SemanticSearchResult[]
-  selectedProducts: string[]
-  timestamp: Date
-}
-
-
-
-interface NegotiationAttempt {
-  productId: string
-  originalPrice: number
-  customerOffer?: number
-  agentCounterOffer?: number
-  outcome: 'accepted' | 'rejected' | 'ongoing'
-  timestamp: Date
-}
-
-interface UpsellAttempt {
-  suggestedProductId: string
-  context: string
-  customerResponse: 'interested' | 'declined' | 'ignored'
-  timestamp: Date
-}
-
-interface CartItem {
-  productId: string
-  quantity: number
-  unitPrice: number
-  reservationId?: string
-}
-
-interface Customer {
-  customerId: string
-  name?: string
-  phone?: string
-  email?: string
-  preferredLanguage: string
-  visitCount: number
-  totalSpent: number
-  favoriteCategories: string[]
-  createdAt: Date
-  lastVisit: Date
-}
-
-interface CustomerPreferences {
-  language: string
-  communicationStyle: 'formal' | 'casual'
-  priceRange?: [number, number]
-  favoriteCategories: string[]
-  dietaryRestrictions?: string[]
-}
-```
-
-### Database Schema
-
-**Existing RDS Database Integration:**
-- `Products` - Extend existing product table with new fields (sellable, bargainable, minPrice, upsellPriority)
-- `Sessions` - New table for active conversation sessions
-- `Customers` - New table for customer information and preferences  
-- `Transactions` - New table for purchase history and analytics
-
-- `Promotions` - New table for active discounts and offers
-
-**Database Migration Strategy:**
 ```sql
--- Add essential columns to existing products table for MVP
-ALTER TABLE products ADD COLUMN sellable BOOLEAN DEFAULT true;
-ALTER TABLE products ADD COLUMN embedding_text TEXT; -- Enhanced product description for embeddings
-ALTER TABLE products ADD COLUMN embedding_vector vector(1536); -- Vector embeddings (using pgvector)
-
--- Enable pgvector extension for semantic search
-CREATE EXTENSION IF NOT EXISTS vector;
-
--- Create new tables for agent functionality
-CREATE TABLE conversation_sessions (
-  session_id VARCHAR(255) PRIMARY KEY,
-  customer_id VARCHAR(255),
-  start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  context JSON,
-  status VARCHAR(50) DEFAULT 'active'
-);
-
-CREATE TABLE customers (
-  customer_id VARCHAR(255) PRIMARY KEY,
-  name VARCHAR(255),
-  phone VARCHAR(50),
-  email VARCHAR(255),
-  preferred_language VARCHAR(10) DEFAULT 'en',
-  visit_count INTEGER DEFAULT 1,
-  total_spent DECIMAL(10,2) DEFAULT 0.00,
-  favorite_categories JSON,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  last_visit TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE transactions (
-  transaction_id VARCHAR(255) PRIMARY KEY,
-  customer_id VARCHAR(255),
-  session_id VARCHAR(255),
-  items JSON,
-  total_amount DECIMAL(10,2),
-  payment_method VARCHAR(50),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
-);
-
--- New table for semantic search analytics
-CREATE TABLE search_logs (
-  search_id VARCHAR(255) PRIMARY KEY,
-  session_id VARCHAR(255),
-  original_query TEXT,
-  extracted_search_term TEXT,
-  search_results JSON,
-  selected_products JSON,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (session_id) REFERENCES conversation_sessions(session_id)
-);
-
--- Create index for vector similarity search
-CREATE INDEX products_embedding_idx ON products USING ivfflat (embedding_vector vector_cosine_ops);
+SELECT
+  p.id,
+  p.name,
+  p.description,
+  p.policy,
+  p.cost_per_unit,
+  p.unit,
+  p.current_quantity,
+  p.image_url,
+  1 - (ue.embedding <=> $1::vector) AS similarity
+FROM unified_embeddings ue
+INNER JOIN parts p
+  ON ue.entity_type = 'part'
+  AND ue.entity_id = p.id
+WHERE p.organization_id = $2
+  AND p.sellable = true
+  AND ue.embedding IS NOT NULL
+ORDER BY similarity DESC
+LIMIT 10
 ```
 
-**Connection Architecture:**
+### Frontend Response Shape (Unchanged)
+
 ```typescript
-interface DatabaseService {
-  // RDS connection for persistent data
-  rdsConnection: mysql.Connection | pg.Client
-  // Redis for session caching
-  redisClient: Redis
-  
-  // Product operations using existing RDS
-  getProducts(filters?: ProductFilter): Promise<Product[]>
-  updateProductSellability(productId: string, sellable: boolean): Promise<void>
-  
-  // New session management
-  createSession(sessionData: ConversationSession): Promise<void>
-  getSession(sessionId: string): Promise<ConversationSession>
-  updateSession(sessionId: string, updates: Partial<ConversationSession>): Promise<void>
+interface ChatResponse {
+  response: string;           // Agent's conversational text (delimiter stripped)
+  products: Product[];        // Transformed product array
+  conversationHistory: Array<{role: string, content: string}>;
+  sessionId: string;
+}
+
+interface Product {
+  id: string;
+  name: string;
+  description: string;
+  price: number;              // Mapped from cost_per_unit
+  stock_level: number;        // Mapped from current_quantity
+  in_stock: boolean;          // Derived: current_quantity > 0
+  status_label: string;       // Derived: "In stock" | "Out of stock"
+  similarity_score: number;
+  unit: string;
+  image_url: string;
 }
 ```
 
-**Session Storage (MVP):**
-- Store session data directly in RDS conversation_sessions table
-- Simple and reliable for initial deployment
+### Environment Variables
 
-**Future Redis Cache (Optional Optimization):**
-- Session state (TTL: 30 minutes)
-- Product information (TTL: 5 minutes) 
-- Pricing calculations (TTL: 1 minute)
+| Variable | Lambda | Description |
+|---|---|---|
+| `SARI_SARI_AGENT_ID` | sari-sari-agent-chat | Bedrock Agent ID |
+| `SARI_SARI_AGENT_ALIAS_ID` | sari-sari-agent-chat | Bedrock Agent Alias ID |
+| `BEDROCK_REGION` | both | AWS region (default: us-west-2) |
+| `DB_PASSWORD` | sari-sari-product-search | RDS password (via layer) |
+
 
 
 ## Correctness Properties
 
-*A property is a characteristic or behavior that should hold true across all valid executions of a system-essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
+*A property is a characteristic or behavior that should hold true across all valid executions of a system — essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
 
-Property 28: Product description extraction reliability
-*For any* customer question containing product-related terms, the Agent_Core should successfully extract a meaningful product search term
-**Validates: Requirements 8.1**
+### Property 1: Product search returns only sellable, organization-scoped products
 
-Property 29: Search term logging consistency
-*For any* product description extraction, the system should create a corresponding log entry with the extracted search term
-**Validates: Requirements 8.2**
+*For any* organization ID and search query, all products returned by the Product Search Lambda must have `sellable = true` and belong to the queried organization. No product from a different organization or with `sellable = false` should appear in results.
 
-Property 30: Semantic search functionality
-*For any* valid extracted search term, the Semantic_Search_Service should generate vector embeddings and return semantically relevant product results
-**Validates: Requirements 8.3**
-
-Property 31: Result filtering and formatting
-*For any* set of semantic search results, the Agent_Core should select contextually relevant items and format them into an appropriate customer response
-**Validates: Requirements 8.4**
-
-Property 32: Search operation logging
-*For any* semantic search operation performed, the system should create appropriate log entries for analytics and improvement
-**Validates: Requirements 3.6**
-
-Property 33: Negation term extraction
-*For any* customer query containing negation phrases like "don't like", "no", "not", "avoid", or "without", the Agent_Core should correctly identify and extract the negated terms
-**Validates: Requirements 10.1**
-
-Property 34: Negation logging consistency
-*For any* query where negated terms are identified, the system should create log entries containing both positive search intent and negation filters
-**Validates: Requirements 10.2**
-
-Property 35: Semantic negation filtering
-*For any* semantic search with negation filters, the Semantic_Search_Service should exclude products that semantically match the negated characteristics
-**Validates: Requirements 10.3**
-
-Property 36: Spicy product exclusion
-*For any* query expressing dislike of spicy items, the system should exclude products containing chili, hot sauce, spiced items, and other semantically similar spicy products from results
-**Validates: Requirements 10.4**
-
-Property 37: Negation explanation transparency
-*For any* search where negation filtering is applied, the Agent_Core should include an explanation to the customer about what items have been excluded
-**Validates: Requirements 10.5**
-
-Property 38: Sellable products only in search results
-*For any* semantic search operation, the system should only return products where the sellable field is true
-**Validates: Requirements 11.1, 11.3**
-
-Property 39: Customer-facing sellability filtering
-*For any* product browsing or search operation, the Agent_Core should exclude all non-sellable items before displaying results to customers
-**Validates: Requirements 11.2, 11.4**
-
-Property 40: Sellability filter logging
-*For any* search operation, the system should log whether sellability filtering was applied and how many products were excluded
-**Validates: Requirements 11.5**
-
-Property 41: Bedrock Agent tool invocation
-*For any* customer query requiring product search, the Bedrock_Agent should correctly invoke the pgvector_Search_Tool with appropriate parameters
-**Validates: Requirements 12.3**
-
-Property 42: Claude model integration
-*For any* customer interaction, the Bedrock_Agent should use Claude 3 Haiku model to generate contextually appropriate responses
-**Validates: Requirements 12.1**
-
-Property 43: Lambda tool execution
-*For any* tool invocation from Bedrock Agent, the Lambda functions should execute successfully and return properly formatted responses
-**Validates: Requirements 12.2**
-
-Property 44: IAM permission validation
-*For any* Bedrock Agent operation, the system should have appropriate IAM permissions including BedrockExecutionRole and LambdaBasicExecution
-**Validates: Requirements 12.4**
-
-Property 45: Agent configuration completeness
-*For any* deployed Bedrock Agent, the configuration should include personality instructions and properly defined action groups
-**Validates: Requirements 12.5**
-
-Property 46: API functionality verification
-*For any* test query like "Noodles under 30 pesos", the retrieveAndGenerate() API should return filtered results with appropriate sari-sari responses
-**Validates: Requirements 12.6**
-
-Property 47: Monitoring and tracing
-*For any* agent invocation, CloudWatch and Bedrock traces should capture comprehensive logging information
-**Validates: Requirements 12.7**
-
-Property 48: Infrastructure deployment speed
-*For any* CDK deployment, Lambda functions and IAM roles should be created and configured within 5 minutes
-**Validates: Requirements 13.1**
-
-Property 49: Agent creation efficiency
-*For any* agent setup process, creating the agent, attaching tools, and configuring personality should complete within 5 minutes
-**Validates: Requirements 13.2**
-
-Property 50: Query response performance
-*For any* test query, the system should return SQL-filtered results with sari-sari responses within 2 minutes
-**Validates: Requirements 13.3**
-
-Property 51: Frontend integration speed
-*For any* Amplify integration, connecting to Bedrock API and displaying responses should complete within 3 minutes
-**Validates: Requirements 13.4**
-
-Property 52: Total deployment time
-*For any* complete system deployment, the entire process should be functional within 15 minutes total
-**Validates: Requirements 13.5**
-
-Property 53: Conversational product suggestions
-*For any* customer product query, the Bedrock_Agent should provide 2-3 specific product recommendations with reasons rather than just listing search results
-**Validates: Requirements 12.2, 14.3**
-
-Property 54: Follow-up question engagement
-*For any* vague customer request, the agent should ask clarifying questions to better understand customer needs
-**Validates: Requirements 14.2**
-
-Property 55: Personality-driven responses
-*For any* customer interaction, the agent should respond with conversational personality rather than robotic or filtered responses
-**Validates: Requirements 14.1**
-
-Property 56: Value proposition explanations
-*For any* price inquiry, the agent should explain the value proposition and benefits of each suggested product
-**Validates: Requirements 14.4**
-
-Property 57: Alternative product storytelling
-*For any* unavailable product, the agent should conversationally suggest alternatives with explanations of why they're good substitutes
-**Validates: Requirements 14.5**
-
-Property 58: Friendly price negotiation
-*For any* price negotiation attempt, the agent should engage in friendly bargaining while maintaining business rules
-**Validates: Requirements 14.6**
-
-Property 59: Proactive product education
-*For any* customer uncertainty, the agent should offer to provide more information about products, uses, or complementary items
-**Validates: Requirements 14.7**
-
-Property 60: Conversational test responses
-*For any* test query like "Noodles under 30 pesos", the system should return conversational responses with specific product suggestions and reasons
-**Validates: Requirements 13.3**
-
-<function_calls>
-<invoke name="prework">
-<parameter name="featureName">sari-sari-agent
-
-Property 1: Message processing reliability
-*For any* text input from a customer, the Agent_Core should always return a valid response structure with appropriate content
-**Validates: Requirements 1.1**
-
-Property 2: Response display consistency
-*For any* response generated by the Agent_Core, the user interface should properly render and display the text to the customer
-**Validates: Requirements 1.2**
-
-Property 3: Product availability accuracy
-*For any* product availability inquiry, the Agent_Core should query the Inventory_Service and return current, accurate stock information
-**Validates: Requirements 2.1**
-
-Property 4: Product detail completeness
-*For any* product detail request, the Agent_Core should provide all required information fields (description, origin, freshness, nutritional data)
 **Validates: Requirements 2.2**
 
-Property 5: Pricing calculation correctness
-*For any* pricing inquiry, the Price_Calculator should compute accurate costs including applicable discounts and current market rates
-**Validates: Requirements 2.3, 6.1**
+### Property 2: Product search result limit and field completeness
 
-Property 6: Low stock notification
-*For any* product with low inventory levels, the Agent_Core should inform customers of limited availability when queried
-**Validates: Requirements 2.4**
+*For any* search query, the Product Search Lambda returns at most 10 results, and each result contains all required fields: id, name, description, policy, price (cost_per_unit), unit, current_quantity, image_url, and similarity_score.
 
-Property 7: Alternative product suggestions
-*For any* out-of-stock product inquiry, the Agent_Core should suggest similar available alternatives from the inventory
-**Validates: Requirements 2.5**
+**Validates: Requirements 2.3**
 
-Property 8: Session isolation
-*For any* concurrent customer sessions, the system should handle interactions independently without cross-contamination of data
-**Validates: Requirements 3.3**
+### Property 3: Empty query rejection
 
-Property 9: Analytics logging consistency
-*For any* customer interaction that begins, the system should create a timestamped log entry for analytics tracking
-**Validates: Requirements 3.5**
+*For any* string that is empty, null, undefined, or composed entirely of whitespace, the Product Search Lambda must return a 400 error response and not execute a database query.
 
-Property 10: Default language consistency
-*For any* customer interaction, the Agent_Core should respond in English as the default language
-**Validates: Requirements 4.1**
+**Validates: Requirements 2.6**
 
-Property 11: Real-time inventory synchronization
-*For any* inventory level change in the farm system, the Sari_Sari_System should reflect the updated availability immediately
-**Validates: Requirements 5.1**
+### Property 4: Chat Lambda response shape invariant
 
-Property 12: Purchase inventory updates
-*For any* completed customer purchase, the system should immediately decrement inventory counts in the Inventory_Service
-**Validates: Requirements 5.2**
+*For any* valid chat request (with message and organization context), the Chat Lambda response body must contain exactly the fields `response` (string), `products` (array), `conversationHistory` (array), and `sessionId` (string).
 
-Property 13: New product visibility
-*For any* product added to farm inventory, the Agent_Core should include it in available product listings for customers
-**Validates: Requirements 5.3**
+**Validates: Requirements 3.4**
 
-Property 14: Product information consistency
-*For any* product detail modification, the system should reflect changes in all customer-facing information immediately
-**Validates: Requirements 5.4**
+### Property 5: Product field transformation correctness
 
-Property 15: Synchronization error handling
-*For any* inventory synchronization failure, the system should log the error and alert farm management
-**Validates: Requirements 5.5**
+*For any* product object from the action group with `cost_per_unit` and `current_quantity` fields, the Chat Lambda's transformation must produce: `price` equal to `parseFloat(cost_per_unit)`, `stock_level` equal to `current_quantity`, `in_stock` equal to `current_quantity > 0`, and `status_label` equal to `"In stock"` when `current_quantity > 0` or `"Out of stock"` otherwise. All 10 frontend fields (id, name, description, price, stock_level, in_stock, status_label, similarity_score, unit, image_url) must be present.
 
-Property 16: Quantity discount calculation
-*For any* purchase with applicable quantity discounts, the system should automatically calculate and display correct bulk pricing
-**Validates: Requirements 6.2**
+**Validates: Requirements 3.5, 4.3**
 
-Property 17: Seasonal promotion application
-*For any* product with active seasonal promotions, the Price_Calculator should apply appropriate discounts to eligible items
-**Validates: Requirements 6.3**
+### Property 6: Conversation history append and cap
 
-Property 18: Pricing rule propagation
-*For any* pricing rule change, the system should use updated calculations immediately for new customer interactions
-**Validates: Requirements 6.4**
+*For any* incoming conversation history array and a new user message + assistant response pair, the output conversation history must end with the new user message followed by the assistant response, and the total length must not exceed 6 messages.
 
-Property 19: Receipt accuracy
-*For any* processed payment, the system should generate receipts with accurate itemized pricing matching the calculated totals
-**Validates: Requirements 6.5**
+**Validates: Requirements 3.6**
 
-Property 20: Cost monitoring alerts
-*For any* resource usage that approaches budget limits, the system should trigger appropriate cost monitoring alerts
-**Validates: Requirements 7.4**
+### Property 7: Product delimiter extraction and stripping
 
-Property 21: Plugin extensibility
-*For any* new feature developed as a plugin, the Agent_Core should support integration without requiring core system modifications
-**Validates: Requirements 8.1**
+*For any* response string containing a `<!-- PRODUCTS [...] -->` block with valid JSON, the extraction function must return: (1) a `text` field that does not contain the delimiter block, and (2) a `products` array that equals the parsed JSON from inside the delimiter. For any response string without the delimiter, the extraction function must return the original text unchanged and an empty products array.
 
-Property 22: Payment processor modularity
-*For any* new payment method integration, the system should support addition through modular interfaces without core changes
-**Validates: Requirements 8.3**
-
-Property 23: API loose coupling
-*For any* third-party service integration, the system should maintain loose coupling through well-defined API boundaries
-**Validates: Requirements 8.5**
-
-Property 24: Sellability filtering
-*For any* product query from customers, the system should only return items marked as sellable in the inventory
-**Validates: Enhanced inventory requirements**
-
-Property 25: Negotiation bounds
-*For any* price negotiation, the system should never accept offers below the configured minimum price for that product
-**Validates: Enhanced pricing requirements**
-
-Property 26: Personality consistency
-*For any* conversation session, the agent should maintain consistent personality traits throughout the interaction
-**Validates: Enhanced agent personality requirements**
-
-Property 27: Upsell appropriateness
-*For any* upsell suggestion, the system should only recommend products that are contextually relevant to the customer's current cart or interests
-**Validates: Enhanced agent personality requirements**
+**Validates: Requirements 4.2, 4.4, 4.5**
 
 ## Error Handling
 
-### Error Categories and Responses
+### Chat Lambda Error Handling
 
-**System Errors:**
-- Database connectivity issues
-- External service timeouts
-- Memory/resource constraints
+| Condition | Status | Response | Source |
+|---|---|---|---|
+| Missing `message` in request body | 400 | `{ error: "message is required" }` | Input validation |
+| Missing `organization_id` from authorizer | 401 | `{ error: "Unauthorized: No organization context" }` | Auth check |
+| Missing `SARI_SARI_AGENT_ID` or `SARI_SARI_AGENT_ALIAS_ID` | 500 | `{ error: "Agent not configured" }` | Config check |
+| Bedrock `ThrottlingException` | 429 | `{ error: "Store assistant is busy, please try again" }` | Agent invocation |
+| Bedrock `ServiceQuotaExceededException` or 504 | 504 | `{ error: "Store assistant took too long to respond" }` | Agent invocation |
+| Product delimiter JSON parse failure | 200 | Normal response with empty `products` array | Graceful degradation |
+| Any other error | 500 | `{ error: "Internal error communicating with store assistant" }` | Catch-all |
 
-**Business Logic Errors:**
-- Invalid product requests
-- Insufficient inventory
-- Pricing calculation failures
+### Product Search Lambda Error Handling
 
-**User Input Errors:**
-- Malformed queries
-- Unsupported requests
-- Session timeouts
+| Condition | Status | Response | Source |
+|---|---|---|---|
+| Empty/missing `query` parameter | 400 | `{ error: "Missing required parameter: query" }` | Input validation |
+| Missing `organization_id` in session attributes | 400 | `{ error: "Missing organization context in session attributes" }` | Session check |
+| Embedding generation failure | 500 | `{ error: "Failed to generate embedding for the provided query" }` | Bedrock call |
+| Database query failure | 500 | `{ error: "Internal error searching for products" }` | DB query |
 
-### Error Response Strategy
-
-```typescript
-interface ErrorResponse {
-  type: 'system' | 'business' | 'user'
-  code: string
-  message: string
-  suggestions?: string[]
-  fallbackActions?: string[]
-}
-```
-
-**Graceful Degradation:**
-- Cache fallbacks for inventory data
-- Default pricing when calculation fails
-- Generic responses for unrecognized intents
-- Manual assistance escalation paths
+All error responses from both Lambdas include CORS headers (`Access-Control-Allow-Origin: *`, etc.) matching the Maxwell pattern.
 
 ## Testing Strategy
 
-### Dual Testing Approach
+### Unit Tests
 
-The system employs both unit testing and property-based testing to ensure comprehensive coverage:
+Unit tests cover specific examples, edge cases, and error conditions:
 
-**Unit Tests:**
-- Verify specific examples and edge cases
-- Test integration points between components
-- Validate error handling scenarios
-- Ensure API contract compliance
+**Chat Lambda (`sari-sari-agent-chat`):**
+- Missing message returns 400
+- Missing organization_id returns 401
+- Missing agent env vars returns 500
+- ThrottlingException returns 429
+- Session ID generation when not provided
+- Organization_id forwarded in session attributes
+- Response with no products (no delimiter) returns empty array
+- Malformed delimiter JSON degrades gracefully
 
-**Property-Based Tests:**
-- Verify universal properties across all inputs using **fast-check** library
-- Test system behavior with generated data sets
-- Validate business rules under various conditions
-- Ensure correctness properties hold across all scenarios
+**Product Search Lambda (`sari-sari-product-search`):**
+- Empty query returns 400
+- Missing organization_id returns 400
+- Embedding failure returns 500
+- Database error returns 500
+- Instructions text present in successful response
+- Results include all required fields
 
-**Property-Based Testing Configuration:**
-- Minimum 100 iterations per property test
-- Custom generators for business domain objects
-- Shrinking enabled for minimal failing examples
-- Seed-based reproducible test runs
+**Extraction/Transformation utilities:**
+- Delimiter at end of text
+- Delimiter in middle of text
+- Multiple delimiters (only first matched)
+- No delimiter present
+- Empty JSON array in delimiter
+- Product with zero quantity → `in_stock: false`, `status_label: "Out of stock"`
+- Product with positive quantity → `in_stock: true`, `status_label: "In stock"`
+- Null/missing fields handled gracefully
 
-**Testing Framework:**
-- **Vitest** for unit testing
-- **fast-check** for property-based testing
-- **Supertest** for API integration testing
-- **Playwright** for end-to-end UI testing
+### Property-Based Tests
 
-### Cost Monitoring and Optimization
+Property-based tests verify universal properties across randomized inputs. Use `fast-check` as the PBT library for JavaScript/Node.js.
 
-**Real-time Cost Tracking:**
-- CloudWatch custom metrics for service usage
-- DynamoDB and Lambda cost monitoring
-- Bedrock API usage tracking
-- Automated alerts at 80% budget threshold
+Each property test runs a minimum of 100 iterations and is tagged with the design property it validates.
 
-**Optimization Strategies:**
-- Response caching to reduce AI API calls
-- DynamoDB query optimization
-- Lambda cold start minimization
-- Efficient conversation context management
+**Configuration:**
+- Library: `fast-check`
+- Min iterations: 100 per property
+- Tag format: `Feature: sari-sari-agent, Property {N}: {title}`
 
-### Future Extension Points
+**Property tests to implement:**
 
-**Voice Interface Integration:**
-- WebRTC for real-time audio streaming
-- Amazon Transcribe for speech-to-text
-- Amazon Polly for text-to-speech
-- Noise cancellation and audio processing
+1. **Feature: sari-sari-agent, Property 3: Empty query rejection** — Generate arbitrary whitespace-only strings (including empty string) and verify the Lambda returns a 400 response envelope.
 
-**Multilingual Support:**
-- Amazon Translate for real-time translation
-- Language detection and routing
-- Localized product information
-- Cultural adaptation for responses
+2. **Feature: sari-sari-agent, Property 5: Product field transformation correctness** — Generate random product objects with arbitrary `cost_per_unit` (non-negative numbers) and `current_quantity` (non-negative integers), run the transformation function, and verify `price === parseFloat(cost_per_unit)`, `stock_level === current_quantity`, `in_stock === (current_quantity > 0)`, `status_label` correctness, and all 10 fields present.
 
-**Sensor Integration:**
-- IoT device management through AWS IoT Core
-- Real-time presence detection
-- Customer behavior analytics
-- Automated system activation
+3. **Feature: sari-sari-agent, Property 6: Conversation history append and cap** — Generate random conversation history arrays (0-20 messages) and a new message pair, run the history builder, and verify the output ends with the new pair and length ≤ 6.
 
-**Advanced Features:**
-- Computer vision for product recognition
-- Recommendation engine based on purchase history
-- Integration with payment terminals
-- Mobile app companion interface
+4. **Feature: sari-sari-agent, Property 7: Product delimiter extraction and stripping** — Generate random text strings and random product arrays, embed them in the delimiter format, run extraction, and verify the text is clean and products match. Also generate strings without delimiters and verify empty products returned.
 
-This design provides a solid foundation for the initial text-based implementation while maintaining clear extension points for future enhancements, all within the specified budget constraints.
+Properties 1, 2, and 4 require database/agent integration and are better validated through integration tests rather than pure property-based tests. The unit test suite covers their specific examples.

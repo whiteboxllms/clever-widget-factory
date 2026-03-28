@@ -1,0 +1,10 @@
+{
+  "name": "cwf-sari-sari-product-search",
+  "version": "1.0.0",
+  "description": "Bedrock Action Group Lambda for sari-sari store — searches sellable products via semantic similarity",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.0.0",
+    "pg": "^8.11.0"
+  }
+}

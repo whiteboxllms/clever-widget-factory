@@ -41,6 +41,7 @@ interface Part {
   unit: string | null;
   sellable: boolean;
   image_url: string | null;
+  created_at?: string;
 }
 
 export default function SariSariChat() {
@@ -136,10 +137,11 @@ export default function SariSariChat() {
       const welcomeMessage: Message = {
         id: 'welcome-1',
         role: 'agent',
-        content: "Welcome to Stargazer Farm 🌱\nWhat would you like to explore today?",
+        content: "Welcome to ![Stargazer Farm](/stargazer-farm-logo.svg). What brings you here?",
         timestamp: new Date(),
         suggestions: [
-          "Show me available products"
+          "Show me available products",
+          "What's new?"
         ]
       };
       
@@ -276,14 +278,71 @@ export default function SariSariChat() {
     }
   };
 
+  // Convert a Part to the ProductInfo shape used by message cards
+  const partToProductInfo = (part: Part): ProductInfo => ({
+    id: part.id,
+    name: part.name,
+    price: part.cost_per_unit || 0,
+    availability: part.current_quantity > 0 ? 'in-stock' : 'out-of-stock',
+    description: part.description || undefined,
+    unit: part.unit || undefined,
+    current_quantity: part.current_quantity,
+    image_url: part.image_url || undefined,
+  });
+
   const handleSuggestionClick = (suggestion: string) => {
-    setInputMessage(suggestion);
-    // Auto-send if it's a common query
-    if (suggestion === "Show me available products") {
-      setTimeout(() => {
-        sendMessageWithText(suggestion);
-      }, 100);
+    // Quick actions — serve from cache, no API call
+    if (suggestion === "Show me available products" && availableProducts.length > 0) {
+      const inStock = availableProducts.filter(p => p.current_quantity > 0);
+      const userMsg: Message = {
+        id: `user-${Date.now()}`,
+        role: 'user',
+        content: suggestion,
+        timestamp: new Date(),
+      };
+      const agentMsg: Message = {
+        id: `agent-${Date.now()}`,
+        role: 'agent',
+        content: `Here are our ${inStock.length} available products:`,
+        timestamp: new Date(),
+        products: inStock.map(partToProductInfo),
+        suggestions: ["What's new?", "Tell me about a product"],
+      };
+      setMessages(prev => [...prev, userMsg, agentMsg]);
+      return;
     }
+
+    if (suggestion === "What's new?" && availableProducts.length > 0) {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const newProducts = availableProducts.filter(p =>
+        p.current_quantity > 0 && p.created_at && new Date(p.created_at) >= thirtyDaysAgo
+      );
+      const userMsg: Message = {
+        id: `user-${Date.now()}`,
+        role: 'user',
+        content: suggestion,
+        timestamp: new Date(),
+      };
+      const agentMsg: Message = {
+        id: `agent-${Date.now()}`,
+        role: 'agent',
+        content: newProducts.length > 0
+          ? `We have ${newProducts.length} new product${newProducts.length === 1 ? '' : 's'} added this month:`
+          : "No new products added this month, but check out what we have available!",
+        timestamp: new Date(),
+        products: newProducts.length > 0 ? newProducts.map(partToProductInfo) : undefined,
+        suggestions: ["Show me available products", "Tell me about a product"],
+      };
+      setMessages(prev => [...prev, userMsg, agentMsg]);
+      return;
+    }
+
+    // Default: send as a regular message to the agent
+    setInputMessage(suggestion);
+    setTimeout(() => {
+      sendMessageWithText(suggestion);
+    }, 100);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -302,6 +361,42 @@ export default function SariSariChat() {
     }
   };
 
+  // Parse markdown images ![alt](url) and render as <img> tags
+  const renderMessageContent = (text: string) => {
+    const parts: (string | JSX.Element)[] = [];
+    const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+    let lastIndex = 0;
+    let match;
+    let idx = 0;
+
+    while ((match = imageRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+      // If there's text before and after the image on the same line, render inline
+      const before = text.slice(0, match.index);
+      const after = text.slice(match.index + match[0].length);
+      const isInline = (before.length > 0 && !before.endsWith('\n')) || (after.length > 0 && !after.startsWith('\n'));
+
+      parts.push(
+        <img
+          key={`img-${idx++}`}
+          src={match[2]}
+          alt={match[1]}
+          className={isInline ? 'inline-block align-middle h-[2.4em]' : 'max-w-full rounded-lg my-2'}
+          style={isInline ? undefined : { maxHeight: '300px', objectFit: 'contain' as const }}
+        />
+      );
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+
+    return parts.length > 0 ? parts : text;
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -318,8 +413,8 @@ export default function SariSariChat() {
             </Button>
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
-                <Bot className="h-6 w-6 text-green-600" />
-                Stargazer Farm Assistant
+                <img src="/stargazer-farm-logo.svg" alt="Stargazer Farm" className="h-6 w-6" />
+                Stargazer Farm
               </h1>
               <p className="text-sm text-muted-foreground">
                 Chat with our farm assistant to explore organic produce and wines.
@@ -356,7 +451,7 @@ export default function SariSariChat() {
                     {message.role === 'user' ? (
                       <User className="h-4 w-4" />
                     ) : (
-                      <Bot className="h-4 w-4" />
+                      <img src="/stargazer-farm-logo.svg" alt="Stargazer Farm" className="h-5 w-5" />
                     )}
                   </div>
                   <div className="space-y-2">
@@ -368,7 +463,7 @@ export default function SariSariChat() {
                       }`}
                     >
                       <CardContent className="p-3">
-                        <p className="text-sm">{message.content}</p>
+                        <div className="text-sm whitespace-pre-wrap">{renderMessageContent(message.content)}</div>
                         <p className="text-xs opacity-70 mt-1">
                           {message.timestamp.toLocaleTimeString()}
                         </p>
@@ -381,13 +476,18 @@ export default function SariSariChat() {
                         {message.products.map((product) => (
                           <Card key={product.id} className="border overflow-hidden">
                             <CardContent className="p-0">
+                              {/* Product Title */}
+                              <div className="p-3 pb-1">
+                                <h4 className="font-medium text-sm">{product.name}</h4>
+                              </div>
+
                               {/* Product Image */}
                               <div className="w-full h-32 bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center overflow-hidden">
                                 {product.image_url ? (
                                   <img 
                                     src={getThumbnailUrl(product.image_url) || ''}
                                     alt={product.name}
-                                    className="w-full h-full object-cover"
+                                    className="w-full h-full object-contain"
                                   />
                                 ) : (
                                   <div className="text-4xl">🌿</div>
@@ -395,8 +495,7 @@ export default function SariSariChat() {
                               </div>
                               
                               {/* Product Info */}
-                              <div className="p-3">
-                                <h4 className="font-medium text-sm mb-1">{product.name}</h4>
+                              <div className="p-3 pt-2">
                                 <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
                                   {product.description}
                                 </p>
@@ -441,7 +540,7 @@ export default function SariSariChat() {
               <div className="flex justify-start">
                 <div className="flex gap-3">
                   <div className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center">
-                    <Bot className="h-4 w-4" />
+                    <img src="/stargazer-farm-logo.svg" alt="Stargazer Farm" className="h-5 w-5" />
                   </div>
                   <Card className="bg-card">
                     <CardContent className="p-3">

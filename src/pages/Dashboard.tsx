@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,11 +10,9 @@ import { EditableDisplayName } from '@/components/EditableDisplayName';
 import { useOrganization } from '@/hooks/useOrganization';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useQueryClient } from '@tanstack/react-query';
-import { toolsQueryKey, partsOrdersQueryKey } from '@/lib/queryKeys';
-import { apiService, getApiData } from '@/lib/apiService';
 
 export default function Dashboard() {
-  const { user, signOut, isAdmin, isLeadership, idToken } = useAuth();
+  const { user, signOut, isAdmin, isLeadership } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
   const { organization, loading: orgLoading } = useOrganization();
 
@@ -23,7 +20,6 @@ export default function Dashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Use a fallback title immediately, update when org loads
   const appTitle = organization 
     ? `${organization.name} Asset Tracker`
     : "Asset Tracker";
@@ -61,111 +57,6 @@ export default function Dashboard() {
     });
     setTimeout(() => window.location.reload(), 500);
   };
-
-  // Prefetch tools, parts, and parts_orders data in parallel when dashboard loads
-  // Use idToken from useAuth hook (already loaded) to avoid waiting for token fetch
-  useEffect(() => {
-    const prefetchData = async () => {
-      // Only prefetch if data isn't already in cache
-      const cachedTools = queryClient.getQueryData(toolsQueryKey());
-      const cachedParts = queryClient.getQueryData(['parts']);
-      const cachedPartsOrders = queryClient.getQueryData(partsOrdersQueryKey());
-
-      if (cachedTools && cachedParts && cachedPartsOrders) {
-        return; // All data already cached
-      }
-
-      // Use idToken from useAuth hook (already available, no need to fetch)
-      // If not available yet, wait for it (but this should be fast since useAuth loads on mount)
-      let token = idToken;
-      if (!token) {
-        // Fallback: get token if not available from context
-        const { fetchAuthSession } = await import('aws-amplify/auth');
-        const session = await fetchAuthSession({ forceRefresh: false });
-        token = session.tokens?.idToken?.toString() || null;
-      }
-
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-      const baseUrl = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
-      const fetchStart = performance.now();
-
-      // Build array of parallel fetch promises - these start simultaneously
-      const fetchPromises: Promise<any>[] = [];
-      const startTime = performance.now();
-
-      if (!cachedTools) {
-        fetchPromises.push(
-          fetch(`${baseUrl}/api/tools?limit=2000`, { headers })
-            .then(res => {
-              return res.json();
-            })
-            .then(result => {
-              const data = getApiData(result) || [];
-              queryClient.setQueryData(toolsQueryKey(), data);
-              return data;
-            })
-            .catch(err => {
-              console.error('Failed to fetch tools:', err);
-              return null;
-            })
-        );
-      }
-
-      if (!cachedParts) {
-        fetchPromises.push(
-          fetch(`${baseUrl}/api/parts?limit=2000`, { headers })
-            .then(res => {
-              return res.json();
-            })
-            .then(result => {
-              const data = getApiData(result) || [];
-              queryClient.setQueryData(['parts'], data);
-              return data;
-            })
-            .catch(err => {
-              console.error('Failed to fetch parts:', err);
-              return null;
-            })
-        );
-      }
-
-      if (!cachedPartsOrders) {
-        fetchPromises.push(
-          fetch(`${baseUrl}/api/parts_orders`, { headers })
-            .then(res => {
-              return res.json();
-            })
-            .then(result => {
-              const data = getApiData(result) || [];
-              queryClient.setQueryData(partsOrdersQueryKey(), data);
-              return data;
-            })
-            .catch(err => {
-              console.error('Failed to fetch parts_orders:', err);
-              return null;
-            })
-        );
-      }
-
-      // Execute all fetches in parallel - these will start simultaneously
-      // Don't await - let them run in background so dashboard renders immediately
-      if (fetchPromises.length > 0) {
-        // Fire and forget - don't block dashboard rendering
-        Promise.all(fetchPromises).catch(err => {
-          console.error('[Dashboard] Error prefetching data:', err);
-        });
-      }
-    };
-
-    prefetchData();
-  }, [queryClient, idToken]); // Re-run when idToken becomes available
 
   const menuItems = [
     {

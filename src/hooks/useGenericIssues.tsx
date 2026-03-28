@@ -48,6 +48,9 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
       const data = await apiService.get(`/issues?${params}`);
       return (data.data || []) as BaseIssue[];
     },
+    // Don't fetch when a contextType is specified but contextId is missing
+    // (e.g., useToolIssues(null) when a stock item is selected)
+    enabled: !filters.contextType || !!filters.contextId,
     ...offlineQueryConfig,
     staleTime: 5 * 60 * 1000, // 5 minutes - issues don't change frequently
   });

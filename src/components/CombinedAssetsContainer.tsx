@@ -367,9 +367,8 @@ export const CombinedAssetsContainer = () => {
     // Fetch additional data for view dialog if it's an asset
     if (asset.type === 'asset') {
       fetchToolHistory(asset.id);
-      fetchAssetIssues();
     }
-  }, [fetchToolHistory, fetchAssetIssues]);
+  }, [fetchToolHistory]);
 
   const handleEdit = useCallback((asset: CombinedAsset) => {
     setSelectedAssetId(asset.id);
@@ -436,9 +435,6 @@ export const CombinedAssetsContainer = () => {
     setSelectedAssetForDetails(asset);
     if (asset.type === 'asset') {
       fetchToolHistory(asset.id);
-      fetchAssetIssues();
-    } else {
-      fetchStockIssues();
     }
   };
 

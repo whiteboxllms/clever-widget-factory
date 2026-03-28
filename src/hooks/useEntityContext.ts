@@ -1,7 +1,7 @@
 import { useLocation, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/lib/apiService';
-import { actionQueryKey, toolsQueryKey, actionsQueryKey } from '@/lib/queryKeys';
+import { actionQueryKey, toolsQueryKey, actionsQueryKey, completedActionsQueryKey } from '@/lib/queryKeys';
 import { offlineQueryConfig } from '@/lib/queryConfig';
 import { BaseAction } from '@/types/actions';
 
@@ -54,10 +54,11 @@ export function useEntityContext(): EntityContext | null {
     entityId = assetId;
   }
   
-  // Check cache first for action data
-  const cachedActions = queryClient.getQueryData<BaseAction[]>(actionsQueryKey());
+  // Check both caches for action data
+  const cachedUnresolved = queryClient.getQueryData<BaseAction[]>(actionsQueryKey());
+  const cachedCompleted = queryClient.getQueryData<BaseAction[]>(completedActionsQueryKey());
   const cachedAction = entityType === 'action' && entityId 
-    ? cachedActions?.find(a => a.id === entityId) 
+    ? cachedUnresolved?.find(a => a.id === entityId) || cachedCompleted?.find(a => a.id === entityId)
     : undefined;
   
   // Fetch action data only if not in cache

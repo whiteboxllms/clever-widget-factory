@@ -10,6 +10,10 @@ import { EditableDisplayName } from '@/components/EditableDisplayName';
 import { useOrganization } from '@/hooks/useOrganization';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useQueryClient } from '@tanstack/react-query';
+import { actionsQueryKey, toolsQueryKey } from '@/lib/queryKeys';
+import { apiService } from '@/lib/apiService';
+import { offlineQueryConfig } from '@/lib/queryConfig';
+import { useEffect } from 'react';
 
 export default function Dashboard() {
   const { user, signOut, isAdmin, isLeadership } = useAuth();
@@ -19,6 +23,39 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Prefetch high-traffic data so it's warm when user navigates
+  // Gate on user being available to ensure auth token is ready
+  useEffect(() => {
+    if (!user) return;
+    // Actions (unresolved)
+    queryClient.prefetchQuery({
+      queryKey: actionsQueryKey(),
+      queryFn: async () => {
+        const result = await apiService.get('/actions?status=unresolved');
+        return result.data || [];
+      },
+      ...offlineQueryConfig,
+    });
+    // Tools
+    queryClient.prefetchQuery({
+      queryKey: toolsQueryKey(),
+      queryFn: async () => {
+        const result = await apiService.get('/tools?limit=2000');
+        return result.data || [];
+      },
+      ...offlineQueryConfig,
+    });
+    // Parts
+    queryClient.prefetchQuery({
+      queryKey: ['parts'],
+      queryFn: async () => {
+        const result = await apiService.get('/parts?limit=2000');
+        return result.data || [];
+      },
+      ...offlineQueryConfig,
+    });
+  }, [queryClient, user]);
 
   const appTitle = organization 
     ? `${organization.name} Asset Tracker`
@@ -43,6 +80,10 @@ export default function Dashboard() {
   const handleClearCache = async () => {
     // Clear TanStack Query cache
     queryClient.clear();
+    
+    // Clear API service token cache
+    const { clearTokenCache } = await import('@/lib/apiService');
+    clearTokenCache();
     
     // Clear IndexedDB persisted cache
     try {

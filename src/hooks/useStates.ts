@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { stateService } from '../services/stateService';
-import { statesQueryKey, stateQueryKey, actionsQueryKey } from '../lib/queryKeys';
+import { statesQueryKey, stateQueryKey, actionsQueryKey, completedActionsQueryKey } from '../lib/queryKeys';
 import type { CreateObservationData, Observation } from '../types/observations';
 
 export function useStates(filters?: { entity_type?: string; entity_id?: string }) {
@@ -116,6 +116,7 @@ export function useStateMutations(filters?: { entity_type?: string; entity_id?: 
       // because implementation_update_count might change (e.g., photos added/removed)
       if (filters?.entity_type === 'action') {
         queryClient.invalidateQueries({ queryKey: actionsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: completedActionsQueryKey() });
       }
     },
     

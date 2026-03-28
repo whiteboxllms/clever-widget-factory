@@ -18,7 +18,7 @@ import { useActionScores, ActionScore } from '@/hooks/useActionScores';
 import { BaseAction } from '@/types/actions';
 import { useNavigate, useParams } from 'react-router-dom';
 import { apiService } from '@/lib/apiService';
-import { actionsQueryKey, actionQueryKey } from '@/lib/queryKeys';
+import { actionsQueryKey, completedActionsQueryKey, actionQueryKey } from '@/lib/queryKeys';
 import { EntityContext } from '@/hooks/useEntityContext';
 
 // Using unified BaseAction interface from types/actions.ts
@@ -28,8 +28,8 @@ export default function Actions() {
   const navigate = useNavigate();
   const { actionId } = useParams<{ actionId?: string }>();
 
+  const [activeTab, setActiveTab] = useState('unresolved');
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('me');
   const [editingActionId, setEditingActionId] = useState<string | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -37,6 +37,8 @@ export default function Actions() {
   const [showScoreDialog, setShowScoreDialog] = useState(false);
   const [isSemanticSearch, setIsSemanticSearch] = useState(false);
   const [semanticResults, setSemanticResults] = useState<string[]>([]);
+  // Track whether user has ever clicked the completed tab
+  const [completedTabVisited, setCompletedTabVisited] = useState(false);
   
   // Use organization members for consistent "Assigned to" dropdown
   const { members: profiles } = useEnabledMembers();
@@ -45,7 +47,7 @@ export default function Actions() {
   // Helper function to get user color
   const getUserColor = (userId: string) => {
     const profile = profiles.find(p => p.user_id === userId);
-    return profile?.favorite_color || '#6B7280'; // Default gray if no color set
+    return profile?.favorite_color || '#6B7280';
   };
   const [existingScore, setExistingScore] = useState<ActionScore | null>(null);
   const [isMaxwellOpen, setIsMaxwellOpen] = useState(false);
@@ -53,8 +55,13 @@ export default function Actions() {
 
   const { getScoreForAction } = useActionScores();
 
-  const fetchActions = async (): Promise<BaseAction[]> => {
-    const result = await apiService.get('/actions');
+  const fetchUnresolvedActions = async (): Promise<BaseAction[]> => {
+    const result = await apiService.get('/actions?status=unresolved');
+    return result.data || [];
+  };
+
+  const fetchCompletedActions = async (): Promise<BaseAction[]> => {
+    const result = await apiService.get('/actions?status=completed');
     return result.data || [];
   };
 
@@ -66,26 +73,46 @@ export default function Actions() {
 
   const queryClient = useQueryClient();
 
-  // If we have an actionId in URL, check cache first, then fetch only if needed
+  // Unresolved actions - fetched eagerly on mount
+  const { data: unresolvedActions = [], isLoading: unresolvedLoading } = useQuery({
+    queryKey: actionsQueryKey(),
+    queryFn: fetchUnresolvedActions,
+    ...offlineQueryConfig,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+
+  // Completed actions - fetched lazily when tab is clicked
+  const { data: completedActions = [], isLoading: completedLoading } = useQuery({
+    queryKey: completedActionsQueryKey(),
+    queryFn: fetchCompletedActions,
+    enabled: completedTabVisited,
+    ...offlineQueryConfig,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+
+  // If we have an actionId in URL, check both caches first, then fetch only if needed
   const hasActionIdInUrl = !!actionId;
   const targetActionId = actionId || '';
   
-  // Check if action is already in cache (from save mutation or previous fetch)
-  const cachedActionsForLookup = queryClient.getQueryData<BaseAction[]>(actionsQueryKey());
-  const cachedAction = targetActionId ? cachedActionsForLookup?.find(a => a.id === targetActionId) : undefined;
+  const cachedAction = targetActionId 
+    ? unresolvedActions.find(a => a.id === targetActionId) || completedActions.find(a => a.id === targetActionId)
+    : undefined;
   
-  // Only fetch single action if we have an actionId AND it's not in cache
+  // Only fetch single action if we have an actionId AND it's not in either cache
   const { data: singleAction, isLoading: singleActionLoading } = useQuery({
     queryKey: actionQueryKey(targetActionId),
     queryFn: () => fetchSingleAction(targetActionId),
-    enabled: hasActionIdInUrl && !!targetActionId && !cachedAction, // Only fetch if not in cache
+    enabled: hasActionIdInUrl && !!targetActionId && !cachedAction,
     ...offlineQueryConfig,
   });
   
-  // Update the actions list cache when single action is fetched
+  // Update the appropriate cache when single action is fetched
   useEffect(() => {
     if (singleAction) {
-      queryClient.setQueryData<BaseAction[]>(actionsQueryKey(), (old) => {
+      const targetKey = singleAction.status === 'completed' ? completedActionsQueryKey() : actionsQueryKey();
+      queryClient.setQueryData<BaseAction[]>(targetKey, (old) => {
         if (!old) return [singleAction];
         const existingIndex = old.findIndex((a: BaseAction) => a.id === singleAction.id);
         if (existingIndex >= 0) {
@@ -98,62 +125,34 @@ export default function Actions() {
     }
   }, [singleAction, queryClient]);
   
-  // Use cached action if available, otherwise use fetched single action
   const singleActionData = cachedAction || singleAction;
 
-  // Fetch all actions - but NOT when dialog is open (actions are already in cache from initial load/mutations)
-  // Also check if we already have cached data to avoid unnecessary fetches
-  // This prevents the 639KB refetch when clicking edit on an action
-  const hasCachedActionsData = cachedActionsForLookup && cachedActionsForLookup.length > 0;
-  const shouldFetchAllActions = !isEditDialogOpen && !hasCachedActionsData;
-  
-  const { data: actions = [], isLoading: allActionsLoading } = useQuery({
-    queryKey: actionsQueryKey(),
-    queryFn: fetchActions,
-    enabled: shouldFetchAllActions,
-    ...offlineQueryConfig,
-    // Override refetchOnMount to prevent refetch when we have cached data
-    refetchOnMount: !hasCachedActionsData,
-    // Prevent refetch on window focus or reconnect when we have cached data
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-  });
-  
-  // Get cached actions (will be available even when query is disabled)
-  const cachedActionsList = queryClient.getQueryData<BaseAction[]>(actionsQueryKey()) || actions;
-
-  // Combine actions from both sources
-  // Priority: use cached actions (they're up-to-date from mutations), merge single action if needed
+  // Combine all actions for lookups (dialog, maxwell context, etc.)
   const allActions = useMemo(() => {
-    // Use cached actions if available (they're already up-to-date from mutations)
-    const actionsToUse = cachedActionsList && cachedActionsList.length > 0 ? cachedActionsList : actions;
-    
-    // If we have a single action (from URL fetch), merge it with cached actions
+    const combined = [...unresolvedActions, ...completedActions];
+    // Merge single action if it's not in either list
     if (hasActionIdInUrl && singleActionData) {
-      const existingIndex = actionsToUse.findIndex(a => a.id === singleActionData.id);
-      if (existingIndex >= 0) {
-        const updated = [...actionsToUse];
-        updated[existingIndex] = singleActionData;
-        return updated;
+      const exists = combined.some(a => a.id === singleActionData.id);
+      if (!exists) {
+        combined.push(singleActionData);
       }
-      return [...actionsToUse, singleActionData];
     }
-    
-    return actionsToUse;
-  }, [hasActionIdInUrl, singleActionData, actions, cachedActionsList]);
+    return combined;
+  }, [unresolvedActions, completedActions, hasActionIdInUrl, singleActionData]);
 
-  // Loading state: if we have actionId and dialog is open, check if we're loading the single action
-  // But if action is in cache, we're not loading
   const loading = hasActionIdInUrl && isEditDialogOpen 
     ? (!cachedAction && singleActionLoading) 
-    : allActionsLoading;
+    : unresolvedLoading;
 
-  // Removed fetchSpecificAction - now handled by useQuery above
-
-  // Profiles are now handled by useActionProfiles hook for consistency
+  // Handle tab change - trigger completed fetch on first visit
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    if (value === 'completed' && !completedTabVisited) {
+      setCompletedTabVisited(true);
+    }
+  };
 
   const handleEditAction = async (action: BaseAction) => {
-    // Navigate to the action URL to make it shareable and enable FAB
     navigate(`/actions/${action.id}`);
     setEditingActionId(action.id);
     setIsCreating(false);
@@ -173,13 +172,9 @@ export default function Actions() {
   };
 
   const handleScoreAction = async (action: BaseAction, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card click
+    e.stopPropagation();
     setScoringAction(action);
-    
-    // Open dialog immediately
     setShowScoreDialog(true);
-    
-    // Load existing score in parallel (non-blocking)
     if (action.id) {
       getScoreForAction(action.id).then(score => {
         setExistingScore(score);
@@ -191,7 +186,6 @@ export default function Actions() {
     setShowScoreDialog(false);
     setScoringAction(null);
     setExistingScore(null);
-    // No need to invalidate - optimistic update in useActionScores handles it
   };
 
   const handleScoreDialogClose = (open: boolean) => {
@@ -214,8 +208,6 @@ export default function Actions() {
 
     try {
       setIsSemanticSearch(true);
-      
-      // Call unified search API with entity_types filter for actions
       const response = await apiService.post('/semantic-search/unified', {
         query: searchTerm,
         entity_types: ['action', 'action_existing_state'],
@@ -225,7 +217,6 @@ export default function Actions() {
       if (response.data && response.data.results && Array.isArray(response.data.results)) {
         const actionIds = [...new Set(response.data.results.map((r: { entity_id: string }) => r.entity_id))] as string[];
         setSemanticResults(actionIds);
-        
         toast({
           title: "Semantic Search Complete",
           description: `Found ${actionIds.length} relevant actions`,
@@ -251,14 +242,9 @@ export default function Actions() {
     setSemanticResults([]);
   };
 
-
-
   // Handle URL parameters for direct action links
   useEffect(() => {
     const urlActionId = actionId;
-    
-    // If we have an actionId in the URL and the dialog isn't open for it, open it
-    // Guard: only open if editingActionId is null (not mid-close) to prevent reopen race
     if (urlActionId && !isEditDialogOpen && editingActionId === null && !isCreating) {
       setEditingActionId(urlActionId);
       setIsEditDialogOpen(true);
@@ -281,17 +267,16 @@ export default function Actions() {
     }
   }, [profiles, assigneeFilter]);
 
-  const filteredActions = useMemo(() => {
-    let filtered = allActions;
+  // Apply search and assignee filters to a list of actions
+  const applyFilters = (actions: BaseAction[]) => {
+    let filtered = actions;
 
     // Semantic search filter (takes precedence)
     if (isSemanticSearch && semanticResults.length > 0) {
       filtered = filtered.filter(action => semanticResults.includes(action.id));
     } else if (searchTerm) {
-      // Regular text search filter
       const searchLower = searchTerm.toLowerCase();
       filtered = filtered.filter(action => {
-        // Helper function to strip HTML and search
         const stripHtmlAndSearch = (html: string | null | undefined): boolean => {
           if (!html) return false;
           const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -310,22 +295,15 @@ export default function Actions() {
       });
     }
 
-    // Status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(action => action.status === statusFilter);
-    }
-
     // Assignee filter
     if (assigneeFilter !== 'all') {
       if (assigneeFilter === 'unassigned') {
         filtered = filtered.filter(action => !action.assigned_to);
       } else if (assigneeFilter === 'me' && user) {
-        // Find the user's database user_id based on their Cognito user ID
         const currentUserProfile = profiles.find(p => p.cognito_user_id === user.userId);
         if (currentUserProfile) {
           filtered = filtered.filter(action => action.assigned_to === currentUserProfile.user_id);
         } else {
-          // Fallback: check if Cognito user ID matches user_id directly (like Stefan's case)
           filtered = filtered.filter(action => action.assigned_to === user.userId);
         }
       } else {
@@ -334,34 +312,28 @@ export default function Actions() {
     }
 
     return filtered;
-  }, [allActions, searchTerm, statusFilter, assigneeFilter, user?.userId, profiles.length, isSemanticSearch, semanticResults]);
+  };
 
-  // Sort actions: in-progress first, then by updated_at (most recent first)
-  const sortedFilteredActions = [...filteredActions].sort((a, b) => {
-    // First priority: in-progress status
-    if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
-    if (b.status === 'in_progress' && a.status !== 'in_progress') return 1;
-    
-    // Within same status group, sort by updated_at (most recent first)
-    const aUpdated = new Date(a.updated_at).getTime();
-    const bUpdated = new Date(b.updated_at).getTime();
-    return bUpdated - aUpdated;
-  });
+  // Filtered unresolved actions, sorted: in-progress first, then by updated_at
+  const filteredUnresolved = useMemo(() => {
+    return applyFilters(unresolvedActions).sort((a, b) => {
+      if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
+      if (b.status === 'in_progress' && a.status !== 'in_progress') return 1;
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+    });
+  }, [unresolvedActions, searchTerm, assigneeFilter, user?.userId, profiles.length, isSemanticSearch, semanticResults]);
 
-  const unresolved = sortedFilteredActions.filter(a => a.status !== 'completed');
-  const completed = sortedFilteredActions
-    .filter(a => a.status === 'completed')
-    .sort((a, b) => {
-      // Sort completed actions by completion date (most recent first)
+  // Filtered completed actions, sorted by completion date
+  const filteredCompleted = useMemo(() => {
+    return applyFilters(completedActions).sort((a, b) => {
       if (a.completed_at && b.completed_at) {
         return new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime();
       }
-      // If one doesn't have a completion date, prioritize the one that does
       if (a.completed_at && !b.completed_at) return -1;
       if (!a.completed_at && b.completed_at) return 1;
-      // If neither has a completion date, sort by updated_at (fallback)
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
     });
+  }, [completedActions, searchTerm, assigneeFilter, user?.userId, profiles.length, isSemanticSearch, semanticResults]);
   
   // Use active profiles for assignee filter options
   const assigneeOptions = profiles
@@ -411,7 +383,7 @@ export default function Actions() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium flex items-center gap-2">
                 <Search className="h-4 w-4" />
@@ -429,7 +401,6 @@ export default function Actions() {
                     value={searchTerm}
                     onChange={(e) => {
                       setSearchTerm(e.target.value);
-                      // Clear semantic search when user types
                       if (isSemanticSearch) {
                         handleClearSemanticSearch();
                       }
@@ -494,21 +465,6 @@ export default function Actions() {
             </div>
             
             <div className="space-y-2">
-              <label className="text-sm font-medium">Status</label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="not_started">Not Started</SelectItem>
-                  <SelectItem value="in_progress">In Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
               <label className="text-sm font-medium">Assignee</label>
               <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
                 <SelectTrigger>
@@ -531,20 +487,20 @@ export default function Actions() {
       </Card>
 
       {/* Content Tabs */}
-      <Tabs defaultValue="unresolved" className="w-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList>
           <TabsTrigger value="unresolved" className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4" />
-            Unresolved ({unresolved.length})
+            Unresolved ({filteredUnresolved.length})
           </TabsTrigger>
           <TabsTrigger value="completed" className="flex items-center gap-2">
             <CheckCircle className="h-4 w-4" />
-            Completed ({completed.length})
+            Completed {completedTabVisited ? `(${filteredCompleted.length})` : ''}
           </TabsTrigger>
         </TabsList>
         
         <TabsContent value="unresolved" className="space-y-4">
-          {unresolved.length === 0 ? (
+          {filteredUnresolved.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
                 <Bolt className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -554,7 +510,7 @@ export default function Actions() {
             </Card>
           ) : (
             <div className="grid gap-4">
-              {unresolved.map((action, index) => (
+              {filteredUnresolved.map((action, index) => (
                 <ActionListItemCard
                   key={action.id || `unresolved-${index}`}
                   action={action}
@@ -570,7 +526,11 @@ export default function Actions() {
         </TabsContent>
         
         <TabsContent value="completed" className="space-y-4">
-          {completed.length === 0 ? (
+          {completedLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="text-lg text-muted-foreground">Loading completed actions...</div>
+            </div>
+          ) : filteredCompleted.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
                 <CheckCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -580,7 +540,7 @@ export default function Actions() {
             </Card>
           ) : (
             <div className="grid gap-4">
-              {completed.map((action, index) => (
+              {filteredCompleted.map((action, index) => (
                 <ActionListItemCard
                   key={action.id || `completed-${index}`}
                   action={action}

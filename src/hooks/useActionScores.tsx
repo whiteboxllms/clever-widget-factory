@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { apiService } from '@/lib/apiService';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
-import { actionsQueryKey } from '@/lib/queryKeys';
+import { actionsQueryKey, completedActionsQueryKey } from '@/lib/queryKeys';
 import { BaseAction } from '@/types/actions';
 
 export interface ActionScore {
@@ -66,15 +66,17 @@ export const useActionScores = (actionId?: string) => {
     ai_response?: Record<string, any>;
     attributes?: Array<{ attribute_name: string; attribute_values: string[] }>;
   }) => {
-    // Optimistic update: immediately update has_score in cache
-    queryClient.setQueryData<BaseAction[]>(actionsQueryKey(), (old) => {
+    // Optimistic update: immediately update has_score in both caches
+    const updateHasScore = (old: BaseAction[] | undefined, hasScore: boolean) => {
       if (!old) return old;
       return old.map(action => 
         action.id === scoreData.action_id 
-          ? { ...action, has_score: true }
+          ? { ...action, has_score: hasScore }
           : action
       );
-    });
+    };
+    queryClient.setQueryData<BaseAction[]>(actionsQueryKey(), (old) => updateHasScore(old, true));
+    queryClient.setQueryData<BaseAction[]>(completedActionsQueryKey(), (old) => updateHasScore(old, true));
 
     try {
       const response = await apiService.post<{ data: any }>(
@@ -97,14 +99,8 @@ export const useActionScores = (actionId?: string) => {
       return data;
     } catch (error: any) {
       // Rollback optimistic update on error
-      queryClient.setQueryData<BaseAction[]>(actionsQueryKey(), (old) => {
-        if (!old) return old;
-        return old.map(action => 
-          action.id === scoreData.action_id 
-            ? { ...action, has_score: false }
-            : action
-        );
-      });
+      queryClient.setQueryData<BaseAction[]>(actionsQueryKey(), (old) => updateHasScore(old, false));
+      queryClient.setQueryData<BaseAction[]>(completedActionsQueryKey(), (old) => updateHasScore(old, false));
       
       console.error('Error creating action score:', error);
       const errorMsg = error?.response?.data?.error || "Failed to create action score";

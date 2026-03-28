@@ -1,4 +1,6 @@
 export const actionsQueryKey = () => ['actions'];
+export const completedActionsQueryKey = () => ['actions_completed'];
+export const allActionsQueryKey = () => ['actions_all'];
 export const actionQueryKey = (actionId: string) => ['action', actionId];
 export const actionImplementationUpdatesQueryKey = (actionId: string) => ['action_implementation_updates', actionId];
 

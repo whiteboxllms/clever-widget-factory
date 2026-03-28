@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useCognitoAuth';
 import { useStrategicAttributes, CompanyAverage, StrategicAttributeType } from './useStrategicAttributes';
 import { fetchActions, fetchActionScores, fetchOrganizationMembers } from '@/lib/queryFetchers';
 import type { OrganizationMemberSummary } from '@/types/organization';
-import { actionsQueryKey, actionScoresQueryKey, proactiveReactiveQueryKey } from '@/lib/queryKeys';
+import { allActionsQueryKey, actionScoresQueryKey, proactiveReactiveQueryKey } from '@/lib/queryKeys';
 import { offlineQueryConfig } from '@/lib/queryConfig';
 
 export interface EnhancedAttributeAnalytics {
@@ -72,7 +72,7 @@ export function useEnhancedStrategicAttributes(filters: EnhancedAttributeFilters
   });
 
   const actionsQuery = useQuery<ActionRecord[]>({
-    queryKey: actionsQueryKey(),
+    queryKey: allActionsQueryKey(),
     queryFn: async () => (await fetchActions()) as ActionRecord[],
     enabled: Boolean(user?.userId),
     ...offlineQueryConfig,
@@ -192,7 +192,7 @@ export function useEnhancedStrategicAttributes(filters: EnhancedAttributeFilters
     const nextStart = startParam ?? startDate;
     const nextEnd = endParam ?? endDate;
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: actionsQueryKey() }),
+      queryClient.invalidateQueries({ queryKey: allActionsQueryKey() }),
       queryClient.invalidateQueries({ queryKey: actionScoresQueryKey(nextStart, nextEnd) }),
       queryClient.invalidateQueries({ queryKey: proactiveReactiveQueryKey(nextStart, nextEnd) }),
     ]);
@@ -298,10 +298,10 @@ const mapScoredAttributeToStrategic = (orgValue: string): StrategicAttributeType
 const fetchProactiveVsReactiveData = async (queryClient: QueryClient, startDate?: string, endDate?: string) => {
   try {
     // Prefer existing cached actions; only hit the network if absolutely necessary
-    let actionsData = queryClient.getQueryData<ActionSummary[]>(actionsQueryKey());
+    let actionsData = queryClient.getQueryData<ActionSummary[]>(allActionsQueryKey());
     if (!actionsData) {
       actionsData = await queryClient.ensureQueryData<ActionSummary[]>({
-        queryKey: actionsQueryKey(),
+        queryKey: allActionsQueryKey(),
         queryFn: async () => (await fetchActions()) as ActionSummary[],
         staleTime: 60 * 1000,
       });

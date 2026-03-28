@@ -10,7 +10,9 @@ import { fetchAuthSession } from 'aws-amplify/auth';
 import { QueryClient } from '@tanstack/react-query';
 import { 
   toolsQueryKey, 
-  actionsQueryKey, 
+  actionsQueryKey,
+  completedActionsQueryKey,
+  allActionsQueryKey,
   issuesQueryKey,
   missionsQueryKey,
   partsOrdersQueryKey,
@@ -294,6 +296,7 @@ function updateCacheFromResponse(endpoint: string, method: string, responseData:
     }
   } else if (endpoint.includes('/actions')) {
     if (method === 'POST') {
+      // New actions are unresolved by default — add to ['actions'] cache
       if (optimisticId) {
         globalQueryClient.setQueryData(actionsQueryKey(), (old: any[] = []) => 
           old.map(item => item.id === optimisticId ? data : item)
@@ -301,14 +304,47 @@ function updateCacheFromResponse(endpoint: string, method: string, responseData:
       } else {
         globalQueryClient.setQueryData(actionsQueryKey(), (old: any[] = []) => [...old, data]);
       }
+      // Also update ['actions_all'] if it exists
+      globalQueryClient.setQueryData(allActionsQueryKey(), (old: any[] | undefined) => 
+        old ? [...old, data] : undefined
+      );
     } else if (method === 'PUT') {
-      globalQueryClient.setQueryData(actionsQueryKey(), (old: any[] = []) => 
-        old.map(item => item.id === data.id ? data : item)
+      const isCompleted = data.status === 'completed';
+      if (isCompleted) {
+        // Move from unresolved to completed cache
+        globalQueryClient.setQueryData(actionsQueryKey(), (old: any[] = []) => 
+          old.filter(item => item.id !== data.id)
+        );
+        globalQueryClient.setQueryData(completedActionsQueryKey(), (old: any[] | undefined) => {
+          if (!old) return undefined; // Don't create cache if not yet loaded
+          const exists = old.some(item => item.id === data.id);
+          return exists ? old.map(item => item.id === data.id ? data : item) : [data, ...old];
+        });
+      } else {
+        // Update in unresolved cache; if it was previously completed, move it back
+        globalQueryClient.setQueryData(actionsQueryKey(), (old: any[] = []) => {
+          const exists = old.some(item => item.id === data.id);
+          return exists ? old.map(item => item.id === data.id ? data : item) : [...old, data];
+        });
+        globalQueryClient.setQueryData(completedActionsQueryKey(), (old: any[] | undefined) => 
+          old ? old.filter(item => item.id !== data.id) : undefined
+        );
+      }
+      // Also update ['actions_all'] if it exists
+      globalQueryClient.setQueryData(allActionsQueryKey(), (old: any[] | undefined) => 
+        old ? old.map(item => item.id === data.id ? data : item) : undefined
       );
     } else if (method === 'DELETE') {
       const actionId = endpoint.split('/').pop();
+      // Remove from both caches
       globalQueryClient.setQueryData(actionsQueryKey(), (old: any[] = []) => 
         old.filter(item => item.id !== actionId)
+      );
+      globalQueryClient.setQueryData(completedActionsQueryKey(), (old: any[] | undefined) => 
+        old ? old.filter(item => item.id !== actionId) : undefined
+      );
+      globalQueryClient.setQueryData(allActionsQueryKey(), (old: any[] | undefined) => 
+        old ? old.filter(item => item.id !== actionId) : undefined
       );
     }
   } else if (endpoint.includes('/issues')) {

@@ -5,7 +5,7 @@ import { useUserNames } from '@/hooks/useUserNames';
 import { useAssetMutations } from '@/hooks/useAssetMutations';
 import { offlineQueryConfig } from '@/lib/queryConfig';
 import { apiService, getApiData } from '@/lib/apiService';
-import { toolsQueryKey, issuesQueryKey } from '@/lib/queryKeys';
+import { toolsQueryKey } from '@/lib/queryKeys';
 
 export interface CombinedAsset {
   id: string;
@@ -89,22 +89,20 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
     ...offlineQueryConfig,
   });
 
-  // Fetch all active issues for tools and parts to determine has_issues
-  const fetchActiveIssues = async () => {
+  // Fetch only context_ids of active issues for tools and inventory (parts)
+  const fetchAssetIssueFlags = async () => {
     try {
-      const params = new URLSearchParams();
-      params.append('status', 'active');
-      const response = await apiService.get(`/issues?${params}`);
+      const response = await apiService.get('/issues?status=active&context_type=tool,inventory&fields=context_id');
       return getApiData(response) || [];
     } catch (error) {
-      console.error('Error fetching active issues:', error);
+      console.error('Error fetching asset issue flags:', error);
       return [];
     }
   };
 
-  const { data: activeIssues = [], isLoading: issuesLoading } = useQuery({
-    queryKey: issuesQueryKey({ status: 'active' }),
-    queryFn: fetchActiveIssues,
+  const { data: assetIssueFlags = [], isLoading: issuesLoading } = useQuery({
+    queryKey: ['issues_asset_flags'],
+    queryFn: fetchAssetIssueFlags,
     ...offlineQueryConfig,
     staleTime: 5 * 60 * 1000, // 5 minutes - issues don't change frequently
   });
@@ -112,13 +110,13 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
   // Create a Set of asset IDs that have active issues
   const assetsWithIssues = useMemo(() => {
     const set = new Set<string>();
-    activeIssues.forEach((issue: any) => {
-      if (issue.context_id && (issue.context_type === 'tool' || issue.context_type === 'part')) {
-        set.add(issue.context_id);
+    assetIssueFlags.forEach((flag: any) => {
+      if (flag.context_id) {
+        set.add(flag.context_id);
       }
     });
     return set;
-  }, [activeIssues]);
+  }, [assetIssueFlags]);
   
   const loading = toolsLoading || partsLoading || issuesLoading;
   

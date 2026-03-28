@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchActionScores, fetchActions, fetchOrganizationMembers } from '@/lib/queryFetchers';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useCognitoAuth';
-import { actionsQueryKey, actionScoresQueryKey } from '@/lib/queryKeys';
+import { allActionsQueryKey, actionScoresQueryKey } from '@/lib/queryKeys';
 import type { OrganizationMemberSummary } from '@/types/organization';
 import { offlineQueryConfig } from '@/lib/queryConfig';
 
@@ -82,7 +82,7 @@ export function useScoredActions(filters: ScoredActionFilters = {}) {
       // Always check cache first - reuse data from useEnhancedStrategicAttributes if available
       // This prevents duplicate analysis fetches (which is a large data pull)
       const actionScoresKey = actionScoresQueryKey(filters.startDate, filters.endDate);
-      const actionsKey = actionsQueryKey();
+      const actionsKey = allActionsQueryKey();
       
       // getQueryData returns cached data regardless of staleness
       // We prefer using cached data to avoid duplicate network calls

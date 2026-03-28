@@ -6,7 +6,7 @@ export { keepPreviousData };
 // Shared offline-first configuration for all queries
 // Uses immediate render with background fetch pattern
 export const offlineQueryConfig = {
-  staleTime: 15 * 60 * 1000, // 15 minutes
+  staleTime: 24 * 60 * 60 * 1000, // 24 hours - optimistic updates handle own changes, clear cache for others' changes
   gcTime: 7 * 24 * 60 * 60 * 1000, // 7 days
   networkMode: 'offlineFirst' as const, // Use cache when offline
   placeholderData: keepPreviousData,

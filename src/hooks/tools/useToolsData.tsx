@@ -1,8 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import { apiService, getApiData } from '@/lib/apiService';
-import { offlineQueryConfig } from '@/lib/queryConfig';
-import { toolsQueryKey, checkoutsQueryKey } from '@/lib/queryKeys';
+import { toolsQueryKey } from '@/lib/queryKeys';
 
 export interface Tool {
   id: string;
@@ -36,33 +34,15 @@ export interface Tool {
   checkout_notes?: string;
 }
 
-const fetchTools = async () => {
-  const response = await apiService.get<{ data: any[] }>('/tools?limit=1000');
-  return getApiData(response) || [];
-};
-
-const fetchCheckouts = async () => {
-  const response = await apiService.get<{ data: any[] }>('/checkouts?is_returned=false');
-  return getApiData(response) || [];
-};
-
 export const useToolsData = (showRemovedItems: boolean = false) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Use TanStack Query to share cache with other hooks (useOfflineData, useCombinedAssets)
-  // Use shared query key function for consistency across the app
-  const { data: toolsData = [], isLoading: toolsLoading, refetch: refetchTools } = useQuery({
+  // Subscribe to tools cache (populated by useCombinedAssets) without triggering a fetch.
+  // enabled:false prevents any network request; we only read what's already cached.
+  const { data: toolsData = [] } = useQuery<Tool[]>({
     queryKey: toolsQueryKey(),
-    queryFn: fetchTools,
-    ...offlineQueryConfig,
-  });
-
-  // Fetch checkouts separately
-  const { data: checkoutsData = [], isLoading: checkoutsLoading } = useQuery({
-    queryKey: checkoutsQueryKey(false),
-    queryFn: fetchCheckouts,
-    ...offlineQueryConfig,
+    enabled: false,
   });
 
   // Filter out removed items if needed
@@ -71,13 +51,16 @@ export const useToolsData = (showRemovedItems: boolean = false) => {
     tools = toolsData.filter((tool: Tool) => tool.status !== 'removed');
   }
 
-  // Build checkout map
+  // Build checkout map from tool data (checkout fields are included in the tools API response)
+  // No separate /checkouts fetch needed
   const activeCheckouts: {[key: string]: {user_name: string, user_id: string}} = {};
-  checkoutsData.forEach((checkout: any) => {
-    activeCheckouts[checkout.tool_id] = { 
-      user_name: checkout.user_name, 
-      user_id: checkout.user_id 
-    };
+  toolsData.forEach((tool: Tool) => {
+    if (tool.is_checked_out && tool.checked_out_user_id) {
+      activeCheckouts[tool.id] = {
+        user_name: tool.checked_out_to || 'Unknown',
+        user_id: tool.checked_out_user_id
+      };
+    }
   });
 
   const updateTool = async (toolId: string, updates: any) => {
@@ -98,7 +81,7 @@ export const useToolsData = (showRemovedItems: boolean = false) => {
 
   return {
     tools,
-    loading: toolsLoading || checkoutsLoading,
+    loading: false, // Data comes from cache, no loading state
     activeCheckouts,
     fetchTools: invalidateTools, // For backward compatibility
     updateTool,

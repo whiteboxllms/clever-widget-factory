@@ -2,7 +2,7 @@ const { randomUUID } = require('crypto');
 const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
 const { getAuthorizerContext, buildOrganizationFilter, hasPermission, canAccessOrganization } = require('/opt/nodejs/authorizerContext');
 const { composePartEmbeddingSource, composeToolEmbeddingSource, composeIssueEmbeddingSource, composePolicyEmbeddingSource } = require('/opt/nodejs/embedding-composition');
-const { query } = require('/opt/nodejs/db');
+const { getDbClient } = require('/opt/nodejs/db');
 const { escapeLiteral, formatSqlValue, buildUpdateClauses } = require('/opt/nodejs/sqlUtils');
 
 const sqs = new SQSClient({ region: 'us-west-2' });
@@ -10,7 +10,13 @@ const EMBEDDINGS_QUEUE_URL = 'https://sqs.us-west-2.amazonaws.com/131745734428/c
 
 // Helper to execute SQL and return JSON
 async function queryJSON(sql) {
-  return await query(sql);
+  const client = await getDbClient();
+  try {
+    const result = await client.query(sql);
+    return result.rows;
+  } finally {
+    client.release();
+  }
 }
 
 
@@ -760,7 +766,7 @@ exports.handler = async (event) => {
     // Issues collection endpoint
     if (path.endsWith('/issues')) {
       if (httpMethod === 'GET') {
-        const { context_type, context_id, status } = event.queryStringParameters || {};
+        const { context_type, context_id, status, fields } = event.queryStringParameters || {};
         let whereConditions = [];
         
         // Always filter by organization
@@ -768,7 +774,14 @@ exports.handler = async (event) => {
           whereConditions.push(`organization_id::text = '${escapeLiteral(organizationId)}'`);
         }
         
-        if (context_type) whereConditions.push(`context_type = '${context_type}'`);
+        if (context_type) {
+          if (context_type.includes(',')) {
+            const types = context_type.split(',').map(t => `'${t.trim()}'`).join(',');
+            whereConditions.push(`context_type IN (${types})`);
+          } else {
+            whereConditions.push(`context_type = '${context_type}'`);
+          }
+        }
         if (context_id) whereConditions.push(`context_id = '${escapeLiteral(context_id)}'`);
         if (status) {
           if (status.includes(',')) {
@@ -780,8 +793,18 @@ exports.handler = async (event) => {
         }
         const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
         
+        // Support lightweight field selection (e.g., fields=context_id)
+        const allowedFields = ['context_id', 'context_type', 'id', 'status'];
+        let selectClause = '*';
+        if (fields) {
+          const requested = fields.split(',').map(f => f.trim()).filter(f => allowedFields.includes(f));
+          if (requested.length > 0) {
+            selectClause = `DISTINCT ${requested.join(', ')}`;
+          }
+        }
+        
         const sql = `SELECT json_agg(row_to_json(t)) FROM (
-          SELECT * FROM issues ${whereClause} ORDER BY reported_at DESC
+          SELECT ${selectClause} FROM issues ${whereClause} ORDER BY ${selectClause === '*' ? 'reported_at DESC' : '1'}
         ) t;`;
         
         const result = await queryJSON(sql);

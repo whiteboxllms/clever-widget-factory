@@ -7,8 +7,6 @@ import { Card } from "@/components/ui/card";
 import { Search, Plus, X, Package } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
-import { apiService, getApiData } from '@/lib/apiService';
-import { offlineQueryConfig } from '@/lib/queryConfig';
 
 interface StockItem {
   id: string;
@@ -30,23 +28,19 @@ interface StockSelectorProps {
   onStockClick?: (partId: string) => void;
 }
 
-const fetchParts = async () => {
-  const response = await apiService.get<{ data: any[] }>('/parts?limit=1000');
-  return getApiData(response) || [];
-};
-
 export function StockSelector({ selectedStock, onStockChange, onStockClick }: StockSelectorProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
-  // Use TanStack Query to share cache with other hooks (useOfflineData, useCombinedAssets)
-  const { data: allParts = [], isLoading: loading } = useQuery({
+  // Subscribe to parts cache (populated by useCombinedAssets) without triggering a fetch.
+  // enabled:false prevents any network request; we only read what's already cached.
+  const { data: allParts = [] } = useQuery<any[]>({
     queryKey: ['parts'],
-    queryFn: fetchParts,
-    ...offlineQueryConfig,
+    enabled: false,
   });
+  const loading = false;
 
   // Filter parts with current_quantity > 0
   const stockItems: StockItem[] = allParts.filter((part: any) => part.current_quantity > 0);

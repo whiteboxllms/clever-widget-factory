@@ -6,10 +6,12 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Bot, User, ShoppingCart, Loader2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Send, Bot, User, ShoppingCart, Loader2, RefreshCw, ChevronDown, ChevronUp, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiService, getApiData } from '@/lib/apiService';
 import { getThumbnailUrl } from '@/lib/imageUtils';
+import { AssetHistoryDialog } from '@/components/AssetHistoryDialog';
+import { InventoryHistoryDialog } from '@/components/InventoryHistoryDialog';
 
 interface Message {
   id: string;
@@ -53,6 +55,7 @@ export default function SariSariChat() {
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [conversationHistory, setConversationHistory] = useState<any[]>([]);
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Use TanStack Query for sellable products with caching and refresh
@@ -473,12 +476,23 @@ export default function SariSariChat() {
                     {/* Products */}
                     {message.products && message.products.length > 0 && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {message.products.map((product) => (
-                          <Card key={product.id} className="border overflow-hidden">
+                        {message.products.map((product) => {
+                          const isExpanded = expandedCards.has(product.id);
+                          const toggleExpand = () => {
+                            setExpandedCards(prev => {
+                              const next = new Set(prev);
+                              if (next.has(product.id)) next.delete(product.id);
+                              else next.add(product.id);
+                              return next;
+                            });
+                          };
+                          return (
+                          <Card key={product.id} className="border overflow-hidden cursor-pointer" onClick={toggleExpand}>
                             <CardContent className="p-0">
                               {/* Product Title */}
-                              <div className="p-3 pb-1">
+                              <div className="p-3 pb-1 flex justify-between items-center">
                                 <h4 className="font-medium text-sm">{product.name}</h4>
+                                {isExpanded ? <ChevronUp className="h-3 w-3 text-muted-foreground" /> : <ChevronDown className="h-3 w-3 text-muted-foreground" />}
                               </div>
 
                               {/* Product Image */}
@@ -494,24 +508,37 @@ export default function SariSariChat() {
                                 )}
                               </div>
                               
-                              {/* Product Info */}
-                              <div className="p-3 pt-2">
-                                <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
-                                  {product.description}
-                                </p>
+                              {/* Price row — always visible */}
+                              <div className="p-3 pt-2 pb-2">
                                 <div className="flex justify-between items-center">
                                   <span className="text-xs text-muted-foreground">
                                     ₱{product.price.toFixed(2)}{product.unit ? `/${product.unit}` : ''}
                                   </span>
-                                  <Button size="sm" variant="default" className="h-7">
+                                  <Button size="sm" variant="default" className="h-7" onClick={(e) => e.stopPropagation()}>
                                     <ShoppingCart className="h-3 w-3 mr-1" />
                                     Add
                                   </Button>
                                 </div>
                               </div>
+
+                              {/* Expanded section */}
+                              {isExpanded && (
+                                <div className="px-3 pb-3 border-t">
+                                  <p className="text-xs text-muted-foreground mt-2 mb-3">
+                                    {product.description}
+                                  </p>
+                                  <InventoryHistoryDialog partId={product.id} partName={product.name}>
+                                    <Button size="sm" variant="outline" className="w-full h-7 text-xs" onClick={(e) => e.stopPropagation()}>
+                                      <History className="h-3 w-3 mr-1" />
+                                      View History
+                                    </Button>
+                                  </InventoryHistoryDialog>
+                                </div>
+                              )}
                             </CardContent>
                           </Card>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
 

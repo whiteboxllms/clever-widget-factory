@@ -1,0 +1,9 @@
+{
+  "name": "cwf-sari-sari-agent-chat",
+  "version": "1.0.0",
+  "description": "Thin pass-through Lambda for Sari-Sari Agent — forwards chat to Bedrock Agent and returns reply with products",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-bedrock-agent-runtime": "^3.0.0"
+  }
+}

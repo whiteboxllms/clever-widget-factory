@@ -6,10 +6,11 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Bot, User, ShoppingCart, Loader2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Send, User, Loader2, RefreshCw, ChevronDown, ChevronUp, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiService, getApiData } from '@/lib/apiService';
-import { getThumbnailUrl } from '@/lib/imageUtils';
+import { getThumbnailUrl, getImageUrl } from '@/lib/imageUtils';
+import { InventoryHistoryDialog } from '@/components/InventoryHistoryDialog';
 
 interface Message {
   id: string;
@@ -18,6 +19,7 @@ interface Message {
   timestamp: Date;
   suggestions?: string[];
   products?: ProductInfo[];
+  showProductCards?: boolean;
 }
 
 interface ProductInfo {
@@ -41,6 +43,7 @@ interface Part {
   unit: string | null;
   sellable: boolean;
   image_url: string | null;
+  created_at?: string;
 }
 
 export default function SariSariChat() {
@@ -52,6 +55,7 @@ export default function SariSariChat() {
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [conversationHistory, setConversationHistory] = useState<any[]>([]);
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Use TanStack Query for sellable products with caching and refresh
@@ -136,10 +140,11 @@ export default function SariSariChat() {
       const welcomeMessage: Message = {
         id: 'welcome-1',
         role: 'agent',
-        content: "Welcome to Stargazer Farm 🌱\nWhat would you like to explore today?",
+        content: "Welcome to ![Stargazer Farm](/stargazer-farm-logo.svg). What brings you here?",
         timestamp: new Date(),
         suggestions: [
-          "Show me available products"
+          "Show me available products",
+          "What's new?"
         ]
       };
       
@@ -226,7 +231,7 @@ export default function SariSariChat() {
     products?: ProductInfo[];
   }> => {
     console.log('🔍 User query:', message);
-    console.log('🤖 Calling sari-sari chat Lambda with SearchPipeline...');
+    console.log('🤖 Calling sari-sari agent chat Lambda...');
     
     try {
       // Call Lambda - it now uses SearchPipeline for all queries
@@ -265,7 +270,7 @@ export default function SariSariChat() {
       return {
         text: data.response,
         products,
-        suggestions: ["Tell me more", "Show similar items", "Add to cart"]
+        suggestions: ["Tell me more", "Show similar items"]
       };
     } catch (error) {
       console.error('❌ Chat service error:', error);
@@ -276,14 +281,73 @@ export default function SariSariChat() {
     }
   };
 
+  // Convert a Part to the ProductInfo shape used by message cards
+  const partToProductInfo = (part: Part): ProductInfo => ({
+    id: part.id,
+    name: part.name,
+    price: part.cost_per_unit || 0,
+    availability: part.current_quantity > 0 ? 'in-stock' : 'out-of-stock',
+    description: part.description || undefined,
+    unit: part.unit || undefined,
+    current_quantity: part.current_quantity,
+    image_url: part.image_url || undefined,
+  });
+
   const handleSuggestionClick = (suggestion: string) => {
-    setInputMessage(suggestion);
-    // Auto-send if it's a common query
-    if (suggestion === "Show me available products") {
-      setTimeout(() => {
-        sendMessageWithText(suggestion);
-      }, 100);
+    // Quick actions — serve from cache, no API call
+    if (suggestion === "Show me available products" && availableProducts.length > 0) {
+      const inStock = availableProducts.filter(p => p.current_quantity > 0);
+      const userMsg: Message = {
+        id: `user-${Date.now()}`,
+        role: 'user',
+        content: suggestion,
+        timestamp: new Date(),
+      };
+      const agentMsg: Message = {
+        id: `agent-${Date.now()}`,
+        role: 'agent',
+        content: `Here are our ${inStock.length} available products:`,
+        timestamp: new Date(),
+        products: inStock.map(partToProductInfo),
+        showProductCards: true,
+        suggestions: ["What's new?", "Tell me about a product"],
+      };
+      setMessages(prev => [...prev, userMsg, agentMsg]);
+      return;
     }
+
+    if (suggestion === "What's new?" && availableProducts.length > 0) {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const newProducts = availableProducts.filter(p =>
+        p.current_quantity > 0 && p.created_at && new Date(p.created_at) >= thirtyDaysAgo
+      );
+      const userMsg: Message = {
+        id: `user-${Date.now()}`,
+        role: 'user',
+        content: suggestion,
+        timestamp: new Date(),
+      };
+      const agentMsg: Message = {
+        id: `agent-${Date.now()}`,
+        role: 'agent',
+        content: newProducts.length > 0
+          ? `We have ${newProducts.length} new product${newProducts.length === 1 ? '' : 's'} added this month:`
+          : "No new products added this month, but check out what we have available!",
+        timestamp: new Date(),
+        products: newProducts.length > 0 ? newProducts.map(partToProductInfo) : undefined,
+        showProductCards: newProducts.length > 0,
+        suggestions: ["Show me available products", "Tell me about a product"],
+      };
+      setMessages(prev => [...prev, userMsg, agentMsg]);
+      return;
+    }
+
+    // Default: send as a regular message to the agent
+    setInputMessage(suggestion);
+    setTimeout(() => {
+      sendMessageWithText(suggestion);
+    }, 100);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -302,6 +366,82 @@ export default function SariSariChat() {
     }
   };
 
+  // Parse markdown images ![alt](url) and render as <img> tags
+  const renderMessageContent = (text: string) => {
+    const parts: (string | React.ReactElement)[] = [];
+    const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+    let lastIndex = 0;
+    let match;
+    let idx = 0;
+
+    while ((match = imageRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+      // If there's text before and after the image on the same line, render inline
+      const before = text.slice(0, match.index);
+      const after = text.slice(match.index + match[0].length);
+      const isInline = (before.length > 0 && !before.endsWith('\n')) || (after.length > 0 && !after.startsWith('\n'));
+
+      // Resolve relative S3 paths but leave absolute/local paths alone
+      const imgSrc = match[2].startsWith('/') || match[2].startsWith('http')
+        ? match[2]
+        : getThumbnailUrl(match[2]) || getImageUrl(match[2]) || match[2];
+      const fullSrc = match[2].startsWith('/') || match[2].startsWith('http')
+        ? match[2]
+        : getImageUrl(match[2]) || match[2];
+
+      parts.push(
+        <img
+          key={`img-${idx++}`}
+          src={imgSrc}
+          alt={match[1]}
+          onClick={() => { if (imgSrc !== fullSrc) window.open(fullSrc, '_blank'); }}
+          className={isInline ? 'inline-block align-middle h-[2.4em]' : 'max-w-full rounded-lg my-2 cursor-pointer'}
+          style={isInline ? undefined : { maxHeight: '300px', objectFit: 'contain' as const }}
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            if (fullSrc && target.src !== fullSrc) {
+              target.src = fullSrc;
+            }
+          }}
+        />
+      );
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+
+    // Second pass: process **bold** in string segments
+    const finalParts: (string | React.ReactElement)[] = [];
+    const boldRegex = /\*\*(.+?)\*\*/g;
+    for (const part of (parts.length > 0 ? parts : [text])) {
+      if (typeof part !== 'string') {
+        finalParts.push(part);
+        continue;
+      }
+      let boldLastIndex = 0;
+      let boldMatch;
+      while ((boldMatch = boldRegex.exec(part)) !== null) {
+        if (boldMatch.index > boldLastIndex) {
+          finalParts.push(part.slice(boldLastIndex, boldMatch.index));
+        }
+        finalParts.push(
+          <span key={`bold-${idx++}`} className="font-semibold text-base">{boldMatch[1]}</span>
+        );
+        boldLastIndex = boldMatch.index + boldMatch[0].length;
+      }
+      if (boldLastIndex < part.length) {
+        finalParts.push(part.slice(boldLastIndex));
+      }
+      boldRegex.lastIndex = 0;
+    }
+
+    return finalParts.length > 0 ? finalParts : text;
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -318,8 +458,8 @@ export default function SariSariChat() {
             </Button>
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
-                <Bot className="h-6 w-6 text-green-600" />
-                Stargazer Farm Assistant
+                <img src="/stargazer-farm-logo.svg" alt="Stargazer Farm" className="h-6 w-6" />
+                Stargazer Farm
               </h1>
               <p className="text-sm text-muted-foreground">
                 Chat with our farm assistant to explore organic produce and wines.
@@ -350,13 +490,13 @@ export default function SariSariChat() {
                     className={`w-8 h-8 rounded-full flex items-center justify-center ${
                       message.role === 'user'
                         ? 'bg-blue-500 text-white'
-                        : 'bg-green-500 text-white'
+                        : 'bg-white border'
                     }`}
                   >
                     {message.role === 'user' ? (
                       <User className="h-4 w-4" />
                     ) : (
-                      <Bot className="h-4 w-4" />
+                      <img src="/stargazer-farm-logo.svg" alt="Stargazer Farm" className="h-5 w-5" />
                     )}
                   </div>
                   <div className="space-y-2">
@@ -368,51 +508,80 @@ export default function SariSariChat() {
                       }`}
                     >
                       <CardContent className="p-3">
-                        <p className="text-sm">{message.content}</p>
+                        <div className="text-sm whitespace-pre-wrap">{renderMessageContent(message.content)}</div>
                         <p className="text-xs opacity-70 mt-1">
                           {message.timestamp.toLocaleTimeString()}
                         </p>
                       </CardContent>
                     </Card>
 
-                    {/* Products */}
-                    {message.products && message.products.length > 0 && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {/* History buttons for agent responses with inline products */}
+                    {!message.showProductCards && message.products && message.products.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
                         {message.products.map((product) => (
-                          <Card key={product.id} className="border overflow-hidden">
+                          <InventoryHistoryDialog key={product.id} partId={product.id} partName={product.name} observationsOnly>
+                            <Button size="sm" variant="outline" className="h-7 text-xs">
+                              <History className="h-3 w-3 mr-1" />
+                              {product.name} History
+                            </Button>
+                          </InventoryHistoryDialog>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Product cards — only for local shortcut messages */}
+                    {message.showProductCards && message.products && message.products.length > 0 && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {message.products.map((product) => {
+                          const isExpanded = expandedCards.has(product.id);
+                          const toggleExpand = () => {
+                            setExpandedCards(prev => {
+                              const next = new Set(prev);
+                              if (next.has(product.id)) next.delete(product.id);
+                              else next.add(product.id);
+                              return next;
+                            });
+                          };
+                          return (
+                          <Card key={product.id} className="border overflow-hidden cursor-pointer" onClick={toggleExpand}>
                             <CardContent className="p-0">
-                              {/* Product Image */}
+                              <div className="p-3 pb-1 flex justify-between items-center">
+                                <h4 className="font-medium text-sm">{product.name}</h4>
+                                {isExpanded ? <ChevronUp className="h-3 w-3 text-muted-foreground" /> : <ChevronDown className="h-3 w-3 text-muted-foreground" />}
+                              </div>
                               <div className="w-full h-32 bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center overflow-hidden">
                                 {product.image_url ? (
                                   <img 
                                     src={getThumbnailUrl(product.image_url) || ''}
                                     alt={product.name}
-                                    className="w-full h-full object-cover"
+                                    className="w-full h-full object-contain"
                                   />
                                 ) : (
                                   <div className="text-4xl">🌿</div>
                                 )}
                               </div>
-                              
-                              {/* Product Info */}
-                              <div className="p-3">
-                                <h4 className="font-medium text-sm mb-1">{product.name}</h4>
-                                <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
-                                  {product.description}
-                                </p>
-                                <div className="flex justify-between items-center">
-                                  <span className="text-xs text-muted-foreground">
-                                    ₱{product.price.toFixed(2)}{product.unit ? `/${product.unit}` : ''}
-                                  </span>
-                                  <Button size="sm" variant="default" className="h-7">
-                                    <ShoppingCart className="h-3 w-3 mr-1" />
-                                    Add
-                                  </Button>
-                                </div>
+                              <div className="p-3 pt-2 pb-2">
+                                <span className="text-xs text-muted-foreground">
+                                  ₱{product.price.toFixed(2)}{product.unit ? `/${product.unit}` : ''}
+                                </span>
                               </div>
+                              {isExpanded && (
+                                <div className="px-3 pb-3 border-t">
+                                  <p className="text-xs text-muted-foreground mt-2 mb-3">
+                                    {product.description}
+                                  </p>
+                                  <InventoryHistoryDialog partId={product.id} partName={product.name} observationsOnly>
+                                    <Button size="sm" variant="outline" className="w-full h-7 text-xs" onClick={(e) => e.stopPropagation()}>
+                                      <History className="h-3 w-3 mr-1" />
+                                      View History
+                                    </Button>
+                                  </InventoryHistoryDialog>
+                                </div>
+                              )}
                             </CardContent>
                           </Card>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
 
@@ -440,8 +609,8 @@ export default function SariSariChat() {
             {isLoading && (
               <div className="flex justify-start">
                 <div className="flex gap-3">
-                  <div className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center">
-                    <Bot className="h-4 w-4" />
+                  <div className="w-8 h-8 rounded-full bg-white border flex items-center justify-center">
+                    <img src="/stargazer-farm-logo.svg" alt="Stargazer Farm" className="h-5 w-5" />
                   </div>
                   <Card className="bg-card">
                     <CardContent className="p-3">

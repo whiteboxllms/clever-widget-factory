@@ -7,7 +7,8 @@ const {
   composeToolEmbeddingSource,
   composeActionEmbeddingSource,
   composeIssueEmbeddingSource,
-  composePolicyEmbeddingSource
+  composePolicyEmbeddingSource,
+  composeStateEmbeddingSource
 } = require('/opt/nodejs/lib/embedding-composition');
 
 const sqs = new SQSClient({ region: 'us-west-2' });
@@ -45,6 +46,11 @@ const ENTITY_CONFIG = {
   policy: {
     table: 'policy',
     composeFn: composePolicyEmbeddingSource
+  },
+  state: {
+    table: 'states',
+    composeFn: composeStateEmbeddingSource,
+    needsResolution: true
   }
 };
 
@@ -97,25 +103,76 @@ exports.handler = async (event) => {
     const escapedOrgId = organizationId.replace(/'/g, "''");
     const escapedEntityId = entity_id.replace(/'/g, "''");
     
-    // Fetch entity from appropriate table
-    const sql = `
-      SELECT * 
-      FROM ${entityConfig.table}
-      WHERE id = '${escapedEntityId}'
-        AND organization_id = '${escapedOrgId}'
-      LIMIT 1
-    `;
+    let entity;
     
-    console.log(`Fetching entity from ${entityConfig.table}`);
-    const results = await query(sql);
-    
-    if (!results || results.length === 0) {
-      console.log(`Entity not found: ${entity_type} ${entity_id}`);
-      return error(`${entity_type} not found or access denied`, 404);
+    if (entityConfig.needsResolution) {
+      // State entities need pre-resolved data (entity names, photo descriptions, metrics)
+      const resolutionSql = `
+        SELECT
+          s.state_text,
+          COALESCE(
+            array_agg(DISTINCT
+              CASE sl.entity_type
+                WHEN 'part' THEN p.name
+                WHEN 'tool' THEN t.name
+                WHEN 'action' THEN a.description
+              END
+            ) FILTER (WHERE sl.id IS NOT NULL),
+            ARRAY[]::text[]
+          ) AS entity_names,
+          COALESCE(
+            array_agg(DISTINCT sp.photo_description)
+            FILTER (WHERE sp.photo_description IS NOT NULL AND sp.photo_description != ''),
+            ARRAY[]::text[]
+          ) AS photo_descriptions,
+          COALESCE(
+            json_agg(
+              json_build_object('display_name', m.name, 'value', ms.value, 'unit', m.unit)
+            ) FILTER (WHERE ms.snapshot_id IS NOT NULL),
+            '[]'::json
+          ) AS metrics
+        FROM states s
+        LEFT JOIN state_links sl ON sl.state_id = s.id
+        LEFT JOIN parts p ON sl.entity_type = 'part' AND sl.entity_id = p.id
+        LEFT JOIN tools t ON sl.entity_type = 'tool' AND sl.entity_id = t.id
+        LEFT JOIN actions a ON sl.entity_type = 'action' AND sl.entity_id = a.id
+        LEFT JOIN state_photos sp ON sp.state_id = s.id
+        LEFT JOIN metric_snapshots ms ON ms.state_id = s.id
+        LEFT JOIN metrics m ON ms.metric_id = m.metric_id
+        WHERE s.id = '${escapedEntityId}' AND s.organization_id = '${escapedOrgId}'
+      `;
+      
+      console.log(`Resolving state data for ${entity_id}`);
+      const results = await query(resolutionSql);
+      
+      if (!results || results.length === 0 || results[0].state_text === null) {
+        console.log(`Entity not found: ${entity_type} ${entity_id}`);
+        return error(`${entity_type} not found or access denied`, 404);
+      }
+      
+      entity = results[0];
+    } else {
+      // Simple fetch for non-resolution entities
+      const sql = `
+        SELECT * 
+        FROM ${entityConfig.table}
+        WHERE id = '${escapedEntityId}'
+          AND organization_id = '${escapedOrgId}'
+        LIMIT 1
+      `;
+      
+      console.log(`Fetching entity from ${entityConfig.table}`);
+      const results = await query(sql);
+      
+      if (!results || results.length === 0) {
+        console.log(`Entity not found: ${entity_type} ${entity_id}`);
+        return error(`${entity_type} not found or access denied`, 404);
+      }
+      
+      entity = results[0];
     }
     
-    const entity = results[0];
-    console.log(`Found ${entity_type}:`, entity.id);
+    console.log(`Found ${entity_type}:`, entity.id || entity_id);
     
     // Compose embedding_source using entity-specific composition function
     const embeddingSource = entityConfig.composeFn(entity);

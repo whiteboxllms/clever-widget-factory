@@ -74,30 +74,30 @@ function composeToolEmbeddingSource(tool) {
 /**
  * Compose embedding source for an action
  * 
- * Actions include description, state_text (current status), summary_policy_text
- * (lessons learned, best practices), and observations (field notes).
+ * Actions include description, evidence_description (what was done),
+ * policy (lessons learned, best practices), and observations (field notes).
  * 
  * @param {Object} action - Action entity
  * @param {string} [action.description] - Action description
- * @param {string} [action.state_text] - Current state/status
- * @param {string} [action.summary_policy_text] - Lessons learned, best practices
+ * @param {string} [action.evidence_description] - Evidence of what was done
+ * @param {string} [action.policy] - Lessons learned, best practices
  * @param {string} [action.observations] - Field observations
  * @returns {string} - Composed embedding source text
  * 
  * @example
  * composeActionEmbeddingSource({
  *   description: 'Applied compost to banana plants',
- *   state_text: 'Completed',
- *   summary_policy_text: 'Organic matter improves soil structure',
+ *   evidence_description: 'Spread 2 inches of compost around base',
+ *   policy: 'Organic matter improves soil structure',
  *   observations: 'Plants showed improved vigor after 2 weeks'
  * })
- * // Returns: "Applied compost to banana plants. Completed. Organic matter improves soil structure. Plants showed improved vigor after 2 weeks"
+ * // Returns: "Applied compost to banana plants. Spread 2 inches of compost around base. Organic matter improves soil structure. Plants showed improved vigor after 2 weeks"
  */
 function composeActionEmbeddingSource(action) {
   const parts = [
     action.description,
-    action.state_text,
-    action.summary_policy_text,
+    action.evidence_description,
+    action.policy,
     action.observations
   ].filter(Boolean);
   
@@ -159,10 +159,63 @@ function composePolicyEmbeddingSource(policy) {
   return parts.join('. ');
 }
 
+/**
+ * Compose embedding source for a state (observation)
+ * 
+ * States are composed from linked entity names, observation text,
+ * photo descriptions, and metric snapshot values. Unlike other compose
+ * functions that receive entity data directly, this function receives
+ * pre-resolved data: linked entity names (resolved from state_links),
+ * photo descriptions, and metric snapshots with display names and units.
+ * 
+ * @param {Object} state - Pre-resolved state data
+ * @param {string[]} [state.entity_names] - Resolved names from linked entities
+ * @param {string} [state.state_text] - Observation text
+ * @param {string[]} [state.photo_descriptions] - Photo descriptions (nulls pre-filtered)
+ * @param {Array<{display_name: string, value: number, unit?: string}>} [state.metrics] - Metric snapshots
+ * @returns {string} - Composed embedding source text
+ * 
+ * @example
+ * composeStateEmbeddingSource({
+ *   entity_names: ['Banana Plant'],
+ *   state_text: 'Leaves yellowing at tips, possible nutrient deficiency',
+ *   photo_descriptions: ['Close-up of leaf damage'],
+ *   metrics: [{ display_name: 'Girth', value: 45, unit: 'cm' }]
+ * })
+ * // Returns: "Banana Plant. Leaves yellowing at tips, possible nutrient deficiency. Close-up of leaf damage. Girth: 45 cm"
+ */
+function composeStateEmbeddingSource(state) {
+  const parts = [];
+
+  if (state.entity_names && state.entity_names.length > 0) {
+    parts.push(...state.entity_names);
+  }
+
+  if (state.state_text) {
+    parts.push(state.state_text);
+  }
+
+  if (state.photo_descriptions && state.photo_descriptions.length > 0) {
+    parts.push(...state.photo_descriptions);
+  }
+
+  if (state.metrics && state.metrics.length > 0) {
+    for (const m of state.metrics) {
+      const metricStr = m.unit
+        ? `${m.display_name}: ${m.value} ${m.unit}`
+        : `${m.display_name}: ${m.value}`;
+      parts.push(metricStr);
+    }
+  }
+
+  return parts.filter(Boolean).join('. ');
+}
+
 module.exports = {
   composePartEmbeddingSource,
   composeToolEmbeddingSource,
   composeActionEmbeddingSource,
   composeIssueEmbeddingSource,
-  composePolicyEmbeddingSource
+  composePolicyEmbeddingSource,
+  composeStateEmbeddingSource
 };

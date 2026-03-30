@@ -2,195 +2,83 @@
 
 ## Introduction
 
-A self-serve sari sari store interface that enables customers to interact with an AI agent through voice or text to browse products, get information, and complete purchases. The system integrates with existing farm inventory tracking and includes sensor-based customer detection with multilingual support.
+Migrate the sari-sari store chat backend from the custom SearchPipeline Lambda (which uses fragile regex-based JSON extraction from LLM responses) to an AWS Bedrock Agent with an action group Lambda. This follows the same proven pattern used by the Maxwell agent (`maxwell-chat/index.js` + `maxwell-storage-advisor/index.js`). The existing frontend (`SariSariChat.tsx`) remains unchanged — the new chat Lambda must return the exact same response shape so the migration is invisible to the UI.
 
 ## Glossary
 
-- **Sari_Sari_System**: The complete self-serve store interface including agent, sensors, and payment processing
-- **Agent_Core**: The AI conversational component that handles customer interactions and product queries
-- **Bedrock_Agent**: AWS managed AI agent service that orchestrates conversations and tool usage using Claude models
-- **pgvector_Search_Tool**: Lambda-based tool that performs semantic search using PostgreSQL with pgvector extension
-- **Inventory_Service**: The existing farm produce tracking system that manages stock and product information
-- **Sensor_Module**: Future hardware component for detecting customer presence (not implemented in initial version)
-- **Price_Calculator**: Component that computes product pricing based on quantity, promotions, and inventory data
-- **Voice_Interface**: Speech-to-text and text-to-speech capabilities for verbal customer interactions
-- **Language_Service**: Multilingual translation and localization component
-- **Semantic_Search_Service**: Vector-based search system that understands product descriptions and customer queries semantically rather than through exact text matching
-- **BedrockExecutionRole**: IAM role that allows Bedrock Agent to invoke Lambda functions and access required AWS services
-- **CDK_Infrastructure**: AWS Cloud Development Kit templates for deploying Lambda functions, IAM roles, and database resources
+- **Sari_Sari_Agent**: The new AWS Bedrock Agent configured as a friendly store assistant for the Stargazer Farm sari-sari store
+- **Sari_Sari_Chat_Lambda**: The replacement for the current `sari-sari-chat` Lambda; a thin proxy that receives frontend HTTP requests, invokes the Sari_Sari_Agent via `InvokeAgentCommand`, and returns the response in the existing format expected by the frontend
+- **Product_Search_Lambda**: An action group Lambda that the Sari_Sari_Agent invokes to search sellable parts using embedding similarity against the `unified_embeddings` table, following the same pattern as `maxwell-storage-advisor/index.js`
+- **Action_Group**: A Bedrock Agent action group that defines a tool (API) the agent can invoke natively, with structured input/output — eliminating manual JSON parsing
+- **Unified_Embeddings**: The `unified_embeddings` PostgreSQL table storing embedding vectors for cross-entity semantic search
+- **Product**: A sellable part in the inventory (`parts` table where `sellable = true`) with fields: id, name, description, policy, cost_per_unit, unit, current_quantity, image_url
+- **Frontend_Response_Shape**: The JSON structure the existing frontend expects from `POST /api/sari-sari/chat`: `{ response, products, conversationHistory, sessionId }`
 
 ## Requirements
 
-### Requirement 1
+### Requirement 1: Bedrock Agent Configuration
 
-**User Story:** As a customer, I want to interact with the store agent using text, so that I can browse and purchase products without needing staff assistance.
-
-#### Acceptance Criteria
-
-1. WHEN a customer types a message THEN the Agent_Core SHALL process the text input and provide appropriate responses
-2. WHEN the Agent_Core responds THEN the system SHALL display text responses to the customer
-3. WHEN a conversation is initiated THEN the Agent_Core SHALL greet the customer with a welcome message
-4. WHERE voice capabilities are implemented THEN the system SHALL support speech-to-text input processing
-5. WHERE voice capabilities are implemented THEN the system SHALL provide text-to-speech output alongside text display
-
-### Requirement 2
-
-**User Story:** As a customer, I want to ask about available products using natural language, so that I can find items even when I don't know exact product names.
+**User Story:** As a system administrator, I want a dedicated Bedrock Agent for the sari-sari store, so that the store assistant has its own persona and system instructions separate from Maxwell.
 
 #### Acceptance Criteria
 
-1. WHEN a customer uses descriptive language about products THEN the Agent_Core SHALL use semantic search to find relevant items based on meaning rather than exact text matches
-2. WHEN a customer asks about product characteristics THEN the Agent_Core SHALL filter semantic search results using intelligent agent reasoning to return contextually appropriate items
-3. WHEN a customer requests product details THEN the Agent_Core SHALL provide description, origin, freshness, and nutritional information
-4. WHEN a customer asks about pricing THEN the Price_Calculator SHALL compute and display current prices including any applicable discounts
-5. WHEN inventory levels are low THEN the Agent_Core SHALL inform customers of limited availability
-6. WHEN a product is out of stock THEN the Agent_Core SHALL suggest similar available alternatives using semantic similarity
+1. THE Sari_Sari_Agent SHALL be configured as a separate AWS Bedrock Agent with a unique agent ID and alias ID distinct from the Maxwell agent
+2. THE Sari_Sari_Agent SHALL use system instructions that define a friendly, helpful store assistant persona for Stargazer Farm
+3. THE Sari_Sari_Agent SHALL maintain a conversational tone: brief, direct responses (1-2 sentences) with natural product recommendations
+4. THE Sari_Sari_Agent SHALL have one Action_Group named "ProductSearch" that maps to the Product_Search_Lambda
+5. THE Sari_Sari_Agent SHALL read its agent ID and alias ID from environment variables `SARI_SARI_AGENT_ID` and `SARI_SARI_AGENT_ALIAS_ID`
 
-### Requirement 3
+### Requirement 2: Product Search Action Group Lambda
 
-**User Story:** As a customer, I want to easily access the store interface, so that I can begin shopping immediately when I visit.
-
-#### Acceptance Criteria
-
-1. WHEN a customer accesses the store interface THEN the Agent_Core SHALL display a welcome message and enable text interaction
-2. WHEN the interface is idle for 10 minutes THEN the system SHALL display a screensaver while remaining responsive
-3. WHEN multiple customers use the system THEN the system SHALL handle sequential interactions appropriately
-4. WHERE sensor capabilities are implemented THEN the system SHALL support automatic presence detection and activation
-5. WHEN a customer interaction begins THEN the system SHALL log the session timestamp for analytics
-6. WHEN a semantic search is performed THEN the system SHALL log the extracted product search term and search results for analytics and improvement
-
-### Requirement 4
-
-**User Story:** As a customer, I want to interact with the agent in English initially, with the system designed to support multiple languages in the future.
+**User Story:** As the sari-sari agent, I want to search sellable products by semantic similarity, so that I can find relevant products for customer queries.
 
 #### Acceptance Criteria
 
-1. WHEN a customer interacts with the system THEN the Agent_Core SHALL respond in English by default
-2. WHERE multilingual capabilities are implemented THEN the Language_Service SHALL detect customer language and respond appropriately
-3. WHERE multilingual capabilities are implemented THEN customers SHALL be able to specify their preferred language
-4. WHERE multilingual capabilities are implemented THEN the Agent_Core SHALL adapt to language changes seamlessly during conversation
-5. WHERE multilingual capabilities are implemented THEN product information SHALL display in the customer's selected language
+1. WHEN the Sari_Sari_Agent invokes the ProductSearch action group with a search query, THE Product_Search_Lambda SHALL generate an embedding for the query using Titan Text Embeddings v1
+2. WHEN the Product_Search_Lambda receives a search request, THE Product_Search_Lambda SHALL query the `unified_embeddings` table joined with the `parts` table, filtering to `sellable = true` parts within the caller's organization
+3. THE Product_Search_Lambda SHALL return up to 10 products ordered by embedding cosine similarity, each containing: id, name, description, policy, price (cost_per_unit), unit, current_quantity, image_url, and similarity score
+4. THE Product_Search_Lambda SHALL use `parseActionGroupParams` and `buildActionGroupResponse` helper functions following the same pattern as `maxwell-storage-advisor/index.js`
+5. THE Product_Search_Lambda SHALL read `organization_id` from the Bedrock session attributes (forwarded by the Sari_Sari_Chat_Lambda)
+6. IF the search query is empty or missing, THEN THE Product_Search_Lambda SHALL return a 400 error with a descriptive message
+7. IF the organization_id is missing from session attributes, THEN THE Product_Search_Lambda SHALL return a 400 error with a descriptive message
+8. WHEN the Product_Search_Lambda returns results, THE Product_Search_Lambda SHALL include instructions text guiding the agent to present products in a friendly conversational format with prices in Philippine Pesos (₱)
 
-### Requirement 5
+### Requirement 3: Chat Lambda with Backward-Compatible Response Format
 
-**User Story:** As a farm owner, I want the system to integrate with my existing inventory tracking, so that product information and stock levels remain synchronized.
-
-#### Acceptance Criteria
-
-1. WHEN inventory levels change in the farm system THEN the Sari_Sari_System SHALL update product availability in real-time
-2. WHEN a customer purchases items THEN the system SHALL update inventory counts in the Inventory_Service immediately
-3. WHEN new products are added to farm inventory THEN the Agent_Core SHALL include them in available product listings
-4. WHEN product details are modified THEN the system SHALL reflect changes in customer-facing information
-5. WHEN inventory synchronization fails THEN the system SHALL log errors and alert farm management
-
-### Requirement 6
-
-**User Story:** As a farm owner, I want the system to calculate accurate pricing automatically, so that customers receive consistent and fair pricing without manual intervention.
+**User Story:** As a developer, I want the new chat Lambda to return the exact same response shape as the current one, so that the existing frontend works without any changes.
 
 #### Acceptance Criteria
 
-1. WHEN a customer inquires about pricing THEN the Price_Calculator SHALL compute costs based on current market rates and farm pricing rules
-2. WHEN quantity discounts apply THEN the system SHALL automatically calculate and display bulk pricing options
-3. WHEN seasonal promotions are active THEN the Price_Calculator SHALL apply appropriate discounts to eligible products
-4. WHEN pricing rules change THEN the system SHALL update calculations immediately for new customer interactions
-5. WHEN payment is processed THEN the system SHALL generate accurate receipts with itemized pricing
+1. THE Sari_Sari_Chat_Lambda SHALL accept POST requests at the existing `/api/sari-sari/chat` endpoint with a JSON body containing: `message` (required), `sessionId` (optional), and `conversationHistory` (optional array)
+2. WHEN a valid message is received, THE Sari_Sari_Chat_Lambda SHALL invoke the Sari_Sari_Agent using `InvokeAgentCommand` from `@aws-sdk/client-bedrock-agent-runtime`
+3. THE Sari_Sari_Chat_Lambda SHALL forward the caller's `organization_id` (from the Lambda authorizer context) as a session attribute to the Sari_Sari_Agent
+4. THE Sari_Sari_Chat_Lambda SHALL return a JSON response containing exactly these fields: `response` (string — the agent's text reply), `products` (array), `conversationHistory` (array — updated history), and `sessionId` (string)
+5. WHEN the Sari_Sari_Chat_Lambda returns products, each product object SHALL contain: `id`, `name`, `description`, `price`, `stock_level`, `in_stock` (boolean), `status_label`, `similarity_score`, `unit`, and `image_url` — matching the existing Frontend_Response_Shape
+6. THE Sari_Sari_Chat_Lambda SHALL build the `conversationHistory` array by appending the current user message and assistant response to the incoming `conversationHistory`, keeping the last 6 messages (3 exchanges)
+7. THE Sari_Sari_Chat_Lambda SHALL generate a session ID if one is not provided in the request
+8. IF the message field is missing, THEN THE Sari_Sari_Chat_Lambda SHALL return a 400 status with an error message
+9. IF the caller has no organization context, THEN THE Sari_Sari_Chat_Lambda SHALL return a 401 status with an error message
+10. IF the agent ID or alias ID environment variables are not configured, THEN THE Sari_Sari_Chat_Lambda SHALL return a 500 status with an error message
+11. IF a ThrottlingException occurs, THEN THE Sari_Sari_Chat_Lambda SHALL return a 429 status with a user-friendly message
 
-### Requirement 7
+### Requirement 4: Product Data Extraction from Agent Response
 
-**User Story:** As a farm owner, I want to operate the system within a $50/month budget, so that the solution remains economically viable for my small business.
-
-#### Acceptance Criteria
-
-1. WHEN the system is deployed THEN the total monthly operational costs SHALL not exceed $50 including cloud services, AI processing, and data storage
-2. WHEN usage scales with customer volume THEN the cost structure SHALL remain predictable and within budget constraints
-3. WHEN selecting cloud services THEN the system SHALL prioritize cost-effective solutions that meet performance requirements
-4. WHEN monitoring resource usage THEN the system SHALL provide alerts if costs approach budget limits
-5. WHEN optimizing for cost THEN the system SHALL use efficient algorithms and caching to minimize computational expenses
-
-### Requirement 8
-
-**User Story:** As a customer, I want to search for products using natural descriptions like "something hot" or "spicy items", so that I can find products based on characteristics rather than exact names.
+**User Story:** As a developer, I want the chat Lambda to reliably extract structured product data from the Bedrock Agent's response, so that the frontend receives product cards without fragile regex parsing.
 
 #### Acceptance Criteria
 
-1. WHEN a customer asks a question THEN the Agent_Core SHALL identify and extract the product description from the natural language query
-2. WHEN a product description is identified THEN the system SHALL log the extracted search term used for semantic search
-3. WHEN the extracted search term is processed THEN the Semantic_Search_Service SHALL convert it into vector embeddings and search product descriptions semantically
-4. WHEN semantic search returns results THEN the Agent_Core SHALL select the most relevant items and form an appropriate response
-5. WHEN a customer asks for "hot" items THEN the system SHALL return products like "Long neck vinegar spice" and "Spiced vinegar lipid" based on semantic understanding
+1. THE Sari_Sari_Agent system instructions SHALL direct the agent to embed product data in its response using a defined delimiter pattern (e.g., `<!-- PRODUCTS [...] -->`) when presenting products
+2. THE Sari_Sari_Chat_Lambda SHALL parse the agent's response text to extract the product JSON from the delimiter pattern
+3. WHEN product data is extracted, THE Sari_Sari_Chat_Lambda SHALL transform each product into the Frontend_Response_Shape format: mapping `cost_per_unit` to `price`, `current_quantity` to `stock_level`, deriving `in_stock` from `current_quantity > 0`, and deriving `status_label` from stock level
+4. WHEN the agent response contains no product delimiter, THE Sari_Sari_Chat_Lambda SHALL return an empty `products` array
+5. THE Sari_Sari_Chat_Lambda SHALL strip the product delimiter block from the `response` text field so the frontend displays only the conversational reply
 
-### Requirement 10
+### Requirement 5: Elimination of Fragile JSON Parsing
 
-**User Story:** As a customer, I want to express what I don't want using natural language like "I don't like spicy" or "no hot items", so that the system excludes those products from my search results.
-
-#### Acceptance Criteria
-
-1. WHEN a customer uses negation phrases like "don't like", "no", "not", "avoid", or "without" THEN the Agent_Core SHALL identify and extract the negated terms from the query
-2. WHEN negated terms are identified THEN the system SHALL log both the positive search intent and the negation filters for analytics
-3. WHEN performing semantic search with negations THEN the Semantic_Search_Service SHALL filter out products that semantically match the negated characteristics
-4. WHEN a customer says "I don't like spicy" THEN the system SHALL exclude products containing chili, hot sauce, spiced items, and other semantically similar spicy products
-5. WHEN negation filtering is applied THEN the Agent_Core SHALL explain to the customer that spicy items have been excluded from the results
-
-### Requirement 11
-
-**User Story:** As a customer, I want to only see products that are available for purchase, so that I don't waste time looking at items that aren't for sale.
+**User Story:** As a developer, I want the new architecture to eliminate the fragile JSON parsing from LLM text responses in the search pipeline, so that the system is reliable.
 
 #### Acceptance Criteria
 
-1. WHEN performing any product search THEN the Semantic_Search_Service SHALL only return products where the sellable field is true
-2. WHEN a customer browses products THEN the Agent_Core SHALL filter all results to exclude non-sellable items before displaying them
-3. WHEN semantic search queries the database THEN the system SHALL include sellable=true as a mandatory filter condition
-4. WHEN non-sellable products exist in the database THEN they SHALL never appear in customer-facing search results or product listings
-5. WHEN debugging search issues THEN the system SHALL log whether sellability filtering was applied and how many products were excluded
-
-### Requirement 9
-
-**User Story:** As a farm owner, I want the system to be extensible for future enhancements, so that I can add new capabilities as my business grows.
-
-#### Acceptance Criteria
-
-1. WHEN new features are developed THEN the Agent_Core SHALL support plugin-based extensions without core system modifications
-2. WHEN integrating additional sensors THEN the Sensor_Module SHALL accommodate new hardware through standardized interfaces
-3. WHEN adding payment methods THEN the system SHALL support multiple payment processors through modular integration
-4. WHEN expanding to multiple locations THEN the architecture SHALL support distributed deployment with centralized management
-5. WHEN third-party services are integrated THEN the system SHALL maintain loose coupling through well-defined APIs
-
-### Requirement 12
-
-**User Story:** As a farm owner, I want to deploy the system using AWS Bedrock Agent service with a conversational personality, so that customers have engaging dialogs with product suggestions rather than just filtered search results.
-
-#### Acceptance Criteria
-
-1. WHEN the system is deployed THEN the Bedrock_Agent SHALL be configured with Claude 3 Haiku model and a friendly sari-sari store personality
-2. WHEN customers interact with the system THEN the Bedrock_Agent SHALL engage in natural dialog and provide 2-3 personalized product suggestions based on customer queries
-3. WHEN the agent needs to search products THEN the pgvector_Search_Tool SHALL execute semantic searches and the agent SHALL format results as conversational recommendations with reasons
-4. WHEN customers ask vague questions like "something hot" THEN the agent SHALL ask clarifying questions and suggest specific products with descriptions and benefits
-5. WHEN Lambda functions are deployed THEN they SHALL have appropriate IAM roles including BedrockExecutionRole and LambdaBasicExecution permissions
-6. WHEN the agent is configured THEN it SHALL include detailed personality instructions for engaging conversations, product storytelling, and cultural context
-7. WHEN testing the deployment THEN queries like "Noodles under 30 pesos" SHALL return conversational responses with 2-3 specific product suggestions and reasons for each recommendation
-
-### Requirement 13
-
-**User Story:** As a developer, I want to deploy the Bedrock Agent system quickly and reliably, so that I can get the sari-sari store operational within 15 minutes.
-
-#### Acceptance Criteria
-
-1. WHEN deploying infrastructure THEN CDK SHALL deploy Lambda functions and IAM roles in under 5 minutes
-2. WHEN creating the agent THEN the AWS Console SHALL allow agent creation, Lambda tool attachment, and personality configuration in under 5 minutes
-3. WHEN testing functionality THEN queries like "Noodles under 30 pesos" SHALL return conversational responses with 2-3 specific product suggestions in under 2 minutes
-4. WHEN integrating with frontend THEN Amplify SHALL successfully call the Bedrock API and display agent responses in under 3 minutes
-5. WHEN the deployment is complete THEN the entire system SHALL be functional and ready for customer interactions within 15 minutes total
-
-### Requirement 14
-
-**User Story:** As a customer, I want to have engaging conversations with the sari-sari agent that feels personal and helpful, so that I enjoy the shopping experience and discover products I might not have found otherwise.
-
-#### Acceptance Criteria
-
-1. WHEN I ask about products THEN the agent SHALL respond conversationally with personality, not just list search results
-2. WHEN I make vague requests like "something for cooking" THEN the agent SHALL ask follow-up questions to understand my needs better
-3. WHEN the agent suggests products THEN it SHALL provide 2-3 specific recommendations with reasons why each product suits my request
-4. WHEN I ask about price ranges THEN the agent SHALL suggest products within my budget and explain the value proposition of each
-5. WHEN products are unavailable THEN the agent SHALL conversationally suggest alternatives and explain why they're good substitutes
-6. WHEN I negotiate prices THEN the agent SHALL engage in friendly bargaining with personality while respecting business rules
-7. WHEN I seem unsure THEN the agent SHALL offer to tell me more about products, their uses, or suggest complementary items
+1. THE Product_Search_Lambda SHALL return structured data to the Sari_Sari_Agent via the Bedrock Action Group response envelope (`buildActionGroupResponse`), not as free-form text requiring JSON extraction
+2. THE Sari_Sari_Chat_Lambda SHALL NOT use regex-based JSON extraction from LLM-generated text for intent parsing — the current `text.match(/\{[\s\S]*\}/)` pattern used in `sari-sari-chat/index.js` SHALL be eliminated
+3. THE Sari_Sari_Agent SHALL receive product search results as structured tool call responses, replacing the current five-step SearchPipeline (QueryRewriter → FilterMapper → HybridRetriever → ResultFormatter → ResponseGenerator) with a single Bedrock Agent tool invocation

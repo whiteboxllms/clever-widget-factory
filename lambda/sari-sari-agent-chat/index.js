@@ -206,7 +206,6 @@ exports.handler = async (event) => {
         products,
         conversationHistory: updatedHistory,
         sessionId: effectiveSessionId,
-        trace: traceEvents,
       }),
     };
   } catch (err) {

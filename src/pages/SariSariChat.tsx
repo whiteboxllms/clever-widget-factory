@@ -6,11 +6,10 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Bot, User, ShoppingCart, Loader2, RefreshCw, ChevronDown, ChevronUp, History } from 'lucide-react';
+import { ArrowLeft, Send, User, ShoppingCart, Loader2, RefreshCw, ChevronDown, ChevronUp, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiService, getApiData } from '@/lib/apiService';
 import { getThumbnailUrl } from '@/lib/imageUtils';
-import { AssetHistoryDialog } from '@/components/AssetHistoryDialog';
 import { InventoryHistoryDialog } from '@/components/InventoryHistoryDialog';
 
 interface Message {
@@ -366,7 +365,7 @@ export default function SariSariChat() {
 
   // Parse markdown images ![alt](url) and render as <img> tags
   const renderMessageContent = (text: string) => {
-    const parts: (string | JSX.Element)[] = [];
+    const parts: (string | React.ReactElement)[] = [];
     const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
     let lastIndex = 0;
     let match;

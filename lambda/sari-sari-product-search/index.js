@@ -146,7 +146,7 @@ exports.handler = async (event) => {
         : 'No products found matching your search';
 
     const instructions = results.length > 0
-      ? 'Present these products to the customer in a friendly, conversational way. Show prices in Philippine Pesos (₱). If a product has health benefits in its policy field, mention them naturally. Select the 2-3 most relevant products to highlight. Use the <!-- PRODUCTS [...] --> delimiter to embed the product data at the end of your response.'
+      ? 'Present these products to the customer in a friendly, conversational way. Show prices in Philippine Pesos (₱). If a product has health benefits in its policy field, mention them naturally. Select the 2-3 most relevant products to highlight. For each product you mention, place an inline marker <!-- PRODUCT <id> --> right after the product name/price line. Only include markers for products you actually recommend. Example format:\n\nSpiced Vinegar - ₱120 <!-- PRODUCT abc-123 -->\nGreat for adding heat to dishes!\n\nDo NOT use the <!-- PRODUCTS [...] --> array delimiter.'
       : 'No products matched the search. Suggest the customer try different search terms or ask about specific product categories.';
 
     return buildActionGroupResponse(actionGroup, apiPath, httpMethod, 200, {

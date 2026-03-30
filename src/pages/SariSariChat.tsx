@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Send, User, ShoppingCart, Loader2, RefreshCw, ChevronDown, ChevronUp, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiService, getApiData } from '@/lib/apiService';
-import { getThumbnailUrl } from '@/lib/imageUtils';
+import { getThumbnailUrl, getImageUrl } from '@/lib/imageUtils';
 import { InventoryHistoryDialog } from '@/components/InventoryHistoryDialog';
 
 interface Message {
@@ -19,6 +19,7 @@ interface Message {
   timestamp: Date;
   suggestions?: string[];
   products?: ProductInfo[];
+  showProductCards?: boolean;
 }
 
 interface ProductInfo {
@@ -308,6 +309,7 @@ export default function SariSariChat() {
         content: `Here are our ${inStock.length} available products:`,
         timestamp: new Date(),
         products: inStock.map(partToProductInfo),
+        showProductCards: true,
         suggestions: ["What's new?", "Tell me about a product"],
       };
       setMessages(prev => [...prev, userMsg, agentMsg]);
@@ -334,6 +336,7 @@ export default function SariSariChat() {
           : "No new products added this month, but check out what we have available!",
         timestamp: new Date(),
         products: newProducts.length > 0 ? newProducts.map(partToProductInfo) : undefined,
+        showProductCards: newProducts.length > 0,
         suggestions: ["Show me available products", "Tell me about a product"],
       };
       setMessages(prev => [...prev, userMsg, agentMsg]);
@@ -380,13 +383,28 @@ export default function SariSariChat() {
       const after = text.slice(match.index + match[0].length);
       const isInline = (before.length > 0 && !before.endsWith('\n')) || (after.length > 0 && !after.startsWith('\n'));
 
+      // Resolve relative S3 paths but leave absolute/local paths alone
+      const imgSrc = match[2].startsWith('/') || match[2].startsWith('http')
+        ? match[2]
+        : getThumbnailUrl(match[2]) || getImageUrl(match[2]) || match[2];
+      const fullSrc = match[2].startsWith('/') || match[2].startsWith('http')
+        ? match[2]
+        : getImageUrl(match[2]) || match[2];
+
       parts.push(
         <img
           key={`img-${idx++}`}
-          src={match[2]}
+          src={imgSrc}
           alt={match[1]}
-          className={isInline ? 'inline-block align-middle h-[2.4em]' : 'max-w-full rounded-lg my-2'}
+          onClick={() => { if (imgSrc !== fullSrc) window.open(fullSrc, '_blank'); }}
+          className={isInline ? 'inline-block align-middle h-[2.4em]' : 'max-w-full rounded-lg my-2 cursor-pointer'}
           style={isInline ? undefined : { maxHeight: '300px', objectFit: 'contain' as const }}
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            if (fullSrc && target.src !== fullSrc) {
+              target.src = fullSrc;
+            }
+          }}
         />
       );
       lastIndex = match.index + match[0].length;
@@ -447,7 +465,7 @@ export default function SariSariChat() {
                     className={`w-8 h-8 rounded-full flex items-center justify-center ${
                       message.role === 'user'
                         ? 'bg-blue-500 text-white'
-                        : 'bg-green-500 text-white'
+                        : 'bg-white border'
                     }`}
                   >
                     {message.role === 'user' ? (
@@ -472,8 +490,8 @@ export default function SariSariChat() {
                       </CardContent>
                     </Card>
 
-                    {/* Products */}
-                    {message.products && message.products.length > 0 && (
+                    {/* Product cards — only for local shortcut messages */}
+                    {message.showProductCards && message.products && message.products.length > 0 && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         {message.products.map((product) => {
                           const isExpanded = expandedCards.has(product.id);
@@ -488,13 +506,10 @@ export default function SariSariChat() {
                           return (
                           <Card key={product.id} className="border overflow-hidden cursor-pointer" onClick={toggleExpand}>
                             <CardContent className="p-0">
-                              {/* Product Title */}
                               <div className="p-3 pb-1 flex justify-between items-center">
                                 <h4 className="font-medium text-sm">{product.name}</h4>
                                 {isExpanded ? <ChevronUp className="h-3 w-3 text-muted-foreground" /> : <ChevronDown className="h-3 w-3 text-muted-foreground" />}
                               </div>
-
-                              {/* Product Image */}
                               <div className="w-full h-32 bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center overflow-hidden">
                                 {product.image_url ? (
                                   <img 
@@ -506,8 +521,6 @@ export default function SariSariChat() {
                                   <div className="text-4xl">🌿</div>
                                 )}
                               </div>
-                              
-                              {/* Price row — always visible */}
                               <div className="p-3 pt-2 pb-2">
                                 <div className="flex justify-between items-center">
                                   <span className="text-xs text-muted-foreground">
@@ -519,8 +532,6 @@ export default function SariSariChat() {
                                   </Button>
                                 </div>
                               </div>
-
-                              {/* Expanded section */}
                               {isExpanded && (
                                 <div className="px-3 pb-3 border-t">
                                   <p className="text-xs text-muted-foreground mt-2 mb-3">
@@ -565,7 +576,7 @@ export default function SariSariChat() {
             {isLoading && (
               <div className="flex justify-start">
                 <div className="flex gap-3">
-                  <div className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-full bg-white border flex items-center justify-center">
                     <img src="/stargazer-farm-logo.svg" alt="Stargazer Farm" className="h-5 w-5" />
                   </div>
                   <Card className="bg-card">

@@ -23,26 +23,22 @@ const CORS_HEADERS = {
 };
 
 /**
- * Extract product JSON from <!-- PRODUCTS [...] --> delimiter in agent response.
- * Returns { text, products } — graceful degradation on missing/malformed delimiter.
+ * Extract inline <!-- PRODUCT <id> --> markers from agent response.
+ * Returns { text, productIds } — text has markers stripped, productIds is the ordered list of IDs found.
  */
 function extractProducts(responseText) {
-  const delimiterRegex = /<!-- PRODUCTS (\[.*?\]) -->/s;
-  const match = responseText.match(delimiterRegex);
+  const markerRegex = /<!-- PRODUCT\s+([\w-]+)\s*-->/g;
+  const productIds = [];
+  let match;
 
-  if (!match) {
-    return { text: responseText.trim(), products: [] };
+  while ((match = markerRegex.exec(responseText)) !== null) {
+    productIds.push(match[1]);
   }
 
-  const cleanText = responseText.replace(delimiterRegex, '').trim();
+  // Strip markers from displayed text
+  const cleanText = responseText.replace(/\s*<!-- PRODUCT\s+[\w-]+\s*-->/g, '').trim();
 
-  try {
-    const products = JSON.parse(match[1]);
-    return { text: cleanText, products };
-  } catch (e) {
-    console.error('Failed to parse product JSON from delimiter:', e);
-    return { text: cleanText, products: [] };
-  }
+  return { text: cleanText, productIds };
 }
 
 /**
@@ -179,20 +175,30 @@ exports.handler = async (event) => {
     }
 
     console.log('Raw agent response:', fullResponse);
-    console.log('Products delimiter found:', fullResponse.includes('<!-- PRODUCTS'));
+    console.log('Products delimiter found:', fullResponse.includes('<!-- PRODUCT'));
 
-    // --- 2.4 / 2.5: Extract products, transform to frontend shape ---
-    let { text, products: rawProducts } = extractProducts(fullResponse);
+    // --- 2.4 / 2.5: Extract inline product IDs, match against trace data ---
+    const { text, productIds } = extractProducts(fullResponse);
 
-    // Fallback: if no delimiter found, extract products from trace action group output
-    if (rawProducts.length === 0) {
-      rawProducts = extractProductsFromTrace(traceEvents);
-      if (rawProducts.length > 0) {
-        console.log(`Delimiter missing — extracted ${rawProducts.length} products from trace`);
-      }
+    // Build a lookup of all products from the action group trace output
+    const allTraceProducts = extractProductsFromTrace(traceEvents);
+    const productLookup = new Map();
+    for (const p of allTraceProducts) {
+      if (p.id) productLookup.set(p.id, p);
     }
 
-    const products = rawProducts.map(transformProduct);
+    // Only include products the agent actually referenced via inline markers
+    let products;
+    if (productIds.length > 0) {
+      products = productIds
+        .filter(id => productLookup.has(id))
+        .map(id => transformProduct(productLookup.get(id)));
+      console.log(`Matched ${products.length} of ${productIds.length} inline product markers`);
+    } else {
+      // No inline markers found — don't show any product cards
+      products = [];
+      console.log('No inline <!-- PRODUCT id --> markers found in agent response');
+    }
 
     // --- 2.6: Build conversation history ---
     const updatedHistory = buildConversationHistory(conversationHistory, message, text);

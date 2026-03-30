@@ -53,9 +53,10 @@ interface InventoryHistoryDialogProps {
   partId: string;
   partName: string;
   children: React.ReactNode;
+  observationsOnly?: boolean;
 }
 
-export function InventoryHistoryDialog({ partId, partName, children }: InventoryHistoryDialogProps) {
+export function InventoryHistoryDialog({ partId, partName, children, observationsOnly = false }: InventoryHistoryDialogProps) {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [observations, setObservations] = useState<Observation[]>([]);
   const [loading, setLoading] = useState(false);
@@ -227,7 +228,7 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
-          ) : history.length === 0 && observations.length === 0 ? (
+          ) : (history.length === 0 && observations.length === 0) || (observationsOnly && observations.length === 0) ? (
             <div className="text-center py-8 text-muted-foreground">
               No history records found for this item.
             </div>
@@ -322,7 +323,7 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
               )}
 
               {/* Usage History Summary */}
-              {usageEntries.length > 0 && (
+              {!observationsOnly && usageEntries.length > 0 && (
                 <div>
                   <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
                     <Badge variant="secondary" className="bg-orange-100 text-orange-800">
@@ -389,7 +390,7 @@ export function InventoryHistoryDialog({ partId, partName, children }: Inventory
               )}
 
               {/* Other History */}
-              {otherEntries.length > 0 && (
+              {!observationsOnly && otherEntries.length > 0 && (
                 <div>
                   <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
                     <Badge variant="secondary" className="bg-blue-100 text-blue-800">

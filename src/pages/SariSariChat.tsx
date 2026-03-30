@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, User, ShoppingCart, Loader2, RefreshCw, ChevronDown, ChevronUp, History } from 'lucide-react';
+import { ArrowLeft, Send, User, Loader2, RefreshCw, ChevronDown, ChevronUp, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiService, getApiData } from '@/lib/apiService';
 import { getThumbnailUrl, getImageUrl } from '@/lib/imageUtils';
@@ -270,7 +270,7 @@ export default function SariSariChat() {
       return {
         text: data.response,
         products,
-        suggestions: ["Tell me more", "Show similar items", "Add to cart"]
+        suggestions: ["Tell me more", "Show similar items"]
       };
     } catch (error) {
       console.error('❌ Chat service error:', error);
@@ -414,7 +414,32 @@ export default function SariSariChat() {
       parts.push(text.slice(lastIndex));
     }
 
-    return parts.length > 0 ? parts : text;
+    // Second pass: process **bold** in string segments
+    const finalParts: (string | React.ReactElement)[] = [];
+    const boldRegex = /\*\*(.+?)\*\*/g;
+    for (const part of (parts.length > 0 ? parts : [text])) {
+      if (typeof part !== 'string') {
+        finalParts.push(part);
+        continue;
+      }
+      let boldLastIndex = 0;
+      let boldMatch;
+      while ((boldMatch = boldRegex.exec(part)) !== null) {
+        if (boldMatch.index > boldLastIndex) {
+          finalParts.push(part.slice(boldLastIndex, boldMatch.index));
+        }
+        finalParts.push(
+          <span key={`bold-${idx++}`} className="font-semibold text-base">{boldMatch[1]}</span>
+        );
+        boldLastIndex = boldMatch.index + boldMatch[0].length;
+      }
+      if (boldLastIndex < part.length) {
+        finalParts.push(part.slice(boldLastIndex));
+      }
+      boldRegex.lastIndex = 0;
+    }
+
+    return finalParts.length > 0 ? finalParts : text;
   };
 
   return (
@@ -490,6 +515,20 @@ export default function SariSariChat() {
                       </CardContent>
                     </Card>
 
+                    {/* History buttons for agent responses with inline products */}
+                    {!message.showProductCards && message.products && message.products.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {message.products.map((product) => (
+                          <InventoryHistoryDialog key={product.id} partId={product.id} partName={product.name} observationsOnly>
+                            <Button size="sm" variant="outline" className="h-7 text-xs">
+                              <History className="h-3 w-3 mr-1" />
+                              {product.name} History
+                            </Button>
+                          </InventoryHistoryDialog>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Product cards — only for local shortcut messages */}
                     {message.showProductCards && message.products && message.products.length > 0 && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -522,22 +561,16 @@ export default function SariSariChat() {
                                 )}
                               </div>
                               <div className="p-3 pt-2 pb-2">
-                                <div className="flex justify-between items-center">
-                                  <span className="text-xs text-muted-foreground">
-                                    ₱{product.price.toFixed(2)}{product.unit ? `/${product.unit}` : ''}
-                                  </span>
-                                  <Button size="sm" variant="default" className="h-7" onClick={(e) => e.stopPropagation()}>
-                                    <ShoppingCart className="h-3 w-3 mr-1" />
-                                    Add
-                                  </Button>
-                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  ₱{product.price.toFixed(2)}{product.unit ? `/${product.unit}` : ''}
+                                </span>
                               </div>
                               {isExpanded && (
                                 <div className="px-3 pb-3 border-t">
                                   <p className="text-xs text-muted-foreground mt-2 mb-3">
                                     {product.description}
                                   </p>
-                                  <InventoryHistoryDialog partId={product.id} partName={product.name}>
+                                  <InventoryHistoryDialog partId={product.id} partName={product.name} observationsOnly>
                                     <Button size="sm" variant="outline" className="w-full h-7 text-xs" onClick={(e) => e.stopPropagation()}>
                                       <History className="h-3 w-3 mr-1" />
                                       View History

@@ -27,7 +27,7 @@ const CORS_HEADERS = {
  * Returns { text, productIds } — text has markers stripped, productIds is the ordered list of IDs found.
  */
 function extractProducts(responseText) {
-  const markerRegex = /<!-- PRODUCT\s+([\w-]+)\s*-->/g;
+  const markerRegex = /<!--\s*(?:PRODUCT\s+)?([\w-]{36})\s*-->/g;
   const productIds = [];
   let match;
 
@@ -36,7 +36,7 @@ function extractProducts(responseText) {
   }
 
   // Strip markers from displayed text
-  const cleanText = responseText.replace(/\s*<!-- PRODUCT\s+[\w-]+\s*-->/g, '').trim();
+  const cleanText = responseText.replace(/\s*<!--\s*(?:PRODUCT\s+)?[\w-]{36}\s*-->/g, '').trim();
 
   return { text: cleanText, productIds };
 }

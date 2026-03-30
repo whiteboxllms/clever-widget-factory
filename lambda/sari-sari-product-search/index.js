@@ -146,7 +146,7 @@ exports.handler = async (event) => {
         : 'No products found matching your search';
 
     const instructions = results.length > 0
-      ? 'Present these products to the customer in a friendly, conversational way. If a product has health benefits in its policy field, mention them naturally. Select the 2-3 most relevant products to highlight. For each product you mention, use this exact layout:\n\n**Product Name** <!-- PRODUCT id -->\n![Product Name](image_url)\nDescription text here.\n₱Price\n\nAlways bold the product name with ** markers. Put the name FIRST, then the image, then the description, then the price in Philippine Pesos on its own line. The <!-- PRODUCT id --> marker must appear right after the product name on the same line. Only include markers for products you actually recommend.'
+      ? 'Present these products to the customer in a friendly, conversational way. If a product has health benefits in its policy field, mention them naturally. Select the 2-3 most relevant products to highlight. For each product you mention, use this exact layout:\n\n**Product Name** <!-- PRODUCT id -->\n![Product Name](image_url)\nDescription text here. ₱Price\n\nAlways bold the product name with ** markers. Put the name FIRST, then the image, then the description with the price in Philippine Pesos at the end of the same line. The <!-- PRODUCT id --> marker must appear right after the product name on the same line. Only include markers for products you actually recommend.'
       : 'No products matched the search. Suggest the customer try different search terms or ask about specific product categories.';
 
     return buildActionGroupResponse(actionGroup, apiPath, httpMethod, 200, {

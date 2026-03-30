@@ -231,7 +231,7 @@ export default function SariSariChat() {
     products?: ProductInfo[];
   }> => {
     console.log('🔍 User query:', message);
-    console.log('🤖 Calling sari-sari chat Lambda with SearchPipeline...');
+    console.log('🤖 Calling sari-sari agent chat Lambda...');
     
     try {
       // Call Lambda - it now uses SearchPipeline for all queries

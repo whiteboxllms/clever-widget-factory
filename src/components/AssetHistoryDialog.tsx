@@ -600,21 +600,33 @@ export const AssetHistoryDialog = forwardRef<HTMLDivElement, AssetHistoryDialogP
                             </div>
                           )}
                           {entry.photos && entry.photos.length > 0 && (
-                            <div className="space-y-2 mt-2">
+                            <div className="grid grid-cols-2 gap-2 mt-2">
                               {entry.photos.map(photo => (
-                                <div key={photo.id} className="flex items-start gap-2">
-                                  {photo.photo_description && (
-                                    <p className="text-blue-800 flex-1">{photo.photo_description}</p>
-                                  )}
+                                <div key={photo.id} className="relative group">
                                   <a 
-                                    href={getThumbnailUrl(photo.photo_url) || getImageUrl(photo.photo_url) || ''}
+                                    href={getImageUrl(photo.photo_url) || ''}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1 whitespace-nowrap"
+                                    className="block"
                                   >
-                                    View Photo
-                                    <ExternalLink className="h-3 w-3" />
+                                    <img 
+                                      src={getThumbnailUrl(photo.photo_url) || getImageUrl(photo.photo_url) || ''}
+                                      alt={photo.photo_description || 'Observation photo'}
+                                      className="w-full h-32 object-cover rounded border border-blue-200 hover:border-blue-400 transition-colors"
+                                      onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        const fullUrl = getImageUrl(photo.photo_url);
+                                        if (fullUrl && target.src !== fullUrl) {
+                                          target.src = fullUrl;
+                                        }
+                                      }}
+                                    />
                                   </a>
+                                  {photo.photo_description && (
+                                    <p className="text-xs text-blue-700 mt-1">
+                                      {photo.photo_description}
+                                    </p>
+                                  )}
                                 </div>
                               ))}
                             </div>

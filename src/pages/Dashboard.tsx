@@ -2,7 +2,7 @@ import { useAuth } from "@/hooks/useCognitoAuth";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Search, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, BarChart3, Building2, Settings, Bot, RefreshCw } from 'lucide-react';
+import { LogOut, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, BarChart3, Building2, Settings, Bot, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DebugModeToggle } from '@/components/DebugModeToggle';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
@@ -113,13 +113,6 @@ export default function Dashboard() {
       icon: Target,
       path: "/actions",
       color: "bg-yellow-500"
-    },
-    {
-      title: "Explorations",
-      description: "Review and manage exploration data",
-      icon: Search,
-      path: "/explorations",
-      color: "bg-purple-500"
     },
     {
       title: "Stargazer Projects",

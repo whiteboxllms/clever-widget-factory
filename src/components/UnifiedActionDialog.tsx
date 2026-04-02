@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { offlineMutationConfig, offlineQueryConfig } from '@/lib/queryConfig';
 import { format } from "date-fns";
@@ -62,6 +63,7 @@ import { useActionObservationCount } from "@/hooks/useActionObservationCount";
 import { PrismIcon } from "@/components/icons/PrismIcon";
 import { MaxwellInlinePanel } from "@/components/MaxwellInlinePanel";
 import { EntityContext } from "@/hooks/useEntityContext";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 interface UnifiedActionDialogProps {
   open: boolean;
@@ -89,6 +91,7 @@ export function UnifiedActionDialog({
   maxwellContext = null,
 }: UnifiedActionDialogProps) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   
   // Look up action from cache using ID
   const cachedActions = queryClient.getQueryData(['actions']) as BaseAction[] | undefined;
@@ -999,6 +1002,19 @@ export function UnifiedActionDialog({
                 <Flag className="h-4 w-4" />
               </Button>
               {!isCreating && action?.id && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => navigate(`/actions/${action.id}/state-space`)}
+                      className="h-7 w-7 flex items-center justify-center rounded hover:opacity-80 transition-opacity"
+                    >
+                      <img src="/dormant_gundam_state.png" alt="State Space" className="h-7 w-7 rounded" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>State Space</TooltipContent>
+                </Tooltip>
+              )}
+              {!isCreating && action?.id && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -1332,82 +1348,101 @@ export function UnifiedActionDialog({
 
           </Tabs>
 
-          {/* Attachments */}
-          <div>
-            <Label className="text-sm font-medium break-words">Attachments (Images & PDFs)</Label>
-            <div className="mt-1">
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="image/*,.pdf"
-                onChange={handleFileUpload}
-                className="hidden"
-                id="attachmentUpload"
-                disabled={isUploading || isLocalUploading}
-                key={`file-input-${action?.id || 'new'}`}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  fileInputRef.current?.click();
-                }}
-                disabled={isUploading || isLocalUploading}
-                className="w-full"
-              >
-                <Paperclip className="h-4 w-4 mr-2" />
-                {(isUploading || isLocalUploading) ? 'Uploading...' : 'Upload Images & PDFs'}
-              </Button>
-            </div>
-            
-            {/* Display uploaded attachments */}
-            {(formData.attachments || []).length > 0 && (
-              <div className="mt-3 space-y-2">
-                <p className="text-sm text-muted-foreground">Uploaded attachments:</p>
-                <div className="flex flex-wrap gap-2">
-                  {(formData.attachments || []).map((url, index) => {
-                    const isPdf = url.toLowerCase().endsWith('.pdf');
-                    const fullUrl = url.startsWith('http') ? url : `https://cwf-dev-assets.s3.us-west-2.amazonaws.com/${url}`;
-                    
-                    // Use local File object if available (just uploaded), otherwise fetch from S3
-                    const file = attachmentFiles.get(url);
-                    const thumbnailUrl = getThumbnailUrl(url);
-                    const displayUrl = file ? URL.createObjectURL(file) : (thumbnailUrl || fullUrl);
-                    
-                    return (
-                      <div key={index} className="relative">
-                        {isPdf ? (
-                          <div
-                            className="h-16 w-16 flex items-center justify-center bg-muted rounded border cursor-pointer hover:bg-muted/80"
-                            onClick={() => window.open(fullUrl, '_blank')}
+          {/* Attachments + State Space */}
+          <div className="flex gap-4">
+            <div className={!isCreating && action?.id ? "flex-1" : "w-full"}>
+              <Label className="text-sm font-medium break-words">Attachments (Images & PDFs)</Label>
+              <div className="mt-1">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  id="attachmentUpload"
+                  disabled={isUploading || isLocalUploading}
+                  key={`file-input-${action?.id || 'new'}`}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    fileInputRef.current?.click();
+                  }}
+                  disabled={isUploading || isLocalUploading}
+                  className="w-full"
+                >
+                  <Paperclip className="h-4 w-4 mr-2" />
+                  {(isUploading || isLocalUploading) ? 'Uploading...' : 'Upload Images & PDFs'}
+                </Button>
+              </div>
+              
+              {/* Display uploaded attachments */}
+              {(formData.attachments || []).length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-sm text-muted-foreground">Uploaded attachments:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(formData.attachments || []).map((url, index) => {
+                      const isPdf = url.toLowerCase().endsWith('.pdf');
+                      const fullUrl = url.startsWith('http') ? url : `https://cwf-dev-assets.s3.us-west-2.amazonaws.com/${url}`;
+                      
+                      // Use local File object if available (just uploaded), otherwise fetch from S3
+                      const file = attachmentFiles.get(url);
+                      const thumbnailUrl = getThumbnailUrl(url);
+                      const displayUrl = file ? URL.createObjectURL(file) : (thumbnailUrl || fullUrl);
+                      
+                      return (
+                        <div key={index} className="relative">
+                          {isPdf ? (
+                            <div
+                              className="h-16 w-16 flex items-center justify-center bg-muted rounded border cursor-pointer hover:bg-muted/80"
+                              onClick={() => window.open(fullUrl, '_blank')}
+                            >
+                              <svg className="h-8 w-8 text-destructive" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                          ) : (
+                            <img
+                              src={displayUrl}
+                              alt={`Attachment ${index + 1}`}
+                              className="h-16 w-16 object-cover rounded border cursor-pointer"
+                              onClick={() => window.open(fullUrl, '_blank')}
+                            />
+                          )}
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => removeAttachment(index)}
+                            className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0"
                           >
-                            <svg className="h-8 w-8 text-destructive" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                            </svg>
-                          </div>
-                        ) : (
-                          <img
-                            src={displayUrl}
-                            alt={`Attachment ${index + 1}`}
-                            className="h-16 w-16 object-cover rounded border cursor-pointer"
-                            onClick={() => window.open(fullUrl, '_blank')}
-                          />
-                        )}
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => removeAttachment(index)}
-                          className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0"
-                        >
-                          ×
-                        </Button>
-                      </div>
-                    );
-                  })}
+                            ×
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
+              )}
+            </div>
+
+            {/* State Space gundam button — only for existing actions */}
+            {!isCreating && action?.id && (
+              <div className="flex-1 flex flex-col items-center justify-center">
+                <Label className="text-sm font-medium mb-1">Join Mission</Label>
+                <button
+                  onClick={() => navigate(`/actions/${action.id}/state-space`)}
+                  className="hover:opacity-80 transition-opacity"
+                >
+                  <img
+                    src="/dormant_gundam_state.png"
+                    alt="State Space"
+                    className="w-3/4 rounded-lg border object-contain transition-transform duration-200 hover:scale-110"
+                  />
+                </button>
               </div>
             )}
           </div>

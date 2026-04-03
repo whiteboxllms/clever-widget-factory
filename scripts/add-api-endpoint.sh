@@ -116,14 +116,16 @@ fi
 # Add Lambda permission (skip for OPTIONS since it uses MOCK)
 if [ "$METHOD" != "OPTIONS" ]; then
   echo "Adding Lambda permission..."
-  METHOD_LOWER=$(echo "$METHOD" | tr '[:upper:]' '[:lower:]')
-  STATEMENT_ID="apigateway-$(echo $PATH_ARG | tr '/' '-' | sed 's/^-//')-${METHOD_LOWER}"
+  
+  # Add a broad wildcard permission so API Gateway can invoke this Lambda for any route.
+  # Per-method permissions with path parameters ({id}) can fail silently, so this is the safety net.
+  BROAD_STATEMENT_ID="apigateway-invoke-all"
   aws lambda add-permission \
     --function-name $LAMBDA_FUNCTION \
-    --statement-id $STATEMENT_ID \
+    --statement-id $BROAD_STATEMENT_ID \
     --action lambda:InvokeFunction \
     --principal apigateway.amazonaws.com \
-    --source-arn "arn:aws:execute-api:$REGION:*:$API_ID/*/$METHOD$PATH_ARG" \
+    --source-arn "arn:aws:execute-api:$REGION:*:$API_ID/*" \
     --region $REGION 2>/dev/null || echo "Permission already exists"
 fi
 

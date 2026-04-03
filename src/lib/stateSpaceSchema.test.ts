@@ -1,173 +1,187 @@
 import { describe, it, expect } from 'vitest';
-import { validateDimensions, validateStateSpaceJson, StateSpaceModel } from './stateSpaceSchema';
+import {
+  validateStateSpaceJson,
+  validateCrossReferences,
+  validateExpressions,
+  NonlinearModel,
+} from './stateSpaceSchema';
 
-/** Helper to build a minimal valid StateSpaceModel with given dimensions */
-function makeModel(
-  n: number,
-  m: number,
-  p: number,
-  overrides?: {
-    A?: number[][];
-    B?: number[][];
-    C?: number[][];
-    D?: number[][];
-    stateLabels?: string[];
-    inputLabels?: string[];
-    outputLabels?: string[];
-  }
-): StateSpaceModel {
-  const zeros = (rows: number, cols: number) =>
-    Array.from({ length: rows }, () => Array(cols).fill(0));
-  const labels = (prefix: string, count: number) =>
-    Array.from({ length: count }, (_, i) => `${prefix}${i}`);
-
+/** Minimal valid NonlinearModel for testing */
+function makeNonlinearModel(
+  overrides?: Partial<NonlinearModel>
+): NonlinearModel {
   return {
     model_metadata: {
-      model_id: 'test',
-      version: '1.0',
-      author: 'test',
-      description: 'test',
+      name: 'test-model',
+      version: '1.0.0',
+      author: 'tester',
+      description: 'A minimal test model',
     },
-    state_space: {
-      dimensions: { states: n, inputs: m, outputs: p },
-      labels: {
-        states: overrides?.stateLabels ?? labels('s', n),
-        inputs: overrides?.inputLabels ?? labels('u', m),
-        outputs: overrides?.outputLabels ?? labels('y', p),
-      },
-      matrices: {
-        A: overrides?.A ?? zeros(n, n),
-        B: overrides?.B ?? zeros(n, m),
-        C: overrides?.C ?? zeros(p, n),
-        D: overrides?.D ?? zeros(p, m),
-      },
+    model_description_prompt: 'Minimal two-state test model.',
+    constants: {
+      k1: { value: 0.5, name: 'Rate constant', unit: '1/hr' },
     },
-    model_description_prompt: 'Test model description prompt',
+    state_definitions: {
+      x1: { id: 'temp', name: 'Temperature', unit: '°C', default_value: 30 },
+      x2: { id: 'mass', name: 'Mass', unit: 'kg', default_value: 10 },
+    },
+    input_vectors: {
+      u_actuators: { u_fan: 'Fan duty cycle [0,1]' },
+      v_shocks: { delta_x: 'Correction vector' },
+    },
+    non_linear_transitions: {
+      rate: 'k1 * x1',
+    },
+    state_update_equations: {
+      x1_next: 'x1 + rate * dt',
+      x2_next: 'x2 - k1 * dt',
+    },
+    simulation_config: {
+      dt: 1,
+      total_days: 1,
+    },
+    ...overrides,
   };
 }
 
-describe('validateDimensions', () => {
-  it('returns empty array for a correctly dimensioned model', () => {
-    const model = makeModel(3, 2, 2);
-    expect(validateDimensions(model)).toEqual([]);
-  });
-
-  it('returns empty array for minimal 1×1 model', () => {
-    const model = makeModel(1, 1, 1);
-    expect(validateDimensions(model)).toEqual([]);
-  });
-
-  // Req 5.1: Matrix A must be n×n
-  it('detects wrong column count in Matrix A', () => {
-    const model = makeModel(4, 2, 2, {
-      A: Array.from({ length: 4 }, () => [0, 0, 0]), // 4×3 instead of 4×4
-    });
-    const errors = validateDimensions(model);
-    expect(errors.some((e) => e.includes('Matrix A') && e.includes('4×4') && e.includes('4×3'))).toBe(true);
-  });
-
-  it('detects wrong row count in Matrix A', () => {
-    const model = makeModel(4, 2, 2, {
-      A: Array.from({ length: 3 }, () => [0, 0, 0, 0]), // 3×4 instead of 4×4
-    });
-    const errors = validateDimensions(model);
-    expect(errors.some((e) => e.includes('Matrix A') && e.includes('4×4') && e.includes('3×4'))).toBe(true);
-  });
-
-  // Req 5.2: Matrix B must be n×m
-  it('detects wrong dimensions in Matrix B', () => {
-    const model = makeModel(3, 2, 2, {
-      B: Array.from({ length: 3 }, () => [0, 0, 0]), // 3×3 instead of 3×2
-    });
-    const errors = validateDimensions(model);
-    expect(errors.some((e) => e.includes('Matrix B') && e.includes('3×2') && e.includes('3×3'))).toBe(true);
-  });
-
-  // Req 5.3: Matrix C must be p×n
-  it('detects wrong dimensions in Matrix C', () => {
-    const model = makeModel(3, 2, 2, {
-      C: Array.from({ length: 2 }, () => [0, 0]), // 2×2 instead of 2×3
-    });
-    const errors = validateDimensions(model);
-    expect(errors.some((e) => e.includes('Matrix C') && e.includes('2×3') && e.includes('2×2'))).toBe(true);
-  });
-
-  // Req 5.4: Matrix D must be p×m
-  it('detects wrong dimensions in Matrix D', () => {
-    const model = makeModel(3, 2, 2, {
-      D: [[0], [0]], // 2×1 instead of 2×2
-    });
-    const errors = validateDimensions(model);
-    expect(errors.some((e) => e.includes('Matrix D') && e.includes('2×2') && e.includes('2×1'))).toBe(true);
-  });
-
-  // Req 5.5, 5.6, 5.7: Label array lengths
-  it('detects wrong state label count', () => {
-    const model = makeModel(4, 2, 2, {
-      stateLabels: ['s0', 's1', 's2'], // 3 instead of 4
-    });
-    const errors = validateDimensions(model);
-    expect(errors.some((e) => e.includes('labels.states') && e.includes('4') && e.includes('3'))).toBe(true);
-  });
-
-  it('detects wrong input label count', () => {
-    const model = makeModel(3, 2, 2, {
-      inputLabels: ['u0'], // 1 instead of 2
-    });
-    const errors = validateDimensions(model);
-    expect(errors.some((e) => e.includes('labels.inputs') && e.includes('2') && e.includes('1'))).toBe(true);
-  });
-
-  it('detects wrong output label count', () => {
-    const model = makeModel(3, 2, 3, {
-      outputLabels: ['y0', 'y1'], // 2 instead of 3
-    });
-    const errors = validateDimensions(model);
-    expect(errors.some((e) => e.includes('labels.outputs') && e.includes('3') && e.includes('2'))).toBe(true);
-  });
-
-  // Req 5.9: Jagged arrays
-  it('detects jagged array in Matrix A', () => {
-    const model = makeModel(3, 2, 2, {
-      A: [
-        [0, 0, 0],
-        [0, 0],    // row 1 has 2 cols instead of 3
-        [0, 0, 0],
-      ],
-    });
-    const errors = validateDimensions(model);
-    expect(errors.some((e) => e.includes('Matrix A') && e.includes('row 1') && e.includes('jagged'))).toBe(true);
-  });
-
-  // Req 5.8: Error messages include expected vs actual
-  it('error messages include expected and actual sizes', () => {
-    const model = makeModel(4, 2, 2, {
-      A: Array.from({ length: 4 }, () => [0, 0, 0]), // 4×3 instead of 4×4
-    });
-    const errors = validateDimensions(model);
-    expect(errors[0]).toContain('expected');
-    expect(errors[0]).toContain('4×4');
-    expect(errors[0]).toContain('4×3');
-  });
-
-  it('reports multiple errors at once', () => {
-    const model = makeModel(3, 2, 2, {
-      A: [[0, 0], [0, 0], [0, 0]],       // 3×2 instead of 3×3
-      B: [[0], [0], [0]],                  // 3×1 instead of 3×2
-      stateLabels: ['s0', 's1'],            // 2 instead of 3
-      outputLabels: ['y0'],                 // 1 instead of 2
-    });
-    const errors = validateDimensions(model);
-    expect(errors.length).toBeGreaterThanOrEqual(4);
-  });
-});
-
+/** Full Sapi-an composting test fixture from the design doc */
+const SAPIAN_COMPOSTING_MODEL: NonlinearModel = {
+  model_metadata: {
+    name: 'sapi-an-1ton-siege',
+    version: '3.0.0',
+    author: 'CWF Digital Twin Team',
+    description:
+      'Nonlinear state-space model for Sapi-an 1-ton drum composting biological siege',
+  },
+  model_description_prompt:
+    'This model simulates a 1-ton drum composting process at the Sapi-an facility. It tracks temperature, mesophilic and thermophilic microbial populations, sugar and lignin substrate consumption, nitrogen, moisture, oxygen, bio-availability, inert mass, drum capacity, and material volume over a 14-day composting cycle. The model captures nonlinear microbial growth kinetics with Gaussian temperature-dependent growth rates, Monod-type nutrient limitation, and lignin softening transitions. Operator inputs are fan duty cycle (aeration) and drum motor rotation.',
+  constants: {
+    h_m: { value: 4800, name: 'Mesophilic Heat Generation', unit: 'J/kg' },
+    h_t: { value: 7800, name: 'Thermophilic Heat Generation', unit: 'J/kg' },
+    C_th: { value: 3.8, name: 'Thermal Capacity', unit: 'kJ/(kg·°C)' },
+    k_loss_ambient: { value: 0.08, name: 'Ambient Heat Loss Coefficient', unit: '1/hr' },
+    k_loss_active: { value: 1.0, name: 'Active Aeration Heat Loss Coefficient', unit: '1/hr' },
+    mu_max_m: { value: 0.22, name: 'Max Mesophilic Growth Rate', unit: '1/hr' },
+    mu_max_t: { value: 0.35, name: 'Max Thermophilic Growth Rate', unit: '1/hr' },
+    K_o: { value: 0.1, name: 'Oxygen Half-Saturation', unit: 'kg' },
+    K_s: { value: 8.0, name: 'Sugar Half-Saturation', unit: 'kg' },
+    K_n: { value: 1.0, name: 'Nitrogen Half-Saturation', unit: 'kg' },
+    k_soft: { value: 0.5, name: 'Lignin Softening Rate', unit: '1/°C' },
+    Y_s: { value: 0.4, name: 'Sugar Yield Coefficient', unit: 'kg/kg' },
+    Y_l: { value: 0.3, name: 'Lignin Yield Coefficient', unit: 'kg/kg' },
+    k_evap: { value: 0.03, name: 'Moisture Evaporation Coefficient', unit: 'kg/(hr·°C)' },
+    k_settle: { value: 0.015, name: 'Volume Settling Coefficient', unit: 'm³/hr' },
+    t_amb: { value: 30.0, name: 'Ambient Temperature', unit: '°C' },
+    k_diff: { value: 0.5, name: 'Oxygen Diffusion Rate', unit: 'kg/(hr)' },
+    q_resp: { value: 0.02, name: 'Microbial Respiration Rate', unit: 'kg_O2/(kg_bio·hr)' },
+    k_abr: { value: 0.005, name: 'Abrasion Rate', unit: '1/hr' },
+    Y_n: { value: 0.1, name: 'Nitrogen Yield Coefficient', unit: 'kg_N/kg_bio' },
+    x10: { value: 100.0, name: 'Inert Mass (fixed)', unit: 'kg' },
+    x11: { value: 1.8, name: 'Drum Capacity (fixed)', unit: 'm³' },
+  },
+  state_definitions: {
+    x1: { id: 't_k', name: 'Core Temperature', unit: '°C', default_value: 30.0 },
+    x2: { id: 'm_meso', name: 'Mesophilic Mass', unit: 'kg', default_value: 0.8 },
+    x3: { id: 'm_thermo', name: 'Thermophilic Mass', unit: 'kg', default_value: 0.005 },
+    x4: { id: 's_k', name: 'Sugar Mass', unit: 'kg', default_value: 160.0 },
+    x5: { id: 'l_k', name: 'Lignin Mass', unit: 'kg', default_value: 350.0 },
+    x6: { id: 'n_k', name: 'Nitrogen Mass', unit: 'kg', default_value: 18.0 },
+    x7: { id: 'w_k', name: 'Water Mass', unit: 'kg', default_value: 500.0 },
+    x8: { id: 'o_mass', name: 'Oxygen Mass', unit: 'kg', default_value: 2.0 },
+    x9: { id: 'alpha_k', name: 'Bio-Availability', unit: 'ratio', default_value: 0.1 },
+    x12: { id: 'v_k', name: 'Material Volume', unit: 'm³', default_value: 1.5 },
+  },
+  input_vectors: {
+    u_actuators: {
+      u_fan: 'Fan duty cycle [0,1]',
+      u_motor: 'Drum motor rotation toggle [0,1]',
+    },
+    v_shocks: {
+      delta_x: 'AI-inferred correction vector from user observations',
+    },
+  },
+  non_linear_transitions: {
+    total_mass_M: 'x2 + x3 + x4 + x5 + x6 + x7 + x10',
+    rho_bulk: 'total_mass_M / x12',
+    phi_lim: '(x8 / (K_o + x8)) * (x4 / (K_s + x4)) * (x6 / (K_n + x6))',
+    psi_soft: '1 / (1 + exp(-k_soft * (x1 - 55)))',
+    mu_m: 'mu_max_m * exp(-(x1 - 35)^2 / (2 * 64))',
+    mu_t: 'mu_max_t * exp(-(x1 - 60)^2 / (2 * 100))',
+    dm: '0.02 + max(0, 0.25 * (x1 - 44))',
+    death_rate_t: '0.02 + max(0, 0.4 * (x1 - 75))',
+    k_now: 'k_loss_ambient + (k_loss_active - k_loss_ambient) * u_fan',
+    afp: '(x11 - x12) / x11',
+  },
+  state_update_equations: {
+    x1_next: 'max(x1 + dt * ((h_m * x2 + h_t * x3) / (C_th * rho_bulk) - k_now * u_fan * (x1 - t_amb)), t_amb)',
+    x2_next: 'max(x2 + dt * (mu_m * phi_lim * x2 - dm * x2), 0.0001)',
+    x3_next: 'max(x3 + dt * (mu_t * phi_lim * x3 - death_rate_t * x3), 0.005)',
+    x4_next: 'max(x4 - dt * ((1 / Y_s) * mu_m * phi_lim * x2), 0)',
+    x5_next: 'max(x5 - dt * ((1 / Y_l) * mu_t * phi_lim * x3 * x9 * psi_soft), 0)',
+    x6_next: 'max(x6 - dt * (Y_n * (mu_m * phi_lim * x2 + mu_t * phi_lim * x3)), 0)',
+    x7_next: 'max(x7 - dt * (k_evap * u_fan * (x1 - t_amb)), 0.1)',
+    x8_next: 'max(x8 + dt * (k_diff * u_fan * afp - q_resp * (x2 + x3)), 0)',
+    x9_next: 'min(x9 + dt * (k_abr * u_motor * psi_soft), 1.0)',
+    x12_next: 'max(x12 - dt * (k_settle * u_motor + 0.002 * abs((1 / Y_s) * mu_m * phi_lim * x2 + (1 / Y_l) * mu_t * phi_lim * x3 * x9 * psi_soft)), 0.1)',
+  },
+  simulation_config: {
+    dt: 0.05,
+    total_days: 14,
+  },
+};
 
 describe('validateStateSpaceJson', () => {
-  // Helper: build a valid JSON string from a model
-  const validJsonString = () => JSON.stringify(makeModel(2, 1, 1), null, 2);
+  it('validates the complete Sapi-an composting model', () => {
+    const result = validateStateSpaceJson(JSON.stringify(SAPIAN_COMPOSTING_MODEL));
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.model.model_metadata.name).toBe('sapi-an-1ton-siege');
+      expect(Object.keys(result.model.state_definitions)).toHaveLength(10);
+      expect(Object.keys(result.model.state_update_equations)).toHaveLength(10);
+    }
+  });
 
-  // Req 3.3: Empty input
+  it('validates a minimal nonlinear model', () => {
+    const result = validateStateSpaceJson(JSON.stringify(makeNonlinearModel()));
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.model.model_metadata.name).toBe('test-model');
+    }
+  });
+
+  it('rejects old linear format with state_space.dimensions.matrices', () => {
+    const oldFormat = {
+      model_metadata: {
+        name: 'old-model',
+        version: '1.0',
+        author: 'test',
+        description: 'test',
+      },
+      model_description_prompt: 'Old linear model',
+      state_space: {
+        dimensions: { states: 2, inputs: 1, outputs: 1 },
+        labels: {
+          states: ['s0', 's1'],
+          inputs: ['u0'],
+          outputs: ['y0'],
+        },
+        matrices: {
+          A: [[0, 0], [0, 0]],
+          B: [[0], [0]],
+          C: [[0, 0]],
+          D: [[0]],
+        },
+      },
+    };
+    const result = validateStateSpaceJson(JSON.stringify(oldFormat));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.some((e: string) => e.includes('old linear state-space format'))).toBe(true);
+      expect(result.errors.some((e: string) => e.includes('state_space.dimensions'))).toBe(true);
+      expect(result.errors.some((e: string) => e.includes('state_space.matrices'))).toBe(true);
+    }
+  });
+
   it('returns error for empty string', () => {
     const result = validateStateSpaceJson('');
     expect(result.success).toBe(false);
@@ -184,7 +198,6 @@ describe('validateStateSpaceJson', () => {
     }
   });
 
-  // Req 4.1: Invalid JSON parse error
   it('returns parse error for invalid JSON', () => {
     const result = validateStateSpaceJson('{ not valid json }');
     expect(result.success).toBe(false);
@@ -194,44 +207,114 @@ describe('validateStateSpaceJson', () => {
     }
   });
 
-  // Req 4.10: Zod errors as readable list with paths
+  it('rejects negative dt', () => {
+    const model = makeNonlinearModel({
+      simulation_config: { dt: -1, total_days: 1 },
+    });
+    const result = validateStateSpaceJson(JSON.stringify(model));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.some((e: string) => e.includes('simulation_config.dt'))).toBe(true);
+    }
+  });
+
+  it('rejects negative total_days', () => {
+    const model = makeNonlinearModel({
+      simulation_config: { dt: 1, total_days: -5 },
+    });
+    const result = validateStateSpaceJson(JSON.stringify(model));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.some((e: string) => e.includes('simulation_config.total_days'))).toBe(true);
+    }
+  });
+
+  it('validates empty constants and input_vectors', () => {
+    const model = makeNonlinearModel({
+      constants: {},
+      input_vectors: { u_actuators: {}, v_shocks: {} },
+      non_linear_transitions: {},
+      state_update_equations: {
+        x1_next: 'x1 + dt',
+        x2_next: 'x2 + dt',
+      },
+    });
+    const result = validateStateSpaceJson(JSON.stringify(model));
+    expect(result.success).toBe(true);
+  });
+
   it('returns Zod errors with paths for structurally invalid JSON', () => {
     const result = validateStateSpaceJson('{"model_metadata": 42}');
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.errors.length).toBeGreaterThan(0);
-      // Should include path info
-      expect(result.errors.some((e) => e.includes('model_metadata'))).toBe(true);
+      expect(result.errors.some((e: string) => e.includes('model_metadata'))).toBe(true);
     }
   });
+});
 
-  it('returns multiple Zod errors at once', () => {
-    const result = validateStateSpaceJson('{}');
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      // Missing all three top-level sections
-      expect(result.errors.length).toBeGreaterThanOrEqual(3);
-    }
+describe('validateCrossReferences', () => {
+  it('returns no errors for a valid model', () => {
+    const model = makeNonlinearModel();
+    const errors = validateCrossReferences(model);
+    expect(errors).toEqual([]);
   });
 
-  // Dimension errors propagated
-  it('returns dimension errors for mismatched matrices', () => {
-    const model = makeModel(2, 1, 1);
-    model.state_space.matrices.A = [[0], [0]]; // 2×1 instead of 2×2
-    const result = validateStateSpaceJson(JSON.stringify(model));
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.errors.some((e) => e.includes('Matrix A'))).toBe(true);
-    }
+  it('detects orphaned equation key (x3_next without x3 in state_definitions)', () => {
+    const model = makeNonlinearModel({
+      state_update_equations: {
+        x1_next: 'x1 + dt',
+        x2_next: 'x2 + dt',
+        x3_next: 'x1 + x2',
+      },
+    });
+    const errors = validateCrossReferences(model);
+    expect(errors.some((e) => e.includes('x3_next') && e.includes('Orphaned'))).toBe(true);
   });
 
-  // Success case
-  it('returns success with parsed model for valid input', () => {
-    const result = validateStateSpaceJson(validJsonString());
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.model.model_metadata.model_id).toBe('test');
-      expect(result.model.state_space.dimensions.states).toBe(2);
-    }
+  it('detects missing equation (x1 in state_definitions but no x1_next)', () => {
+    const model = makeNonlinearModel({
+      state_update_equations: {
+        x2_next: 'x2 + dt',
+      },
+    });
+    const errors = validateCrossReferences(model);
+    expect(errors.some((e) => e.includes('x1') && e.includes('Missing equation'))).toBe(true);
+  });
+});
+
+describe('validateExpressions', () => {
+  it('returns no errors for valid expressions', () => {
+    const model = makeNonlinearModel();
+    const errors = validateExpressions(model);
+    expect(errors).toEqual([]);
+  });
+
+  it('rejects unparseable expression (x1 ** x2)', () => {
+    const model = makeNonlinearModel({
+      non_linear_transitions: {
+        bad_expr: 'x1 ** x2',
+      },
+      state_update_equations: {
+        x1_next: 'x1 + dt',
+        x2_next: 'x2 + dt',
+      },
+    });
+    const errors = validateExpressions(model);
+    expect(errors.some((e) => e.includes('bad_expr'))).toBe(true);
+  });
+
+  it('rejects undefined variable reference', () => {
+    const model = makeNonlinearModel({
+      non_linear_transitions: {
+        rate: 'k1 * x1 + undefined_var',
+      },
+      state_update_equations: {
+        x1_next: 'x1 + rate * dt',
+        x2_next: 'x2 + dt',
+      },
+    });
+    const errors = validateExpressions(model);
+    expect(errors.some((e) => e.includes('undefined_var') && e.includes('undefined variable'))).toBe(true);
   });
 });

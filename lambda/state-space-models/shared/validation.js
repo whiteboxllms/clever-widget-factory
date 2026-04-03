@@ -1,25 +1,18 @@
-/**
- * Nonlinear State Space Model Schema & Types
- *
- * Zod schemas and TypeScript types for nonlinear state-space models.
- * Used by StateSpacePage for validation of pasted JSON models.
- *
- * Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 1.10, 9.1, 9.2, 9.3
- */
+'use strict';
 
-import * as z from 'zod';
-import { parse } from 'mathjs';
+const { z } = require('zod');
+const { parse } = require('mathjs');
 
-// --- Zod Schemas ---
+// --- Zod Schemas (mirrors src/lib/stateSpaceSchema.ts for nonlinear format) ---
 
-export const modelMetadataSchema = z.object({
+const modelMetadataSchema = z.object({
   name: z.string(),
   version: z.string(),
   author: z.string(),
   description: z.string(),
 });
 
-export const constantsSchema = z.record(
+const constantsSchema = z.record(
   z.string(),
   z.object({
     value: z.number(),
@@ -28,7 +21,7 @@ export const constantsSchema = z.record(
   })
 );
 
-export const stateDefinitionsSchema = z.record(
+const stateDefinitionsSchema = z.record(
   z.string(),
   z.object({
     id: z.string(),
@@ -38,21 +31,21 @@ export const stateDefinitionsSchema = z.record(
   })
 );
 
-export const inputVectorsSchema = z.object({
+const inputVectorsSchema = z.object({
   u_actuators: z.record(z.string(), z.string()),
   v_shocks: z.record(z.string(), z.string()),
 });
 
-export const nonLinearTransitionsSchema = z.record(z.string(), z.string());
+const nonLinearTransitionsSchema = z.record(z.string(), z.string());
 
-export const stateUpdateEquationsSchema = z.record(z.string(), z.string());
+const stateUpdateEquationsSchema = z.record(z.string(), z.string());
 
-export const simulationConfigSchema = z.object({
+const simulationConfigSchema = z.object({
   dt: z.number().positive(),
   total_days: z.number().positive(),
 });
 
-export const nonlinearModelSchema = z.object({
+const nonlinearModelSchema = z.object({
   model_metadata: modelMetadataSchema,
   model_description_prompt: z.string(),
   constants: constantsSchema,
@@ -63,16 +56,6 @@ export const nonlinearModelSchema = z.object({
   simulation_config: simulationConfigSchema,
 });
 
-// --- Inferred Types ---
-
-export type NonlinearModel = z.infer<typeof nonlinearModelSchema>;
-export type StateSpaceModel = NonlinearModel;
-
-// --- Validation Result ---
-
-export type ValidationResult =
-  | { success: true; model: NonlinearModel }
-  | { success: false; errors: string[] };
 
 // --- Cross-Reference Validation ---
 
@@ -83,12 +66,12 @@ export type ValidationResult =
  *
  * Requirements: 2.1, 2.2, 2.3
  */
-export function validateCrossReferences(model: NonlinearModel): string[] {
-  const errors: string[] = [];
+function validateCrossReferences(model) {
+  const errors = [];
   const stateKeys = new Set(Object.keys(model.state_definitions));
   const equationKeys = new Set(Object.keys(model.state_update_equations));
 
-  // Requirement 2.1 & 2.2: Every equation key K_next must have K in state_definitions
+  // Every equation key K_next must have K in state_definitions
   for (const eqKey of equationKeys) {
     const stateKey = eqKey.replace(/_next$/, '');
     if (!stateKeys.has(stateKey)) {
@@ -98,7 +81,7 @@ export function validateCrossReferences(model: NonlinearModel): string[] {
     }
   }
 
-  // Requirement 2.3: Every state key K must have K_next in state_update_equations
+  // Every state key K must have K_next in state_update_equations
   for (const stateKey of stateKeys) {
     const expectedEqKey = `${stateKey}_next`;
     if (!equationKeys.has(expectedEqKey)) {
@@ -113,7 +96,7 @@ export function validateCrossReferences(model: NonlinearModel): string[] {
 
 // --- Expression Validation ---
 
-/** mathjs built-in functions that should not be flagged as undefined variables */
+/** mathjs built-in functions/constants that should not be flagged as undefined variables */
 const MATHJS_BUILTINS = new Set([
   'exp', 'max', 'min', 'abs', 'sqrt', 'log',
   'sin', 'cos', 'tan', 'pow', 'ceil', 'floor', 'round',
@@ -125,10 +108,10 @@ const MATHJS_BUILTINS = new Set([
  * Parses the AST and collects all SymbolNode names, filtering out
  * mathjs built-in functions and constants.
  */
-function extractVariables(expr: string): string[] {
+function extractVariables(expr) {
   const tree = parse(expr);
-  const symbols: string[] = [];
-  tree.traverse((node: { type: string; name?: string }) => {
+  const symbols = [];
+  tree.traverse((node) => {
     if (node.type === 'SymbolNode' && node.name && !MATHJS_BUILTINS.has(node.name)) {
       symbols.push(node.name);
     }
@@ -142,15 +125,10 @@ function extractVariables(expr: string): string[] {
  * 1. Syntax validity (mathjs.parse)
  * 2. Variable reference resolution against the valid scope
  *
- * Scope for transitions: constants, state_definitions, u_actuators, v_shocks,
- *   previously declared transition keys, and built-ins dt/t.
- * Scope for equations: constants, state_definitions, u_actuators, v_shocks,
- *   ALL transition keys, and built-ins dt/t.
- *
- * Requirements: 2.4, 2.5, 3.1, 3.2, 3.3, 3.4, 9.5
+ * Requirements: 2.4, 2.5, 3.1, 3.2, 3.3, 3.4
  */
-export function validateExpressions(model: NonlinearModel): string[] {
-  const errors: string[] = [];
+function validateExpressions(model) {
+  const errors = [];
 
   const constantKeys = Object.keys(model.constants);
   const stateKeys = Object.keys(model.state_definitions);
@@ -169,7 +147,7 @@ export function validateExpressions(model: NonlinearModel): string[] {
   ]);
 
   // Validate non_linear_transitions (previously declared keys only)
-  const declaredTransitions = new Set<string>();
+  const declaredTransitions = new Set();
   for (const [key, expr] of Object.entries(model.non_linear_transitions)) {
     // Phase 1: Syntax check
     try {
@@ -217,82 +195,22 @@ export function validateExpressions(model: NonlinearModel): string[] {
   return errors;
 }
 
+
 // --- Combined Validation Entry Point ---
 
 /**
- * Detects if a parsed JSON object uses the old linear state-space format
- * (containing `state_space` with `dimensions`, `labels`, or `matrices`).
- * Returns descriptive error messages if detected.
+ * Validates a parsed JSON body as a NonlinearModel.
+ * Runs Zod schema validation, then cross-reference validation,
+ * then expression syntax/variable validation.
  *
- * Requirements: 1.11
+ * @param {object} jsonBody - The parsed JSON object to validate
+ * @returns {{ success: true, model: object } | { success: false, errors: string[] }}
+ *
+ * Requirements: 8.1, 8.2, 8.3, 8.4, 8.5
  */
-function detectOldLinearFormat(parsed: unknown): string[] {
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    return [];
-  }
-  const obj = parsed as Record<string, unknown>;
-  if (!('state_space' in obj)) {
-    return [];
-  }
-
-  const errors: string[] = [];
-  errors.push(
-    'This model uses the old linear state-space format which is no longer supported. Please convert to the nonlinear format with 8 required sections: model_metadata, model_description_prompt, constants, state_definitions, input_vectors, non_linear_transitions, state_update_equations, simulation_config.'
-  );
-
-  const stateSpace = obj.state_space;
-  if (typeof stateSpace === 'object' && stateSpace !== null) {
-    const ss = stateSpace as Record<string, unknown>;
-    if ('dimensions' in ss) {
-      errors.push('Old format field detected: state_space.dimensions is not supported in the nonlinear format.');
-    }
-    if ('labels' in ss) {
-      errors.push('Old format field detected: state_space.labels is not supported in the nonlinear format.');
-    }
-    if ('matrices' in ss) {
-      errors.push('Old format field detected: state_space.matrices (A, B, C, D) is not supported in the nonlinear format.');
-    }
-  }
-
-  return errors;
-}
-
-/**
- * Validates a JSON string as a NonlinearModel. Runs validation phases:
- * 1. Empty input check
- * 2. JSON.parse (catches SyntaxError)
- * 2b. Old linear format detection (rejects with descriptive errors)
- * 3. Zod schema validation with nonlinearModelSchema
- * 4. Cross-reference validation via validateCrossReferences
- * 5. Expression validation via validateExpressions
- *
- * Each phase short-circuits on failure.
- *
- * Requirements: 1.11, 9.4
- */
-export function validateStateSpaceJson(jsonString: string): ValidationResult {
-  // Phase 1: Empty input
-  if (!jsonString || jsonString.trim().length === 0) {
-    return { success: false, errors: ['JSON input is required.'] };
-  }
-
-  // Phase 2: JSON parse
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(jsonString);
-  } catch (e) {
-    const message = e instanceof SyntaxError ? e.message : 'Invalid JSON';
-    return { success: false, errors: [message] };
-  }
-
-  // Phase 2b: Reject old linear format
-  const linearErrors = detectOldLinearFormat(parsed);
-  if (linearErrors.length > 0) {
-    return { success: false, errors: linearErrors };
-  }
-
-  // Phase 3: Zod schema validation
-  const result = nonlinearModelSchema.safeParse(parsed);
+function validateStateSpaceModel(jsonBody) {
+  // Phase 1: Zod schema validation
+  const result = nonlinearModelSchema.safeParse(jsonBody);
   if (!result.success) {
     const errors = result.error.issues.map((issue) => {
       const path = issue.path.length > 0 ? issue.path.join('.') : '(root)';
@@ -301,13 +219,13 @@ export function validateStateSpaceJson(jsonString: string): ValidationResult {
     return { success: false, errors };
   }
 
-  // Phase 4: Cross-reference validation
+  // Phase 2: Cross-reference validation
   const crossRefErrors = validateCrossReferences(result.data);
   if (crossRefErrors.length > 0) {
     return { success: false, errors: crossRefErrors };
   }
 
-  // Phase 5: Expression validation
+  // Phase 3: Expression syntax and variable validation
   const exprErrors = validateExpressions(result.data);
   if (exprErrors.length > 0) {
     return { success: false, errors: exprErrors };
@@ -315,3 +233,10 @@ export function validateStateSpaceJson(jsonString: string): ValidationResult {
 
   return { success: true, model: result.data };
 }
+
+module.exports = {
+  nonlinearModelSchema,
+  validateCrossReferences,
+  validateExpressions,
+  validateStateSpaceModel,
+};

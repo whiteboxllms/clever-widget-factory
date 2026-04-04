@@ -315,6 +315,292 @@ function arbInvalidNonlinearModel(): fc.Arbitrary<unknown> {
   );
 }
 
+// --- Golden Path Expression Templates ---
+
+/**
+ * Boolean expression templates for control policy conditions.
+ * These generate comparison expressions suitable for entry_condition,
+ * exit_threshold, and rule condition fields.
+ */
+const BOOLEAN_EXPRESSION_TEMPLATES = [
+  { template: 'V1 < K1', vars: ['V1'], consts: ['K1'] },
+  { template: 'V1 >= K1', vars: ['V1'], consts: ['K1'] },
+  { template: 'V1 > K1', vars: ['V1'], consts: ['K1'] },
+  { template: 'V1 <= K1', vars: ['V1'], consts: ['K1'] },
+  { template: 'V1 / V2 < K1', vars: ['V1', 'V2'], consts: ['K1'] },
+];
+
+/**
+ * Generates a valid boolean expression from templates, substituting scope variables.
+ * Used for control policy conditions (entry_condition, exit_threshold, rule condition).
+ */
+function arbBooleanExpression(scopeVars: string[]): fc.Arbitrary<string> {
+  if (scopeVars.length === 0) {
+    return fc.constantFrom('1 < 2', '0 >= 0');
+  }
+
+  return fc
+    .integer({ min: 0, max: BOOLEAN_EXPRESSION_TEMPLATES.length - 1 })
+    .chain((templateIdx) => {
+      const tmpl = BOOLEAN_EXPRESSION_TEMPLATES[templateIdx];
+      const neededVars = tmpl.vars.length;
+
+      // If not enough scope vars, fall back to simpler template
+      if (scopeVars.length < neededVars) {
+        return fc
+          .double({ min: 0.01, max: 100, noNaN: true, noDefaultInfinity: true })
+          .map((k) => `${scopeVars[0]} < ${Number(k.toFixed(2))}`);
+      }
+
+      return fc
+        .tuple(
+          ...tmpl.vars.map(() => arbPickFrom(scopeVars)),
+          ...tmpl.consts.map(() =>
+            fc.double({ min: 0.01, max: 100, noNaN: true, noDefaultInfinity: true }).map((n) =>
+              Number(n.toFixed(2)).toString()
+            )
+          )
+        )
+        .map((picks) => {
+          let expr = tmpl.template;
+          const varPicks = picks.slice(0, tmpl.vars.length);
+          const constPicks = picks.slice(tmpl.vars.length);
+
+          tmpl.vars.forEach((placeholder, i) => {
+            expr = expr.replace(new RegExp(placeholder, 'g'), varPicks[i] as string);
+          });
+          tmpl.consts.forEach((placeholder, i) => {
+            expr = expr.replace(new RegExp(placeholder, 'g'), constPicks[i] as string);
+          });
+
+          return expr;
+        });
+    });
+}
+
+// --- Golden Path Arbitraries ---
+
+/**
+ * Generates a valid ActuatorRule referencing a known actuator key.
+ * Condition is a boolean expression using scope variables.
+ * Value is 0 or 1, duration_steps is 1-10.
+ */
+function arbActuatorRule(actuatorKeys: string[], scopeVars: string[]): fc.Arbitrary<{
+  condition: string;
+  actuator: string;
+  value: number;
+  duration_steps: number;
+}> {
+  return fc.record({
+    condition: arbBooleanExpression(scopeVars),
+    actuator: arbPickFrom(actuatorKeys),
+    value: fc.constantFrom(0, 1),
+    duration_steps: fc.integer({ min: 1, max: 10 }),
+  });
+}
+
+/**
+ * Generates a valid Phase with rules referencing known actuators and scope.
+ * If isFinal is true, exit_threshold is null (final phase has no exit).
+ * Rules array has 1-3 entries.
+ */
+function arbPhase(
+  name: string,
+  actuatorKeys: string[],
+  scopeVars: string[],
+  isFinal: boolean
+): fc.Arbitrary<{
+  name: string;
+  entry_condition: string;
+  rules: { condition: string; actuator: string; value: number; duration_steps: number }[];
+  exit_threshold: string | null;
+}> {
+  return fc.record({
+    name: fc.constant(name),
+    entry_condition: arbBooleanExpression(scopeVars),
+    rules: fc.array(arbActuatorRule(actuatorKeys, scopeVars), { minLength: 1, maxLength: 3 }),
+    exit_threshold: isFinal
+      ? fc.constant(null)
+      : arbBooleanExpression(scopeVars),
+  });
+}
+
+/**
+ * Generates a valid ControlPolicy with 1-3 phases.
+ * The last phase is always final (exit_threshold: null).
+ * initial_phase matches the first phase's name.
+ */
+function arbControlPolicy(
+  actuatorKeys: string[],
+  scopeVars: string[]
+): fc.Arbitrary<{
+  phases: { name: string; entry_condition: string; rules: { condition: string; actuator: string; value: number; duration_steps: number }[]; exit_threshold: string | null }[];
+  initial_phase: string;
+}> {
+  return fc.integer({ min: 1, max: 3 }).chain((numPhases) => {
+    const phaseNames = Array.from({ length: numPhases }, (_, i) => `phase_${i}`);
+    const phaseArbs = phaseNames.map((name, i) =>
+      arbPhase(name, actuatorKeys, scopeVars, i === numPhases - 1)
+    );
+
+    return fc.tuple(...phaseArbs).map((phases) => ({
+      phases,
+      initial_phase: phaseNames[0],
+    }));
+  });
+}
+
+/**
+ * Generates a valid InterventionEvent referencing a known state key.
+ * time_hours: 0-336, delta: -100 to 100, label: descriptive string.
+ */
+function arbInterventionEvent(stateKeys: string[]): fc.Arbitrary<{
+  time_hours: number;
+  state_key: string;
+  delta: number;
+  label: string;
+}> {
+  return fc.record({
+    time_hours: fc.double({ min: 0, max: 336, noNaN: true, noDefaultInfinity: true }),
+    state_key: arbPickFrom(stateKeys),
+    delta: fc.double({ min: -100, max: 100, noNaN: true, noDefaultInfinity: true }),
+    label: fc.string({ minLength: 1, maxLength: 50 }).filter((s) => s.trim().length > 0),
+  });
+}
+
+/**
+ * Generates a valid NonlinearModel with control_policy and interventions.
+ * Builds on arbValidNonlinearModel() and adds the optional golden path sections.
+ * Requires at least 1 actuator for control_policy rules.
+ */
+function arbValidExtendedModel() {
+  return fc
+    .record({
+      numStates: fc.integer({ min: 1, max: 5 }),
+      numConstants: fc.integer({ min: 0, max: 4 }),
+      numActuators: fc.integer({ min: 1, max: 2 }), // At least 1 actuator for control policy
+      numShocks: fc.integer({ min: 0, max: 2 }),
+      numTransitions: fc.integer({ min: 0, max: 3 }),
+      numInterventions: fc.integer({ min: 0, max: 4 }),
+    })
+    .chain(({ numStates, numConstants, numActuators, numShocks, numTransitions, numInterventions }) => {
+      const totalKeys = numStates + numConstants + numActuators + numShocks + numTransitions;
+      return arbUniqueIdentifiers(totalKeys).chain((allKeys) => {
+        let idx = 0;
+        const stateKeys = allKeys.slice(idx, (idx += numStates));
+        const constantKeys = allKeys.slice(idx, (idx += numConstants));
+        const actuatorKeys = allKeys.slice(idx, (idx += numActuators));
+        const shockKeys = allKeys.slice(idx, (idx += numShocks));
+        const transitionKeys = allKeys.slice(idx, (idx += numTransitions));
+
+        const baseScope = [...stateKeys, ...constantKeys, ...actuatorKeys, ...shockKeys, 'dt', 't'];
+        const fullScope = [...baseScope, ...transitionKeys];
+
+        return fc.record({
+          model_metadata: arbValidModelMetadata(),
+          model_description_prompt: fc
+            .string({ minLength: 1, maxLength: 100 })
+            .filter((s) => s.trim().length > 0),
+          constants: arbConstants(constantKeys),
+          state_definitions: arbStateDefinitions(stateKeys),
+          input_vectors: arbInputVectors(actuatorKeys, shockKeys),
+          non_linear_transitions: arbTransitions(transitionKeys, baseScope),
+          state_update_equations: arbStateUpdateEquations(stateKeys, fullScope),
+          simulation_config: arbSimulationConfig(),
+          control_policy: arbControlPolicy(actuatorKeys, fullScope),
+          interventions: fc.array(arbInterventionEvent(stateKeys), {
+            minLength: numInterventions,
+            maxLength: numInterventions,
+          }),
+        });
+      });
+    });
+}
+
+/**
+ * Generates models with invalid control_policy cross-references.
+ * Strategy 1: actuator key in a rule doesn't exist in u_actuators.
+ * Strategy 2: initial_phase doesn't match any phase name.
+ */
+function arbInvalidControlPolicyCrossRef() {
+  return fc.oneof(
+    // Strategy 1: Invalid actuator key in rule
+    arbValidExtendedModel().map((model) => {
+      const phases = model.control_policy.phases.map((phase, pi) => {
+        if (pi === 0 && phase.rules.length > 0) {
+          const rules = [...phase.rules];
+          rules[0] = { ...rules[0], actuator: 'nonexistent_actuator_xyz' };
+          return { ...phase, rules };
+        }
+        return phase;
+      });
+      return {
+        ...model,
+        control_policy: { ...model.control_policy, phases },
+      };
+    }),
+    // Strategy 2: Invalid initial_phase
+    arbValidExtendedModel().map((model) => ({
+      ...model,
+      control_policy: {
+        ...model.control_policy,
+        initial_phase: 'nonexistent_phase_xyz',
+      },
+    }))
+  );
+}
+
+/**
+ * Generates models with undefined variables in control policy expressions.
+ * Injects an undefined variable into entry_condition, exit_threshold, or rule condition.
+ */
+function arbInvalidControlPolicyExpressions() {
+  return fc.oneof(
+    // Strategy 1: Undefined variable in entry_condition
+    arbValidExtendedModel().map((model) => {
+      const phases = model.control_policy.phases.map((phase, pi) => {
+        if (pi === 0) {
+          return { ...phase, entry_condition: 'undefined_var_abc < 10' };
+        }
+        return phase;
+      });
+      return {
+        ...model,
+        control_policy: { ...model.control_policy, phases },
+      };
+    }),
+    // Strategy 2: Undefined variable in exit_threshold
+    arbValidExtendedModel().map((model) => {
+      // Find a non-final phase (one with exit_threshold !== null)
+      const phases = model.control_policy.phases.map((phase) => {
+        if (phase.exit_threshold !== null) {
+          return { ...phase, exit_threshold: 'undefined_var_xyz >= 5' };
+        }
+        return phase;
+      });
+      return {
+        ...model,
+        control_policy: { ...model.control_policy, phases },
+      };
+    }),
+    // Strategy 3: Undefined variable in rule condition
+    arbValidExtendedModel().map((model) => {
+      const phases = model.control_policy.phases.map((phase, pi) => {
+        if (pi === 0 && phase.rules.length > 0) {
+          const rules = [...phase.rules];
+          rules[0] = { ...rules[0], condition: 'undefined_var_qrs > 0' };
+          return { ...phase, rules };
+        }
+        return phase;
+      });
+      return {
+        ...model,
+        control_policy: { ...model.control_policy, phases },
+      };
+    })
+  );
+}
+
 // --- Smoke Test ---
 
 describe('Feature: nonlinear-state-space-simulator, Arbitraries smoke test', () => {

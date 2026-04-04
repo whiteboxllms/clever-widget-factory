@@ -6,8 +6,8 @@ This plan extends the existing nonlinear state-space simulator with closed-loop 
 
 ## Tasks
 
-- [ ] 1. Extend schema with control policy and interventions Zod schemas
-  - [ ] 1.1 Add Zod schemas for control policy and interventions in `src/lib/stateSpaceSchema.ts`
+- [x] 1. Extend schema with control policy and interventions Zod schemas
+  - [x] 1.1 Add Zod schemas for control policy and interventions in `src/lib/stateSpaceSchema.ts`
     - Define `actuatorRuleSchema`: `condition` (string), `actuator` (string), `value` (number), `duration_steps` (positive integer)
     - Define `phaseSchema`: `name` (string), `entry_condition` (string), `rules` (array of actuatorRuleSchema), `exit_threshold` (string or null)
     - Define `controlPolicySchema`: `phases` (array of phaseSchema), `initial_phase` (string)
@@ -16,7 +16,7 @@ This plan extends the existing nonlinear state-space simulator with closed-loop 
     - Update the `NonlinearModel` type export (inferred from extended schema)
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.5, 2.6, 9.1_
 
-  - [ ] 1.2 Implement `validateControlPolicy` function in `src/lib/stateSpaceSchema.ts`
+  - [x] 1.2 Implement `validateControlPolicy` function in `src/lib/stateSpaceSchema.ts`
     - If `control_policy` is present, verify `initial_phase` matches a phase `name`
     - Verify each rule's `actuator` key exists in `input_vectors.u_actuators`
     - Parse each expression field (`entry_condition`, `exit_threshold`, rule `condition`) with mathjs
@@ -24,30 +24,30 @@ This plan extends the existing nonlinear state-space simulator with closed-loop 
     - Return error strings identifying the phase name, field, and issue
     - _Requirements: 1.6, 1.7, 1.8, 3.1, 3.2, 3.3, 3.4_
 
-  - [ ] 1.3 Implement `validateInterventions` function in `src/lib/stateSpaceSchema.ts`
+  - [x] 1.3 Implement `validateInterventions` function in `src/lib/stateSpaceSchema.ts`
     - If `interventions` is present, verify each `state_key` exists in `state_definitions`
     - Return error strings identifying the intervention label and invalid key
     - _Requirements: 2.4_
 
-  - [ ] 1.4 Update `validateStateSpaceJson` to include Phase 6 and Phase 7
+  - [x] 1.4 Update `validateStateSpaceJson` to include Phase 6 and Phase 7
     - After existing Phase 5 (expression validation), add Phase 6: `validateControlPolicy`
     - Add Phase 7: `validateInterventions`
     - Phases 6 and 7 are independent — both run even if one fails
     - Collect all errors from both phases
     - _Requirements: 1.6, 1.7, 1.8, 2.4, 3.1, 3.2, 3.3, 3.4, 9.1_
 
-- [ ] 2. Checkpoint — Verify schema extensions compile and existing tests pass
+- [x] 2. Checkpoint — Verify schema extensions compile and existing tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 3. Create golden path simulation engine
-  - [ ] 3.1 Add golden path types to `src/lib/simulationEngine.ts`
+- [x] 3. Create golden path simulation engine
+  - [x] 3.1 Add golden path types to `src/lib/simulationEngine.ts`
     - Define `ActuatorTrace` interface: `{ [actuatorKey: string]: number[] }`
     - Define `InterventionLogEntry` interface: `{ timeStep, timeHours, stateKey, delta, label }`
     - Define `GoldenPathResult` extending `SimulationResult` with `actuatorTraces`, `phaseHistory`, `interventionLog`
     - Define `GoldenPathOutcome` discriminated union type
     - _Requirements: 11.1, 11.2_
 
-  - [ ] 3.2 Implement `runGoldenPathSimulation` function in `src/lib/simulationEngine.ts`
+  - [x] 3.2 Implement `runGoldenPathSimulation` function in `src/lib/simulationEngine.ts`
     - Compile all transitions, equations, AND control policy expressions once via mathjs.compile()
     - Perform dry-run validation (same as existing `runSimulation`)
     - Sort interventions by `time_hours` and convert to step indices
@@ -62,11 +62,11 @@ This plan extends the existing nonlinear state-space simulator with closed-loop 
     - Return `GoldenPathResult` on success
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 5.1, 5.2, 5.3, 5.4, 5.5, 11.1, 11.2, 11.3_
 
-- [ ] 4. Checkpoint — Verify simulation engine compiles
+- [x] 4. Checkpoint — Verify simulation engine compiles
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Add golden path UI to StateSpacePage
-  - [ ] 5.1 Add golden path toggle and button to `src/pages/StateSpacePage.tsx`
+- [x] 5. Add golden path UI to StateSpacePage
+  - [x] 5.1 Add golden path toggle and button to `src/pages/StateSpacePage.tsx`
     - Add `goldenPathMode` boolean state and `gpResult: GoldenPathResult | null` state
     - Show "Run Golden Path" button only when `model.control_policy` exists
     - Hide button when model has no `control_policy`
@@ -77,7 +77,7 @@ This plan extends the existing nonlinear state-space simulator with closed-loop 
     - Display golden path simulation errors in the existing destructive Card
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 9.2, 9.3_
 
-  - [ ] 5.2 Add chart annotations for phases and interventions in `src/pages/StateSpacePage.tsx`
+  - [x] 5.2 Add chart annotations for phases and interventions in `src/pages/StateSpacePage.tsx`
     - Import `ReferenceLine` and `ReferenceArea` from Recharts
     - Render phase transition points as vertical dashed `ReferenceLine` markers on the chart
     - Render intervention events as vertical solid colored `ReferenceLine` markers (visually distinct from phase transitions)
@@ -87,16 +87,16 @@ This plan extends the existing nonlinear state-space simulator with closed-loop 
     - Hide intervention markers when model has no `interventions`
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 8.1, 8.2, 8.3, 9.4_
 
-  - [ ] 5.3 Add actuator trace visualization to `src/pages/StateSpacePage.tsx`
+  - [x] 5.3 Add actuator trace visualization to `src/pages/StateSpacePage.tsx`
     - Display actuator state traces (on/off over time) as additional series on the chart or as a separate panel below the main chart
     - Each actuator key from `u_actuators` gets its own trace line
     - _Requirements: 7.1_
 
-- [ ] 6. Checkpoint — Verify page renders with golden path mode
+- [x] 6. Checkpoint — Verify page renders with golden path mode
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 7. Write schema unit tests for golden path extensions
-  - [ ] 7.1 Add golden path unit tests to `src/lib/stateSpaceSchema.test.ts`
+- [x] 7. Write schema unit tests for golden path extensions
+  - [x] 7.1 Add golden path unit tests to `src/lib/stateSpaceSchema.test.ts`
     - Test: validate the full Sapi-an composting model with `control_policy` and `interventions` passes validation
     - Test: reject `control_policy` with `initial_phase` not matching any phase name
     - Test: reject actuator rule referencing non-existent actuator key
@@ -107,8 +107,8 @@ This plan extends the existing nonlinear state-space simulator with closed-loop 
     - Test: accept model without `control_policy` or `interventions` (backward compat)
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 3.1, 3.2, 3.3, 3.4, 9.1_
 
-- [ ] 8. Write simulation engine unit tests for golden path
-  - [ ] 8.1 Add golden path unit tests to `src/lib/simulationEngine.test.ts`
+- [x] 8. Write simulation engine unit tests for golden path
+  - [x] 8.1 Add golden path unit tests to `src/lib/simulationEngine.test.ts`
     - Test: run the Sapi-an composting model with golden path and verify phase transitions occur (temperature rises through 45°C and 55°C thresholds)
     - Test: verify intervention at t=48h adds delta to the correct state variable
     - Test: verify actuator trace shows fan on/off pattern matching oxygen-based rules
@@ -116,11 +116,11 @@ This plan extends the existing nonlinear state-space simulator with closed-loop 
     - Test: verify `runSimulation` (not golden path) still works for models with `control_policy` present (it ignores the section)
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 5.1, 5.2, 5.3, 5.4, 5.5, 9.2, 11.1, 11.2, 11.3_
 
-- [ ] 9. Checkpoint — Ensure all unit tests pass
+- [x] 9. Checkpoint — Ensure all unit tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 10. Write schema property tests for golden path extensions
-  - [ ] 10.1 Add golden path arbitraries to `src/lib/stateSpaceSchema.property.test.ts`
+- [x] 10. Write schema property tests for golden path extensions
+  - [x] 10.1 Add golden path arbitraries to `src/lib/stateSpaceSchema.property.test.ts`
     - Implement `arbActuatorRule(actuatorKeys, scopeVars)` arbitrary
     - Implement `arbPhase(name, actuatorKeys, scopeVars, isFinal)` arbitrary
     - Implement `arbControlPolicy(actuatorKeys, scopeVars)` arbitrary
@@ -198,7 +198,7 @@ This plan extends the existing nonlinear state-space simulator with closed-loop 
     - Test file: `src/lib/simulationEngine.property.test.ts`
     - **Validates: Requirements 9.2**
 
-- [ ] 12. Final checkpoint — Ensure all tests pass
+- [x] 12. Final checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

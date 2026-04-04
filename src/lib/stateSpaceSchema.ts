@@ -52,7 +52,70 @@ export const simulationConfigSchema = z.object({
   total_days: z.number().positive(),
 });
 
-export const nonlinearModelSchema = z.object({
+// --- Control Spec Schemas (SPC-style control elements) ---
+
+export const specLimitsSchema = z.object({
+  USL: z.number(),
+  LSL: z.number(),
+});
+
+export const controlRuleSchema = z.object({
+  condition: z.string(),
+  intent: z.string(),
+  severity: z.enum(['LOW', 'MEDIUM', 'HIGH']),
+  note: z.string().optional(),
+});
+
+export const controlElementSchema = z.object({
+  target: z.number().optional(),
+  target_function: z.string().optional(),
+  spec_limits: specLimitsSchema.optional(),
+  rules: z.array(controlRuleSchema),
+});
+
+export const reactionMechanismSchema = z.object({
+  condition: z.string(),
+  intent: z.string(),
+  note: z.string().optional(),
+});
+
+export const controlSpecSchema = z.object({
+  drum_id: z.string().optional(),
+  control_elements: z.record(z.string(), controlElementSchema),
+  reaction_mechanisms: z.record(z.string(), reactionMechanismSchema).optional(),
+});
+
+export const phaseIndicatorsSchema = z.record(z.string(), z.string());
+
+// --- Control Policy & Interventions Schemas ---
+
+export const actuatorRuleSchema = z.object({
+  condition: z.string(),
+  actuator: z.string(),
+  value: z.number(),
+  duration_steps: z.number().int().positive(),
+});
+
+export const phaseSchema = z.object({
+  name: z.string(),
+  entry_condition: z.string(),
+  rules: z.array(actuatorRuleSchema),
+  exit_threshold: z.string().nullable(),
+});
+
+export const controlPolicySchema = z.object({
+  phases: z.array(phaseSchema),
+  initial_phase: z.string(),
+});
+
+export const interventionEventSchema = z.object({
+  time_hours: z.number().nonnegative(),
+  state_key: z.string(),
+  delta: z.number(),
+  label: z.string(),
+});
+
+const baseNonlinearModelSchema = z.object({
   model_metadata: modelMetadataSchema,
   model_description_prompt: z.string(),
   constants: constantsSchema,
@@ -61,6 +124,13 @@ export const nonlinearModelSchema = z.object({
   non_linear_transitions: nonLinearTransitionsSchema,
   state_update_equations: stateUpdateEquationsSchema,
   simulation_config: simulationConfigSchema,
+});
+
+export const nonlinearModelSchema = baseNonlinearModelSchema.extend({
+  control_policy: controlPolicySchema.optional(),
+  control_spec: controlSpecSchema.optional(),
+  phase_indicators: phaseIndicatorsSchema.optional(),
+  interventions: z.array(interventionEventSchema).optional(),
 });
 
 // --- Inferred Types ---
@@ -125,7 +195,7 @@ const MATHJS_BUILTINS = new Set([
  * Parses the AST and collects all SymbolNode names, filtering out
  * mathjs built-in functions and constants.
  */
-function extractVariables(expr: string): string[] {
+export function extractVariables(expr: string): string[] {
   const tree = parse(expr);
   const symbols: string[] = [];
   tree.traverse((node: { type: string; name?: string }) => {
@@ -217,6 +287,127 @@ export function validateExpressions(model: NonlinearModel): string[] {
   return errors;
 }
 
+// --- Control Policy Validation ---
+
+/**
+ * Validates the control_policy section of a NonlinearModel.
+ * Checks:
+ * 1. initial_phase matches a phase name
+ * 2. Each rule's actuator key exists in u_actuators
+ * 3. Each expression field parses with mathjs
+ * 4. Each expression's variables exist in the valid scope
+ *
+ * Returns empty array if control_policy is absent.
+ *
+ * Requirements: 1.6, 1.7, 1.8, 3.1, 3.2, 3.3, 3.4
+ */
+export function validateControlPolicy(model: NonlinearModel): string[] {
+  if (!model.control_policy) {
+    return [];
+  }
+
+  const errors: string[] = [];
+  const { phases, initial_phase } = model.control_policy;
+
+  // Build valid scope for expressions
+  const validScope = new Set([
+    ...Object.keys(model.constants),
+    ...Object.keys(model.state_definitions),
+    ...Object.keys(model.input_vectors.u_actuators),
+    ...Object.keys(model.input_vectors.v_shocks),
+    ...Object.keys(model.non_linear_transitions),
+    'dt',
+    't',
+  ]);
+
+  const actuatorKeys = new Set(Object.keys(model.input_vectors.u_actuators));
+  const phaseNames = new Set(phases.map((p) => p.name));
+
+  // Check initial_phase matches a phase name
+  if (!phaseNames.has(initial_phase)) {
+    errors.push(
+      `control_policy.initial_phase '${initial_phase}' does not match any phase name`
+    );
+  }
+
+  // Helper to validate a single expression field
+  const validateExpression = (phaseName: string, field: string, expr: string) => {
+    // Parse check
+    try {
+      parse(expr);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Parse error';
+      errors.push(`Phase '${phaseName}', ${field}: parse error: ${message}`);
+      return;
+    }
+
+    // Variable reference check
+    const vars = extractVariables(expr);
+    for (const varName of vars) {
+      if (!validScope.has(varName)) {
+        errors.push(
+          `Phase '${phaseName}', ${field}: undefined variable '${varName}'`
+        );
+      }
+    }
+  };
+
+  for (const phase of phases) {
+    // Validate entry_condition
+    validateExpression(phase.name, 'entry_condition', phase.entry_condition);
+
+    // Validate exit_threshold (if not null)
+    if (phase.exit_threshold !== null) {
+      validateExpression(phase.name, 'exit_threshold', phase.exit_threshold);
+    }
+
+    // Validate each rule
+    for (let i = 0; i < phase.rules.length; i++) {
+      const rule = phase.rules[i];
+
+      // Check actuator key exists in u_actuators
+      if (!actuatorKeys.has(rule.actuator)) {
+        errors.push(
+          `Phase '${phase.name}', rule ${i}: actuator '${rule.actuator}' not found in u_actuators`
+        );
+      }
+
+      // Validate rule condition expression
+      validateExpression(phase.name, `rule ${i} condition`, rule.condition);
+    }
+  }
+
+  return errors;
+}
+
+/**
+ * Validates the interventions section of a NonlinearModel.
+ * Checks that each intervention's state_key exists in state_definitions.
+ *
+ * Returns empty array if interventions is absent.
+ *
+ * Requirements: 2.4
+ */
+export function validateInterventions(model: NonlinearModel): string[] {
+  if (!model.interventions) {
+    return [];
+  }
+
+  const errors: string[] = [];
+  const stateKeys = new Set(Object.keys(model.state_definitions));
+
+  for (const intervention of model.interventions) {
+    if (!stateKeys.has(intervention.state_key)) {
+      errors.push(
+        `Intervention '${intervention.label}': state_key '${intervention.state_key}' not found in state_definitions`
+      );
+    }
+  }
+
+  return errors;
+}
+
+
 // --- Combined Validation Entry Point ---
 
 /**
@@ -265,10 +456,13 @@ function detectOldLinearFormat(parsed: unknown): string[] {
  * 3. Zod schema validation with nonlinearModelSchema
  * 4. Cross-reference validation via validateCrossReferences
  * 5. Expression validation via validateExpressions
+ * 6. Control policy validation via validateControlPolicy
+ * 7. Interventions validation via validateInterventions
  *
- * Each phase short-circuits on failure.
+ * Phases 1–5 short-circuit on failure. Phases 6 and 7 are independent —
+ * both run even if one fails, and their errors are collected together.
  *
- * Requirements: 1.11, 9.4
+ * Requirements: 1.6, 1.7, 1.8, 1.11, 2.4, 3.1, 3.2, 3.3, 3.4, 9.1, 9.4
  */
 export function validateStateSpaceJson(jsonString: string): ValidationResult {
   // Phase 1: Empty input
@@ -311,6 +505,14 @@ export function validateStateSpaceJson(jsonString: string): ValidationResult {
   const exprErrors = validateExpressions(result.data);
   if (exprErrors.length > 0) {
     return { success: false, errors: exprErrors };
+  }
+
+  // Phase 6 & 7: Control policy and interventions validation (independent)
+  const controlPolicyErrors = validateControlPolicy(result.data);
+  const interventionErrors = validateInterventions(result.data);
+  const phase67Errors = [...controlPolicyErrors, ...interventionErrors];
+  if (phase67Errors.length > 0) {
+    return { success: false, errors: phase67Errors };
   }
 
   return { success: true, model: result.data };

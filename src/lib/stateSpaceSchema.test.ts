@@ -75,12 +75,13 @@ const SAPIAN_COMPOSTING_MODEL: NonlinearModel = {
     k_diff: { value: 0.5, name: 'Oxygen Diffusion Rate', unit: 'kg/(hr)' },
     q_resp: { value: 0.02, name: 'Microbial Respiration Rate', unit: 'kg_O2/(kg_bio·hr)' },
     k_abr: { value: 0.005, name: 'Abrasion Rate', unit: '1/hr' },
+    k_vol_loss: { value: 0.003, name: 'Volume Loss from Decomposition', unit: 'm³/(kg·hr)' },
     Y_n: { value: 0.1, name: 'Nitrogen Yield Coefficient', unit: 'kg_N/kg_bio' },
     x10: { value: 100.0, name: 'Inert Mass (fixed)', unit: 'kg' },
     x11: { value: 1.8, name: 'Drum Capacity (fixed)', unit: 'm³' },
   },
   state_definitions: {
-    x1: { id: 't_k', name: 'Core Temperature', unit: '°C', default_value: 30.0 },
+    x1: { id: 't_k', name: 'Max Temperature', unit: '°C', default_value: 30.0 },
     x2: { id: 'm_meso', name: 'Mesophilic Mass', unit: 'kg', default_value: 0.8 },
     x3: { id: 'm_thermo', name: 'Thermophilic Mass', unit: 'kg', default_value: 0.005 },
     x4: { id: 's_k', name: 'Sugar Mass', unit: 'kg', default_value: 160.0 },
@@ -120,9 +121,9 @@ const SAPIAN_COMPOSTING_MODEL: NonlinearModel = {
     x5_next: 'max(x5 - dt * ((1 / Y_l) * mu_t * phi_lim * x3 * x9 * psi_soft), 0)',
     x6_next: 'max(x6 - dt * (Y_n * (mu_m * phi_lim * x2 + mu_t * phi_lim * x3)), 0)',
     x7_next: 'max(x7 - dt * (k_evap * u_fan * (x1 - t_amb)), 0.1)',
-    x8_next: 'max(x8 + dt * (k_diff * u_fan * afp - q_resp * (x2 + x3)), 0)',
+    x8_next: 'max(x8 + dt * (k_diff * u_fan * afp - q_resp * (mu_m * phi_lim * x2 + mu_t * phi_lim * x3)), 0)',
     x9_next: 'min(x9 + dt * (k_abr * u_motor * psi_soft), 1.0)',
-    x12_next: 'max(x12 - dt * (k_settle * u_motor + 0.002 * abs((1 / Y_s) * mu_m * phi_lim * x2 + (1 / Y_l) * mu_t * phi_lim * x3 * x9 * psi_soft)), 0.1)',
+    x12_next: 'max(x12 - dt * (k_settle * u_motor * psi_soft + k_vol_loss * (mu_m * phi_lim * x2 + mu_t * phi_lim * x3)), 0.1)',
   },
   simulation_config: {
     dt: 0.05,
@@ -316,5 +317,152 @@ describe('validateExpressions', () => {
     });
     const errors = validateExpressions(model);
     expect(errors.some((e) => e.includes('undefined_var') && e.includes('undefined variable'))).toBe(true);
+  });
+});
+
+
+/** Full Sapi-an composting model WITH control_policy and interventions (from design doc) */
+function makeSapianWithGoldenPath(): NonlinearModel {
+  return {
+    ...SAPIAN_COMPOSTING_MODEL,
+    control_policy: {
+      initial_phase: 'phase_a_mesophilic_ignition',
+      phases: [
+        {
+          name: 'phase_a_mesophilic_ignition',
+          entry_condition: 'x1 < 45',
+          rules: [
+            { condition: 'x8 < 1.0', actuator: 'u_fan', value: 1, duration_steps: 2 },
+            { condition: 'x9 < 0.3', actuator: 'u_motor', value: 1, duration_steps: 4 },
+          ],
+          exit_threshold: 'x1 >= 45',
+        },
+        {
+          name: 'phase_b_thermophilic_handover',
+          entry_condition: 'x1 >= 45',
+          rules: [
+            { condition: 'x8 < 0.8', actuator: 'u_fan', value: 1, duration_steps: 2 },
+            { condition: 'x9 < 0.5', actuator: 'u_motor', value: 1, duration_steps: 3 },
+          ],
+          exit_threshold: 'x1 >= 55',
+        },
+        {
+          name: 'phase_c_lignin_breach',
+          entry_condition: 'x1 >= 55',
+          rules: [
+            { condition: 'x8 < 0.5', actuator: 'u_fan', value: 1, duration_steps: 2 },
+            { condition: 'x7 / (x2 + x3 + x4 + x5 + x6 + x7 + x10) < 0.45', actuator: 'u_fan', value: 1, duration_steps: 3 },
+            { condition: 'x9 < 0.7', actuator: 'u_motor', value: 1, duration_steps: 4 },
+          ],
+          exit_threshold: null,
+        },
+      ],
+    },
+    interventions: [
+      { time_hours: 48, state_key: 'x4', delta: 20.0, label: 'Day 2: Add 20kg greens (sugar substrate)' },
+      { time_hours: 48, state_key: 'x7', delta: 15.0, label: 'Day 2: Add 15kg moisture with greens' },
+      { time_hours: 120, state_key: 'x7', delta: 25.0, label: 'Day 5: Moisture top-up (25kg water)' },
+      { time_hours: 240, state_key: 'x4', delta: 10.0, label: 'Day 10: Add 10kg greens (late sugar boost)' },
+    ],
+  };
+}
+
+describe('Golden Path Schema Validation', () => {
+  it('validates the full Sapi-an composting model with control_policy and interventions', () => {
+    const model = makeSapianWithGoldenPath();
+    const result = validateStateSpaceJson(JSON.stringify(model));
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.model.control_policy).toBeDefined();
+      expect(result.model.control_policy!.phases).toHaveLength(3);
+      expect(result.model.interventions).toHaveLength(4);
+    }
+  });
+
+  it('rejects control_policy with initial_phase not matching any phase name', () => {
+    const model = makeSapianWithGoldenPath();
+    model.control_policy!.initial_phase = 'nonexistent_phase';
+    const result = validateStateSpaceJson(JSON.stringify(model));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors).toEqual(
+        expect.arrayContaining([expect.stringContaining('nonexistent_phase')])
+      );
+      expect(result.errors).toEqual(
+        expect.arrayContaining([expect.stringContaining('does not match any phase name')])
+      );
+    }
+  });
+
+  it('rejects actuator rule referencing non-existent actuator key', () => {
+    const model = makeSapianWithGoldenPath();
+    model.control_policy!.phases[0].rules[0].actuator = 'u_nonexistent';
+    const result = validateStateSpaceJson(JSON.stringify(model));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors).toEqual(
+        expect.arrayContaining([expect.stringContaining('u_nonexistent')])
+      );
+      expect(result.errors).toEqual(
+        expect.arrayContaining([expect.stringContaining('not found in u_actuators')])
+      );
+    }
+  });
+
+  it('rejects intervention with state_key not in state_definitions', () => {
+    const model = makeSapianWithGoldenPath();
+    model.interventions![0].state_key = 'x_bogus';
+    const result = validateStateSpaceJson(JSON.stringify(model));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors).toEqual(
+        expect.arrayContaining([expect.stringContaining('x_bogus')])
+      );
+      expect(result.errors).toEqual(
+        expect.arrayContaining([expect.stringContaining('not found in state_definitions')])
+      );
+    }
+  });
+
+  it('accepts model with empty interventions array', () => {
+    const model = makeSapianWithGoldenPath();
+    model.interventions = [];
+    const result = validateStateSpaceJson(JSON.stringify(model));
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts model with control_policy but no interventions', () => {
+    const model = makeSapianWithGoldenPath();
+    delete (model as Partial<Pick<NonlinearModel, 'interventions'>> & Omit<NonlinearModel, 'interventions'>).interventions;
+    const result = validateStateSpaceJson(JSON.stringify(model));
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.model.control_policy).toBeDefined();
+      expect(result.model.interventions).toBeUndefined();
+    }
+  });
+
+  it('rejects control_policy expression with undefined variable (error includes phase name)', () => {
+    const model = makeSapianWithGoldenPath();
+    model.control_policy!.phases[1].entry_condition = 'undefined_var > 10';
+    const result = validateStateSpaceJson(JSON.stringify(model));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors).toEqual(
+        expect.arrayContaining([expect.stringContaining('undefined_var')])
+      );
+      expect(result.errors).toEqual(
+        expect.arrayContaining([expect.stringContaining('phase_b_thermophilic_handover')])
+      );
+    }
+  });
+
+  it('accepts model without control_policy or interventions (backward compat)', () => {
+    const result = validateStateSpaceJson(JSON.stringify(SAPIAN_COMPOSTING_MODEL));
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.model.control_policy).toBeUndefined();
+      expect(result.model.interventions).toBeUndefined();
+    }
   });
 });

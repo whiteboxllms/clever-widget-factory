@@ -80,6 +80,8 @@ export function useDeleteStateSpaceModel() {
     mutationFn: (id: string) => deleteStateSpaceModel(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: stateSpaceModelsQueryKey() });
+      // Also invalidate all entity-specific queries so pages using by-entity don't show stale data
+      queryClient.invalidateQueries({ queryKey: ['state_space_models_by_entity'] });
     },
   });
 }

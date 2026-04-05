@@ -1,12 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Wrench, Package, Edit, Trash2, LogOut, LogIn, AlertTriangle, AlertCircle, Plus, Minus, ShoppingCart, History, Triangle, Info, ExternalLink, Camera } from "lucide-react";
+import { Wrench, Edit, Trash2, LogOut, LogIn, AlertTriangle, AlertCircle, Plus, Minus, History, Triangle, Info, ExternalLink, Camera } from "lucide-react";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { InventoryHistoryDialog } from "./InventoryHistoryDialog";
 import { AssetHistoryDialog } from "./AssetHistoryDialog";
 import { Link } from "react-router-dom";
 import { getThumbnailUrl } from '@/lib/imageUtils';
+import { PrismIcon } from "@/components/icons/PrismIcon";
 
 import { useMemo, memo, useRef } from "react";
 
@@ -60,9 +61,7 @@ interface CombinedAssetCardProps {
   onManageIssues?: (asset: CombinedAsset) => void;
   onAddQuantity?: (asset: CombinedAsset) => void;
   onUseQuantity?: (asset: CombinedAsset) => void;
-  onOrderStock?: (asset: CombinedAsset) => void;
-  onReceiveOrder?: (asset: CombinedAsset) => void;
-  hasPendingOrders?: boolean;
+  onAskMaxwell?: (asset: CombinedAsset) => void;
   onShowHistory?: (asset: CombinedAsset) => void;
   onAddObservation?: (asset: CombinedAsset) => void;
   itemCount?: number;
@@ -75,7 +74,6 @@ const arePropsEqual = (prevProps: CombinedAssetCardProps, nextProps: CombinedAss
       prevProps.isAdmin !== nextProps.isAdmin ||
       prevProps.currentUserId !== nextProps.currentUserId ||
       prevProps.currentUserEmail !== nextProps.currentUserEmail ||
-      prevProps.hasPendingOrders !== nextProps.hasPendingOrders ||
       prevProps.itemCount !== nextProps.itemCount ||
       prevProps.checkoutInfo?.user_id !== nextProps.checkoutInfo?.user_id) {
     return false;
@@ -152,9 +150,7 @@ export const CombinedAssetCard = memo(({
   onManageIssues,
   onAddQuantity,
   onUseQuantity,
-  onOrderStock,
-  onReceiveOrder,
-  hasPendingOrders,
+  onAskMaxwell,
   onShowHistory,
   onAddObservation,
   itemCount
@@ -454,6 +450,29 @@ export const CombinedAssetCard = memo(({
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+
+              {onAskMaxwell && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-12 px-2 [&_svg]:size-auto"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAskMaxwell(asset);
+                        }}
+                      >
+                        <PrismIcon size={18} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Ask Maxwell</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </>
           )}
 
@@ -486,51 +505,6 @@ export const CombinedAssetCard = memo(({
                   </TooltipProvider>
                 )}
 
-                {onOrderStock && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-12 px-2"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onOrderStock(asset);
-                          }}
-                        >
-                          <ShoppingCart className="w-4 h-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Create Order</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-
-                {hasPendingOrders && onReceiveOrder && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-12 px-2"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onReceiveOrder(asset);
-                          }}
-                        >
-                          <Package className="h-3 w-3" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Receive Order</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
 
                 {/* Stock History Button */}
                 <InventoryHistoryDialog partId={asset.id} partName={asset.name}>
@@ -545,6 +519,29 @@ export const CombinedAssetCard = memo(({
                     <History className="h-4 w-4" />
                   </Button>
                 </InventoryHistoryDialog>
+
+                {onAskMaxwell && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-12 px-2 [&_svg]:size-auto"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAskMaxwell(asset);
+                          }}
+                        >
+                          <PrismIcon size={18} />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Ask Maxwell</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
               </div>
             </>
           )}

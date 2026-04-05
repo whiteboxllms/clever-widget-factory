@@ -20,9 +20,7 @@ interface CombinedAssetGridProps {
   onAddObservation?: (asset: CombinedAsset) => void;
   onAddQuantity?: (asset: CombinedAsset) => void;
   onUseQuantity?: (asset: CombinedAsset) => void;
-  onOrderStock?: (asset: CombinedAsset) => void;
-  onReceiveOrder?: (asset: CombinedAsset) => void;
-  pendingOrders?: Record<string, unknown[]>;
+  onAskMaxwell?: (asset: CombinedAsset) => void;
   areaItemCounts?: Map<string, number>;
   // Infinite scroll props
   onLoadMore?: () => void;
@@ -47,9 +45,7 @@ export const CombinedAssetGrid = ({
   onAddObservation,
   onAddQuantity,
   onUseQuantity,
-  onOrderStock,
-  onReceiveOrder,
-  pendingOrders,
+  onAskMaxwell,
   areaItemCounts,
   // Infinite scroll props
   onLoadMore,
@@ -105,14 +101,12 @@ export const CombinedAssetGrid = ({
           onAddObservation={onAddObservation}
           onAddQuantity={onAddQuantity}
           onUseQuantity={onUseQuantity}
-          onOrderStock={onOrderStock}
-          onReceiveOrder={onReceiveOrder}
-          hasPendingOrders={pendingOrders?.[asset.id]?.length > 0}
+          onAskMaxwell={onAskMaxwell}
           itemCount={itemCount}
         />
       </div>
     );
-  }, [assets, canEdit, isAdmin, currentUserId, currentUserEmail, onView, onEdit, onRemove, onCheckout, onCheckin, onReportIssue, onManageIssues, onAddObservation, onAddQuantity, onUseQuantity, onOrderStock, onReceiveOrder, pendingOrders, userNameMap, areaItemCounts]);
+  }, [assets, canEdit, isAdmin, currentUserId, currentUserEmail, onView, onEdit, onRemove, onCheckout, onCheckin, onReportIssue, onManageIssues, onAddObservation, onAddQuantity, onUseQuantity, onAskMaxwell, userNameMap, areaItemCounts]);
 
   if (assets.length === 0) {
     return (

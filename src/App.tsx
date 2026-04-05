@@ -140,6 +140,14 @@ function AppContent() {
           }
         />
         <Route
+          path="/combined-assets/:entityType/:entityId/state-space"
+          element={
+            <ProtectedRoute>
+              <StateSpacePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/observations/edit/:observationId"
           element={
             <ProtectedRoute>

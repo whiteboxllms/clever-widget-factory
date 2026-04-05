@@ -9,18 +9,25 @@ import { apiService } from '@/lib/apiService';
 import type { StateSpaceModelRecord } from '@/lib/stateSpaceApi';
 
 interface StateSpaceModelLibraryProps {
-  actionId: string;
+  entityId: string;
+  entityType?: string;
+  /** @deprecated Use entityId instead */
+  actionId?: string;
   onSelect: (model: StateSpaceModelRecord) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 export function StateSpaceModelLibrary({
-  actionId,
+  entityId,
+  entityType = 'action',
+  actionId: _actionId,
   onSelect,
   open,
   onOpenChange,
 }: StateSpaceModelLibraryProps) {
+  // Support legacy actionId prop
+  const resolvedEntityId = entityId || _actionId || '';
   const { toast } = useToast();
   const { data: modelsResponse, isLoading: isLoadingModels } = useStateSpaceModels();
   const createAssociation = useCreateModelAssociation();
@@ -93,8 +100,8 @@ export function StateSpaceModelLibrary({
     try {
       await createAssociation.mutateAsync({
         modelId: model.id,
-        entityType: 'action',
-        entityId: actionId,
+        entityType,
+        entityId: resolvedEntityId,
       });
       onSelect(model);
       onOpenChange(false);

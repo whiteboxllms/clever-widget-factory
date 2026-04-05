@@ -255,12 +255,16 @@ function GoldenPathTooltip({
 type PageMode = 'empty' | 'display';
 
 export default function StateSpacePage() {
-  const { actionId } = useParams<{ actionId: string }>();
+  const { actionId, entityType: routeEntityType, entityId: routeEntityId } = useParams<{ actionId?: string; entityType?: string; entityId?: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Support both legacy /actions/:actionId/state-space and generic /combined-assets/:entityType/:entityId/state-space
+  const entityType = routeEntityType || 'action';
+  const entityId = routeEntityId || actionId || '';
+
   // Fetch associated model from backend
-  const { data: entityData, isLoading: isLoadingModel } = useStateSpaceModelsByEntity('action', actionId ?? '');
+  const { data: entityData, isLoading: isLoadingModel } = useStateSpaceModelsByEntity(entityType, entityId);
   const existingRecord = entityData?.data?.[0] ?? null;
 
   // Derive model from backend data
@@ -634,7 +638,7 @@ export default function StateSpacePage() {
   const isDeleting = deleteModel.isPending;
 
   const handleSave = async (modelToSave: NonlinearModel) => {
-    if (!actionId) return;
+    if (!entityId) return;
 
     try {
       // Remove existing association if switching models
@@ -642,12 +646,12 @@ export default function StateSpacePage() {
         await deleteAssociation.mutateAsync({
           modelId: existingModelId,
           associationId: existingAssociationId,
-          entityType: 'action',
-          entityId: actionId,
+          entityType,
+          entityId,
         });
       }
 
-      // Create new model and associate with action
+      // Create new model and associate with entity
       const result = await createModel.mutateAsync({
         model_definition: modelToSave,
       });
@@ -655,8 +659,8 @@ export default function StateSpacePage() {
 
       await createAssociation.mutateAsync({
         modelId: newModelId,
-        entityType: 'action',
-        entityId: actionId,
+        entityType,
+        entityId,
       });
 
       setExistingModelId(newModelId);
@@ -727,6 +731,7 @@ export default function StateSpacePage() {
       h_t: { value: 7800, name: "Thermophilic Heat Generation", unit: "J/kg" },
       C_th: { value: 3.8, name: "Thermal Capacity", unit: "kJ/(kg·°C)" },
       k_loss_ambient: { value: 0.08, name: "Ambient Heat Loss Coefficient", unit: "1/hr" },
+      k_latent: { value: 0.5, name: "Latent Heat Loss (Evaporation) Coefficient", unit: "1/hr" },
       mu_max_m: { value: 0.22, name: "Max Mesophilic Growth Rate", unit: "1/hr" },
       mu_max_t: { value: 0.35, name: "Max Thermophilic Growth Rate", unit: "1/hr" },
       K_o: { value: 0.1, name: "Oxygen Half-Saturation", unit: "kg" },
@@ -776,11 +781,11 @@ export default function StateSpacePage() {
       mu_m: "mu_max_m * exp(-(x1 - 35)^2 / (2 * 64))",
       mu_t: "mu_max_t * exp(-(x1 - 60)^2 / (2 * 100))",
       dm: "0.02 + max(0, 0.25 * (x1 - 44))",
-      death_rate_t: "0.02 + max(0, 0.4 * (x1 - 75)) + max(0, 0.3 * (55 - x1))",
+      death_rate_t: "0.02 + max(0, 0.4 * (x1 - 75))",
       afp: "(x11 - x12) / x11"
     },
     state_update_equations: {
-      x1_next: "max(x1 + dt * ((h_m * x2 + h_t * x3) / (C_th * rho_bulk) - k_loss_ambient * (1 + 30 * u_motor + 6 * u_fan) * (x1 - t_amb)), t_amb)",
+      x1_next: "max(x1 + dt * ((h_m * mu_m * x2 + h_t * mu_t * x3) / (C_th * rho_bulk) - k_loss_ambient * (1 + 5 * u_motor + 15 * u_fan) * (x1 - t_amb) - k_latent * u_fan * (x1 - t_amb) * (x7 / x12)), t_amb)",
       x2_next: "max(x2 + dt * (mu_m * phi_lim * x2 - dm * x2), 0.0001)",
       x3_next: "max(x3 + dt * (mu_t * phi_lim * x3 - death_rate_t * x3), 0.005)",
       x4_next: "max(x4 - dt * ((1 / Y_s) * mu_m * phi_lim * x2), 0)",
@@ -877,7 +882,13 @@ export default function StateSpacePage() {
   return (
     <div className="container mx-auto p-6">
       <div className="flex items-center gap-3 mb-6">
-        <Button variant="outline" onClick={() => navigate(`/actions/${actionId}`)}>
+        <Button variant="outline" onClick={() => {
+          if (entityType === 'action') {
+            navigate(`/actions/${entityId}`);
+          } else {
+            navigate(`/combined-assets?edit=${entityId}`);
+          }
+        }}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
         </Button>
@@ -987,42 +998,43 @@ export default function StateSpacePage() {
             )}
           </div>
 
-          {/* 1. Model Metadata */}
+          {/* 1. Model Metadata — always visible */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Model Metadata</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Name</p>
+                <p className="font-medium">{model.model_metadata.name}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Version</p>
+                <p className="font-medium">{model.model_metadata.version}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Author</p>
+                <p className="font-medium">{model.model_metadata.author}</p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-sm text-muted-foreground">Description</p>
+                <p className="font-medium">{model.model_metadata.description}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Details — collapsed by default, sub-items open when expanded */}
           <Collapsible defaultOpen={false}>
-            <Card>
-              <CollapsibleTrigger asChild>
-                <CardHeader className="cursor-pointer select-none">
-                  <CardTitle className="flex items-center justify-between">
-                    Model Metadata
-                    <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform [[data-state=open]>&]:rotate-180" />
-                  </CardTitle>
-                </CardHeader>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <CardContent className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Name</p>
-                    <p className="font-medium">{model.model_metadata.name}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Version</p>
-                    <p className="font-medium">{model.model_metadata.version}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Author</p>
-                    <p className="font-medium">{model.model_metadata.author}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <p className="text-sm text-muted-foreground">Description</p>
-                    <p className="font-medium">{model.model_metadata.description}</p>
-                  </div>
-                </CardContent>
-              </CollapsibleContent>
-            </Card>
-          </Collapsible>
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center gap-2 cursor-pointer select-none py-2">
+                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform [[data-state=open]>&]:rotate-180" />
+                <span className="text-sm font-semibold text-muted-foreground">Model Details</span>
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-6">
 
           {/* 2. Model Description Prompt */}
-          <Collapsible defaultOpen={false}>
+          <Collapsible defaultOpen>
             <Card>
               <CollapsibleTrigger asChild>
                 <CardHeader className="cursor-pointer select-none">
@@ -1043,7 +1055,7 @@ export default function StateSpacePage() {
           </Collapsible>
 
           {/* 3. Constants */}
-          <Collapsible defaultOpen={false}>
+          <Collapsible defaultOpen>
             <Card>
               <CollapsibleTrigger asChild>
                 <CardHeader className="cursor-pointer select-none">
@@ -1081,7 +1093,7 @@ export default function StateSpacePage() {
           </Collapsible>
 
           {/* 4. State Definitions */}
-          <Collapsible defaultOpen={false}>
+          <Collapsible defaultOpen>
             <Card>
               <CollapsibleTrigger asChild>
                 <CardHeader className="cursor-pointer select-none">
@@ -1121,7 +1133,7 @@ export default function StateSpacePage() {
           </Collapsible>
 
           {/* 5. Input Vectors */}
-          <Collapsible defaultOpen={false}>
+          <Collapsible defaultOpen>
             <Card>
               <CollapsibleTrigger asChild>
                 <CardHeader className="cursor-pointer select-none">
@@ -1177,7 +1189,7 @@ export default function StateSpacePage() {
           </Collapsible>
 
           {/* 6. Non-Linear Transitions */}
-          <Collapsible defaultOpen={false}>
+          <Collapsible defaultOpen>
             <Card>
               <CollapsibleTrigger asChild>
                 <CardHeader className="cursor-pointer select-none">
@@ -1201,7 +1213,7 @@ export default function StateSpacePage() {
           </Collapsible>
 
           {/* 7. State Update Equations */}
-          <Collapsible defaultOpen={false}>
+          <Collapsible defaultOpen>
             <Card>
               <CollapsibleTrigger asChild>
                 <CardHeader className="cursor-pointer select-none">
@@ -1225,7 +1237,7 @@ export default function StateSpacePage() {
           </Collapsible>
 
           {/* 8. Simulation Config */}
-          <Collapsible defaultOpen={false}>
+          <Collapsible defaultOpen>
             <Card>
               <CollapsibleTrigger asChild>
                 <CardHeader className="cursor-pointer select-none">
@@ -1250,11 +1262,10 @@ export default function StateSpacePage() {
             </Card>
           </Collapsible>
 
+            </CollapsibleContent>
+          </Collapsible>
+
           <div className="flex items-center gap-4">
-            <Button onClick={handleRunSimulation} disabled={goldenPathMode}>
-              <Play className="h-4 w-4 mr-2" />
-              Run Simulation
-            </Button>
             {(model.control_policy || model.control_spec) && !goldenPathMode && (
               <Button variant="secondary" onClick={handleRunGoldenPath}>
                 <Play className="h-4 w-4 mr-2" />
@@ -1265,18 +1276,6 @@ export default function StateSpacePage() {
               <Button variant="outline" onClick={handleToggleGoldenPathOff}>
                 Exit Golden Path
               </Button>
-            )}
-            {activeResult && (
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="normalize-toggle"
-                  checked={normalized}
-                  onCheckedChange={setNormalized}
-                />
-                <Label htmlFor="normalize-toggle" className="text-sm">
-                  Normalized view (0–100)
-                </Label>
-              </div>
             )}
           </div>
 
@@ -1322,8 +1321,11 @@ export default function StateSpacePage() {
                   <LineChart data={chartData}>
                     <XAxis
                       dataKey="time"
-                      label={{ value: 'Time (days)', position: 'insideBottom', offset: -5 }}
-                      tickFormatter={(v: number) => v.toFixed(1)}
+                      type="number"
+                      domain={['dataMin', 'dataMax']}
+                      ticks={Array.from({ length: Math.ceil(activeResult?.timePoints[activeResult.timePoints.length - 1] ?? 14) + 1 }, (_, i) => i)}
+                      tickFormatter={(v: number) => `${v}`}
+                      label={{ value: 'Day', position: 'insideBottomRight', offset: -5 }}
                     />
                     <YAxis
                       scale={normalized ? 'auto' : 'log'}
@@ -1432,8 +1434,11 @@ export default function StateSpacePage() {
                     <LineChart data={actuatorChartData}>
                       <XAxis
                         dataKey="time"
-                        label={{ value: 'Time (days)', position: 'insideBottom', offset: -5 }}
-                        tickFormatter={(v: number) => v.toFixed(1)}
+                        type="number"
+                        domain={['dataMin', 'dataMax']}
+                        ticks={Array.from({ length: Math.ceil(gpResult.timePoints[gpResult.timePoints.length - 1] ?? 14) + 1 }, (_, i) => i)}
+                        tickFormatter={(v: number) => `${v}`}
+                        label={{ value: 'Day', position: 'insideBottomRight', offset: -5 }}
                       />
                       <YAxis domain={[0, 1]} ticks={[0, 1]} tickFormatter={(v: number) => (v === 1 ? 'ON' : 'OFF')} />
                       <Tooltip
@@ -1461,9 +1466,10 @@ export default function StateSpacePage() {
         </div>
       )}
 
-      {actionId && (
+      {entityId && (
         <StateSpaceModelLibrary
-          actionId={actionId}
+          entityId={entityId}
+          entityType={entityType}
           open={libraryOpen}
           onOpenChange={setLibraryOpen}
           onSelect={async (record: StateSpaceModelRecord) => {
@@ -1473,8 +1479,8 @@ export default function StateSpacePage() {
                 await deleteAssociation.mutateAsync({
                   modelId: existingModelId,
                   associationId: existingAssociationId,
-                  entityType: 'action',
-                  entityId: actionId!,
+                  entityType,
+                  entityId,
                 });
               } catch {
                 // Continue even if delete fails — the new association is more important

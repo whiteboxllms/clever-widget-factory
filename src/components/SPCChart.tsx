@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   LineChart,
   Line,
@@ -6,6 +6,7 @@ import {
   YAxis,
   Tooltip,
   Legend,
+  Brush,
   ResponsiveContainer,
   ReferenceLine,
   ReferenceArea,
@@ -116,8 +117,15 @@ export function SPCChart({
   independentVariables,
 }: SPCChartProps) {
   const [showIVs, setShowIVs] = useState(false);
+  const [highlightedKey, setHighlightedKey] = useState<string | null>(null);
 
   const hasIVs = independentVariables != null && independentVariables.length > 0;
+
+  const handleLegendClick = useCallback((entry: { dataKey?: unknown }) => {
+    const key = String(entry.dataKey ?? '');
+    if (!key) return;
+    setHighlightedKey((prev) => (prev === key ? null : key));
+  }, []);
 
   const chartData = useMemo(() => {
     return timePoints.map((t, i) => {
@@ -180,8 +188,11 @@ export function SPCChart({
         <LineChart data={chartData}>
           <XAxis
             dataKey="time"
-            label={{ value: 'Time (days)', position: 'insideBottom', offset: -5 }}
-            tickFormatter={(v: number) => v.toFixed(1)}
+            type="number"
+            domain={['dataMin', 'dataMax']}
+            ticks={Array.from({ length: Math.ceil(timePoints[timePoints.length - 1] ?? 14) + 1 }, (_, i) => i)}
+            tickFormatter={(v: number) => `${v}`}
+            label={{ value: 'Day', position: 'insideBottomRight', offset: -5 }}
           />
           <YAxis
             yAxisId="right"
@@ -297,15 +308,30 @@ export function SPCChart({
           ))}
 
           <Tooltip
+            contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.5)', backdropFilter: 'blur(4px)', border: '1px solid #e5e7eb' }}
             labelFormatter={(v: number) => `Day ${Number(v).toFixed(2)}`}
             formatter={(val: number | undefined, name?: string) => {
               if (val == null) return '';
               if (name === 'targetLine') return [val.toFixed(4), 'Target'];
               return val.toFixed(4);
             }}
+            cursor={{ stroke: '#94a3af', strokeDasharray: '3 3' }}
           />
 
-          {showIVs && hasIVs && <Legend />}
+          {showIVs && hasIVs && (
+            <Legend
+              onClick={handleLegendClick}
+              wrapperStyle={{ cursor: 'pointer' }}
+            />
+          )}
+
+          {/* Brush for time range selection */}
+          <Brush
+            dataKey="time"
+            height={20}
+            stroke="#94a3af"
+            tickFormatter={(v: number) => `${Math.round(v)}`}
+          />
 
           {/* Main controlled variable line */}
           <Line
@@ -315,7 +341,8 @@ export function SPCChart({
             yAxisId="right"
             stroke="#2563eb"
             dot={false}
-            strokeWidth={2}
+            strokeWidth={highlightedKey === 'value' ? 3.5 : highlightedKey ? 1 : 2}
+            strokeOpacity={highlightedKey && highlightedKey !== 'value' ? 0.3 : 1}
           />
 
           {/* Dynamic target function line — green, thin, dotted */}
@@ -327,9 +354,9 @@ export function SPCChart({
               yAxisId="right"
               stroke="#16a34a"
               dot={false}
-              strokeWidth={1}
+              strokeWidth={highlightedKey === 'targetLine' ? 2.5 : 1}
               strokeDasharray="3 3"
-              strokeOpacity={0.7}
+              strokeOpacity={highlightedKey && highlightedKey !== 'targetLine' ? 0.2 : 0.7}
             />
           )}
 
@@ -345,8 +372,8 @@ export function SPCChart({
                 yAxisId="left"
                 stroke={iv.color ?? IV_COLORS[idx % IV_COLORS.length]}
                 dot={false}
-                strokeWidth={1.5}
-                strokeOpacity={0.6}
+                strokeWidth={highlightedKey === iv.key ? 3 : 1.5}
+                strokeOpacity={highlightedKey && highlightedKey !== iv.key ? 0.15 : 0.6}
               />
             ))}
         </LineChart>

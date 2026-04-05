@@ -129,7 +129,7 @@ export default function Dashboard() {
       color: "bg-orange-500"
     },
     {
-      title: "Finances",
+      title: "Expenses",
       description: "Track petty cash and expenses",
       icon: DollarSign,
       path: "/finances",

@@ -11,6 +11,7 @@ export interface FinancialRecord {
   description?: string;
   photos?: ObservationPhoto[];
   state_id?: string;
+  balance_after?: number | null;
   created_at: string;
   updated_at: string;
 }

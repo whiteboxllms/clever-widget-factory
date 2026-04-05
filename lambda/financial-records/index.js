@@ -17,6 +17,28 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+/**
+ * Recompute balance_after for all Cash records in an org from a given date forward.
+ * Call this after any insert/update/delete that affects Cash transactions.
+ */
+async function recomputeCashBalances(dbClient, organizationId) {
+  await dbClient.query(`
+    WITH ordered_cash AS (
+      SELECT id,
+             -SUM(amount) OVER (
+               ORDER BY transaction_date, created_at
+               ROWS UNBOUNDED PRECEDING
+             ) AS running_balance
+      FROM financial_records
+      WHERE organization_id = $1 AND payment_method = 'Cash'
+    )
+    UPDATE financial_records fr
+    SET balance_after = oc.running_balance
+    FROM ordered_cash oc
+    WHERE fr.id = oc.id
+  `, [organizationId]);
+}
+
 exports.handler = async (event) => {
   console.log('cwf-financial-records-lambda invoked:', {
     httpMethod: event.httpMethod,
@@ -126,6 +148,16 @@ async function createRecord(event, authContext) {
       [organizationId, cognitoUserId, transaction_date, amount, payment_method]
     );
     const createdRecord = recordResult.rows[0];
+
+    // Compute and store balance_after for Cash records
+    if (payment_method === 'Cash') {
+      await recomputeCashBalances(client, organizationId);
+      const balResult = await client.query(
+        'SELECT balance_after FROM financial_records WHERE id = $1',
+        [createdRecord.id]
+      );
+      createdRecord.balance_after = parseFloat(balResult.rows[0].balance_after);
+    }
 
     // 2. INSERT states with state_text = description
     const stateResult = await client.query(
@@ -507,6 +539,12 @@ async function updateRecord(event, id, authContext) {
       }
     }
 
+    // Recompute Cash balances if amount or payment_method changed
+    const cashFieldChanged = changes.some(c => c.field === 'amount' || c.field === 'payment_method');
+    if (cashFieldChanged) {
+      await recomputeCashBalances(client, organizationId);
+    }
+
     await client.query('COMMIT');
 
     // Recompute running balance (Cash only)
@@ -600,6 +638,11 @@ async function deleteRecord(id, authContext) {
     'DELETE FROM financial_records WHERE id = $1 AND organization_id = $2',
     [id, organizationId]
   );
+
+  // Recompute Cash balances if deleted record was Cash
+  if (record.payment_method === 'Cash') {
+    await recomputeCashBalances(pool, organizationId);
+  }
 
   // Delete linked state if found (CASCADE handles state_photos and state_links)
   if (stateId) {

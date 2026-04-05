@@ -204,10 +204,13 @@ export default function Finances() {
                     </div>
                   </TableHead>
                   <TableHead className="w-[100px] text-right">
-                    <button className="flex items-center gap-1 ml-auto hover:text-foreground" onClick={() => toggleSort('amount')}>
-                      Amount
+                    <button className="flex items-center gap-1 ml-auto hover:text-foreground whitespace-nowrap" onClick={() => toggleSort('amount')}>
+                      Amount (₱)
                       <ArrowUpDown className={`h-3 w-3 ${sortField === 'amount' ? 'text-foreground' : 'text-muted-foreground/50'}`} />
                     </button>
+                  </TableHead>
+                  <TableHead className="w-[100px] text-right whitespace-nowrap">
+                    Balance (₱)
                   </TableHead>
                   <TableHead className="w-[120px]">
                     <Select value={methodFilter} onValueChange={setMethodFilter}>
@@ -248,8 +251,11 @@ export default function Finances() {
                       {new Date(record.transaction_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                     </TableCell>
                     <TableCell className="truncate max-w-[200px]">{record.description}</TableCell>
-                    <TableCell className={`text-right font-medium ${record.amount < 0 ? 'text-green-600' : ''}`}>
-                      {record.amount < 0 ? '+' : '-'}₱{Math.abs(record.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    <TableCell className={`text-right font-medium whitespace-nowrap ${record.amount < 0 ? 'text-green-600' : ''}`}>
+                      {record.amount < 0 ? '+' : '-'}{Math.abs(record.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell className="text-right text-xs text-muted-foreground whitespace-nowrap">
+                      {record.balance_after != null ? record.balance_after.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
                     </TableCell>
                     <TableCell className="text-xs">
                       {record.payment_method}

@@ -14,6 +14,8 @@ inclusion: always
 - Prefer composition over inheritance; inject dependencies explicitly.
 - Keep functions small and focused; one clear responsibility per function/module.
 - Avoid leaking persistence or transport concerns into domain logic.
+- **Never optimize for short-term simplicity at the cost of long-term correctness.** When proposing a solution, always surface the tradeoff between quick/easy and right/durable. Present both options and let the user decide. Do not default to "simplest" — default to "correct."
+- **Understand existing infrastructure before proposing anything.** Before designing or implementing a feature, investigate how the existing system handles similar concerns. Ask: Does this fit into the current architecture? Is there an existing pattern we should follow? Would this introduce a new pattern, and if so, is that justified?
 
 ## Architecture
 
@@ -21,6 +23,7 @@ inclusion: always
   - Model Actions, Explorations, Checkouts, Policies, and Organizations as explicit domain concepts.
   - Keep organization-based multi-tenancy concerns at the boundary (authn/z, data filters), not scattered through domain logic.
 - Keep AWS-specific details (Cognito, Lambda authorizer, Bedrock calls) in infrastructure/adapters, not in core domain code.
+- **Before proposing a new table, column, endpoint, or pattern:** inspect the existing codebase for how similar features are implemented. Extend existing patterns rather than inventing new ones. If a deviation is needed, explain why the existing pattern doesn't fit.
 
 ## Embeddings Architecture Conventions
 

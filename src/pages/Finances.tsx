@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, Plus, Loader2, ArrowUpDown, X, Sparkles } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, ArrowUpDown, X } from 'lucide-react';
 import { useFinancialRecords } from '@/hooks/useFinancialRecords';
 
 const TIME_FRAMES = [
@@ -194,13 +194,6 @@ export default function Finances() {
                         onChange={(e) => setDescSearch(e.target.value)}
                         className="h-8 text-sm flex-1"
                       />
-                      <button
-                        className="shrink-0 text-muted-foreground hover:text-foreground"
-                        onClick={() => navigate('/sari-sari-chat')}
-                        title="AI Search"
-                      >
-                        <Sparkles className="h-4 w-4" />
-                      </button>
                     </div>
                   </TableHead>
                   <TableHead className="w-[100px] text-right">

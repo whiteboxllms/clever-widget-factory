@@ -7,7 +7,8 @@ const {
   composeActionEmbeddingSource,
   composeIssueEmbeddingSource,
   composePolicyEmbeddingSource,
-  composeStateEmbeddingSource
+  composeStateEmbeddingSource,
+  composeFinancialRecordEmbeddingSource
 } = require('/opt/nodejs/embedding-composition');
 
 const lambda = new LambdaClient({ region: 'us-west-2' });
@@ -121,6 +122,8 @@ async function getEmbeddingSource(entityType, fields, assets = []) {
       return composePolicyEmbeddingSource(fields);
     case 'state':
       return composeStateEmbeddingSource(fields);
+    case 'financial_record':
+      return composeFinancialRecordEmbeddingSource(fields);
     case 'state_space_model':
       return [fields.name, fields.description, fields.model_description_prompt]
         .filter(s => s && s.trim())
@@ -142,7 +145,7 @@ exports.handler = async (event) => {
       console.log(`Processing ${entity_type} ${entity_id}`);
       
       // Validate entity type (includes action variants like action_existing_state)
-      const validTypes = ['part', 'tool', 'action', 'issue', 'policy', 'action_existing_state', 'state', 'state_space_model'];
+      const validTypes = ['part', 'tool', 'action', 'issue', 'policy', 'action_existing_state', 'state', 'state_space_model', 'financial_record'];
       if (!validTypes.includes(entity_type)) {
         console.log(`Skipping ${entity_type} - not a valid entity type`);
         continue;

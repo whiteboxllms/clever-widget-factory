@@ -1,17 +1,15 @@
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, ImagePlus, X, Settings, Plus } from "lucide-react";
+import { CheckCircle, X, Settings, Plus } from "lucide-react";
 import { Tool } from "@/hooks/tools/useToolsData";
 import { useToolIssues, useInventoryIssues } from "@/hooks/useGenericIssues";
 import { CombinedAsset } from "@/hooks/useCombinedAssets";
 import { BaseIssue } from "@/types/issues";
-import { useImageUpload, ImageUploadResult } from "@/hooks/useImageUpload";
+import { useImageUpload } from "@/hooks/useImageUpload";
 
 import { IssueEditDialog } from "./IssueEditDialog";
 import { GenericIssueCard } from "./GenericIssueCard";
@@ -23,6 +21,7 @@ import { toast } from "@/hooks/use-toast";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
 import { apiService } from "@/lib/apiService";
 import { useAuth } from "@/hooks/useCognitoAuth";
+import { PhotoUploadPanel, type PhotoItem } from '@/components/shared/PhotoUploadPanel';
 
 interface IssueReportDialogProps {
   asset: CombinedAsset | Tool | null;
@@ -35,8 +34,7 @@ interface IssueReportDialogProps {
 
 export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: IssueReportDialogProps) {
   const [description, setDescription] = useState("");
-  const [selectedImages, setSelectedImages] = useState<File[]>([]);
-  const [uploadedImages, setUploadedImages] = useState<ImageUploadResult[]>([]);
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingIssue, setEditingIssue] = useState<BaseIssue | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -75,10 +73,12 @@ export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: Issu
     try {
       let photoUrls: string[] = [];
       
-      // Upload images if any are selected
-      if (selectedImages.length > 0) {
+      // Upload new photos if any
+      const newPhotos = photos.filter(p => p.file && !p.photo_url);
+      if (newPhotos.length > 0) {
         try {
-          const uploadResults = await uploadImages(selectedImages, {
+          const files = newPhotos.map(p => p.file!);
+          const uploadResults = await uploadImages(files, {
             bucket: 'tool-resolution-photos' as const,
             generateFileName: (file, index) => `issue-report-${asset.id}-${Date.now()}-${index || 1}-${file.name}`
           });
@@ -88,7 +88,6 @@ export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: Issu
           } else {
             photoUrls = [uploadResults.url];
           }
-          setUploadedImages(Array.isArray(uploadResults) ? uploadResults : [uploadResults]);
         } catch (error) {
           console.error('Failed to upload images:', error);
           setIsSubmitting(false);
@@ -107,8 +106,7 @@ export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: Issu
 
         // Reset form
         setDescription("");
-        setSelectedImages([]);
-        setUploadedImages([]);
+        setPhotos([]);
       
       onSuccess?.();
       onOpenChange(false);
@@ -117,15 +115,6 @@ export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: Issu
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    setSelectedImages(files);
-  };
-
-  const removeImage = (index: number) => {
-    setSelectedImages(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleEditIssue = (issue: BaseIssue) => {
@@ -302,57 +291,12 @@ export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: Issu
                   {/* Image Upload Section */}
                   <div className="space-y-3">
                     <Label>Photos</Label>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          onChange={handleImageSelect}
-                          className="hidden"
-                          id="issue-photos"
-                        />
-                        <Label
-                          htmlFor="issue-photos"
-                          className="flex items-center gap-2 px-3 py-2 border border-input rounded-md cursor-pointer hover:bg-accent"
-                        >
-                          <ImagePlus className="h-4 w-4" />
-                          Select Images
-                        </Label>
-                        {selectedImages.length > 0 && (
-                          <span className="text-sm text-muted-foreground">
-                            {selectedImages.length} image{selectedImages.length > 1 ? 's' : ''} selected
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Image Previews */}
-                      {selectedImages.length > 0 && (
-                        <div className="grid grid-cols-2 gap-2">
-                          {selectedImages.map((file, index) => (
-                            <div key={index} className="relative group">
-                              <img
-                                src={URL.createObjectURL(file)}
-                                alt={`Preview ${index + 1}`}
-                                className="w-full h-20 object-cover rounded border"
-                              />
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => removeImage(index)}
-                                className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                              <div className="absolute bottom-1 left-1 text-xs bg-background/80 rounded px-1">
-                                {file.name.substring(0, 12)}...
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    <PhotoUploadPanel
+                      photos={photos}
+                      onPhotosChange={setPhotos}
+                      showDescriptions={false}
+                      disabled={isSubmitting || isUploading}
+                    />
                   </div>
 
                   <div className="flex gap-2 pt-4">

@@ -14,6 +14,8 @@ inclusion: always
 - Prefer composition over inheritance; inject dependencies explicitly.
 - Keep functions small and focused; one clear responsibility per function/module.
 - Avoid leaking persistence or transport concerns into domain logic.
+- **Never optimize for short-term simplicity at the cost of long-term correctness.** When proposing a solution, always surface the tradeoff between quick/easy and right/durable. Present both options and let the user decide. Do not default to "simplest" — default to "correct."
+- **Understand existing infrastructure before proposing anything.** Before designing or implementing a feature, investigate how the existing system handles similar concerns. Ask: Does this fit into the current architecture? Is there an existing pattern we should follow? Would this introduce a new pattern, and if so, is that justified?
 
 ## Architecture
 
@@ -21,6 +23,7 @@ inclusion: always
   - Model Actions, Explorations, Checkouts, Policies, and Organizations as explicit domain concepts.
   - Keep organization-based multi-tenancy concerns at the boundary (authn/z, data filters), not scattered through domain logic.
 - Keep AWS-specific details (Cognito, Lambda authorizer, Bedrock calls) in infrastructure/adapters, not in core domain code.
+- **Before proposing a new table, column, endpoint, or pattern:** inspect the existing codebase for how similar features are implemented. Extend existing patterns rather than inventing new ones. If a deviation is needed, explain why the existing pattern doesn't fit.
 
 ## Embeddings Architecture Conventions
 
@@ -299,14 +302,16 @@ Can you help me narrow this down?"
 
 ## CRITICAL: Spec Requirements Process
 
-**NEVER write a requirements document without first discussing each requirement with the user.**
+**NEVER write a requirements document without first discussing EACH requirement ONE BY ONE with the user.**
 
 ### Requirements Discussion Protocol:
 
-1. **DISCUSS BEFORE WRITING** — When starting a new spec, have a conversation first:
-   - Ask clarifying questions about scope, entity types, entry points, and edge cases
-   - Propose the requirement areas and get explicit confirmation on each
-   - Surface assumptions and validate them before encoding them in a document
+1. **DISCUSS EACH REQUIREMENT INDIVIDUALLY** — Present one requirement area at a time:
+   - Describe what the requirement covers and why it's needed
+   - State your proposed acceptance criteria
+   - Ask the user if they agree, want changes, or want to skip it
+   - **WAIT for explicit confirmation before moving to the next requirement**
+   - Do NOT batch multiple requirements together
 
 2. **CONFIRM SCOPE** — Before writing any requirement, confirm:
    - What entities/contexts does this apply to? (Don't assume — ask)
@@ -314,8 +319,10 @@ Can you help me narrow this down?"
    - What permissions/roles are involved?
    - What should be deferred to a future spec?
 
-3. **WRITE ONLY AFTER AGREEMENT** — Only write the requirements document after the user has confirmed the scope and approach through conversation.
+3. **WRITE ONLY AFTER ALL REQUIREMENTS ARE AGREED** — Only write the requirements document after the user has confirmed every single requirement through conversation.
 
 4. **ITERATE IN CHAT, NOT IN DOCS** — Use conversation to refine ideas. Documents should reflect agreed decisions, not be a place to explore options.
+
+5. **NEVER DUMP A FULL REQUIREMENTS DOC** — Even if you think you know all the requirements from context, you MUST discuss them one by one. The user may have different priorities, want to defer things, or disagree with your assumptions.
 
 ### Example of WRONG approach:

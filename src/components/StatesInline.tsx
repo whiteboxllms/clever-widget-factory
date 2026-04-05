@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useStates, useStateMutations } from '@/hooks/useStates';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useToast } from '@/hooks/use-toast';
@@ -6,7 +6,6 @@ import { getImageUrl, getThumbnailUrl } from '@/lib/imageUtils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   AlertDialog,
@@ -18,9 +17,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Upload, X, Edit2, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { CreateObservationData, Observation } from '@/types/observations';
+import { PhotoUploadPanel, type PhotoItem } from '@/components/shared/PhotoUploadPanel';
 
 interface StatesInlineProps {
   entity_type: 'action' | 'part' | 'tool' | 'issue' | 'policy';
@@ -47,59 +47,11 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
   
   // Form state
   const [stateText, setStateText] = useState('');
-  const [photos, setPhotos] = useState<Array<{ 
-    file?: File;  // For new photos being uploaded
-    photo_url?: string;  // For existing photos from S3
-    photo_description: string; 
-    photo_order: number;
-    previewUrl: string;
-    isExisting?: boolean;  // Flag to track if this is an existing photo
-  }>>([]);
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
 
   // States are automatically cached by TanStack Query
   // Components can derive counts using useActionObservationCount hook
   // No need to notify parent components of count changes
-
-  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    const fileArray = Array.from(files);
-    
-    // Add files to local state with previews
-    const newPhotos = fileArray.map((file, index) => {
-      const blobUrl = URL.createObjectURL(file);
-      console.log('[StatesInline] Created blob URL:', blobUrl, 'for file:', file.name);
-      return {
-        file,
-        photo_description: '',
-        photo_order: photos.length + index,
-        previewUrl: blobUrl
-      };
-    });
-    
-    setPhotos(prev => [...prev, ...newPhotos]);
-    e.target.value = '';
-  };
-
-  const handleRemovePhoto = (index: number) => {
-    const photo = photos[index];
-    // Only revoke object URLs for new photos (not existing S3 URLs)
-    // Check if it's a blob URL before revoking
-    if (photo.previewUrl && !photo.isExisting && photo.previewUrl.startsWith('blob:')) {
-      URL.revokeObjectURL(photo.previewUrl);
-    }
-    setPhotos(prev => prev.filter((_, i) => i !== index).map((photo, i) => ({
-      ...photo,
-      photo_order: i
-    })));
-  };
-
-  const handlePhotoDescriptionChange = (index: number, description: string) => {
-    setPhotos(prev => prev.map((photo, i) => 
-      i === index ? { ...photo, photo_description: description } : photo
-    ));
-  };
 
   const resetForm = () => {
     // Clean up preview URLs (only for new photos with blob URLs, not existing S3 URLs)
@@ -129,14 +81,13 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
       setUploadingPhotos(true);
       
       // CRITICAL: Store current photos state to preserve blob URLs during upload
-      // This prevents re-renders from breaking the preview during the save process
       const photosSnapshot = [...photos];
       
       // Process photos: upload new ones, keep existing ones
       let uploadedPhotos: Array<{ photo_url: string; photo_description: string; photo_order: number }> = [];
       
       if (photosSnapshot.length > 0) {
-        const newPhotos = photosSnapshot.filter(p => !p.isExisting);
+        const newPhotos = photosSnapshot.filter(p => !p.isExisting && p.file);
         const existingPhotos = photosSnapshot.filter(p => p.isExisting);
         
         if (newPhotos.length > 0) {
@@ -159,7 +110,7 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
           
           uploadedPhotos.push({
             photo_url: photoUrl,
-            photo_description: photo.photo_description,
+            photo_description: photo.photo_description || '',
             photo_order: uploadedPhotos.length
           });
         }
@@ -169,7 +120,7 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
           if (photo.photo_url) {
             uploadedPhotos.push({
               photo_url: photo.photo_url,
-              photo_description: photo.photo_description,
+              photo_description: photo.photo_description || '',
               photo_order: uploadedPhotos.length
             });
           }
@@ -212,7 +163,6 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
       }
 
       // Reset form and clean up preview URLs (only for new photos with blob URLs)
-      // Use the snapshot to ensure we're cleaning up the right URLs
       photosSnapshot.forEach(p => {
         if (!p.isExisting && p.previewUrl && p.previewUrl.startsWith('blob:')) {
           URL.revokeObjectURL(p.previewUrl);
@@ -241,13 +191,15 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
     setEditingStateId(state.id);
     setStateText(state.observation_text || '');
     
-    // Load existing photos into editable state
-    const existingPhotos = (state.photos || []).map((photo, index) => ({
+    // Load existing photos into PhotoItem format
+    const existingPhotos: PhotoItem[] = (state.photos || []).map((photo, index) => ({
+      id: crypto.randomUUID(),
       photo_url: photo.photo_url,
       photo_description: photo.photo_description || '',
       photo_order: index,
       previewUrl: photo.photo_url, // Use S3 URL as preview
-      isExisting: true
+      isExisting: true,
+      isUploading: false,
     }));
     setPhotos(existingPhotos);
     
@@ -319,67 +271,13 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
             
             <div>
               <Label>Photos</Label>
-              <Input
-                id="photo-upload"
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={handlePhotoSelect}
+              <PhotoUploadPanel
+                photos={photos}
+                onPhotosChange={setPhotos}
+                showDescriptions={true}
+                disabled={isCreating || isUpdating || uploadingPhotos}
               />
-              <Button 
-                variant="outline" 
-                type="button" 
-                className="w-full"
-                onClick={() => document.getElementById('photo-upload')?.click()}
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                Upload Photos
-              </Button>
             </div>
-
-            {photos.length > 0 && (
-              <div className="space-y-2">
-                {photos.map((photo, index) => (
-                  <div key={index} className="flex gap-2 items-stretch border rounded p-2">
-                    <div className="flex-shrink-0 w-1/2">
-                      <img
-                        src={photo.previewUrl}
-                        alt={`Photo ${index + 1}`}
-                        className="w-full aspect-square object-cover rounded"
-                        onLoad={() => {
-                          console.log('[StatesInline] Image loaded successfully:', photo.previewUrl);
-                        }}
-                        onError={(e) => {
-                          // If preview fails to load, log error but don't crash
-                          console.error('[StatesInline] Failed to load preview:', photo.previewUrl);
-                          console.error('[StatesInline] Is blob URL?', photo.previewUrl.startsWith('blob:'));
-                          console.error('[StatesInline] Is existing?', photo.isExisting);
-                          // Prevent infinite error loops
-                          e.currentTarget.style.display = 'none';
-                        }}
-                      />
-                    </div>
-                    <div className="flex-1 flex flex-col">
-                      <Textarea
-                        placeholder={`Description for photo ${index + 1}`}
-                        value={photo.photo_description}
-                        onChange={(e) => handlePhotoDescriptionChange(index, e.target.value)}
-                        className="flex-1 resize-none"
-                      />
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="self-start"
-                      onClick={() => handleRemovePhoto(index)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
 
             <div>
               <Label htmlFor="state-text">{textLabel}</Label>

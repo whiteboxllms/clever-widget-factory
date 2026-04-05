@@ -47,6 +47,9 @@ import UploadDebug from "./pages/UploadDebug";
 import UploadMobileTest from "./pages/UploadMobileTest";
 import SariSariChat from "./pages/SariSariChat";
 import StateSpacePage from "./pages/StateSpacePage";
+import RecordFinancialRecord from "./pages/RecordFinancialRecord";
+import FinancialRecordDetail from "./pages/FinancialRecordDetail";
+import Finances from "./pages/Finances";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -308,6 +311,30 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <StateSpacePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/finances"
+          element={
+            <ProtectedRoute>
+              <Finances />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/financial-records/new"
+          element={
+            <ProtectedRoute>
+              <RecordFinancialRecord />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/financial-records/:id"
+          element={
+            <ProtectedRoute>
+              <FinancialRecordDetail />
             </ProtectedRoute>
           }
         />

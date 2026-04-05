@@ -11,7 +11,8 @@ const {
   composeActionEmbeddingSource,
   composeIssueEmbeddingSource,
   composePolicyEmbeddingSource,
-  composeStateEmbeddingSource
+  composeStateEmbeddingSource,
+  composeFinancialRecordEmbeddingSource
 } = require('./embedding-composition');
 
 describe('composePartEmbeddingSource', () => {
@@ -437,6 +438,81 @@ describe('composeStateEmbeddingSource', () => {
     const result = composeStateEmbeddingSource(state);
 
     assert.strictEqual(result, 'Banana Plant. Height: 2.1 m');
+  });
+});
+
+describe('composeFinancialRecordEmbeddingSource', () => {
+  test('should compose with all fields populated', () => {
+    const record = {
+      description: 'Nails and screws for fence repair',
+      category_tag: 'Construction',
+      external_source_note: 'Stefan credit card'
+    };
+
+    const result = composeFinancialRecordEmbeddingSource(record);
+
+    assert.strictEqual(
+      result,
+      'Nails and screws for fence repair. Construction. Stefan credit card'
+    );
+  });
+
+  test('should handle missing optional fields', () => {
+    const record = {
+      description: 'Gasoline for generator',
+      category_tag: null,
+      external_source_note: null
+    };
+
+    const result = composeFinancialRecordEmbeddingSource(record);
+
+    assert.strictEqual(result, 'Gasoline for generator');
+  });
+
+  test('should handle only description', () => {
+    const record = {
+      description: 'Office supplies'
+    };
+
+    const result = composeFinancialRecordEmbeddingSource(record);
+
+    assert.strictEqual(result, 'Office supplies');
+  });
+
+  test('should filter out null and undefined values', () => {
+    const record = {
+      description: 'Banana seedlings',
+      category_tag: null,
+      external_source_note: undefined
+    };
+
+    const result = composeFinancialRecordEmbeddingSource(record);
+
+    assert.strictEqual(result, 'Banana seedlings');
+  });
+
+  test('should handle description with category_tag only', () => {
+    const record = {
+      description: 'Chicken feed',
+      category_tag: 'Agriculture',
+      external_source_note: null
+    };
+
+    const result = composeFinancialRecordEmbeddingSource(record);
+
+    assert.strictEqual(result, 'Chicken feed. Agriculture');
+  });
+
+  test('should return empty string when all fields are null', () => {
+    const record = {
+      description: null,
+      category_tag: null,
+      external_source_note: null
+    };
+
+    const result = composeFinancialRecordEmbeddingSource(record);
+
+    assert.strictEqual(result, '');
   });
 });
 

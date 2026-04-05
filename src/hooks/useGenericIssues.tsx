@@ -145,6 +145,8 @@ export function useGenericIssues(filters: GenericIssuesFilters = {}) {
     onSuccess: () => {
       // Invalidate all issues queries to ensure fresh data
       queryClient.invalidateQueries({ queryKey: ['issues'] });
+      // Refresh asset issue flags so card highlights update
+      queryClient.invalidateQueries({ queryKey: ['issues_asset_flags'] });
     },
     onError: (error) => {
       console.error('Error updating issue:', error);

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -26,6 +27,7 @@ export function IssueQuickResolveDialog({
   onSuccess
 }: IssueQuickResolveDialogProps) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { uploadImages, isUploading } = useImageUpload();
   const { user } = useAuth();
   
@@ -105,6 +107,9 @@ export function IssueQuickResolveDialog({
         title: "Issue Resolved",
         description: "The issue has been marked as resolved successfully"
       });
+
+      // Refresh asset issue flags so card highlights update
+      queryClient.invalidateQueries({ queryKey: ['issues_asset_flags'] });
 
       // Reset form
       setFormData({

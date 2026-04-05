@@ -8,6 +8,7 @@
 
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { QueryClient } from '@tanstack/react-query';
+import { toast } from '@/hooks/use-toast';
 import { 
   toolsQueryKey, 
   actionsQueryKey,
@@ -142,7 +143,8 @@ async function getIdToken(): Promise<string | null> {
  */
 async function apiRequest<T = any>(
   endpoint: string,
-  options: RequestInit & { optimisticId?: string } = {}
+  options: RequestInit & { optimisticId?: string } = {},
+  _isRetry: boolean = false
 ): Promise<T> {
   // Handle absolute URLs
   if (endpoint.startsWith('http')) {
@@ -222,17 +224,38 @@ async function apiRequest<T = any>(
       error: errorData,
     };
 
-    // Handle 401 Unauthorized - token expired, try to refresh and redirect if that fails
-    if (response.status === 401) {
-      console.warn('Unauthorized - attempting token refresh');
+    // Handle 401 Unauthorized - token expired, refresh and retry once
+    if (response.status === 401 && !_isRetry) {
+      console.warn('Unauthorized - refreshing session and retrying request');
       try {
+        clearTokenCache();
         await fetchAuthSession({ forceRefresh: true });
-        // If refresh succeeds, the next request will use the new token
-        // Don't redirect - let the app retry the request
+        toast({
+          title: 'Session refreshed',
+          description: '401 Unauthorized received. Token refreshed, retrying your request now.',
+        });
+        // Retry the request once with the fresh token
+        return await apiRequest<T>(endpoint, options, true);
       } catch (refreshError) {
         console.error('Token refresh failed, redirecting to login');
+        toast({
+          title: 'Session expired',
+          description: '401 Unauthorized received. Token refresh failed — please sign in again.',
+          variant: 'destructive',
+        });
         window.location.href = '/login';
       }
+    }
+
+    // Handle 401 on retry - refresh didn't help
+    if (response.status === 401 && _isRetry) {
+      console.error('Still unauthorized after token refresh');
+      toast({
+        title: 'Session expired',
+        description: '401 Unauthorized received again after token refresh — please sign in again.',
+        variant: 'destructive',
+      });
+      window.location.href = '/login';
     }
 
     // Handle 403 Forbidden - user doesn't have permission

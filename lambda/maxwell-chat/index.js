@@ -1,10 +1,48 @@
 const { BedrockAgentRuntimeClient, InvokeAgentCommand } = require('@aws-sdk/client-bedrock-agent-runtime');
 const { getAuthorizerContext } = require('/opt/nodejs/authorizerContext');
+const fs = require('fs');
+const path = require('path');
 
 const client = new BedrockAgentRuntimeClient({ region: process.env.BEDROCK_REGION || 'us-west-2' });
 
 const AGENT_ID = process.env.MAXWELL_AGENT_ID;
 const AGENT_ALIAS_ID = process.env.MAXWELL_AGENT_ALIAS_ID;
+
+// Load prompt fragments once at cold start
+const PROMPTS_DIR = path.join(__dirname, 'prompts');
+const loadPrompt = (name) => {
+  try {
+    return fs.readFileSync(path.join(PROMPTS_DIR, name), 'utf-8').trim();
+  } catch (e) {
+    console.warn(`Failed to load prompt ${name}:`, e.message);
+    return '';
+  }
+};
+
+const TONE_PROMPT = loadPrompt('maxwell-tone.txt');
+const STORAGE_PROMPT = loadPrompt('maxwell-storage.txt');
+const QUANTITATIVE_PROMPT = loadPrompt('maxwell-quantitative.txt');
+const GENERAL_PROMPT = loadPrompt('maxwell-general.txt');
+
+const STORAGE_KEYWORDS = /\b(store|storage|where.*put|where.*keep|organize|location|shelf|shed|toolbox|cabinet)\b/i;
+const QUANTITATIVE_KEYWORDS = /\b(roi|cost|revenue|profit|price|expense|budget|investment|how much|per month|per day|per week|earnings|income|margin|break.?even)\b/i;
+
+/**
+ * Detect question type and return the appropriate prompt fragment.
+ */
+function detectPromptMode(message) {
+  if (STORAGE_KEYWORDS.test(message)) return STORAGE_PROMPT;
+  if (QUANTITATIVE_KEYWORDS.test(message)) return QUANTITATIVE_PROMPT;
+  return GENERAL_PROMPT;
+}
+
+/**
+ * Build the full instruction prefix for the message.
+ */
+function buildInstructionPrefix(message) {
+  const modePrompt = detectPromptMode(message);
+  return `[Instructions: ${TONE_PROMPT}\n\n${modePrompt}]\n\n`;
+}
 
 exports.handler = async (event) => {
   console.log('Maxwell chat event:', JSON.stringify(event, null, 2));
@@ -54,12 +92,19 @@ exports.handler = async (event) => {
     };
   }
 
-  // Inject entity context into the message so the Agent has it in the conversation
-  let enhancedMessage = message;
+  // Build enhanced message with instruction prefix and entity context
+  let enhancedMessage = buildInstructionPrefix(message);
   if (sessionAttributes.entityId && sessionAttributes.entityType && sessionAttributes.entityName) {
-    const contextPrefix = `[Context: You are discussing ${sessionAttributes.entityType} "${sessionAttributes.entityName}" (ID: ${sessionAttributes.entityId})] `;
-    enhancedMessage = contextPrefix + message;
+    let contextParts = [`You are discussing ${sessionAttributes.entityType} "${sessionAttributes.entityName}" (ID: ${sessionAttributes.entityId})`];
+    if (sessionAttributes.policy) {
+      contextParts.push(`Description: ${sessionAttributes.policy}`);
+    }
+    if (sessionAttributes.implementation) {
+      contextParts.push(`Observations summary: ${sessionAttributes.implementation}`);
+    }
+    enhancedMessage += `[Context: ${contextParts.join('. ')}] `;
   }
+  enhancedMessage += message;
 
   if (!AGENT_ID || !AGENT_ALIAS_ID) {
     console.error('Missing MAXWELL_AGENT_ID or MAXWELL_AGENT_ALIAS_ID env vars');

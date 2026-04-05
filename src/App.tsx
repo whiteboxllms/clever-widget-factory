@@ -46,6 +46,7 @@ import SettingsPage from "./pages/Settings";
 import UploadDebug from "./pages/UploadDebug";
 import UploadMobileTest from "./pages/UploadMobileTest";
 import SariSariChat from "./pages/SariSariChat";
+import StateSpacePage from "./pages/StateSpacePage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -135,6 +136,14 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <AddObservation />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/combined-assets/:entityType/:entityId/state-space"
+          element={
+            <ProtectedRoute>
+              <StateSpacePage />
             </ProtectedRoute>
           }
         />
@@ -291,6 +300,14 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <SariSariChat />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/actions/:actionId/state-space"
+          element={
+            <ProtectedRoute>
+              <StateSpacePage />
             </ProtectedRoute>
           }
         />

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -46,6 +47,7 @@ export function IssueResolutionDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
   const { uploadImages, isUploading } = useImageUpload();
+  const queryClient = useQueryClient();
   const organizationId = useOrganizationId();
   const { user } = useAuth();
 
@@ -146,6 +148,9 @@ export function IssueResolutionDialog({
         title: "Issue resolved",
         description: "The issue has been marked as resolved with documentation."
       });
+
+      // Refresh asset issue flags so card highlights update
+      queryClient.invalidateQueries({ queryKey: ['issues_asset_flags'] });
 
       resetForm();
       onOpenChange(false);

@@ -59,32 +59,79 @@ function MessageBubble({ message }: { message: MaxwellMessage }) {
   };
 
   const renderContent = (text: string) => {
-    const parts: (string | JSX.Element)[] = [];
-    const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
-    let lastIndex = 0;
-    let match;
-    let imageIndex = 0;
+    // Split into lines for block-level parsing
+    const lines = text.split('\n');
+    const elements: (string | JSX.Element)[] = [];
+    let listItems: JSX.Element[] = [];
+    let lineKey = 0;
 
-    while ((match = imageRegex.exec(text)) !== null) {
-      if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
-      const alt = match[1];
-      const url = match[2];
-      const resolvedUrl = getImageUrl(url) || url;
-      parts.push(
-        <a key={`img-${imageIndex++}`} href={resolvedUrl} target="_blank" rel="noopener noreferrer" className="block mt-2">
-          <img
-            src={resolvedUrl}
-            alt={alt}
-            title={`${alt} (click to view full resolution)`}
-            className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-            style={{ maxHeight: '300px', objectFit: 'contain' }}
-          />
-        </a>
-      );
-      lastIndex = match.index + match[0].length;
+    const flushList = () => {
+      if (listItems.length > 0) {
+        elements.push(<ul key={`ul-${lineKey}`} className="list-disc pl-5 space-y-0.5 my-1">{listItems}</ul>);
+        listItems = [];
+      }
+    };
+
+    const renderInline = (raw: string, key: string): JSX.Element => {
+      // Handle images, bold, and inline code
+      const parts: (string | JSX.Element)[] = [];
+      const inlineRegex = /!\[([^\]]*)\]\(([^)]+)\)|\*\*(.+?)\*\*|`([^`]+)`/g;
+      let last = 0;
+      let m;
+      let idx = 0;
+      while ((m = inlineRegex.exec(raw)) !== null) {
+        if (m.index > last) parts.push(raw.slice(last, m.index));
+        if (m[2]) {
+          // Image
+          const resolvedUrl = getImageUrl(m[2]) || m[2];
+          parts.push(
+            <a key={`${key}-img-${idx}`} href={resolvedUrl} target="_blank" rel="noopener noreferrer" className="block mt-2">
+              <img src={resolvedUrl} alt={m[1]} title={`${m[1]} (click to view full resolution)`} className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity" style={{ maxHeight: '300px', objectFit: 'contain' }} />
+            </a>
+          );
+        } else if (m[3]) {
+          parts.push(<strong key={`${key}-b-${idx}`}>{m[3]}</strong>);
+        } else if (m[4]) {
+          parts.push(<code key={`${key}-c-${idx}`} className="bg-muted-foreground/15 rounded px-1 py-0.5 text-xs">{m[4]}</code>);
+        }
+        last = m.index + m[0].length;
+        idx++;
+      }
+      if (last < raw.length) parts.push(raw.slice(last));
+      return <span key={key}>{parts}</span>;
+    };
+
+    for (const line of lines) {
+      lineKey++;
+      const trimmed = line.trimStart();
+
+      // List item
+      if (/^[-*]\s/.test(trimmed)) {
+        listItems.push(<li key={`li-${lineKey}`}>{renderInline(trimmed.replace(/^[-*]\s/, ''), `li-${lineKey}`)}</li>);
+        continue;
+      }
+
+      flushList();
+
+      // Empty line
+      if (!trimmed) {
+        elements.push(<br key={`br-${lineKey}`} />);
+        continue;
+      }
+
+      // Heading-like lines (### or ##)
+      const headingMatch = trimmed.match(/^(#{1,3})\s+(.+)/);
+      if (headingMatch) {
+        elements.push(<div key={`h-${lineKey}`} className="font-semibold mt-2 mb-0.5">{renderInline(headingMatch[2], `h-${lineKey}`)}</div>);
+        continue;
+      }
+
+      // Regular line
+      elements.push(<div key={`p-${lineKey}`}>{renderInline(line, `p-${lineKey}`)}</div>);
     }
-    if (lastIndex < text.length) parts.push(text.slice(lastIndex));
-    return parts.length > 0 ? parts : text;
+
+    flushList();
+    return elements;
   };
 
   return (
@@ -97,7 +144,7 @@ function MessageBubble({ message }: { message: MaxwellMessage }) {
             : 'bg-muted text-foreground rounded-bl-sm'
         )}
       >
-        <p className="whitespace-pre-wrap break-words">{renderContent(message.content)}</p>
+        <div className="whitespace-pre-wrap break-words text-sm">{renderContent(message.content)}</div>
         <button
           onClick={handleCopy}
           className={cn(

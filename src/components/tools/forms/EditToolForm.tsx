@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,7 @@ import { useAuth } from "@/hooks/useCognitoAuth";
 import { useActionProfiles } from "@/hooks/useActionProfiles";
 import { MaxwellInlinePanel } from "@/components/MaxwellInlinePanel";
 import { PrismIcon } from "@/components/icons/PrismIcon";
+import { BarChart3 } from "lucide-react";
 
 interface EditToolFormProps {
   tool: Tool | null;
@@ -26,6 +28,7 @@ interface EditToolFormProps {
 }
 
 export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, isLeadership = false }: EditToolFormProps) => {
+  const navigate = useNavigate();
   const [editData, setEditData] = useState({
     name: tool?.name || "",
     description: tool?.description || "",
@@ -142,6 +145,19 @@ export const EditToolForm = ({ tool, isOpen, onClose, onSubmit, isLeadership = f
               title="Ask Maxwell"
             >
               <PrismIcon size={28} />
+            </Button>
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={() => {
+                onClose();
+                navigate(`/combined-assets/tool/${tool.id}/state-space`);
+              }}
+              className="h-8 px-2 flex-shrink-0 gap-1 text-xs"
+              title="State Space Model"
+            >
+              <BarChart3 className="h-4 w-4" />
+              Model
             </Button>
           </div>
         </DialogHeader>

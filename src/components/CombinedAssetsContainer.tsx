@@ -84,6 +84,7 @@ export const CombinedAssetsContainer = () => {
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [selectedAssetForDetails, setSelectedAssetForDetails] = useState<CombinedAsset | null>(null);
   const [isMaxwellOpen, setIsMaxwellOpen] = useState(false);
+  const [maxwellDialogAsset, setMaxwellDialogAsset] = useState<CombinedAsset | null>(null);
   
   // Image state for stock editing
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -98,8 +99,6 @@ export const CombinedAssetsContainer = () => {
   const [quantityChange, setQuantityChange] = useState({
     amount: '',
     reason: '',
-    supplierName: '',
-    supplierUrl: ''
   });
 
 
@@ -425,6 +424,10 @@ export const CombinedAssetsContainer = () => {
     setShowIssueDialog(true);
   }, []);
 
+  const handleAskMaxwell = useCallback((asset: CombinedAsset) => {
+    setMaxwellDialogAsset(asset);
+  }, []);
+
   const handleAddObservation = useCallback((asset: CombinedAsset) => {
     const assetType = asset.type === 'asset' ? 'tools' : 'parts';
     navigate(`/combined-assets/${assetType}/${asset.id}/observation`);
@@ -499,8 +502,6 @@ export const CombinedAssetsContainer = () => {
           new_quantity: newQuantity,
           quantity_change: quantityOperation === 'add' ? change : -change,
           change_reason: quantityChange.reason || `Quantity ${quantityOperation}ed`,
-          supplier_name: quantityChange.supplierName || null,
-          supplier_url: quantityChange.supplierUrl || null
         });
       } catch (historyError) {
         console.error('History logging failed:', historyError);
@@ -515,7 +516,7 @@ export const CombinedAssetsContainer = () => {
 
       setShowQuantityDialog(false);
       setSelectedAssetId(null);
-      setQuantityChange({ amount: '', reason: '', supplierName: '', supplierUrl: '' });
+      setQuantityChange({ amount: '', reason: '' });
     } catch (error) {
       console.error('Error updating quantity:', error);
       toast({
@@ -760,9 +761,7 @@ export const CombinedAssetsContainer = () => {
             onAddObservation={handleAddObservation}
             onAddQuantity={handleAddQuantity}
             onUseQuantity={handleUseQuantity}
-            onOrderStock={handleOrderStock}
-            onReceiveOrder={handleReceiveOrder}
-        pendingOrders={pendingOrders}
+            onAskMaxwell={handleAskMaxwell}
         areaItemCounts={showOnlyAreas ? areaItemCounts : undefined}
         // Infinite scroll props
         onLoadMore={() => {
@@ -898,15 +897,50 @@ export const CombinedAssetsContainer = () => {
           if (!open) {
             setShowEditDialog(false);
             setSelectedAssetId(null);
+            setIsMaxwellOpen(false);
           }
         }}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Edit Stock Item</DialogTitle>
+              <div className="flex items-center gap-2 pr-8">
+                <DialogTitle className="flex-1">Edit Stock Item</DialogTitle>
+                <Button
+                  variant="ghost"
+                  type="button"
+                  onClick={() => setIsMaxwellOpen(v => !v)}
+                  className={`h-8 w-8 p-0 flex-shrink-0 [&_svg]:size-auto ${isMaxwellOpen ? 'bg-primary/10 text-primary' : ''}`}
+                  title="Ask Maxwell"
+                >
+                  <PrismIcon size={28} />
+                </Button>
+              </div>
               <DialogDescription>
                 Update the details for this stock item.
               </DialogDescription>
             </DialogHeader>
+
+            {/* Maxwell inline panel */}
+            <div
+              className={`grid transition-all duration-300 ease-in-out ${isMaxwellOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+            >
+              <div className="overflow-hidden">
+                <div className="rounded-xl border overflow-hidden" style={{ height: '420px' }}>
+                  <MaxwellInlinePanel
+                    context={{
+                      entityId: selectedAsset.id,
+                      entityType: 'part',
+                      entityName: selectedAsset.name,
+                      policy: selectedAsset.description || '',
+                      implementation: '',
+                    } as EntityContext}
+                    onClose={() => setIsMaxwellOpen(false)}
+                    className="h-full rounded-none border-0"
+                    hideHeader
+                  />
+                </div>
+              </div>
+            </div>
+
             <InventoryItemForm
               initialData={{
                 name: selectedAsset.name || '',
@@ -929,11 +963,38 @@ export const CombinedAssetsContainer = () => {
                 setShowEditDialog(false);
                 setSelectedAssetId(null);
                 setStockAttachments([]);
+                setIsMaxwellOpen(false);
               }}
               isLoading={isUploading}
               submitButtonText="Update Stock Item"
               isLeadership={isAdmin}
             />
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Maxwell Dialog from Card */}
+      {maxwellDialogAsset && (
+        <Dialog open={!!maxwellDialogAsset} onOpenChange={(open) => { if (!open) setMaxwellDialogAsset(null); }}>
+          <DialogContent className="max-w-5xl w-[95vw] h-[85vh] flex flex-col overflow-hidden">
+            <DialogHeader className="flex-shrink-0">
+              <DialogTitle>{maxwellDialogAsset.name}</DialogTitle>
+              <DialogDescription>Ask Maxwell about this {maxwellDialogAsset.type === 'asset' ? 'asset' : 'stock item'}</DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 rounded-xl border overflow-hidden min-h-0">
+              <MaxwellInlinePanel
+                context={{
+                  entityId: maxwellDialogAsset.id,
+                  entityType: maxwellDialogAsset.type === 'asset' ? 'tool' : 'part',
+                  entityName: maxwellDialogAsset.name,
+                  policy: maxwellDialogAsset.description || '',
+                  implementation: '',
+                } as EntityContext}
+                onClose={() => setMaxwellDialogAsset(null)}
+                className="h-full rounded-none border-0"
+                hideHeader
+              />
+            </div>
           </DialogContent>
         </Dialog>
       )}
@@ -1119,29 +1180,6 @@ export const CombinedAssetsContainer = () => {
               />
             </div>
 
-            {quantityOperation === 'add' && (
-              <>
-                <div>
-                  <Label htmlFor="supplierName">Supplier Name (Optional)</Label>
-                  <Input
-                    id="supplierName"
-                    value={quantityChange.supplierName}
-                    onChange={(e) => setQuantityChange(prev => ({ ...prev, supplierName: e.target.value }))}
-                    placeholder="Supplier name"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="supplierUrl">Supplier URL (Optional)</Label>
-                  <Input
-                    id="supplierUrl"
-                    value={quantityChange.supplierUrl}
-                    onChange={(e) => setQuantityChange(prev => ({ ...prev, supplierUrl: e.target.value }))}
-                    placeholder="https://example.com/product-page"
-                  />
-                </div>
-              </>
-            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-4">

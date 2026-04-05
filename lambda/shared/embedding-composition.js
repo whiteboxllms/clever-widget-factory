@@ -211,11 +211,41 @@ function composeStateEmbeddingSource(state) {
   return parts.filter(Boolean).join('. ');
 }
 
+/**
+ * Compose embedding source for a financial record
+ * 
+ * Financial records include description, category_tag (AI-generated),
+ * and external_source_note (for externally-funded transactions).
+ * 
+ * @param {Object} record - Financial record entity
+ * @param {string} record.description - Transaction description
+ * @param {string} [record.category_tag] - AI-generated category tag
+ * @param {string} [record.external_source_note] - External funding source note
+ * @returns {string} - Composed embedding source text
+ * 
+ * @example
+ * composeFinancialRecordEmbeddingSource({
+ *   description: 'Nails and screws for fence repair',
+ *   category_tag: 'Construction',
+ *   external_source_note: null
+ * })
+ * // Returns: "Nails and screws for fence repair. Construction"
+ */
+function composeFinancialRecordEmbeddingSource(record) {
+  const parts = [
+    record.description,
+    record.category_tag,
+    record.external_source_note
+  ].filter(Boolean);
+  return parts.join('. ');
+}
+
 module.exports = {
   composePartEmbeddingSource,
   composeToolEmbeddingSource,
   composeActionEmbeddingSource,
   composeIssueEmbeddingSource,
   composePolicyEmbeddingSource,
-  composeStateEmbeddingSource
+  composeStateEmbeddingSource,
+  composeFinancialRecordEmbeddingSource
 };

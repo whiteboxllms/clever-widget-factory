@@ -2,7 +2,7 @@ import { useAuth } from "@/hooks/useCognitoAuth";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, BarChart3, Building2, Settings, Bot, RefreshCw } from 'lucide-react';
+import { LogOut, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, BarChart3, Building2, Settings, Bot, RefreshCw, DollarSign } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DebugModeToggle } from '@/components/DebugModeToggle';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
@@ -129,6 +129,13 @@ export default function Dashboard() {
       color: "bg-orange-500"
     },
     {
+      title: "Finances",
+      description: "Track petty cash and expenses",
+      icon: DollarSign,
+      path: "/finances",
+      color: "bg-emerald-600"
+    },
+    {
       title: "Analytics",
       description: "View strategic attributes analytics",
       icon: BarChart3,
@@ -227,7 +234,6 @@ export default function Dashboard() {
             );
           })}
         </div>
-
 
       </main>
     </div>

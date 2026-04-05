@@ -122,7 +122,9 @@ function calculatePermissions(userRole, organizationMemberships) {
         'organizations:update',
         'members:manage',
         'data:read',
-        'data:write'
+        'data:read:all',
+        'data:write',
+        'data:write:all'
       );
       break;
     case 'leadership':

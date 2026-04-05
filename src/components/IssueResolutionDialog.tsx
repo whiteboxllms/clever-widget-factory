@@ -9,7 +9,8 @@ import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useCognitoAuth";
 import { apiService } from "@/lib/apiService";
 import { useOrganizationId } from "@/hooks/useOrganizationId";
-import { Loader2, X } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { PhotoUploadPanel, type PhotoItem } from '@/components/shared/PhotoUploadPanel';
 
 interface ToolIssue {
   id: string;
@@ -27,59 +28,25 @@ interface IssueResolutionDialogProps {
   onSuccess: () => void;
 }
 
-interface ResolutionForm {
-  root_cause: string;
-  resolution_notes: string;
-  resolution_photos: File[];
-}
-
 export function IssueResolutionDialog({ 
   issue, 
   open, 
   onOpenChange, 
   onSuccess 
 }: IssueResolutionDialogProps) {
-  const [form, setForm] = useState<ResolutionForm>({
-    root_cause: '',
-    resolution_notes: '',
-    resolution_photos: []
-  });
+  const [rootCause, setRootCause] = useState('');
+  const [resolutionNotes, setResolutionNotes] = useState('');
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
   const { uploadImages, isUploading } = useImageUpload();
   const queryClient = useQueryClient();
   const organizationId = useOrganizationId();
   const { user } = useAuth();
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    setForm(prev => ({ ...prev, resolution_photos: files }));
-    
-    // Create preview URLs
-    const urls = files.map(file => URL.createObjectURL(file));
-    setPhotoPreviewUrls(urls);
-  };
-
-  const removePhoto = (index: number) => {
-    const newFiles = form.resolution_photos.filter((_, i) => i !== index);
-    const newUrls = photoPreviewUrls.filter((_, i) => i !== index);
-    
-    // Revoke the removed URL to prevent memory leaks
-    URL.revokeObjectURL(photoPreviewUrls[index]);
-    
-    setForm(prev => ({ ...prev, resolution_photos: newFiles }));
-    setPhotoPreviewUrls(newUrls);
-  };
-
   const resetForm = () => {
-    setForm({
-      root_cause: '',
-      resolution_notes: '',
-      resolution_photos: []
-    });
-    // Clean up preview URLs
-    photoPreviewUrls.forEach(url => URL.revokeObjectURL(url));
-    setPhotoPreviewUrls([]);
+    setRootCause('');
+    setResolutionNotes('');
+    setPhotos([]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -87,8 +54,7 @@ export function IssueResolutionDialog({
     
     if (!issue) return;
 
-    // Validation
-    if (!form.root_cause.trim()) {
+    if (!rootCause.trim()) {
       toast({
         title: "Root cause required",
         description: "Please provide the root cause of the issue.",
@@ -97,7 +63,7 @@ export function IssueResolutionDialog({
       return;
     }
 
-    if (!form.resolution_notes.trim()) {
+    if (!resolutionNotes.trim()) {
       toast({
         title: "Resolution notes required",
         description: "Please describe how the issue was resolved.",
@@ -106,14 +72,15 @@ export function IssueResolutionDialog({
       return;
     }
 
-
     setIsSubmitting(true);
 
     try {
       // Upload resolution photos (optional)
       let photoUrls: string[] = [];
-      if (form.resolution_photos.length > 0) {
-        const uploadResults = await uploadImages(form.resolution_photos, {
+      const newPhotos = photos.filter(p => p.file && !p.photo_url);
+      if (newPhotos.length > 0) {
+        const files = newPhotos.map(p => p.file!);
+        const uploadResults = await uploadImages(files, {
           bucket: 'tool-resolution-photos' as const,
           generateFileName: (file) => `resolution-${issue.id}-${Date.now()}-${file.name}`,
           maxSizeMB: 2,
@@ -130,8 +97,8 @@ export function IssueResolutionDialog({
         status: 'resolved',
         resolved_by: user?.userId,
         resolved_at: new Date().toISOString(),
-        root_cause: form.root_cause,
-        resolution_notes: form.resolution_notes,
+        root_cause: rootCause,
+        resolution_notes: resolutionNotes,
         resolution_photo_urls: photoUrls
       });
 
@@ -141,7 +108,7 @@ export function IssueResolutionDialog({
         old_status: 'active',
         new_status: 'resolved',
         changed_by: user?.userId,
-        notes: `Resolved: ${form.resolution_notes}`,
+        notes: `Resolved: ${resolutionNotes}`,
       });
 
       toast({
@@ -187,8 +154,8 @@ export function IssueResolutionDialog({
             <Label htmlFor="root_cause">Root Cause Analysis *</Label>
             <Textarea
               id="root_cause"
-              value={form.root_cause}
-              onChange={(e) => setForm(prev => ({ ...prev, root_cause: e.target.value }))}
+              value={rootCause}
+              onChange={(e) => setRootCause(e.target.value)}
               placeholder="What was the underlying cause of this issue?"
               rows={3}
               required
@@ -199,8 +166,8 @@ export function IssueResolutionDialog({
             <Label htmlFor="resolution_notes">Resolution Method *</Label>
             <Textarea
               id="resolution_notes"
-              value={form.resolution_notes}
-              onChange={(e) => setForm(prev => ({ ...prev, resolution_notes: e.target.value }))}
+              value={resolutionNotes}
+              onChange={(e) => setResolutionNotes(e.target.value)}
               placeholder="How was the issue resolved? What steps were taken?"
               rows={3}
               required
@@ -208,39 +175,13 @@ export function IssueResolutionDialog({
           </div>
 
           <div>
-            <Label htmlFor="resolution_photos">Resolution Photos (Optional)</Label>
-            <input
-              id="resolution_photos"
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handlePhotoChange}
-              className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/80"
+            <Label>Resolution Photos (Optional)</Label>
+            <PhotoUploadPanel
+              photos={photos}
+              onPhotosChange={setPhotos}
+              showDescriptions={false}
+              disabled={isSubmitting || isUploading}
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              Upload photos showing the resolved issue (optional)
-            </p>
-            
-            {photoPreviewUrls.length > 0 && (
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                {photoPreviewUrls.map((url, index) => (
-                  <div key={index} className="relative">
-                    <img 
-                      src={url} 
-                      alt={`Resolution photo ${index + 1}`}
-                      className="w-full h-20 object-cover rounded border"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removePhoto(index)}
-                      className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-1 text-xs"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-4">

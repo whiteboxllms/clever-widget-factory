@@ -50,20 +50,52 @@ if aws lambda get-function --function-name "$FUNCTION_NAME" --region "$REGION" &
   aws lambda wait function-updated --function-name "$FUNCTION_NAME" --region "$REGION"
   
   echo "⚙️  Updating configuration with layer and environment variables..."
-  # Build environment variables JSON - include all common Lambda env vars
-  ENV_VARS="{"
-  [ -n "$DB_PASSWORD" ] && ENV_VARS="${ENV_VARS}DB_PASSWORD=$DB_PASSWORD,"
-  [ -n "$DB_HOST" ] && ENV_VARS="${ENV_VARS}DB_HOST=$DB_HOST,"
-  [ -n "$DB_USER" ] && ENV_VARS="${ENV_VARS}DB_USER=$DB_USER,"
-  [ -n "$DB_NAME" ] && ENV_VARS="${ENV_VARS}DB_NAME=$DB_NAME,"
-  [ -n "$DB_PORT" ] && ENV_VARS="${ENV_VARS}DB_PORT=$DB_PORT,"
-  [ -n "$MAXWELL_AGENT_ID" ] && ENV_VARS="${ENV_VARS}MAXWELL_AGENT_ID=$MAXWELL_AGENT_ID,"
-  [ -n "$MAXWELL_AGENT_ALIAS_ID" ] && ENV_VARS="${ENV_VARS}MAXWELL_AGENT_ALIAS_ID=$MAXWELL_AGENT_ALIAS_ID,"
-  [ -n "$BEDROCK_REGION" ] && ENV_VARS="${ENV_VARS}BEDROCK_REGION=$BEDROCK_REGION,"
-  [ -n "$SARI_SARI_AGENT_ID" ] && ENV_VARS="${ENV_VARS}SARI_SARI_AGENT_ID=$SARI_SARI_AGENT_ID,"
-  [ -n "$SARI_SARI_AGENT_ALIAS_ID" ] && ENV_VARS="${ENV_VARS}SARI_SARI_AGENT_ALIAS_ID=$SARI_SARI_AGENT_ALIAS_ID,"
-  # Remove trailing comma and close JSON
-  ENV_VARS="${ENV_VARS%,}}"
+  # Fetch existing environment variables to preserve them (e.g. COGNITO_* vars)
+  EXISTING_VARS=$(aws lambda get-function-configuration \
+    --function-name "$FUNCTION_NAME" \
+    --region "$REGION" \
+    --query 'Environment.Variables' \
+    --output json 2>/dev/null || echo '{}')
+  
+  # Start with existing vars, then overlay .env.local vars
+  ENV_VARS=$(echo "$EXISTING_VARS" | python3 -c "
+import sys, json
+existing = json.load(sys.stdin) or {}
+# Overlay .env.local vars (only if set)
+overlay = {}
+$([ -n "$DB_PASSWORD" ] && echo "overlay['DB_PASSWORD'] = '$DB_PASSWORD'")
+$([ -n "$DB_HOST" ] && echo "overlay['DB_HOST'] = '$DB_HOST'")
+$([ -n "$DB_USER" ] && echo "overlay['DB_USER'] = '$DB_USER'")
+$([ -n "$DB_NAME" ] && echo "overlay['DB_NAME'] = '$DB_NAME'")
+$([ -n "$DB_PORT" ] && echo "overlay['DB_PORT'] = '$DB_PORT'")
+$([ -n "$MAXWELL_AGENT_ID" ] && echo "overlay['MAXWELL_AGENT_ID'] = '$MAXWELL_AGENT_ID'")
+$([ -n "$MAXWELL_AGENT_ALIAS_ID" ] && echo "overlay['MAXWELL_AGENT_ALIAS_ID'] = '$MAXWELL_AGENT_ALIAS_ID'")
+$([ -n "$BEDROCK_REGION" ] && echo "overlay['BEDROCK_REGION'] = '$BEDROCK_REGION'")
+$([ -n "$SARI_SARI_AGENT_ID" ] && echo "overlay['SARI_SARI_AGENT_ID'] = '$SARI_SARI_AGENT_ID'")
+$([ -n "$SARI_SARI_AGENT_ALIAS_ID" ] && echo "overlay['SARI_SARI_AGENT_ALIAS_ID'] = '$SARI_SARI_AGENT_ALIAS_ID'")
+existing.update(overlay)
+# Output as KEY=VALUE format for AWS CLI
+print('{' + ','.join(f'{k}={v}' for k,v in existing.items()) + '}')
+" 2>/dev/null)
+  
+  # Fallback if python merge fails — use .env.local vars only
+  if [ -z "$ENV_VARS" ] || [ "$ENV_VARS" = "{}" ]; then
+    ENV_VARS="{"
+    [ -n "$DB_PASSWORD" ] && ENV_VARS="${ENV_VARS}DB_PASSWORD=$DB_PASSWORD,"
+    [ -n "$DB_HOST" ] && ENV_VARS="${ENV_VARS}DB_HOST=$DB_HOST,"
+    [ -n "$DB_USER" ] && ENV_VARS="${ENV_VARS}DB_USER=$DB_USER,"
+    [ -n "$DB_NAME" ] && ENV_VARS="${ENV_VARS}DB_NAME=$DB_NAME,"
+    [ -n "$DB_PORT" ] && ENV_VARS="${ENV_VARS}DB_PORT=$DB_PORT,"
+    [ -n "$MAXWELL_AGENT_ID" ] && ENV_VARS="${ENV_VARS}MAXWELL_AGENT_ID=$MAXWELL_AGENT_ID,"
+    [ -n "$MAXWELL_AGENT_ALIAS_ID" ] && ENV_VARS="${ENV_VARS}MAXWELL_AGENT_ALIAS_ID=$MAXWELL_AGENT_ALIAS_ID,"
+    [ -n "$BEDROCK_REGION" ] && ENV_VARS="${ENV_VARS}BEDROCK_REGION=$BEDROCK_REGION,"
+    [ -n "$SARI_SARI_AGENT_ID" ] && ENV_VARS="${ENV_VARS}SARI_SARI_AGENT_ID=$SARI_SARI_AGENT_ID,"
+    [ -n "$SARI_SARI_AGENT_ALIAS_ID" ] && ENV_VARS="${ENV_VARS}SARI_SARI_AGENT_ALIAS_ID=$SARI_SARI_AGENT_ALIAS_ID,"
+    ENV_VARS="${ENV_VARS%,}}"
+    echo "⚠️  Could not merge existing env vars, using .env.local only"
+  else
+    echo "✅ Merged existing env vars with .env.local"
+  fi
   
   aws lambda update-function-configuration \
     --function-name "$FUNCTION_NAME" \
@@ -106,7 +138,23 @@ NEW_SHA=$(echo "$DEPLOY_OUTPUT" | grep -o '"CodeSha256": "[^"]*"' | cut -d'"' -f
 echo "✅ Deployed with CodeSha256: $NEW_SHA"
 
 echo "⏳ Waiting for Lambda to be ready..."
-sleep 3
+aws lambda wait function-updated --function-name "$FUNCTION_NAME" --region "$REGION" 2>/dev/null || sleep 3
+
+# Ensure API Gateway has permission to invoke this Lambda
+API_ID="0720au267k"
+echo "🔑 Ensuring API Gateway invoke permission..."
+if ! aws lambda get-policy --function-name "$FUNCTION_NAME" --region "$REGION" 2>/dev/null | grep -q "apigateway-invoke"; then
+  aws lambda add-permission \
+    --function-name "$FUNCTION_NAME" \
+    --statement-id apigateway-invoke \
+    --action lambda:InvokeFunction \
+    --principal apigateway.amazonaws.com \
+    --source-arn "arn:aws:execute-api:${REGION}:131745734428:${API_ID}/*" \
+    --region "$REGION" >/dev/null 2>&1
+  echo "✅ API Gateway invoke permission added"
+else
+  echo "✅ API Gateway invoke permission already exists"
+fi
 
 echo "🔍 Verifying deployment..."
 CURRENT_SHA=$(aws lambda get-function --function-name "$FUNCTION_NAME" --region "$REGION" --query 'Configuration.CodeSha256' --output text)

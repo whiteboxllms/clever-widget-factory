@@ -18,13 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Card, CardContent } from "@/components/ui/card";
-import { AlertTriangle, Upload, X, ImagePlus } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { useGenericIssues } from "@/hooks/useGenericIssues";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { ContextType, getOrderIssueTypeLabel } from "@/types/issues";
 import { apiService } from '@/lib/apiService';
+import { PhotoUploadPanel, type PhotoItem } from '@/components/shared/PhotoUploadPanel';
 
 interface CreateIssueDialogProps {
   open: boolean;
@@ -58,7 +57,7 @@ export function CreateIssueDialog({
   const [description, setDescription] = useState('');
   const [damageAssessment, setDamageAssessment] = useState('');
   const [actualQuantity, setActualQuantity] = useState<number | ''>('');
-  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Entity selection data
@@ -138,8 +137,10 @@ export function CreateIssueDialog({
     try {
       // Upload images if any
       let photoUrls: string[] = [];
-      if (selectedImages.length > 0) {
-        const uploadResults = await uploadImages(selectedImages, { 
+      const newPhotos = photos.filter(p => p.file && !p.photo_url);
+      if (newPhotos.length > 0) {
+        const files = newPhotos.map(p => p.file!);
+        const uploadResults = await uploadImages(files, { 
           bucket: 'tool-resolution-photos' as const,
           generateFileName: (file, index) => `issue-${contextType}-${contextId}-${Date.now()}-${index || 1}-${file.name}`
         });
@@ -195,17 +196,8 @@ export function CreateIssueDialog({
     setDescription('');
     setDamageAssessment('');
     setActualQuantity('');
-    setSelectedImages([]);
+    setPhotos([]);
     setSelectedEntity(null);
-  };
-
-  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    setSelectedImages(files);
-  };
-
-  const removeImage = (index: number) => {
-    setSelectedImages(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleEntitySelect = (entityId: string) => {
@@ -370,54 +362,12 @@ export function CreateIssueDialog({
           {/* Image Upload */}
           <div className="space-y-3">
             <Label>Photos</Label>
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleImageSelect}
-                  className="hidden"
-                  id="issue-photos"
-                />
-                <Label
-                  htmlFor="issue-photos"
-                  className="flex items-center gap-2 px-3 py-2 border border-input rounded-md cursor-pointer hover:bg-accent"
-                >
-                  <ImagePlus className="h-4 w-4" />
-                  Select Images
-                </Label>
-                {selectedImages.length > 0 && (
-                  <span className="text-sm text-muted-foreground">
-                    {selectedImages.length} image{selectedImages.length > 1 ? 's' : ''} selected
-                  </span>
-                )}
-              </div>
-
-              {/* Image Previews */}
-              {selectedImages.length > 0 && (
-                <div className="grid grid-cols-2 gap-2">
-                  {selectedImages.map((file, index) => (
-                    <div key={index} className="relative group">
-                      <img
-                        src={URL.createObjectURL(file)}
-                        alt={`Preview ${index + 1}`}
-                        className="w-full h-20 object-cover rounded border"
-                      />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => removeImage(index)}
-                        className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <PhotoUploadPanel
+              photos={photos}
+              onPhotosChange={setPhotos}
+              showDescriptions={false}
+              disabled={isSubmitting || isUploading}
+            />
           </div>
         </div>
 

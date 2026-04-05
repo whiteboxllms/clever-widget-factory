@@ -299,14 +299,16 @@ Can you help me narrow this down?"
 
 ## CRITICAL: Spec Requirements Process
 
-**NEVER write a requirements document without first discussing each requirement with the user.**
+**NEVER write a requirements document without first discussing EACH requirement ONE BY ONE with the user.**
 
 ### Requirements Discussion Protocol:
 
-1. **DISCUSS BEFORE WRITING** — When starting a new spec, have a conversation first:
-   - Ask clarifying questions about scope, entity types, entry points, and edge cases
-   - Propose the requirement areas and get explicit confirmation on each
-   - Surface assumptions and validate them before encoding them in a document
+1. **DISCUSS EACH REQUIREMENT INDIVIDUALLY** — Present one requirement area at a time:
+   - Describe what the requirement covers and why it's needed
+   - State your proposed acceptance criteria
+   - Ask the user if they agree, want changes, or want to skip it
+   - **WAIT for explicit confirmation before moving to the next requirement**
+   - Do NOT batch multiple requirements together
 
 2. **CONFIRM SCOPE** — Before writing any requirement, confirm:
    - What entities/contexts does this apply to? (Don't assume — ask)
@@ -314,8 +316,10 @@ Can you help me narrow this down?"
    - What permissions/roles are involved?
    - What should be deferred to a future spec?
 
-3. **WRITE ONLY AFTER AGREEMENT** — Only write the requirements document after the user has confirmed the scope and approach through conversation.
+3. **WRITE ONLY AFTER ALL REQUIREMENTS ARE AGREED** — Only write the requirements document after the user has confirmed every single requirement through conversation.
 
 4. **ITERATE IN CHAT, NOT IN DOCS** — Use conversation to refine ideas. Documents should reflect agreed decisions, not be a place to explore options.
+
+5. **NEVER DUMP A FULL REQUIREMENTS DOC** — Even if you think you know all the requirements from context, you MUST discuss them one by one. The user may have different priorities, want to defer things, or disagree with your assumptions.
 
 ### Example of WRONG approach:

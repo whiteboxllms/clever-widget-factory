@@ -3,12 +3,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Card, CardContent } from "@/components/ui/card";
-import { Edit, ImagePlus, X } from "lucide-react";
-import { useImageUpload, ImageUploadResult } from "@/hooks/useImageUpload";
+import { Edit } from "lucide-react";
+import { useImageUpload } from "@/hooks/useImageUpload";
 import { BaseIssue } from "@/types/issues";
 import { useToast } from "@/hooks/use-toast";
+import { PhotoUploadPanel, type PhotoItem } from '@/components/shared/PhotoUploadPanel';
 
 interface IssueEditDialogProps {
   issue: BaseIssue | null;
@@ -21,8 +21,7 @@ interface IssueEditDialogProps {
 export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate }: IssueEditDialogProps) {
   const [description, setDescription] = useState("");
   const [damageAssessment, setDamageAssessment] = useState("");
-  const [selectedImages, setSelectedImages] = useState<File[]>([]);
-  const [existingImages, setExistingImages] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { uploadImages, isUploading } = useImageUpload();
@@ -33,8 +32,15 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
     if (issue) {
       setDescription(issue.description || "");
       setDamageAssessment(issue.damage_assessment || "");
-      setExistingImages(issue.report_photo_urls || []);
-      setSelectedImages([]);
+      // Map existing photo URLs to PhotoItem format
+      const existingPhotos: PhotoItem[] = (issue.report_photo_urls || []).map((url, index) => ({
+        id: crypto.randomUUID(),
+        photo_url: url,
+        photo_order: index,
+        previewUrl: url,
+        isExisting: true,
+      }));
+      setPhotos(existingPhotos);
     }
   }, [issue]);
 
@@ -44,21 +50,26 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
 
     setIsSubmitting(true);
     try {
-      let photoUrls = [...existingImages];
-      
-      // Upload new images if any are selected
-      if (selectedImages.length > 0) {
-        const uploadResults = await uploadImages(selectedImages, {
+      // Collect existing photo URLs
+      const existingUrls = photos
+        .filter(p => p.isExisting && p.photo_url)
+        .map(p => p.photo_url!);
+
+      // Upload new photos
+      const newPhotos = photos.filter(p => p.file && !p.isExisting);
+      let newUrls: string[] = [];
+      if (newPhotos.length > 0) {
+        const files = newPhotos.map(p => p.file!);
+        const uploadResults = await uploadImages(files, {
           bucket: 'tool-resolution-photos' as const,
           generateFileName: (file, index) => `issue-edit-${issue.id}-${Date.now()}-${index || 1}-${file.name}`
         });
-        
-        const newUrls = Array.isArray(uploadResults) 
+        newUrls = Array.isArray(uploadResults)
           ? uploadResults.map(result => result.url)
           : [uploadResults.url];
-        
-        photoUrls = [...photoUrls, ...newUrls];
       }
+
+      const photoUrls = [...existingUrls, ...newUrls];
 
       const updates: Partial<BaseIssue> = {
         description: description.trim(),
@@ -67,7 +78,7 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
       };
 
       const success = await onUpdate(issue.id, updates);
-      
+
       if (success) {
         onSuccess?.();
       } else {
@@ -87,19 +98,6 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    setSelectedImages(files);
-  };
-
-  const removeNewImage = (index: number) => {
-    setSelectedImages(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const removeExistingImage = (index: number) => {
-    setExistingImages(prev => prev.filter((_, i) => i !== index));
   };
 
   if (!issue) return null;
@@ -129,7 +127,6 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
                 />
               </div>
 
-
               <div>
                 <Label htmlFor="damageAssessment">
                   Damage Assessment (if applicable)
@@ -143,88 +140,15 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
                 />
               </div>
 
-
-              {/* Existing Images */}
-              {existingImages.length > 0 && (
-                <div className="space-y-3">
-                  <Label>Current Photos</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {existingImages.map((url, index) => (
-                      <div key={`existing-${index}`} className="relative group">
-                        <img
-                          src={url}
-                          alt={`Existing photo ${index + 1}`}
-                          className="w-full h-20 object-cover rounded border"
-                        />
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => removeExistingImage(index)}
-                          className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* New Image Upload */}
+              {/* Photos */}
               <div className="space-y-3">
-                <Label>Add Photos</Label>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleImageSelect}
-                      className="hidden"
-                      id="new-issue-photos"
-                    />
-                    <Label
-                      htmlFor="new-issue-photos"
-                      className="flex items-center gap-2 px-3 py-2 border border-input rounded-md cursor-pointer hover:bg-accent"
-                    >
-                      <ImagePlus className="h-4 w-4" />
-                      Select Images
-                    </Label>
-                    {selectedImages.length > 0 && (
-                      <span className="text-sm text-muted-foreground">
-                        {selectedImages.length} new image{selectedImages.length > 1 ? 's' : ''} selected
-                      </span>
-                    )}
-                  </div>
-
-                  {/* New Image Previews */}
-                  {selectedImages.length > 0 && (
-                    <div className="grid grid-cols-2 gap-2">
-                      {selectedImages.map((file, index) => (
-                        <div key={`new-${index}`} className="relative group">
-                          <img
-                            src={URL.createObjectURL(file)}
-                            alt={`New preview ${index + 1}`}
-                            className="w-full h-20 object-cover rounded border"
-                          />
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => removeNewImage(index)}
-                            className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                          <div className="absolute bottom-1 left-1 text-xs bg-background/80 rounded px-1">
-                            {file.name.substring(0, 12)}...
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <Label>Photos</Label>
+                <PhotoUploadPanel
+                  photos={photos}
+                  onPhotosChange={setPhotos}
+                  showDescriptions={false}
+                  disabled={isSubmitting || isUploading}
+                />
               </div>
 
               <div className="flex gap-2 pt-4">

@@ -5,17 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Upload, X, Loader2, Info } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useStateMutations, useStateById } from '@/hooks/useStates';
 import { useToast } from '@/components/ui/use-toast';
-import { getImageUrl, getThumbnailUrl } from '@/lib/imageUtils';
 import type { CreateObservationData } from '@/types/observations';
 import { MetricsInput } from '@/components/observations/MetricsInput';
 import { useSnapshots } from '@/hooks/useSnapshots';
 import { snapshotService } from '@/services/snapshotService';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { PhotoUploadPanel, type PhotoItem } from '@/components/shared/PhotoUploadPanel';
 
 export default function AddObservation() {
   const { assetType, id, observationId } = useParams<{ 
@@ -37,7 +35,7 @@ export default function AddObservation() {
   // Fetch existing snapshots when editing
   const { data: existingSnapshots } = useSnapshots(isEditMode ? observationId : undefined);
 
-  const [photos, setPhotos] = useState<Array<{ tempId?: string; photo_url: string; photo_description: string; photo_order: number; isUploading?: boolean; previewUrl?: string }>>([]);
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [observationText, setObservationText] = useState('');
   // Format current local time for datetime-local input (YYYY-MM-DDTHH:MM)
   // Must use local time components — toISOString() returns UTC which causes timezone offset bugs
@@ -50,7 +48,6 @@ export default function AddObservation() {
     const minutes = String(now.getMinutes()).padStart(2, '0');
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   });
-  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [metricValues, setMetricValues] = useState<Record<string, string>>({});
 
   // Pre-populate form fields when editing an existing state
@@ -63,13 +60,16 @@ export default function AddObservation() {
         setCapturedAt(new Date(existingState.captured_at).toISOString().slice(0, 16));
       }
       
-      // Map existing photos to the format expected by the form
+      // Map existing photos to PhotoItem format
       if (existingState.photos && existingState.photos.length > 0) {
-        const mappedPhotos = existingState.photos.map((photo) => ({
+        const mappedPhotos: PhotoItem[] = existingState.photos.map((photo) => ({
+          id: crypto.randomUUID(),
           photo_url: photo.photo_url,
           photo_description: photo.photo_description || '',
           photo_order: photo.photo_order,
-          isUploading: false
+          previewUrl: photo.photo_url,
+          isUploading: false,
+          isExisting: true,
         }));
         setPhotos(mappedPhotos);
       }
@@ -87,96 +87,10 @@ export default function AddObservation() {
     }
   }, [existingSnapshots, isEditMode]);
 
-  // Cleanup blob URLs when component unmounts
-  useEffect(() => {
-    return () => {
-      photos.forEach(p => {
-        if (p.previewUrl && p.previewUrl.startsWith('blob:')) {
-          URL.revokeObjectURL(p.previewUrl);
-        }
-      });
-    };
-  }, [photos]);
-
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    const fileArray = Array.from(files);
-    
-    // Immediately show placeholder rows with local file previews
-    // Use unique IDs to track each photo during upload
-    const placeholders = fileArray.map((file, index) => ({
-      tempId: crypto.randomUUID(), // Unique ID for tracking
-      photo_url: '',
-      photo_description: '',
-      photo_order: photos.length + index,
-      isUploading: true,
-      previewUrl: URL.createObjectURL(file)
-    }));
-    setPhotos(prev => [...prev, ...placeholders]);
-
-    setUploadProgress({ current: 0, total: files.length });
-
-    try {
-      // Upload all files in parallel
-      const uploadPromises = fileArray.map(async (file, index) => {
-        const tempId = placeholders[index].tempId;
-        const uploadResults = await uploadFiles([file], { bucket: 'mission-attachments' });
-        const resultsArray = Array.isArray(uploadResults) ? uploadResults : [uploadResults];
-        
-        // Update progress as each upload completes
-        setUploadProgress(prev => prev ? { current: prev.current + 1, total: prev.total } : null);
-        
-        // Replace placeholder with actual S3 URL using tempId to match
-        // Keep blob URL for display (S3 compressed version may not exist yet)
-        setPhotos(prev => prev.map(p => {
-          if (p.tempId === tempId) {
-            return {
-              photo_url: resultsArray[0].url, // S3 URL for database
-              previewUrl: p.previewUrl, // Keep blob URL for display
-              photo_description: p.photo_description,
-              photo_order: p.photo_order,
-              isUploading: false
-            };
-          }
-          return p;
-        }));
-        
-        return resultsArray[0];
-      });
-      
-      await Promise.all(uploadPromises);
-    } catch (error) {
-      console.error('Failed to upload photos:', error);
-      // Revoke preview URLs and remove failed placeholders
-      setPhotos(prev => {
-        prev.forEach(p => { if (p.previewUrl) URL.revokeObjectURL(p.previewUrl); });
-        return prev.filter(p => !p.isUploading);
-      });
-    } finally {
-      setUploadProgress(null);
-      e.target.value = '';
-    }
-  };
-
-  const handlePhotoDescriptionChange = (index: number, description: string) => {
-    setPhotos(prev => prev.map((photo, i) => 
-      i === index ? { ...photo, photo_description: description } : photo
-    ));
-  };
-
-  const handleRemovePhoto = (index: number) => {
-    setPhotos(prev => prev.filter((_, i) => i !== index).map((photo, i) => ({
-      ...photo,
-      photo_order: i
-    })));
-  };
-
   const handleSubmit = async () => {
     // Validate that at least one of observationText, photos, or metrics is provided
     const hasText = observationText.trim().length > 0;
-    const hasPhotos = photos.some(p => p.photo_url && !p.isUploading);
+    const hasPhotos = photos.some(p => (p.photo_url || p.file) && !p.isUploading);
     const hasMetrics = Object.values(metricValues).some(value => value.trim().length > 0);
     
     if (!hasText && !hasPhotos && !hasMetrics) {
@@ -189,35 +103,66 @@ export default function AddObservation() {
     }
 
     // Convert datetime-local value to UTC ISO string
-    // datetime-local gives us "2026-03-01T20:02" which is local time
-    // We need to convert it to UTC for the database
     let capturedAtUTC: string;
     if (capturedAt) {
-      // Parse as local time by creating a Date object from the datetime-local string
-      // The Date constructor interprets this as local time
       const localDate = new Date(capturedAt);
       capturedAtUTC = localDate.toISOString();
     } else {
       capturedAtUTC = new Date().toISOString();
     }
 
-    const data: CreateObservationData = {
-      state_text: hasText ? observationText : undefined,
-      captured_at: capturedAtUTC,
-      photos: photos
-        .filter(p => p.photo_url && !p.isUploading)
-        .map((photo, index) => ({
-          photo_url: photo.photo_url,
-          photo_description: photo.photo_description,
-          photo_order: index
-        })),
-      links: isEditMode ? existingState?.links : [{
-        entity_type: assetType === 'tools' ? 'tool' : 'part',
-        entity_id: id!
-      }]
-    };
-
     try {
+      // Upload new photos (those with a file but no photo_url yet)
+      const newPhotos = photos.filter(p => p.file && !p.photo_url);
+      let uploadedUrls: Map<string, string> = new Map();
+
+      if (newPhotos.length > 0) {
+        // Mark photos as uploading
+        setPhotos(prev => prev.map(p => 
+          p.file && !p.photo_url ? { ...p, isUploading: true } : p
+        ));
+
+        const files = newPhotos.map(p => p.file!);
+        const results = await uploadFiles(files, { bucket: 'mission-attachments' });
+        const resultsArray = Array.isArray(results) ? results : [results];
+
+        // Map each new photo's id to its uploaded URL
+        newPhotos.forEach((photo, index) => {
+          if (resultsArray[index]) {
+            uploadedUrls.set(photo.id!, resultsArray[index].url);
+          }
+        });
+
+        // Update photo state with uploaded URLs
+        setPhotos(prev => prev.map(p => {
+          const url = p.id ? uploadedUrls.get(p.id) : undefined;
+          if (url) {
+            return { ...p, photo_url: url, isUploading: false };
+          }
+          return p;
+        }));
+      }
+
+      // Build final photo list for submission
+      const finalPhotos = photos
+        .filter(p => p.photo_url || (p.id && uploadedUrls.has(p.id)))
+        .map((photo, index) => ({
+          photo_url: photo.photo_url || uploadedUrls.get(photo.id!) || '',
+          photo_description: photo.photo_description || '',
+          photo_order: index
+        }))
+        .filter(p => p.photo_url);
+
+      const data: CreateObservationData = {
+        state_text: hasText ? observationText : undefined,
+        captured_at: capturedAtUTC,
+        photos: finalPhotos,
+        links: isEditMode ? existingState?.links : [{
+          entity_type: assetType === 'tools' ? 'tool' : 'part',
+          entity_id: id!
+        }]
+      };
+
       let stateId: string;
       
       if (isEditMode) {
@@ -229,24 +174,20 @@ export default function AddObservation() {
       }
 
       // Save metric snapshots if there are any values
-      // In edit mode, check entity type from existing state; in create mode, check URL param
       const isToolObservation = isEditMode 
         ? existingState?.links?.[0]?.entity_type === 'tool'
         : assetType === 'tools';
       
       if (isToolObservation && Object.keys(metricValues).length > 0) {
         try {
-          // Get existing snapshots to determine what to create/update/delete
           const existingSnapshotsMap = new Map(
             (existingSnapshots || []).map(s => [s.metric_id, s])
           );
 
-          // Process each metric value
           for (const [metricId, value] of Object.entries(metricValues)) {
             const existingSnapshot = existingSnapshotsMap.get(metricId);
             
             if (value.trim()) {
-              // Create or update snapshot
               if (existingSnapshot) {
                 await snapshotService.updateSnapshot(existingSnapshot.snapshot_id, { value });
               } else {
@@ -258,7 +199,6 @@ export default function AddObservation() {
             }
           }
 
-          // Delete snapshots that were removed (exist in DB but not in current values)
           for (const [metricId, snapshot] of existingSnapshotsMap.entries()) {
             if (!metricValues[metricId] || !metricValues[metricId].trim()) {
               await snapshotService.deleteSnapshot(snapshot.snapshot_id);
@@ -280,12 +220,14 @@ export default function AddObservation() {
       });
       
       if (isEditMode) {
-        navigate(-1); // Go back to previous page (preserves filters)
+        navigate(-1);
       } else {
         navigate('/combined-assets');
       }
     } catch (error) {
       console.error(`Failed to ${isEditMode ? 'update' : 'create'} observation:`, error);
+      // Reset uploading state on error
+      setPhotos(prev => prev.map(p => ({ ...p, isUploading: false })));
       toast({
         title: 'Error',
         description: `Failed to ${isEditMode ? 'update' : 'save'} observation. Please try again.`,
@@ -320,87 +262,15 @@ export default function AddObservation() {
       ) : (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Upload Photos</CardTitle>
-              <div className="w-1/2">
-                <Input
-                  id="photo-upload"
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={handlePhotoUpload}
-                  disabled={isUploading}
-                />
-                <Button 
-                  variant="outline" 
-                  type="button" 
-                  disabled={isUploading} 
-                  className="w-full"
-                  onClick={() => document.getElementById('photo-upload')?.click()}
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  {uploadProgress 
-                    ? `Uploading ${uploadProgress.current} of ${uploadProgress.total}...` 
-                    : isUploading 
-                      ? 'Uploading...' 
-                      : 'Upload Photos'}
-                </Button>
-              </div>
-            </div>
+            <CardTitle>Upload Photos</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {photos.length > 0 && (
-              <div className="border rounded-lg">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[25%] text-center font-semibold text-base">Description</TableHead>
-                      <TableHead className="w-[60%] text-center font-semibold text-base">Photo</TableHead>
-                      <TableHead className="w-[15%]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {photos.map((photo, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="align-top">
-                          <Textarea
-                            placeholder={`Description for photo ${index + 1}`}
-                            value={photo.photo_description}
-                            onChange={(e) => handlePhotoDescriptionChange(index, e.target.value)}
-                            className="min-h-[200px] resize-none"
-                          />
-                        </TableCell>
-                        <TableCell className="align-top">
-                          <div className="relative">
-                            <img
-                              src={photo.previewUrl || getThumbnailUrl(photo.photo_url) || getImageUrl(photo.photo_url) || ''}
-                              alt={`Photo ${index + 1}`}
-                              className="w-full max-h-48 object-contain rounded cursor-pointer"
-                              onClick={() => !photo.isUploading && photo.photo_url && window.open(getImageUrl(photo.photo_url) || '', '_blank')}
-                            />
-                            {photo.isUploading && (
-                              <div className="absolute top-2 right-2 bg-background/90 rounded-full p-2 shadow-lg">
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="align-top text-center">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleRemovePhoto(index)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+          <CardContent>
+            <PhotoUploadPanel
+              photos={photos}
+              onPhotosChange={setPhotos}
+              showDescriptions={true}
+              disabled={isUploading || isCreating || isUpdating}
+            />
           </CardContent>
         </Card>
       )}
@@ -408,8 +278,6 @@ export default function AddObservation() {
       {/* Metrics Section - only show for tools with metrics */}
       {!isEditMode || !isLoadingState ? (
         (() => {
-          // In edit mode, get tool ID from existing state links
-          // In create mode, get from URL params
           const toolId = isEditMode && existingState?.links?.[0]?.entity_type === 'tool' 
             ? existingState.links[0].entity_id 
             : (assetType === 'tools' ? id : null);
@@ -479,9 +347,10 @@ export default function AddObservation() {
             disabled={
               isCreating || 
               isUpdating || 
+              isUploading ||
               (
                 observationText.trim().length === 0 && 
-                photos.filter(p => p.photo_url && !p.isUploading).length === 0 &&
+                photos.filter(p => (p.photo_url || p.file) && !p.isUploading).length === 0 &&
                 Object.values(metricValues).every(value => !value || value.trim().length === 0)
               )
             }

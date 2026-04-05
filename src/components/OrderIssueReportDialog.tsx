@@ -18,11 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertTriangle, Upload } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { useGenericIssues } from "@/hooks/useGenericIssues";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { createOrderIssue, getOrderIssueTypeLabel } from "@/types/issues";
 import { CreateIssueDialog } from "./CreateIssueDialog";
+import { PhotoUploadPanel, type PhotoItem } from '@/components/shared/PhotoUploadPanel';
 
 interface OrderIssueReportDialogProps {
   isOpen: boolean;
@@ -66,7 +67,7 @@ export function OrderIssueReportDialog({
 
   const { createIssue } = useGenericIssues();
   const { uploadImages, isUploading } = useImageUpload();
-  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
 
   if (!order || !part) return null;
 
@@ -95,8 +96,10 @@ export function OrderIssueReportDialog({
     try {
       // Upload images if any
       let photoUrls: string[] = [];
-      if (selectedImages.length > 0) {
-        const uploadResults = await uploadImages(selectedImages, { bucket: 'checkin-photos' as const });
+      const newPhotos = photos.filter(p => p.file && !p.photo_url);
+      if (newPhotos.length > 0) {
+        const files = newPhotos.map(p => p.file!);
+        const uploadResults = await uploadImages(files, { bucket: 'checkin-photos' as const });
         photoUrls = Array.isArray(uploadResults) 
           ? uploadResults.map(result => result.url)
           : [uploadResults.url];
@@ -140,7 +143,7 @@ export function OrderIssueReportDialog({
       setActualQuantity('');
       setDescription('');
       setNotes('');
-      setSelectedImages([]);
+      setPhotos([]);
       
       onIssueReported();
       onClose();
@@ -241,55 +244,12 @@ export function OrderIssueReportDialog({
             <Label className="text-sm font-medium">
               Photos (Optional)
             </Label>
-            <div className="space-y-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => document.getElementById('issue-photos')?.click()}
-                disabled={isUploading}
-                className="w-full"
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                {isUploading ? 'Uploading...' : 'Add Photos'}
-              </Button>
-              <input
-                id="issue-photos"
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  if (e.target.files) {
-                    setSelectedImages(Array.from(e.target.files));
-                  }
-                }}
-              />
-              
-              {selectedImages.length > 0 && (
-                <div className="grid grid-cols-3 gap-2 mt-2">
-                  {selectedImages.map((file, index) => (
-                    <div key={index} className="relative">
-                      <img
-                        src={URL.createObjectURL(file)}
-                        alt={`Selected ${index + 1}`}
-                        className="w-full h-16 object-cover rounded border"
-                      />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0"
-                        onClick={() => {
-                          setSelectedImages(prev => prev.filter((_, i) => i !== index));
-                        }}
-                      >
-                        ×
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <PhotoUploadPanel
+              photos={photos}
+              onPhotosChange={setPhotos}
+              showDescriptions={false}
+              disabled={isSubmitting || isUploading}
+            />
           </div>
         </div>
 

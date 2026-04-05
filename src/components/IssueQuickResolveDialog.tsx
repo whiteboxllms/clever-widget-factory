@@ -5,13 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { useOrganizationId } from '@/hooks/useOrganizationId';
 import { apiService } from '@/lib/apiService';
 import { useAuth } from '@/hooks/useCognitoAuth';
 import { useImageUpload } from '@/hooks/useImageUpload';
-import { Paperclip, CheckCircle } from 'lucide-react';
-
+import { CheckCircle } from 'lucide-react';
 import { BaseIssue } from "@/types/issues";
+import { PhotoUploadPanel, type PhotoItem } from '@/components/shared/PhotoUploadPanel';
 
 interface IssueQuickResolveDialogProps {
   open: boolean;
@@ -32,48 +31,14 @@ export function IssueQuickResolveDialog({
   const { user } = useAuth();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState({
-    rootCause: '',
-    resolutionNotes: '',
-    photos: [] as string[]
-  });
-
-  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
-
-    try {
-      const fileArray = Array.from(files);
-      const uploadResults = await uploadImages(fileArray, {
-        bucket: 'tool-issue-photos' as const
-      });
-      
-      const resultsArray = Array.isArray(uploadResults) ? uploadResults : [uploadResults];
-      const uploadedUrls = resultsArray.map(result => result.url);
-      
-      setFormData(prev => ({
-        ...prev,
-        photos: [...prev.photos, ...uploadedUrls]
-      }));
-      
-      toast({
-        title: "Success",
-        description: `${uploadedUrls.length} photo(s) uploaded successfully`
-      });
-    } catch (error) {
-      console.error('Error uploading photos:', error);
-      toast({
-        title: "Error",
-        description: "Failed to upload photos",
-        variant: "destructive"
-      });
-    }
-  };
+  const [rootCause, setRootCause] = useState('');
+  const [resolutionNotes, setResolutionNotes] = useState('');
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.rootCause.trim() || !formData.resolutionNotes.trim()) {
+    if (!rootCause.trim() || !resolutionNotes.trim()) {
       toast({
         title: "Error",
         description: "Please provide both root cause and resolution notes",
@@ -85,22 +50,34 @@ export function IssueQuickResolveDialog({
     setIsSubmitting(true);
     
     try {
-      await apiService.put(`/issues/${issue.id}`, {
+      // Upload photos if any new ones were added
+      let photoUrls: string[] = [];
+      const newPhotos = photos.filter(p => p.file && !p.photo_url);
+      if (newPhotos.length > 0) {
+        const files = newPhotos.map(p => p.file!);
+        const uploadResults = await uploadImages(files, {
+          bucket: 'tool-issue-photos' as const
+        });
+        const resultsArray = Array.isArray(uploadResults) ? uploadResults : [uploadResults];
+        photoUrls = resultsArray.map(result => result.url);
+      }
+
+      await apiService.put(`/issues/${issue!.id}`, {
         status: 'resolved',
-        root_cause: formData.rootCause,
-        resolution_notes: formData.resolutionNotes,
-        resolution_photo_urls: formData.photos,
+        root_cause: rootCause,
+        resolution_notes: resolutionNotes,
+        resolution_photo_urls: photoUrls,
         resolved_at: new Date().toISOString()
       });
 
       // Log the resolution in history
       await apiService.post('/issue_history', {
-        issue_id: issue.id,
+        issue_id: issue!.id,
         changed_by: user?.userId,
-        old_status: issue.status,
+        old_status: issue!.status,
         new_status: 'resolved',
         field_changed: 'status',
-        notes: `Issue resolved. Root cause: ${formData.rootCause}. Resolution: ${formData.resolutionNotes}`,
+        notes: `Issue resolved. Root cause: ${rootCause}. Resolution: ${resolutionNotes}`,
       });
 
       toast({
@@ -112,11 +89,9 @@ export function IssueQuickResolveDialog({
       queryClient.invalidateQueries({ queryKey: ['issues_asset_flags'] });
 
       // Reset form
-      setFormData({
-        rootCause: '',
-        resolutionNotes: '',
-        photos: []
-      });
+      setRootCause('');
+      setResolutionNotes('');
+      setPhotos([]);
       
       onSuccess();
       onOpenChange(false);
@@ -130,13 +105,6 @@ export function IssueQuickResolveDialog({
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const removePhoto = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      photos: prev.photos.filter((_, i) => i !== index)
-    }));
   };
 
   if (!issue) {
@@ -168,8 +136,8 @@ export function IssueQuickResolveDialog({
               <Label htmlFor="rootCause">Root Cause *</Label>
               <Textarea
                 id="rootCause"
-                value={formData.rootCause}
-                onChange={(e) => setFormData(prev => ({ ...prev, rootCause: e.target.value }))}
+                value={rootCause}
+                onChange={(e) => setRootCause(e.target.value)}
                 placeholder="What was the underlying cause of this issue?"
                 className="mt-1"
                 rows={3}
@@ -182,8 +150,8 @@ export function IssueQuickResolveDialog({
               <Label htmlFor="resolutionNotes">Resolution Notes *</Label>
               <Textarea
                 id="resolutionNotes"
-                value={formData.resolutionNotes}
-                onChange={(e) => setFormData(prev => ({ ...prev, resolutionNotes: e.target.value }))}
+                value={resolutionNotes}
+                onChange={(e) => setResolutionNotes(e.target.value)}
                 placeholder="How was this issue resolved? What steps were taken?"
                 className="mt-1"
                 rows={4}
@@ -195,53 +163,13 @@ export function IssueQuickResolveDialog({
             <div>
               <Label className="text-sm font-medium">Resolution Photos (Optional)</Label>
               <div className="mt-1">
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={handlePhotoUpload}
-                  className="hidden"
-                  id="photoUpload"
-                  disabled={isUploading}
+                <PhotoUploadPanel
+                  photos={photos}
+                  onPhotosChange={setPhotos}
+                  showDescriptions={false}
+                  disabled={isSubmitting || isUploading}
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => document.getElementById('photoUpload')?.click()}
-                  disabled={isUploading}
-                  className="w-full"
-                >
-                  <Paperclip className="h-4 w-4 mr-2" />
-                  {isUploading ? 'Uploading...' : 'Upload Resolution Photos'}
-                </Button>
               </div>
-              
-              {/* Display uploaded photos */}
-              {formData.photos.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  <p className="text-sm text-muted-foreground">Uploaded photos:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {formData.photos.map((url, index) => (
-                      <div key={index} className="relative">
-                        <img
-                          src={url}
-                          alt={`Resolution photo ${index + 1}`}
-                          className="h-16 w-16 object-cover rounded border cursor-pointer"
-                          onClick={() => window.open(url, '_blank')}
-                        />
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => removePhoto(index)}
-                          className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0"
-                        >
-                          ×
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Action Buttons */}
@@ -256,7 +184,7 @@ export function IssueQuickResolveDialog({
               </Button>
               <Button
                 type="submit"
-                disabled={isSubmitting || isUploading || !formData.rootCause.trim() || !formData.resolutionNotes.trim()}
+                disabled={isSubmitting || isUploading || !rootCause.trim() || !resolutionNotes.trim()}
                 className="flex-1"
               >
                 {isSubmitting ? 'Resolving...' : 'Resolve Issue'}

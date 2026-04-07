@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useId } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -78,6 +78,7 @@ export function PhotoUploadPanel({
   onEagerUpload,
 }: PhotoUploadPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputId = useId();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
@@ -118,7 +119,7 @@ export function PhotoUploadPanel({
         const defaultType = photoTypes?.[0];
 
         return {
-          id: crypto.randomUUID(),
+          id: `photo-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           file,
           photo_type: defaultType,
           photo_description: '',
@@ -260,28 +261,30 @@ export function PhotoUploadPanel({
     <div className={cn('space-y-3', className)}>
       {/* Upload button */}
       <div>
-        <Input
+        <input
+          id={inputId}
           ref={fileInputRef}
           type="file"
           accept="image/*"
-          capture="environment"
           multiple
           className="hidden"
           onChange={handleFileSelect}
           disabled={disabled || atMaxPhotos}
         />
-        <Button
-          variant="outline"
-          type="button"
-          className="w-full"
-          disabled={disabled || atMaxPhotos}
-          onClick={() => fileInputRef.current?.click()}
+        <label
+          htmlFor={disabled || atMaxPhotos ? undefined : inputId}
+          className={cn(
+            'flex items-center justify-center w-full h-10 px-4 py-2 rounded-md border border-input bg-background text-sm font-medium ring-offset-background transition-colors',
+            disabled || atMaxPhotos
+              ? 'cursor-not-allowed opacity-50'
+              : 'cursor-pointer hover:bg-accent hover:text-accent-foreground'
+          )}
         >
           <Camera className="h-4 w-4 mr-2" />
           {atMaxPhotos
             ? `Maximum ${maxPhotos} photos reached`
             : 'Add Photos'}
-        </Button>
+        </label>
       </div>
 
       {/* Validation feedback for required types */}

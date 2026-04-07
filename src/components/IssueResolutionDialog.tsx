@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,12 @@ export function IssueResolutionDialog({
   const queryClient = useQueryClient();
   const organizationId = useOrganizationId();
   const { user } = useAuth();
+
+  const handleEagerUpload = useCallback(async (file: File) => {
+    const result = await uploadImages(file, { bucket: 'tool-resolution-photos' });
+    const r = Array.isArray(result) ? result[0] : result;
+    return { url: r.url };
+  }, [uploadImages]);
 
   const resetForm = () => {
     setRootCause('');
@@ -179,6 +185,7 @@ export function IssueResolutionDialog({
             <PhotoUploadPanel
               photos={photos}
               onPhotosChange={setPhotos}
+              onEagerUpload={handleEagerUpload}
               showDescriptions={false}
               disabled={isSubmitting || isUploading}
             />

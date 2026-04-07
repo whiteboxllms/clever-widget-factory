@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -68,6 +68,12 @@ export function CreateIssueDialog({
 
   const { createIssue } = useGenericIssues();
   const { uploadImages, isUploading } = useImageUpload();
+
+  const handleEagerUpload = useCallback(async (file: File) => {
+    const result = await uploadImages(file, { bucket: 'tool-resolution-photos' });
+    const r = Array.isArray(result) ? result[0] : result;
+    return { url: r.url };
+  }, [uploadImages]);
 
   // Load entities based on context type
   useEffect(() => {
@@ -365,6 +371,7 @@ export function CreateIssueDialog({
             <PhotoUploadPanel
               photos={photos}
               onPhotosChange={setPhotos}
+              onEagerUpload={handleEagerUpload}
               showDescriptions={false}
               disabled={isSubmitting || isUploading}
             />

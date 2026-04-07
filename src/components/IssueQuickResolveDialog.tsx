@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,12 @@ export function IssueQuickResolveDialog({
   const queryClient = useQueryClient();
   const { uploadImages, isUploading } = useImageUpload();
   const { user } = useAuth();
+
+  const handleEagerUpload = useCallback(async (file: File) => {
+    const result = await uploadImages(file, { bucket: 'tool-issue-photos' });
+    const r = Array.isArray(result) ? result[0] : result;
+    return { url: r.url };
+  }, [uploadImages]);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [rootCause, setRootCause] = useState('');
@@ -166,6 +172,7 @@ export function IssueQuickResolveDialog({
                 <PhotoUploadPanel
                   photos={photos}
                   onPhotosChange={setPhotos}
+                  onEagerUpload={handleEagerUpload}
                   showDescriptions={false}
                   disabled={isSubmitting || isUploading}
                 />

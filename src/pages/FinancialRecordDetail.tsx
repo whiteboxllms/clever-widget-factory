@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,6 +46,12 @@ export default function FinancialRecordDetail() {
   const { user, isLeadership } = useAuth();
   const { toast } = useToast();
   const { uploadFiles, isUploading } = useFileUpload();
+
+  const handleEagerUpload = useCallback(async (file: File) => {
+    const result = await uploadFiles(file, { bucket: 'mission-attachments' });
+    const r = Array.isArray(result) ? result[0] : result;
+    return { url: r.url };
+  }, [uploadFiles]);
 
   const { data: record, isLoading, error } = useFinancialRecord(id || '');
   const updateRecord = useUpdateFinancialRecord();
@@ -295,6 +301,7 @@ export default function FinancialRecordDetail() {
             <PhotoUploadPanel
               photos={editPhotos}
               onPhotosChange={setEditPhotos}
+              onEagerUpload={handleEagerUpload}
               disabled={isSaving}
             />
           ) : (

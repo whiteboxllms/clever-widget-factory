@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -64,6 +64,12 @@ export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: Issu
   const { uploadImages, isUploading } = useImageUpload();
   const organizationId = useOrganizationId();
   const { user } = useAuth();
+
+  const handleEagerUpload = useCallback(async (file: File) => {
+    const result = await uploadImages(file, { bucket: 'tool-resolution-photos' });
+    const r = Array.isArray(result) ? result[0] : result;
+    return { url: r.url };
+  }, [uploadImages]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -294,6 +300,7 @@ export function IssueReportDialog({ asset, open, onOpenChange, onSuccess }: Issu
                     <PhotoUploadPanel
                       photos={photos}
                       onPhotosChange={setPhotos}
+                      onEagerUpload={handleEagerUpload}
                       showDescriptions={false}
                       disabled={isSubmitting || isUploading}
                     />

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useStates, useStateMutations } from '@/hooks/useStates';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useToast } from '@/hooks/use-toast';
@@ -30,6 +30,12 @@ interface StatesInlineProps {
 export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
   const { toast } = useToast();
   const { uploadFiles } = useFileUpload();
+  
+  const handleEagerUpload = useCallback(async (file: File) => {
+    const result = await uploadFiles(file, { bucket: 'mission-attachments' });
+    const r = Array.isArray(result) ? result[0] : result;
+    return { url: r.url };
+  }, [uploadFiles]);
   
   // Fetch states for this entity
   const { data: states, isLoading, error } = useStates({ entity_type, entity_id });
@@ -87,14 +93,14 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
       let uploadedPhotos: Array<{ photo_url: string; photo_description: string; photo_order: number }> = [];
       
       if (photosSnapshot.length > 0) {
-        const newPhotos = photosSnapshot.filter(p => !p.isExisting && p.file);
-        const existingPhotos = photosSnapshot.filter(p => p.isExisting);
+        const newPhotos = photosSnapshot.filter(p => !p.isExisting && p.file && !p.photo_url);
+        const readyPhotos = photosSnapshot.filter(p => p.photo_url);
         
         if (newPhotos.length > 0) {
           setUploadProgress(`Uploading ${newPhotos.length} new photo${newPhotos.length > 1 ? 's' : ''}...`);
         }
         
-        // Upload new photos
+        // Upload new photos that haven't been eagerly uploaded yet
         for (let i = 0; i < newPhotos.length; i++) {
           const photo = newPhotos[i];
           if (!photo.file) {
@@ -115,15 +121,13 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
           });
         }
         
-        // Add existing photos (already have photo_url)
-        existingPhotos.forEach(photo => {
-          if (photo.photo_url) {
-            uploadedPhotos.push({
-              photo_url: photo.photo_url,
-              photo_description: photo.photo_description || '',
-              photo_order: uploadedPhotos.length
-            });
-          }
+        // Add all photos that already have URLs (existing + eagerly uploaded)
+        readyPhotos.forEach(photo => {
+          uploadedPhotos.push({
+            photo_url: photo.photo_url!,
+            photo_description: photo.photo_description || '',
+            photo_order: uploadedPhotos.length
+          });
         });
       }
       
@@ -193,7 +197,7 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
     
     // Load existing photos into PhotoItem format
     const existingPhotos: PhotoItem[] = (state.photos || []).map((photo, index) => ({
-      id: crypto.randomUUID(),
+      id: `photo-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       photo_url: photo.photo_url,
       photo_description: photo.photo_description || '',
       photo_order: index,
@@ -274,8 +278,9 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
               <PhotoUploadPanel
                 photos={photos}
                 onPhotosChange={setPhotos}
+                onEagerUpload={handleEagerUpload}
                 showDescriptions={true}
-                disabled={isCreating || isUpdating || uploadingPhotos}
+                disabled={isCreating || isUpdating}
               />
             </div>
 

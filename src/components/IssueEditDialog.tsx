@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,12 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
   const { uploadImages, isUploading } = useImageUpload();
   const { toast } = useToast();
 
+  const handleEagerUpload = useCallback(async (file: File) => {
+    const result = await uploadImages(file, { bucket: 'tool-resolution-photos' });
+    const r = Array.isArray(result) ? result[0] : result;
+    return { url: r.url };
+  }, [uploadImages]);
+
   // Populate form when issue changes
   useEffect(() => {
     if (issue) {
@@ -34,7 +40,7 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
       setDamageAssessment(issue.damage_assessment || "");
       // Map existing photo URLs to PhotoItem format
       const existingPhotos: PhotoItem[] = (issue.report_photo_urls || []).map((url, index) => ({
-        id: crypto.randomUUID(),
+        id: `photo-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         photo_url: url,
         photo_order: index,
         previewUrl: url,
@@ -146,6 +152,7 @@ export function IssueEditDialog({ issue, open, onOpenChange, onSuccess, onUpdate
                 <PhotoUploadPanel
                   photos={photos}
                   onPhotosChange={setPhotos}
+                  onEagerUpload={handleEagerUpload}
                   showDescriptions={false}
                   disabled={isSubmitting || isUploading}
                 />

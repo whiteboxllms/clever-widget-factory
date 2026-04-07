@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -68,6 +68,12 @@ export function OrderIssueReportDialog({
   const { createIssue } = useGenericIssues();
   const { uploadImages, isUploading } = useImageUpload();
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
+
+  const handleEagerUpload = useCallback(async (file: File) => {
+    const result = await uploadImages(file, { bucket: 'checkin-photos' });
+    const r = Array.isArray(result) ? result[0] : result;
+    return { url: r.url };
+  }, [uploadImages]);
 
   if (!order || !part) return null;
 
@@ -247,6 +253,7 @@ export function OrderIssueReportDialog({
             <PhotoUploadPanel
               photos={photos}
               onPhotosChange={setPhotos}
+              onEagerUpload={handleEagerUpload}
               showDescriptions={false}
               disabled={isSubmitting || isUploading}
             />

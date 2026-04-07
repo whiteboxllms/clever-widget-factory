@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -11,6 +11,7 @@ import { useStateMutations, useStateById } from '@/hooks/useStates';
 import { useToast } from '@/components/ui/use-toast';
 import type { CreateObservationData } from '@/types/observations';
 import { MetricsInput } from '@/components/observations/MetricsInput';
+import { useMetrics } from '@/hooks/metrics/useMetrics';
 import { useSnapshots } from '@/hooks/useSnapshots';
 import { snapshotService } from '@/services/snapshotService';
 import { PhotoUploadPanel, type PhotoItem } from '@/components/shared/PhotoUploadPanel';
@@ -24,6 +25,12 @@ export default function AddObservation() {
   const navigate = useNavigate();
   const { uploadFiles, isUploading } = useFileUpload();
   const { createState, updateState, isCreating, isUpdating } = useStateMutations();
+
+  const handleEagerUpload = useCallback(async (file: File) => {
+    const result = await uploadFiles(file, { bucket: 'mission-attachments' });
+    const r = Array.isArray(result) ? result[0] : result;
+    return { url: r.url };
+  }, [uploadFiles]);
   const { toast } = useToast();
 
   // Determine if we're in edit mode based on observationId presence
@@ -34,6 +41,13 @@ export default function AddObservation() {
 
   // Fetch existing snapshots when editing
   const { data: existingSnapshots } = useSnapshots(isEditMode ? observationId : undefined);
+
+  // Determine toolId for metrics
+  const toolId = isEditMode && existingState?.links?.[0]?.entity_type === 'tool' 
+    ? existingState.links[0].entity_id 
+    : (assetType === 'tools' ? id : null);
+  const { data: metrics } = useMetrics(toolId || '');
+  const hasMetrics = metrics && metrics.length > 0;
 
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [observationText, setObservationText] = useState('');
@@ -63,7 +77,7 @@ export default function AddObservation() {
       // Map existing photos to PhotoItem format
       if (existingState.photos && existingState.photos.length > 0) {
         const mappedPhotos: PhotoItem[] = existingState.photos.map((photo) => ({
-          id: crypto.randomUUID(),
+          id: `photo-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           photo_url: photo.photo_url,
           photo_description: photo.photo_description || '',
           photo_order: photo.photo_order,
@@ -112,28 +126,25 @@ export default function AddObservation() {
     }
 
     try {
-      // Upload new photos (those with a file but no photo_url yet)
-      const newPhotos = photos.filter(p => p.file && !p.photo_url);
+      // Upload any photos that haven't been eagerly uploaded yet
+      const pendingPhotos = photos.filter(p => p.file && !p.photo_url);
       let uploadedUrls: Map<string, string> = new Map();
 
-      if (newPhotos.length > 0) {
-        // Mark photos as uploading
+      if (pendingPhotos.length > 0) {
         setPhotos(prev => prev.map(p => 
           p.file && !p.photo_url ? { ...p, isUploading: true } : p
         ));
 
-        const files = newPhotos.map(p => p.file!);
+        const files = pendingPhotos.map(p => p.file!);
         const results = await uploadFiles(files, { bucket: 'mission-attachments' });
         const resultsArray = Array.isArray(results) ? results : [results];
 
-        // Map each new photo's id to its uploaded URL
-        newPhotos.forEach((photo, index) => {
+        pendingPhotos.forEach((photo, index) => {
           if (resultsArray[index]) {
             uploadedUrls.set(photo.id!, resultsArray[index].url);
           }
         });
 
-        // Update photo state with uploaded URLs
         setPhotos(prev => prev.map(p => {
           const url = p.id ? uploadedUrls.get(p.id) : undefined;
           if (url) {
@@ -143,15 +154,15 @@ export default function AddObservation() {
         }));
       }
 
-      // Build final photo list for submission
+      // Build final photo list: include all photos with URLs (existing + eagerly uploaded + just uploaded)
       const finalPhotos = photos
-        .filter(p => p.photo_url || (p.id && uploadedUrls.has(p.id)))
-        .map((photo, index) => ({
-          photo_url: photo.photo_url || uploadedUrls.get(photo.id!) || '',
+        .map((photo) => ({
+          photo_url: photo.photo_url || (photo.id ? uploadedUrls.get(photo.id) : undefined) || '',
           photo_description: photo.photo_description || '',
-          photo_order: index
+          photo_order: 0
         }))
-        .filter(p => p.photo_url);
+        .filter(p => p.photo_url)
+        .map((p, index) => ({ ...p, photo_order: index }));
 
       const data: CreateObservationData = {
         state_text: hasText ? observationText : undefined,
@@ -178,7 +189,7 @@ export default function AddObservation() {
         ? existingState?.links?.[0]?.entity_type === 'tool'
         : assetType === 'tools';
       
-      if (isToolObservation && Object.keys(metricValues).length > 0) {
+      if (isToolObservation && hasMetrics && Object.keys(metricValues).length > 0) {
         try {
           const existingSnapshotsMap = new Map(
             (existingSnapshots || []).map(s => [s.metric_id, s])
@@ -264,51 +275,36 @@ export default function AddObservation() {
           <CardHeader>
             <CardTitle>Upload Photos</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <PhotoUploadPanel
               photos={photos}
               onPhotosChange={setPhotos}
+              onEagerUpload={handleEagerUpload}
               showDescriptions={true}
-              disabled={isUploading || isCreating || isUpdating}
+              disabled={isCreating || isUpdating}
             />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Metrics Section - only show for tools with metrics */}
-      {!isEditMode || !isLoadingState ? (
-        (() => {
-          const toolId = isEditMode && existingState?.links?.[0]?.entity_type === 'tool' 
-            ? existingState.links[0].entity_id 
-            : (assetType === 'tools' ? id : null);
-          
-          return toolId ? (
-            <Card className="mt-4">
-              <CardHeader>
-                <CardTitle>Metrics</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <MetricsInput
-                  toolId={toolId}
-                  values={metricValues}
-                  onChange={setMetricValues}
-                />
-              </CardContent>
-            </Card>
-          ) : null;
-        })()
-      ) : null}
-
-      {/* Details Section */}
-      {!isEditMode || !isLoadingState ? (
-        <Card className="mt-4">
-          <CardContent className="pt-6">
             <Textarea
               id="observation-text"
               placeholder="Details not captured elsewhere..."
               value={observationText}
               onChange={(e) => setObservationText(e.target.value)}
               rows={4}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Metrics Section - only show for tools that have metrics defined */}
+      {(!isEditMode || !isLoadingState) && toolId && hasMetrics ? (
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle>Metrics</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MetricsInput
+              toolId={toolId}
+              values={metricValues}
+              onChange={setMetricValues}
             />
           </CardContent>
         </Card>

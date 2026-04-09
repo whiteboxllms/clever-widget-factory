@@ -69,7 +69,7 @@ export default function FinancialRecordDetail() {
 
   // Determine permissions
   const isOwner = record && user && record.created_by ? record.created_by === user.id : false;
-  // isLeadership maps to admin role which has data:write:all on the backend
+  // isLeadership maps to admin or leadership role which has data:write:org on the backend
   // null created_by records → only leadership can edit/delete
   const canEdit = isOwner || isLeadership;
   const canDelete = canEdit;

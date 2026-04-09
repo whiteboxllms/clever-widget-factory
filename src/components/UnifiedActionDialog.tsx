@@ -592,9 +592,9 @@ export function UnifiedActionDialog({
       setTimeout(() => setLinkCopied(false), 2000);
     } else {
       toast({
-        title: "Failed to copy",
-        description: "Could not copy link to clipboard",
-        variant: "destructive",
+        title: "Could not copy automatically",
+        description: actionUrl,
+        duration: 10000,
       });
     }
   };

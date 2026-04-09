@@ -73,21 +73,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Check if user has any active memberships with admin or contributor roles
       const hasAdminRole = memberships.some((m: any) => m.role === 'admin' && m.is_active !== false);
       const hasContributorRole = memberships.some((m: any) => m.role === 'contributor' && m.is_active !== false);
+      const hasLeadershipRole = memberships.some((m: any) => m.role === 'leadership' && m.is_active !== false);
       
-      // Leadership = admin only (not contributors)
-      const isLeadershipRole = hasAdminRole;
+      // Leadership = admin or leadership role
+      const isLeadershipRole = hasAdminRole || hasLeadershipRole;
       
       console.log('User role check result:', {
         hasAdminRole,
+        hasLeadershipRole,
         hasContributorRole,
         isLeadershipRole,
         membershipsCount: memberships.length
       });
       
       setIsAdmin(hasAdminRole);
-      setIsContributor(hasContributorRole || hasAdminRole);
+      setIsContributor(hasContributorRole || hasLeadershipRole || hasAdminRole);
       setIsLeadership(isLeadershipRole);
-      setCanEditTools(hasContributorRole || hasAdminRole);
+      setCanEditTools(hasContributorRole || hasLeadershipRole || hasAdminRole);
     } catch (error) {
       console.error('Failed to check user role:', error);
       // On error, default to no permissions for security

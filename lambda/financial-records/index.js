@@ -236,9 +236,9 @@ async function listRecords(queryParams, authContext) {
   const queryValues = [organizationId];
   let paramIndex = 2;
 
-  // Permission scoping: data:read:all sees all org records, otherwise only own
+  // Permission scoping: data:read:all or data:read:org sees all org records, otherwise only own
   // NULL created_by records are NOT visible to non-leadership users (NULL won't match)
-  if (!hasPermission({ permissions }, 'data:read:all')) {
+  if (!hasPermission({ permissions }, 'data:read:all') && !hasPermission({ permissions }, 'data:read:org')) {
     conditions.push('fr.created_by = $' + paramIndex);
     queryValues.push(cognitoUserId);
     paramIndex++;
@@ -344,10 +344,10 @@ async function getRecord(id, authContext) {
 
   const record = recordResult.rows[0];
 
-  // Permission check: owner or data:read:all
-  // NULL created_by → only data:read:all can view
+  // Permission check: owner or data:read:all/data:read:org
+  // NULL created_by → only leadership/admin can view
   const isOwner = record.created_by && record.created_by.toString() === cognitoUserId.toString();
-  if (!isOwner && !hasPermission({ permissions }, 'data:read:all')) {
+  if (!isOwner && !hasPermission({ permissions }, 'data:read:all') && !hasPermission({ permissions }, 'data:read:org')) {
     return error('Not authorized to view this record', 403);
   }
 
@@ -398,10 +398,10 @@ async function updateRecord(event, id, authContext) {
 
   const existing = recordResult.rows[0];
 
-  // Authorization: owner or data:write:all
-  // NULL created_by → only data:write:all can edit
+  // Authorization: owner or data:write:all/data:write:org
+  // NULL created_by → only leadership/admin can edit
   const isOwner = existing.created_by && existing.created_by.toString() === cognitoUserId.toString();
-  if (!isOwner && !hasPermission({ permissions }, 'data:write:all')) {
+  if (!isOwner && !hasPermission({ permissions }, 'data:write:all') && !hasPermission({ permissions }, 'data:write:org')) {
     return error('Not authorized to edit this record', 403);
   }
 
@@ -619,10 +619,10 @@ async function deleteRecord(id, authContext) {
 
   const record = recordResult.rows[0];
 
-  // Authorization: owner or data:write:all
-  // NULL created_by → only data:write:all can delete
+  // Authorization: owner or data:write:all/data:write:org
+  // NULL created_by → only leadership/admin can delete
   const isOwner = record.created_by && record.created_by.toString() === cognitoUserId.toString();
-  if (!isOwner && !hasPermission({ permissions }, 'data:write:all')) {
+  if (!isOwner && !hasPermission({ permissions }, 'data:write:all') && !hasPermission({ permissions }, 'data:write:org')) {
     return error('Not authorized to delete this record', 403);
   }
 

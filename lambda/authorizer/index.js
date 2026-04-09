@@ -131,7 +131,9 @@ function calculatePermissions(userRole, organizationMemberships) {
       permissions.push(
         'organizations:read',
         'data:read',
-        'data:write'
+        'data:read:org',
+        'data:write',
+        'data:write:org'
       );
       break;
     case 'contributor':

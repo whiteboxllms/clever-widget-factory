@@ -5,6 +5,8 @@ import { X, Send, RefreshCw, Loader2, Copy, Check, Code, ArrowRight } from 'luci
 import { cn } from '@/lib/utils';
 import { useMaxwell, MaxwellSessionAttributes, MaxwellMessage } from '@/hooks/useMaxwell';
 import { useMaxwellStorage, EntityContext } from '@/hooks/useMaxwellStorage';
+import { extractRecordIdsFromTrace } from '@/lib/traceParser';
+import { useMaxwellRecordHighlight } from '@/contexts/MaxwellRecordHighlightContext';
 import { useEntityContext } from '@/hooks/useEntityContext';
 import { PrismIcon } from '@/components/icons/PrismIcon';
 import { getImageUrl } from '@/lib/imageUtils';
@@ -54,50 +56,56 @@ function MessageBubble({ message }: { message: MaxwellMessage }) {
     }
   };
   
-  // Parse markdown images: ![alt](url) and render as <img> tags
+  // Parse markdown: images ![alt](url) and bold **text**
   const renderContent = (text: string) => {
     const parts: (string | JSX.Element)[] = [];
-    const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+    // Match images or bold markers
+    const markdownRegex = /!\[([^\]]*)\]\(([^)]+)\)|\*\*(.+?)\*\*/g;
     let lastIndex = 0;
     let match;
-    let imageIndex = 0;
+    let keyIndex = 0;
 
-    while ((match = imageRegex.exec(text)) !== null) {
-      // Add text before the image
+    while ((match = markdownRegex.exec(text)) !== null) {
+      // Add text before the match
       if (match.index > lastIndex) {
         parts.push(text.slice(lastIndex, match.index));
       }
-      
-      // Add the image (clickable to open full resolution)
-      const alt = match[1];
-      const url = match[2];
-      const resolvedUrl = getImageUrl(url) || url;
-      parts.push(
-        <a
-          key={`img-${imageIndex++}`}
-          href={resolvedUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block mt-2"
-        >
-          <img
-            src={resolvedUrl}
-            alt={alt}
-            title={`${alt} (click to view full resolution)`}
-            className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-            style={{ maxHeight: '300px', objectFit: 'contain' }}
-          />
-        </a>
-      );
-      
+
+      if (match[2]) {
+        // Image: ![alt](url)
+        const alt = match[1];
+        const url = match[2];
+        const resolvedUrl = getImageUrl(url) || url;
+        parts.push(
+          <a
+            key={`md-${keyIndex++}`}
+            href={resolvedUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block mt-2"
+          >
+            <img
+              src={resolvedUrl}
+              alt={alt}
+              title={`${alt} (click to view full resolution)`}
+              className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+              style={{ maxHeight: '300px', objectFit: 'contain' }}
+            />
+          </a>
+        );
+      } else if (match[3]) {
+        // Bold: **text**
+        parts.push(<strong key={`md-${keyIndex++}`}>{match[3]}</strong>);
+      }
+
       lastIndex = match.index + match[0].length;
     }
-    
+
     // Add remaining text
     if (lastIndex < text.length) {
       parts.push(text.slice(lastIndex));
     }
-    
+
     return parts.length > 0 ? parts : text;
   };
 
@@ -250,6 +258,19 @@ export function GlobalMaxwellPanel({
       implementation: '',
     }
   );
+
+  const { setMaxwellRecordIds } = useMaxwellRecordHighlight();
+
+  // Extract record IDs from assistant messages and update context
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.role === 'assistant' && lastMessage.trace?.length) {
+      const ids = extractRecordIdsFromTrace(lastMessage.trace, lastMessage.rawReply);
+      if (ids.length > 0) {
+        setMaxwellRecordIds(ids);
+      }
+    }
+  }, [messages]);
 
   // Load conversation from localStorage when context changes
   useEffect(() => {

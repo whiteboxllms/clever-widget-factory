@@ -1,5 +1,7 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useMaxwellRecordHighlight } from '@/contexts/MaxwellRecordHighlightContext';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -29,6 +31,8 @@ type SortDir = 'asc' | 'desc';
 
 export default function Finances() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { maxwellRecordIds, clearMaxwellRecordIds, isFilterActive, setIsFilterActive } = useMaxwellRecordHighlight();
   const [timeFrame, setTimeFrame] = useState('30');
   const [descSearch, setDescSearch] = useState('');
   const [methodFilter, setMethodFilter] = useState('All');
@@ -54,6 +58,33 @@ export default function Finances() {
     return ['All', ...Array.from(names).sort()];
   }, [financialData?.records]);
 
+  const firstHighlightRef = useRef<HTMLTableRowElement>(null);
+  const prevRecordIdsRef = useRef<string[]>([]);
+
+  const maxwellRecordIdSet = useMemo(() => new Set(maxwellRecordIds), [maxwellRecordIds]);
+
+  const matchCount = useMemo(() => {
+    if (!financialData?.records || maxwellRecordIds.length === 0) return 0;
+    return financialData.records.filter(r => maxwellRecordIdSet.has(r.id)).length;
+  }, [financialData?.records, maxwellRecordIds, maxwellRecordIdSet]);
+
+  useEffect(() => {
+    if (
+      maxwellRecordIds.length > 0 &&
+      prevRecordIdsRef.current.length === 0 &&
+      firstHighlightRef.current
+    ) {
+      firstHighlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    prevRecordIdsRef.current = maxwellRecordIds;
+  }, [maxwellRecordIds]);
+
+  useEffect(() => {
+    return () => {
+      clearMaxwellRecordIds();
+    };
+  }, []);
+
   const filteredAndSorted = useMemo(() => {
     if (!financialData?.records) return [];
     let records = [...financialData.records];
@@ -74,6 +105,11 @@ export default function Finances() {
       records = records.filter(r => (r.created_by_name || 'Unknown') === creatorFilter);
     }
 
+    // Maxwell filter
+    if (isFilterActive && maxwellRecordIds.length > 0) {
+      records = records.filter(r => maxwellRecordIdSet.has(r.id));
+    }
+
     // Sort
     records.sort((a, b) => {
       let cmp = 0;
@@ -92,7 +128,7 @@ export default function Finances() {
     });
 
     return records;
-  }, [financialData?.records, descSearch, methodFilter, creatorFilter, sortField, sortDir]);
+  }, [financialData?.records, descSearch, methodFilter, creatorFilter, sortField, sortDir, isFilterActive, maxwellRecordIds, maxwellRecordIdSet]);
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -168,6 +204,16 @@ export default function Finances() {
           </div>
         </CardHeader>
         <CardContent>
+          {maxwellRecordIds.length > 0 && matchCount > 0 && (
+            <div className="flex items-center justify-between px-4 py-2 mb-2 rounded-lg bg-orange-100 border border-orange-300 dark:bg-orange-900/30 dark:border-orange-700">
+              <span className="text-sm text-orange-700 dark:text-orange-300">
+                Showing {matchCount} records from Maxwell
+              </span>
+              <Button variant="ghost" size="icon" onClick={clearMaxwellRecordIds}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -234,30 +280,43 @@ export default function Finances() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredAndSorted.map((record) => (
-                  <TableRow
-                    key={record.id}
-                    className="cursor-pointer"
-                    onClick={() => navigate(`/financial-records/${record.id}`)}
-                  >
-                    <TableCell className="text-xs">
-                      {new Date(record.transaction_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                    </TableCell>
-                    <TableCell className="truncate max-w-[200px]">{record.description}</TableCell>
-                    <TableCell className={`text-right font-medium whitespace-nowrap ${record.amount < 0 ? 'text-green-600' : ''}`}>
-                      {record.amount < 0 ? '+' : '-'}{Math.abs(record.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell className="text-right text-xs text-muted-foreground whitespace-nowrap">
-                      {record.balance_after != null ? record.balance_after.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      {record.payment_method}
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      {record.created_by_name || 'Unknown'}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {(() => {
+                  let firstHighlightAssigned = false;
+                  return filteredAndSorted.map((record) => {
+                    const isHighlighted = maxwellRecordIdSet.has(record.id);
+                    const isFirstHighlight = isHighlighted && !firstHighlightAssigned;
+                    if (isFirstHighlight) firstHighlightAssigned = true;
+
+                    return (
+                      <TableRow
+                        key={record.id}
+                        ref={isFirstHighlight ? firstHighlightRef : undefined}
+                        className={cn(
+                          "cursor-pointer",
+                          isHighlighted && "bg-orange-100 hover:bg-orange-200 dark:bg-orange-900/30 dark:hover:bg-orange-900/50"
+                        )}
+                        onClick={() => navigate(`/financial-records/${record.id}`)}
+                      >
+                        <TableCell className="text-xs">
+                          {new Date(record.transaction_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                        </TableCell>
+                        <TableCell className="truncate max-w-[200px]">{record.description}</TableCell>
+                        <TableCell className={`text-right font-medium whitespace-nowrap ${record.amount < 0 ? 'text-green-600' : ''}`}>
+                          {record.amount < 0 ? '+' : '-'}{Math.abs(record.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-right text-xs text-muted-foreground whitespace-nowrap">
+                          {record.balance_after != null ? record.balance_after.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {record.payment_method}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {record.created_by_name || 'Unknown'}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  });
+                })()}
               </TableBody>
             </Table>
           ) : (

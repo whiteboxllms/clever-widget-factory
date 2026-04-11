@@ -25,7 +25,7 @@ const QUANTITATIVE_PROMPT = loadPrompt('maxwell-quantitative.txt');
 const GENERAL_PROMPT = loadPrompt('maxwell-general.txt');
 
 const STORAGE_KEYWORDS = /\b(store|storage|where.*put|where.*keep|organize|location|shelf|shed|toolbox|cabinet)\b/i;
-const QUANTITATIVE_KEYWORDS = /\b(roi|cost|revenue|profit|price|expense|budget|investment|how much|per month|per day|per week|earnings|income|margin|break.?even)\b/i;
+const QUANTITATIVE_KEYWORDS = /\b(roi|cost|revenue|profit|price|expense|budget|investment|how much|per month|per day|per week|earnings|income|margin|break.?even|spend|spent|purchase|purchased|bought|transaction|payment|balance)\b/i;
 
 /**
  * Detect question type and return the appropriate prompt fragment.

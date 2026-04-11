@@ -12,6 +12,7 @@ export function GlobalMaxwellFAB() {
   const entityContext = useEntityContext();
   const location = useLocation();
   const isDashboard = location.pathname === '/' || location.pathname === '/dashboard';
+  const isFinances = location.pathname === '/finances';
   
   useEffect(() => {
     if (!isPanelOpen && fabRef.current) {
@@ -22,8 +23,8 @@ export function GlobalMaxwellFAB() {
     }
   }, [isPanelOpen]);
   
-  // Show FAB on entity detail pages and dashboard. Keep panel alive if already open.
-  if (!entityContext && !isDashboard && !isPanelOpen) {
+  // Show FAB on entity detail pages, dashboard, and finances. Keep panel alive if already open.
+  if (!entityContext && !isDashboard && !isFinances && !isPanelOpen) {
     return null;
   }
   
@@ -45,7 +46,7 @@ export function GlobalMaxwellFAB() {
   
   return (
     <>
-      {!isPanelOpen && (entityContext || isDashboard) && (
+      {!isPanelOpen && (entityContext || isDashboard || isFinances) && (
         <button
           ref={fabRef}
           onClick={handleClick}

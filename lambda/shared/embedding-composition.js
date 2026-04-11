@@ -212,31 +212,49 @@ function composeStateEmbeddingSource(state) {
 }
 
 /**
- * Compose embedding source for a financial record
- * 
- * Financial records include description, category_tag (AI-generated),
- * and external_source_note (for externally-funded transactions).
- * 
- * @param {Object} record - Financial record entity
- * @param {string} record.description - Transaction description
- * @param {string} [record.category_tag] - AI-generated category tag
- * @param {string} [record.external_source_note] - External funding source note
- * @returns {string} - Composed embedding source text
- * 
+ * Compose embedding source for a financial record.
+ *
+ * Strips structured metadata from state_text and appends photo descriptions.
+ *
+ * @param {Object} record
+ * @param {string} [record.state_text] - Raw state_text from linked state
+ * @param {string[]} [record.photo_descriptions] - Photo descriptions from state_photos
+ * @returns {string} Cleaned embedding source text
+ *
  * @example
  * composeFinancialRecordEmbeddingSource({
- *   description: 'Nails and screws for fence repair',
- *   category_tag: 'Construction',
- *   external_source_note: null
+ *   state_text: '[Mae] Nipa 100 pcs — Additional nipa (Category: Construction, ₱10.00/unit) {{photo:https://...}}',
+ *   photo_descriptions: ['Receipt showing nipa purchase']
  * })
- * // Returns: "Nails and screws for fence repair. Construction"
+ * // Returns: "Nipa 100 pcs — Additional nipa. Receipt showing nipa purchase"
  */
 function composeFinancialRecordEmbeddingSource(record) {
-  const parts = [
-    record.description,
-    record.category_tag,
-    record.external_source_note
-  ].filter(Boolean);
+  let text = record.state_text || '';
+
+  // Strip [Purchaser] prefix (e.g., "[Mae] " at start of string)
+  text = text.replace(/^\[.*?\]\s*/, '');
+
+  // Strip (Category: X) parentheticals
+  text = text.replace(/\(Category:\s*[^)]*\)/g, '');
+
+  // Strip (₱X.XX/unit) per-unit price parentheticals
+  text = text.replace(/\(₱[\d,.]+\/unit\)/g, '');
+
+  // Strip {{photo:URL}} markers
+  text = text.replace(/\{\{photo:.*?\}\}/g, '');
+
+  // Strip migrated:URL references (Google Photos migration artifacts)
+  text = text.replace(/migrated:https?:\/\/\S+/g, '');
+
+  // Collapse multiple spaces and trim
+  text = text.replace(/\s+/g, ' ').trim();
+
+  // Append photo descriptions (also strip migrated URLs from descriptions)
+  const descriptions = (record.photo_descriptions || [])
+    .map(d => d ? d.replace(/migrated:https?:\/\/\S+/g, '').trim() : '')
+    .filter(d => d && d.trim());
+  const parts = [text, ...descriptions].filter(Boolean);
+
   return parts.join('. ');
 }
 

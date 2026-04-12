@@ -188,12 +188,6 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
         // So we only show explicitly removed (not checked out) items
         return false;
       });
-      console.log('🔍 Show Removed filter:', {
-        totalTools: toolsData.length,
-        removedTools: filteredToolsData.length,
-        removedToolNames: filteredToolsData.map(t => `${t.name} (${t.status})`),
-        allStatuses: [...new Set(toolsData.map(t => t.status))]
-      });
     } else {
       // Show only active items (exclude removed)
       filteredToolsData = filteredToolsData.filter(tool => tool.status !== 'removed');

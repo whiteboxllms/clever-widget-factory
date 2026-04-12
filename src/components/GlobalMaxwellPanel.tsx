@@ -1,10 +1,12 @@
 import { useRef, useEffect, useState, KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import type { JSX } from 'react';
-import { X, Send, RefreshCw, Loader2, Copy, Check, Code, ArrowRight } from 'lucide-react';
+import { X, Send, RefreshCw, Loader2, Copy, Check, Code, ArrowRight, Maximize2, Minimize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMaxwell, MaxwellSessionAttributes, MaxwellMessage } from '@/hooks/useMaxwell';
 import { useMaxwellStorage, EntityContext } from '@/hooks/useMaxwellStorage';
+import { extractRecordIdsFromTrace } from '@/lib/traceParser';
+import { useMaxwellRecordHighlight } from '@/contexts/MaxwellRecordHighlightContext';
 import { useEntityContext } from '@/hooks/useEntityContext';
 import { PrismIcon } from '@/components/icons/PrismIcon';
 import { getImageUrl } from '@/lib/imageUtils';
@@ -54,50 +56,56 @@ function MessageBubble({ message }: { message: MaxwellMessage }) {
     }
   };
   
-  // Parse markdown images: ![alt](url) and render as <img> tags
+  // Parse markdown: images ![alt](url) and bold **text**
   const renderContent = (text: string) => {
     const parts: (string | JSX.Element)[] = [];
-    const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+    // Match images or bold markers
+    const markdownRegex = /!\[([^\]]*)\]\(([^)]+)\)|\*\*(.+?)\*\*/g;
     let lastIndex = 0;
     let match;
-    let imageIndex = 0;
+    let keyIndex = 0;
 
-    while ((match = imageRegex.exec(text)) !== null) {
-      // Add text before the image
+    while ((match = markdownRegex.exec(text)) !== null) {
+      // Add text before the match
       if (match.index > lastIndex) {
         parts.push(text.slice(lastIndex, match.index));
       }
-      
-      // Add the image (clickable to open full resolution)
-      const alt = match[1];
-      const url = match[2];
-      const resolvedUrl = getImageUrl(url) || url;
-      parts.push(
-        <a
-          key={`img-${imageIndex++}`}
-          href={resolvedUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block mt-2"
-        >
-          <img
-            src={resolvedUrl}
-            alt={alt}
-            title={`${alt} (click to view full resolution)`}
-            className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-            style={{ maxHeight: '300px', objectFit: 'contain' }}
-          />
-        </a>
-      );
-      
+
+      if (match[2]) {
+        // Image: ![alt](url)
+        const alt = match[1];
+        const url = match[2];
+        const resolvedUrl = getImageUrl(url) || url;
+        parts.push(
+          <a
+            key={`md-${keyIndex++}`}
+            href={resolvedUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block mt-2"
+          >
+            <img
+              src={resolvedUrl}
+              alt={alt}
+              title={`${alt} (click to view full resolution)`}
+              className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+              style={{ maxHeight: '300px', objectFit: 'contain' }}
+            />
+          </a>
+        );
+      } else if (match[3]) {
+        // Bold: **text**
+        parts.push(<strong key={`md-${keyIndex++}`}>{match[3]}</strong>);
+      }
+
       lastIndex = match.index + match[0].length;
     }
-    
+
     // Add remaining text
     if (lastIndex < text.length) {
       parts.push(text.slice(lastIndex));
     }
-    
+
     return parts.length > 0 ? parts : text;
   };
 
@@ -177,6 +185,7 @@ export function GlobalMaxwellPanel({
   
   const [input, setInput] = useState('');
   const [copiedAll, setCopiedAll] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [activeContext, setActiveContext] = useState<EntityContext | null>(context);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -250,6 +259,19 @@ export function GlobalMaxwellPanel({
       implementation: '',
     }
   );
+
+  const { setMaxwellRecordIds } = useMaxwellRecordHighlight();
+
+  // Extract record IDs from assistant messages and update context
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.role === 'assistant' && lastMessage.trace?.length) {
+      const ids = extractRecordIdsFromTrace(lastMessage.trace, lastMessage.rawReply);
+      if (ids.length > 0) {
+        setMaxwellRecordIds(ids);
+      }
+    }
+  }, [messages]);
 
   // Load conversation from localStorage when context changes
   useEffect(() => {
@@ -346,13 +368,18 @@ export function GlobalMaxwellPanel({
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          'fixed z-[200] bg-background shadow-xl flex flex-col border-l',
-          'max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:h-[90vh] max-md:rounded-t-2xl',
-          'md:top-0 md:right-0 md:h-full md:w-[40%] lg:w-[35%]',
-          'transition-transform duration-300 ease-out',
-          open
+          'fixed z-[200] bg-background shadow-xl flex flex-col',
+          'transition-all duration-300 ease-out',
+          isExpanded
+            ? 'inset-0 w-full h-full border-none'
+            : cn(
+                'border-l',
+                'max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:h-[90vh] max-md:rounded-t-2xl',
+                'md:top-0 md:right-0 md:h-full md:w-[40%] lg:w-[35%]',
+              ),
+          !isExpanded && (open
             ? 'max-md:translate-y-0 md:translate-x-0'
-            : 'max-md:translate-y-full md:translate-x-full'
+            : 'max-md:translate-y-full md:translate-x-full')
         )}
       >
         {/* Header */}
@@ -381,6 +408,14 @@ export function GlobalMaxwellPanel({
                 {copiedAll ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </button>
             )}
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="rounded-full p-1.5 text-muted-foreground hover:bg-muted"
+              aria-label={isExpanded ? 'Collapse panel' : 'Expand panel'}
+              title={isExpanded ? 'Collapse panel' : 'Expand panel'}
+            >
+              {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </button>
             <button
               onClick={(e) => { e.stopPropagation(); onOpenChange(false); }}
               className="rounded-full p-1.5 text-muted-foreground hover:bg-muted"

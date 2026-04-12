@@ -79,7 +79,6 @@ export function ProactiveVsReactiveChart({ data, isLoading, onDayClick }: Proact
   const handleBarClick = async (data: any) => {
     if (!onDayClick || !data) return;
     
-    console.log('Bar clicked:', data); // Debug log
     setSelectedDay(data.dayKey);
     setLoadingActions(true);
     

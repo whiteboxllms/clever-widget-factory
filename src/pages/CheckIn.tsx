@@ -61,7 +61,6 @@ export default function CheckIn() {
       }));
 
       setCheckouts(checkoutsWithTools);
-      console.log('Successfully loaded checkouts:', checkoutsWithTools.length);
     } catch (error) {
       console.error('Error fetching checkouts:', error);
       console.error('Error type:', typeof error);

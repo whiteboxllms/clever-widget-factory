@@ -6,6 +6,7 @@ export interface MaxwellMessage {
   content: string;
   timestamp: Date;
   trace?: any[]; // Bedrock Agent trace events
+  rawReply?: string; // Original reply before stripping tags
 }
 
 export interface MaxwellSessionAttributes {
@@ -73,9 +74,10 @@ export function useMaxwell(sessionAttributes: MaxwellSessionAttributes): UseMaxw
 
       const assistantMsg: MaxwellMessage = {
         role: 'assistant',
-        content: response.reply,
+        content: response.reply.replace(/<referenced_records>.*?<\/referenced_records>/s, '').trim(),
         timestamp: new Date(),
         trace: response.trace,
+        rawReply: response.reply,
       };
 
       setMessages(prev => [...prev, assistantMsg]);

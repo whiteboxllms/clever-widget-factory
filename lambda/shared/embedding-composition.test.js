@@ -442,72 +442,157 @@ describe('composeStateEmbeddingSource', () => {
 });
 
 describe('composeFinancialRecordEmbeddingSource', () => {
-  test('should compose with all fields populated', () => {
+  // Specific stripping examples from design (Requirements 1.2, 1.3, 1.4, 1.5, 1.8)
+  test('should strip purchaser prefix, category+price parenthetical, and photo marker', () => {
     const record = {
-      description: 'Nails and screws for fence repair',
-      category_tag: 'Construction',
-      external_source_note: 'Stefan credit card'
+      state_text: '[Mae] Nipa 100 pcs — Additional nipa (Category: Construction, ₱10.00/unit) {{photo:https://example.com/photo.jpg}}'
     };
 
     const result = composeFinancialRecordEmbeddingSource(record);
 
-    assert.strictEqual(
-      result,
-      'Nails and screws for fence repair. Construction. Stefan credit card'
-    );
+    assert.strictEqual(result, 'Nipa 100 pcs — Additional nipa');
   });
 
-  test('should handle missing optional fields', () => {
+  test('should strip purchaser prefix only', () => {
     const record = {
-      description: 'Gasoline for generator',
-      category_tag: null,
-      external_source_note: null
+      state_text: '[Stefan] GCash reload'
     };
 
     const result = composeFinancialRecordEmbeddingSource(record);
 
-    assert.strictEqual(result, 'Gasoline for generator');
+    assert.strictEqual(result, 'GCash reload');
   });
 
-  test('should handle only description', () => {
+  test('should strip category parenthetical without purchaser prefix', () => {
     const record = {
-      description: 'Office supplies'
+      state_text: 'Chicken feed 50kg (Category: Food)'
     };
 
     const result = composeFinancialRecordEmbeddingSource(record);
 
-    assert.strictEqual(result, 'Office supplies');
+    assert.strictEqual(result, 'Chicken feed 50kg');
   });
 
-  test('should filter out null and undefined values', () => {
+  test('should return text unchanged when no metadata present', () => {
     const record = {
-      description: 'Banana seedlings',
-      category_tag: null,
-      external_source_note: undefined
+      state_text: 'Transaction'
     };
 
     const result = composeFinancialRecordEmbeddingSource(record);
 
-    assert.strictEqual(result, 'Banana seedlings');
+    assert.strictEqual(result, 'Transaction');
   });
 
-  test('should handle description with category_tag only', () => {
+  // Edge cases (Requirements 6.5)
+  test('should return empty string for empty state_text input', () => {
     const record = {
-      description: 'Chicken feed',
-      category_tag: 'Agriculture',
-      external_source_note: null
+      state_text: ''
     };
 
     const result = composeFinancialRecordEmbeddingSource(record);
 
-    assert.strictEqual(result, 'Chicken feed. Agriculture');
+    assert.strictEqual(result, '');
   });
 
-  test('should return empty string when all fields are null', () => {
+  test('should return photo descriptions when state_text is null', () => {
     const record = {
-      description: null,
-      category_tag: null,
-      external_source_note: null
+      state_text: null,
+      photo_descriptions: ['Receipt for nipa purchase']
+    };
+
+    const result = composeFinancialRecordEmbeddingSource(record);
+
+    assert.strictEqual(result, 'Receipt for nipa purchase');
+  });
+
+  test('should strip multiple photo markers', () => {
+    const record = {
+      state_text: 'Lumber delivery {{photo:https://example.com/a.jpg}} extra text {{photo:https://example.com/b.jpg}}'
+    };
+
+    const result = composeFinancialRecordEmbeddingSource(record);
+
+    assert.strictEqual(result, 'Lumber delivery extra text');
+  });
+
+  test('should strip migrated Google Photos URLs', () => {
+    const record = {
+      state_text: 'Meryenda — Bread, canton, coffee. migrated:https://photos.app.goo.gl/JrSPc98LDVgXyz'
+    };
+
+    const result = composeFinancialRecordEmbeddingSource(record);
+
+    assert.strictEqual(result, 'Meryenda — Bread, canton, coffee.');
+  });
+
+  test('should strip migrated URL mid-sentence', () => {
+    const record = {
+      state_text: '9/8 reload. migrated:https://photos.app.goo.gl/yemmaDVfVHe5oHRg8'
+    };
+
+    const result = composeFinancialRecordEmbeddingSource(record);
+
+    assert.strictEqual(result, '9/8 reload.');
+  });
+
+  test('should fully remove combined category and price parenthetical', () => {
+    const record = {
+      state_text: 'Nipa 100 pcs (Category: Construction, ₱10.00/unit)'
+    };
+
+    const result = composeFinancialRecordEmbeddingSource(record);
+
+    assert.strictEqual(result, 'Nipa 100 pcs');
+  });
+
+  // Photo description joining (Requirements 1.7, 6.4)
+  test('should join state_text and single photo description with ". "', () => {
+    const record = {
+      state_text: 'Nipa purchase',
+      photo_descriptions: ['Receipt showing nipa purchase']
+    };
+
+    const result = composeFinancialRecordEmbeddingSource(record);
+
+    assert.strictEqual(result, 'Nipa purchase. Receipt showing nipa purchase');
+  });
+
+  test('should join state_text and multiple photo descriptions with ". "', () => {
+    const record = {
+      state_text: 'Lumber delivery',
+      photo_descriptions: ['Receipt from hardware store', 'Photo of lumber stack']
+    };
+
+    const result = composeFinancialRecordEmbeddingSource(record);
+
+    assert.strictEqual(result, 'Lumber delivery. Receipt from hardware store. Photo of lumber stack');
+  });
+
+  test('should filter out empty and whitespace-only photo descriptions', () => {
+    const record = {
+      state_text: 'Feed purchase',
+      photo_descriptions: ['Receipt photo', '', '  ', 'Bag of feed']
+    };
+
+    const result = composeFinancialRecordEmbeddingSource(record);
+
+    assert.strictEqual(result, 'Feed purchase. Receipt photo. Bag of feed');
+  });
+
+  test('should return empty string when state_text is empty and no photo descriptions', () => {
+    const record = {
+      state_text: '',
+      photo_descriptions: []
+    };
+
+    const result = composeFinancialRecordEmbeddingSource(record);
+
+    assert.strictEqual(result, '');
+  });
+
+  test('should return empty string when state_text is null and photo_descriptions is undefined', () => {
+    const record = {
+      state_text: null
     };
 
     const result = composeFinancialRecordEmbeddingSource(record);

@@ -1,0 +1,10 @@
+{
+  "name": "maxwell-expenses",
+  "version": "1.0.0",
+  "description": "Bedrock Action Group tool Lambda for Maxwell — searches and filters financial records for expense analysis",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.0.0",
+    "pg": "^8.11.0"
+  }
+}

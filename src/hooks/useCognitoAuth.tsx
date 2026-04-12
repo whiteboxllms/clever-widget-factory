@@ -58,8 +58,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkUserRole = useCallback(async (userId: string) => {
     try {
-      console.log('Checking user role for:', userId);
-      
       // Fetch user's organization memberships to determine role
       // apiService automatically handles authentication
       const response = await apiService.get(`/organization_members?cognito_user_id=${encodeURIComponent(userId)}`);
@@ -77,14 +75,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Leadership = admin or leadership role
       const isLeadershipRole = hasAdminRole || hasLeadershipRole;
-      
-      console.log('User role check result:', {
-        hasAdminRole,
-        hasLeadershipRole,
-        hasContributorRole,
-        isLeadershipRole,
-        membershipsCount: memberships.length
-      });
       
       setIsAdmin(hasAdminRole);
       setIsContributor(hasContributorRole || hasLeadershipRole || hasAdminRole);

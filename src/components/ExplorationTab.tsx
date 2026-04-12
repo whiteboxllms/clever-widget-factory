@@ -62,12 +62,9 @@ export function ExplorationTab({ action, onUpdate }: ExplorationTabProps) {
       
       try {
         setLoading(true);
-        console.log('ExplorationTab: Loading exploration for action:', action.id);
         // Try to get exploration by action_id
         const response = await explorationService.getExplorationByActionId(action.id);
-        console.log('ExplorationTab: Got response:', response);
         if (response) {
-          console.log('ExplorationTab: Setting exploration with code:', response.exploration_code);
           setExploration(response);
           setFormData({
             exploration_notes_text: response.exploration_notes_text || '',
@@ -75,8 +72,6 @@ export function ExplorationTab({ action, onUpdate }: ExplorationTabProps) {
             public_flag: response.public_flag,
             key_photos: response.key_photos || []
           });
-        } else {
-          console.log('ExplorationTab: No response received');
         }
       } catch (error) {
         console.error('ExplorationTab: Error loading exploration:', error);

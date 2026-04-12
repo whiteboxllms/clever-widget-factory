@@ -204,7 +204,6 @@ const AuditTool = () => {
               variant="ghost" 
               size="sm" 
               onClick={() => {
-                console.log('Back button clicked');
                 if (window.history.length > 1) {
                   navigate(-1);
                 } else {

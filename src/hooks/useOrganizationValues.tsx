@@ -27,14 +27,11 @@ export function useOrganizationValues(org?: any) {
       const currentOrg = organization?.id 
         ? orgs.find((o: any) => o.id === organization.id)
         : orgs[0];
-      console.log('[useOrganizationValues] Current org:', currentOrg);
       
       const values = currentOrg?.settings?.strategic_attributes || [];
-      console.log('[useOrganizationValues] Values:', values);
       
       // If no values exist, return defaults
       if (values.length === 0) {
-        console.log('[useOrganizationValues] Returning defaults');
         return [
           "Growth Mindset", 
           "Quality",

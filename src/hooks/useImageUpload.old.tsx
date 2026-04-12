@@ -39,14 +39,6 @@ export const useImageUpload = () => {
 
     const uploadId = Math.random().toString(36).substr(2, 9);
     const startTime = performance.now();
-    console.log(`[UPLOAD-${uploadId}] START:`, { 
-      name: file.name, 
-      type: file.type, 
-      size: file.size,
-      userAgent: navigator.userAgent,
-      connection: (navigator as any).connection?.effectiveType,
-      memory: (performance as any).memory?.usedJSHeapSize
-    });
 
     // Validate file if validator provided
     if (validateFile) {
@@ -67,8 +59,6 @@ export const useImageUpload = () => {
     const validTypes = ['image/', 'application/octet-stream', 'application/pdf']; // octet-stream for HEIC on some phones
     const isValidType = validTypes.some(type => file.type.startsWith(type)) || file.name.match(/\.(jpg|jpeg|png|gif|webp|heic|heif|pdf)$/i);
     
-    console.log(`[UPLOAD-${uploadId}] VALIDATION:`, { type: file.type, isValidType });
-    
     if (!isValidType) {
       const error = `Invalid file type: ${file.type}. Only image and PDF files are allowed.`;
       console.error(`[UPLOAD-${uploadId}] TYPE_INVALID:`, error);
@@ -81,7 +71,6 @@ export const useImageUpload = () => {
       
       // Skip compression for PDFs or large files on mobile
       if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-        console.log(`[UPLOAD-${uploadId}] PDF_DETECTED: Skipping compression`);
         compressedFile = file;
         compressionResult = {
           file,
@@ -91,7 +80,6 @@ export const useImageUpload = () => {
         };
       } else if (isMobile && file.size > 3 * 1024 * 1024) {
         // Skip compression for files >3MB on mobile to prevent crashes
-        console.log(`[UPLOAD-${uploadId}] LARGE_FILE_ON_MOBILE: Skipping compression, uploading directly`);
         compressedFile = file;
         compressionResult = {
           file,
@@ -100,11 +88,6 @@ export const useImageUpload = () => {
           compressionRatio: 0
         };
       } else {
-        console.log(`[UPLOAD-${uploadId}] COMPRESSION_START:`, { 
-          elapsed: performance.now() - startTime,
-          memory: (performance as any).memory?.usedJSHeapSize 
-        });
-        
         // Show compression start toast
         const compressionToast = enhancedToast.showCompressionStart(file.name, file.size);
 
@@ -144,15 +127,6 @@ export const useImageUpload = () => {
           }
         }
 
-        console.log(`[UPLOAD-${uploadId}] COMPRESSION_COMPLETE:`, { 
-          elapsed: performance.now() - startTime,
-          originalSize: compressionResult.originalSize,
-          compressedSize: compressionResult.compressedSize,
-          ratio: compressionResult.compressionRatio,
-          memory: (performance as any).memory?.usedJSHeapSize,
-          warnings: compressionResult.warnings?.length || 0
-        });
-
         // Show compression complete toast only if actually compressed
         if (compressionResult.compressionRatio > 0) {
           enhancedToast.showCompressionComplete({
@@ -174,12 +148,6 @@ export const useImageUpload = () => {
       
       const key = `${BUCKET_PREFIXES[bucket]}${fileName}`;
 
-      console.log(`[UPLOAD-${uploadId}] BUFFER_CONVERSION_START:`, { 
-        elapsed: performance.now() - startTime,
-        fileSize: compressedFile.size,
-        memory: (performance as any).memory?.usedJSHeapSize
-      });
-
       // Show upload start toast
       const uploadToast = enhancedToast.showUploadStart(fileName, compressionResult.compressedSize);
 
@@ -187,19 +155,6 @@ export const useImageUpload = () => {
       const fileBuffer = await compressedFile.arrayBuffer();
       const uploadBody = new Uint8Array(fileBuffer);
       
-      console.log(`[UPLOAD-${uploadId}] UPLOAD_BODY_PREPARED:`, { 
-        elapsed: performance.now() - startTime,
-        arraySize: uploadBody.length,
-        memory: (performance as any).memory?.usedJSHeapSize
-      });
-      
-      console.log(`[UPLOAD-${uploadId}] S3_UPLOAD_START:`, { 
-        elapsed: performance.now() - startTime,
-        key,
-        bucket: S3_BUCKET,
-        bodySize: uploadBody.length
-      });
-
       // TODO: SECURITY - Replace direct S3 upload with presigned URL from backend
       // Current implementation exposes AWS credentials in frontend code
       // Proper solution: Backend generates presigned URLs for uploads
@@ -229,34 +184,17 @@ export const useImageUpload = () => {
       upload.on('httpUploadProgress', (progress) => {
         if (progress.loaded && progress.total) {
           const percent = (progress.loaded / progress.total) * 100;
-          console.log(`[UPLOAD-${uploadId}] PROGRESS:`, {
-            loaded: (progress.loaded / 1024 / 1024).toFixed(2) + 'MB',
-            total: (progress.total / 1024 / 1024).toFixed(2) + 'MB',
-            percent: percent.toFixed(1) + '%'
-          });
           onProgress?.('Uploading', percent, `${percent.toFixed(0)}%`);
         }
       });
 
       const result = await upload.done();
 
-      console.log(`[UPLOAD-${uploadId}] S3_UPLOAD_COMPLETE:`, { 
-        elapsed: performance.now() - startTime,
-        etag: result.ETag,
-        location: result.Location,
-        memory: (performance as any).memory?.usedJSHeapSize
-      });
-
       // Generate public URL
       const publicUrl = `https://${S3_BUCKET}.s3.us-west-2.amazonaws.com/${key}`;
 
       // Show upload success
       enhancedToast.showUploadSuccess(fileName, publicUrl);
-
-      console.log(`[UPLOAD-${uploadId}] SUCCESS:`, { 
-        totalElapsed: performance.now() - startTime,
-        url: publicUrl
-      });
 
       return {
         url: publicUrl,
@@ -313,7 +251,6 @@ export const useImageUpload = () => {
         
         // Delay between uploads to allow garbage collection
         if (i < files.length - 1) {
-          console.log(`[UPLOAD] Waiting ${delayBetweenUploads}ms before next upload (${i + 1}/${files.length} complete)`);
           await new Promise(resolve => setTimeout(resolve, delayBetweenUploads));
         }
       } catch (error) {

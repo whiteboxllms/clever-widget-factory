@@ -68,6 +68,8 @@ exports.handler = async (event) => {
       SELECT 'issue', COUNT(*) FROM issues WHERE organization_id = '${escapedOrgId}'
       UNION ALL
       SELECT 'policy', COUNT(*) FROM policy WHERE organization_id = '${escapedOrgId}'
+      UNION ALL
+      SELECT 'financial_record', COUNT(*) FROM financial_records WHERE organization_id = '${escapedOrgId}'
     `;
     
     console.log('Querying total entity counts from source tables');

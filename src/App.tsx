@@ -18,6 +18,7 @@ import AdminRoute from "@/components/AdminRoute";
 import LeadershipRoute from "@/components/LeadershipRoute";
 import SuperAdminRoute from "@/components/SuperAdminRoute";
 import { GlobalMaxwellFAB } from "@/components/GlobalMaxwellFAB";
+import { MaxwellRecordHighlightProvider } from "@/contexts/MaxwellRecordHighlightContext";
 
 
 import Index from "./pages/Index";
@@ -91,6 +92,7 @@ function AppContent() {
   return (
     <div style={{ opacity: isHydrated ? 1 : 0, transition: 'opacity 0.1s' }}>
       <TokenRefreshIndicator />
+      <MaxwellRecordHighlightProvider>
       <Routes>
         <Route path="/auth" element={<Auth />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />
@@ -342,6 +344,7 @@ function AppContent() {
         <Route path="*" element={<NotFound />} />
       </Routes>
       <GlobalMaxwellFAB />
+      </MaxwellRecordHighlightProvider>
     </div>
   );
 }

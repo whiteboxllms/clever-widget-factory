@@ -200,19 +200,14 @@ export class ExplorationService {
   async getExplorationByActionId(actionId: string): Promise<ExplorationResponse | null> {
     try {
       const response = await apiService.get(`/explorations?action_id=${actionId}`);
-      console.log('getExplorationByActionId response:', response);
       
       // Handle both { data: [...] } and direct array responses
       let explorations = Array.isArray(response) ? response : (response.data || response || []);
       
-      console.log('Parsed explorations:', explorations);
-      
       if (Array.isArray(explorations) && explorations.length > 0) {
-        console.log('Returning exploration:', explorations[0]);
         return explorations[0];
       }
       
-      console.log('No exploration found for action:', actionId);
       return null;
     } catch (error) {
       console.error('Error fetching exploration by action ID:', error);

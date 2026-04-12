@@ -2,6 +2,7 @@ const { Pool } = require('pg');
 const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
 const { getAuthorizerContext, hasPermission } = require('/opt/nodejs/authorizerContext');
 const { successResponse, errorResponse } = require('/opt/nodejs/response');
+const { composeFinancialRecordEmbeddingSource } = require('/opt/nodejs/embedding-composition');
 const success = (data) => successResponse(data);
 const error = (message, statusCode = 500) => errorResponse(statusCode, message);
 
@@ -193,18 +194,23 @@ async function createRecord(event, authContext) {
 
     await client.query('COMMIT');
 
-    // Queue embedding for the state entity (not financial_record)
-    if (description && description.trim()) {
+    // Queue embedding for the financial_record entity
+    const embeddingSource = composeFinancialRecordEmbeddingSource({
+      state_text: description,
+      photo_descriptions: (photos || []).map(p => p.photo_description).filter(Boolean)
+    });
+
+    if (embeddingSource.trim()) {
       sqs.send(new SendMessageCommand({
         QueueUrl: EMBEDDINGS_QUEUE_URL,
         MessageBody: JSON.stringify({
-          entity_type: 'state',
-          entity_id: createdState.id,
-          embedding_source: description,
+          entity_type: 'financial_record',
+          entity_id: createdRecord.id,
+          embedding_source: embeddingSource,
           organization_id: organizationId
         })
       }))
-      .then(() => console.log('Queued embedding generation for state', createdState.id))
+      .then(() => console.log('Queued embedding for financial_record', createdRecord.id))
       .catch(err => console.error('Failed to queue embedding:', err));
     }
 
@@ -575,19 +581,33 @@ async function updateRecord(event, id, authContext) {
 
     const updatedRecord = fullRecord.rows[0];
 
-    // Queue embedding regeneration for the STATE when description changes (fire-and-forget)
-    if (hasDescriptionChange && stateId && body.description && body.description.trim()) {
-      sqs.send(new SendMessageCommand({
-        QueueUrl: EMBEDDINGS_QUEUE_URL,
-        MessageBody: JSON.stringify({
-          entity_type: 'state',
-          entity_id: stateId,
-          embedding_source: body.description,
-          organization_id: organizationId
-        })
-      }))
-      .then(() => console.log('Queued embedding regeneration for state', stateId))
-      .catch(err => console.error('Failed to queue embedding:', err));
+    // Queue embedding regeneration for the financial_record when description or photos change (fire-and-forget)
+    if ((hasDescriptionChange || hasPhotosChange) && stateId) {
+      // Fetch updated photo descriptions from state_photos
+      const updatedPhotos = await pool.query(
+        'SELECT photo_description FROM state_photos WHERE state_id = $1 ORDER BY photo_order',
+        [stateId]
+      );
+      const photoDescs = updatedPhotos.rows.map(r => r.photo_description).filter(Boolean);
+
+      const embeddingSource = composeFinancialRecordEmbeddingSource({
+        state_text: hasDescriptionChange ? body.description : updatedRecord.description,
+        photo_descriptions: photoDescs
+      });
+
+      if (embeddingSource.trim()) {
+        sqs.send(new SendMessageCommand({
+          QueueUrl: EMBEDDINGS_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            entity_type: 'financial_record',
+            entity_id: id,
+            embedding_source: embeddingSource,
+            organization_id: organizationId
+          })
+        }))
+        .then(() => console.log('Queued embedding for financial_record', id))
+        .catch(err => console.error('Failed to queue embedding:', err));
+      }
     }
 
     return success({
@@ -652,18 +672,9 @@ async function deleteRecord(id, authContext) {
     );
   }
 
-  // Delete associated unified_embeddings for both entity types
-  await pool.query(
-    "DELETE FROM unified_embeddings WHERE entity_type = 'financial_record' AND entity_id = $1",
-    [id]
-  );
-
-  if (stateId) {
-    await pool.query(
-      "DELETE FROM unified_embeddings WHERE entity_type = 'state' AND entity_id = $1",
-      [stateId]
-    );
-  }
+  // Embedding cleanup: financial_record embeddings are cascade-deleted by the
+  // database trigger on financial_records. State embeddings are cascade-deleted
+  // when the linked state is deleted above.
 
   return success({ message: 'Record deleted' });
 }

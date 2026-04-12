@@ -70,14 +70,6 @@ export default function SariSariChat() {
       const response = await apiService.get<{ data: Part[] }>('/parts/sellable');
       const sellableProducts = getApiData(response) || [];
       
-      console.log('✅ Loaded sellable products:', sellableProducts);
-      console.log(`📋 Found ${sellableProducts.length} sellable items`);
-      
-      // Log specific products for debugging
-      sellableProducts.forEach((product, index) => {
-        console.log(`   ${index + 1}. ${product.name} - ₱${product.cost_per_unit || 0}${product.unit ? `/${product.unit}` : ''} (qty: ${product.current_quantity})`);
-      });
-      
       return sellableProducts;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -101,7 +93,6 @@ export default function SariSariChat() {
 
   // Manual refresh function
   const handleRefreshProducts = async () => {
-    console.log('🔄 Manual refresh triggered');
     toast({
       title: "Refreshing Products",
       description: "Loading latest inventory...",
@@ -230,9 +221,6 @@ export default function SariSariChat() {
     suggestions?: string[];
     products?: ProductInfo[];
   }> => {
-    console.log('🔍 User query:', message);
-    console.log('🤖 Calling sari-sari agent chat Lambda...');
-    
     try {
       // Call Lambda - it now uses SearchPipeline for all queries
       const response = await apiService.post('/sari-sari/chat', {
@@ -241,18 +229,12 @@ export default function SariSariChat() {
         conversationHistory
       });
       
-      console.log('✅ Lambda response:', response);
-      
       // Extract data from response
       const data = response.data || response;
       
       // Update conversation history
       if (data.conversationHistory) {
         setConversationHistory(data.conversationHistory);
-      }
-      
-      if (data.debug) {
-        console.log('🔍 Pipeline debug info:', data.debug);
       }
 
       // Convert products to ProductInfo format

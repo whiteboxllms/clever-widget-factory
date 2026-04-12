@@ -39,8 +39,8 @@ export function useFinancialRecords(filters?: FinancialRecordFilters) {
   return useQuery({
     queryKey: financialRecordKeys.list(filters),
     queryFn: () => financialRecordsService.listRecords(filters),
-    staleTime: 30000, // 30 seconds
-    gcTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: Infinity,
+    gcTime: Infinity,
   });
 }
 
@@ -68,12 +68,12 @@ export function useCreateFinancialRecord() {
     mutationFn: (data: CreateFinancialRecordRequest) =>
       financialRecordsService.createRecord(data),
     onSuccess: (newRecord) => {
-      // Invalidate all list queries to refetch with new record and recomputed balance
+      // Invalidate all list queries to refetch with recomputed balance
       queryClient.invalidateQueries({
         queryKey: financialRecordKeys.lists(),
       });
 
-      // Seed the detail cache with the new record
+      // Seed the detail cache
       queryClient.setQueryData(
         financialRecordKeys.detail(newRecord.id),
         newRecord
@@ -156,7 +156,7 @@ export function useUpdateFinancialRecord() {
       }
     },
     onSettled: (_data, _error, { id }) => {
-      // Refetch to ensure server state is in sync (balance may have changed)
+      // Refetch to ensure server state is in sync
       queryClient.invalidateQueries({ queryKey: financialRecordKeys.lists() });
       queryClient.invalidateQueries({ queryKey: financialRecordKeys.detail(id) });
     },

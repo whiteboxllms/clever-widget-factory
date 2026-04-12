@@ -31,7 +31,7 @@ cat /tmp/migration-result.json | jq '.body' | jq -r '.' | jq '.'
 Connect to the database and run the migration:
 
 ```bash
-PGPASSWORD='8T!$T5#N4q0%5j' psql \
+PGPASSWORD='<your-db-password>' psql \
   -h cwf-dev-postgres.ctmma86ykgeb.us-west-2.rds.amazonaws.com \
   -U postgres \
   -d postgres \

@@ -48,8 +48,6 @@ export class EmbeddingWorker {
    */
   async processJob(job: EmbeddingJob): Promise<EmbeddingResult> {
     try {
-      console.log(`Processing embedding job: ${job.table}:${job.id}:${job.embedding_type}`);
-
       // Generate embedding using OpenAI API
       const embedding = await this.generateEmbedding(job.text, job.model);
 
@@ -63,7 +61,6 @@ export class EmbeddingWorker {
         text_length: job.text.length
       });
 
-      console.log(`Successfully processed embedding job: ${job.table}:${job.id}:${job.embedding_type}`);
       return result;
     } catch (error) {
       console.error(`Failed to process embedding job ${job.table}:${job.id}:${job.embedding_type}:`, error);
@@ -111,12 +108,10 @@ export class EmbeddingWorker {
    */
   async startProcessing(pollIntervalMs: number = 5000): Promise<void> {
     if (this.isProcessing) {
-      console.log('Embedding worker is already processing');
       return;
     }
 
     this.isProcessing = true;
-    console.log('Starting embedding worker...');
 
     while (this.isProcessing) {
       try {
@@ -124,7 +119,6 @@ export class EmbeddingWorker {
         const jobs = await this.pollQueue();
         
         if (jobs.length > 0) {
-          console.log(`Processing ${jobs.length} embedding jobs`);
           await this.processBatch(jobs);
         }
 
@@ -135,15 +129,12 @@ export class EmbeddingWorker {
         await this.sleep(pollIntervalMs * 2); // Wait longer on error
       }
     }
-
-    console.log('Embedding worker stopped');
   }
 
   /**
    * Stop processing jobs
    */
   stopProcessing(): void {
-    console.log('Stopping embedding worker...');
     this.isProcessing = false;
   }
 

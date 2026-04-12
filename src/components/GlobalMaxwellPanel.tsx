@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import type { JSX } from 'react';
-import { X, Send, RefreshCw, Loader2, Copy, Check, Code, ArrowRight } from 'lucide-react';
+import { X, Send, RefreshCw, Loader2, Copy, Check, Code, ArrowRight, Maximize2, Minimize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMaxwell, MaxwellSessionAttributes, MaxwellMessage } from '@/hooks/useMaxwell';
 import { useMaxwellStorage, EntityContext } from '@/hooks/useMaxwellStorage';
@@ -185,6 +185,7 @@ export function GlobalMaxwellPanel({
   
   const [input, setInput] = useState('');
   const [copiedAll, setCopiedAll] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [activeContext, setActiveContext] = useState<EntityContext | null>(context);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -367,13 +368,18 @@ export function GlobalMaxwellPanel({
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          'fixed z-[200] bg-background shadow-xl flex flex-col border-l',
-          'max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:h-[90vh] max-md:rounded-t-2xl',
-          'md:top-0 md:right-0 md:h-full md:w-[40%] lg:w-[35%]',
-          'transition-transform duration-300 ease-out',
-          open
+          'fixed z-[200] bg-background shadow-xl flex flex-col',
+          'transition-all duration-300 ease-out',
+          isExpanded
+            ? 'inset-0 w-full h-full border-none'
+            : cn(
+                'border-l',
+                'max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:h-[90vh] max-md:rounded-t-2xl',
+                'md:top-0 md:right-0 md:h-full md:w-[40%] lg:w-[35%]',
+              ),
+          !isExpanded && (open
             ? 'max-md:translate-y-0 md:translate-x-0'
-            : 'max-md:translate-y-full md:translate-x-full'
+            : 'max-md:translate-y-full md:translate-x-full')
         )}
       >
         {/* Header */}
@@ -402,6 +408,14 @@ export function GlobalMaxwellPanel({
                 {copiedAll ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </button>
             )}
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="rounded-full p-1.5 text-muted-foreground hover:bg-muted"
+              aria-label={isExpanded ? 'Collapse panel' : 'Expand panel'}
+              title={isExpanded ? 'Collapse panel' : 'Expand panel'}
+            >
+              {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </button>
             <button
               onClick={(e) => { e.stopPropagation(); onOpenChange(false); }}
               className="rounded-full p-1.5 text-muted-foreground hover:bg-muted"

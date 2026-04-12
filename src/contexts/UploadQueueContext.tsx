@@ -147,8 +147,6 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
     entity_id: string,
     photos: PendingPhoto[]
   ) => {
-    console.log('[UploadQueue] Queueing upload:', { observationId, entity_type, entity_id, photoCount: photos.length });
-    
     // Add task to queue
     setTasks(prev => {
       const newTasks = new Map(prev);
@@ -158,21 +156,18 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
         entity_id,
         photos,
       });
-      console.log('[UploadQueue] Tasks after queue:', Array.from(newTasks.keys()));
       return newTasks;
     });
     setTasksVersion(v => v + 1);
 
     // Start uploading all photos in parallel
     photos.forEach(photo => {
-      console.log('[UploadQueue] Starting upload for photo:', photo.id);
       processPhoto(observationId, photo, entity_type, entity_id);
     });
   }, [processPhoto]);
 
   const getTaskPhotos = useCallback((observationId: string) => {
     const photos = tasks.get(observationId)?.photos;
-    console.log('[UploadQueue] Getting task photos for:', observationId, 'found:', photos?.length || 0, 'total tasks:', tasks.size);
     return photos;
   }, [tasks, tasksVersion]); // Include tasksVersion to force updates
 

@@ -74,7 +74,6 @@ const Organization = () => {
 
   const loadOrganizationData = useCallback(async () => {
     if (superAdminLoading || profileLoading) {
-      console.log('[Organization] Waiting for profile/superAdmin to load...');
       return;
     }
 
@@ -116,10 +115,6 @@ const Organization = () => {
           const isOrgAdmin = membershipForOrg?.role === 'admin';
           setIsAdmin(!!isOrgAdmin);
         }
-        console.log('[Organization] Set organization and admin status', { 
-          orgId: selectedOrganization.id, 
-          isAdmin: isSuperAdmin || membershipForOrg?.role === 'admin' 
-        });
       }
     } catch (error: any) {
       console.error('[Organization] Error in loadOrganizationData:', error);
@@ -145,17 +140,8 @@ const Organization = () => {
   });
 
   useEffect(() => {
-    console.log('[Organization] useEffect triggered', { 
-      superAdminLoading, 
-      profileLoading, 
-      targetOrgId,
-      hasLoadOrgData: !!loadOrganizationData 
-    });
     if (!superAdminLoading && !profileLoading) {
-      console.log('[Organization] Calling loadOrganizationData');
       loadOrganizationData();
-    } else {
-      console.log('[Organization] Skipping load - still loading:', { superAdminLoading, profileLoading });
     }
   }, [loadOrganizationData, superAdminLoading, profileLoading]);
 
@@ -201,20 +187,16 @@ const Organization = () => {
 
   const toggleMemberStatusMutation = useMutation({
     mutationFn: async ({ memberId, currentStatus }: { memberId: string; currentStatus: boolean }) => {
-      console.log('[toggleMemberStatus] Starting mutation', { memberId, currentStatus, newStatus: !currentStatus });
       const response = await apiService.put('/organization_members', {
         id: memberId,
         is_active: !currentStatus
       });
-      console.log('[toggleMemberStatus] Response received', response);
       return response;
     },
     onMutate: async ({ memberId, currentStatus }) => {
-      console.log('[toggleMemberStatus] onMutate', { memberId, currentStatus });
       setUpdatingMemberId(memberId);
     },
     onSuccess: (response, variables) => {
-      console.log('[toggleMemberStatus] onSuccess', { response, variables });
       setUpdatingMemberId(null);
       
       // Invalidate all member caches to force refetch with latest data

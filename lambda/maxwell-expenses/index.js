@@ -161,12 +161,13 @@ exports.handler = async (event) => {
       whereClauses += `\n      AND fr.created_by::text IN (${userIds})`;
     }
 
-    // Build sort clause
+    // Build sort clause — when sorting by date, still filter by minimum similarity
     let sortClause = `similarity DESC`;
+    let similarityFilter = '';
     if (sort_by === 'amount_desc') sortClause = 'fr.amount DESC';
     else if (sort_by === 'amount_asc') sortClause = 'fr.amount ASC';
-    else if (sort_by === 'date_desc') sortClause = 'fr.transaction_date DESC';
-    else if (sort_by === 'date_asc') sortClause = 'fr.transaction_date ASC';
+    else if (sort_by === 'date_desc') { sortClause = 'fr.transaction_date DESC'; similarityFilter = `\n      AND 1 - (ue.embedding <=> ${embeddingVector}) > 0.15`; }
+    else if (sort_by === 'date_asc') { sortClause = 'fr.transaction_date ASC'; similarityFilter = `\n      AND 1 - (ue.embedding <=> ${embeddingVector}) > 0.15`; }
 
     // Main query: embedding similarity + joins + filters
     const mainSql = `
@@ -187,7 +188,7 @@ exports.handler = async (event) => {
       LEFT JOIN organization_members om
         ON fr.created_by::text = om.cognito_user_id::text
         AND om.organization_id = fr.organization_id
-      WHERE ${whereClauses}
+      WHERE ${whereClauses}${similarityFilter}
       ORDER BY ${sortClause}
       LIMIT ${resultLimit}
     `;
@@ -231,7 +232,7 @@ exports.handler = async (event) => {
         : 'No matching financial records found for this query';
 
     const instructions = results.length > 0
-      ? 'You are answering a question about financial records/expenses. Use ONLY the data provided. Show amounts in ₱ (Philippine Peso). When multiple records are returned, calculate totals, averages, or breakdowns as appropriate to answer the question. Group by created_by_name or payment_method when relevant. Always mention the date range covered. If total_count exceeds the number of results shown, mention that more records exist. IMPORTANT: As the LAST line of your answer (inside the <answer> tag, before </answer>), include a <referenced_records> tag containing a JSON array of entity_id values for ONLY the records you actually referenced or used in your analysis. Do not include records you ignored. Example: <referenced_records>["id1","id2"]</referenced_records>'
+      ? 'AMOUNT SIGN CONVENTION: Positive amounts are EXPENSES (money going out). Negative amounts are INCOME/SALES (money coming in). When the user asks about income or sales, look for records with negative amounts. When they ask about expenses, look for records with positive amounts. You are answering a question about financial records/expenses. Use ONLY the data provided. Show amounts in ₱ (Philippine Peso). When multiple records are returned, calculate totals, averages, or breakdowns as appropriate to answer the question. Group by created_by_name or payment_method when relevant. Always mention the date range covered. If total_count exceeds the number of results shown, mention that more records exist. IMPORTANT: As the LAST line of your answer (inside the <answer> tag, before </answer>), include a <referenced_records> tag containing a JSON array of entity_id values for ONLY the records you actually referenced or used in your analysis. Do not include records you ignored. Example: <referenced_records>["id1","id2"]</referenced_records>'
       : 'No matching financial records were found for this query. Inform the user and suggest they try different search terms or a wider date range.';
 
     const responseBody = {

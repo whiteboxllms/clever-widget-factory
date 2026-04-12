@@ -239,15 +239,6 @@ export function useActionMutations() {
         );
       });
       
-      console.log('[TanStack Actions] Mutation started', {
-        mutationId,
-        actionId: variables.id,
-        updates: variables.updates,
-        affectedCaches,
-        rollbackStrategy,
-        timestamp: Date.now()
-      });
-      
       return { 
         previousActions, 
         previousTools,
@@ -337,13 +328,6 @@ export function useActionMutations() {
         queryClient.invalidateQueries({ queryKey: ['checkouts'] });
         queryClient.invalidateQueries({ queryKey: ['tools'] });
       }
-      
-      console.log('[TanStack Actions] Mutation succeeded', {
-        mutationId: context.mutationId,
-        duration: debugInfo?.duration,
-        hasAffectedResources: !!(response && typeof response === 'object' && 'affectedResources' in response),
-        timestamp: Date.now()
-      });
     },
     
     onError: (error, _variables, context) => {
@@ -411,29 +395,8 @@ export function useActionMutations() {
         }
         // 'none' strategy means no rollback - preserve optimistic updates
         
-        console.log('[TanStack Actions] Rollback executed', {
-          mutationId: context.mutationId,
-          reason: `${category} error`,
-          strategy: context.rollbackStrategy,
-          error: error.message,
-          isPermanent,
-          affectedCaches: context.rollbackStrategy === 'none' ? [] : 
-                         context.rollbackStrategy === 'partial' ? ['actions'] : 
-                         context.affectedCaches,
-          timestamp: Date.now()
-        });
-        
       } else {
         // Network errors - preserve optimistic updates for offline support
-        console.log('[TanStack Actions] Retry attempt', {
-          mutationId: context.mutationId,
-          attempt: debugInfo?.retryCount || 0,
-          error: error.message,
-          category,
-          nextRetryIn: `${Math.min(1000 * 2 ** (debugInfo?.retryCount || 0), 30000)}ms`,
-          preservingOptimisticUpdates: true,
-          timestamp: Date.now()
-        });
       }
     }
   });

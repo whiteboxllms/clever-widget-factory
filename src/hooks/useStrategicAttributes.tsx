@@ -57,7 +57,6 @@ export function useStrategicAttributes() {
 
   const fetchAttributes = async () => {
     if (!user?.userId) {
-      console.log('No user ID, skipping fetch');
       return;
     }
     
@@ -66,7 +65,6 @@ export function useStrategicAttributes() {
     // fetched via the AWS API (see useEnhancedStrategicAttributes).
     // We keep this hook as a placeholder for a future AWS-backed
     // implementation, but for now it simply reports no attributes.
-    console.log('Strategic attributes are deprecated; returning empty set.');
     setLoading(true);
     try {
       setAttributes([]);

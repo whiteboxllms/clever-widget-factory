@@ -223,8 +223,6 @@ export const useToolHistory = () => {
           'observed_at' in entry ? entry.observed_at : entry.changed_at
         ).getTime();
         
-        console.log('🔹 Processing for grouping:', { id: entry.id, type: 'type' in entry ? entry.type : 'unknown', hasObservedAt: 'observed_at' in entry, entryTime });
-        
         if (currentTimestamp === null || Math.abs(entryTime - currentTimestamp) <= 5000) {
           currentGroup.push(entry);
           currentTimestamp = entryTime;
@@ -247,7 +245,6 @@ export const useToolHistory = () => {
       });
 
       // Push last group
-      console.log('🔵 Last group before push:', currentGroup.map(e => ({ id: e.id, type: 'type' in e ? e.type : 'unknown', hasObservedAt: 'observed_at' in e })));
       if (currentGroup.length > 1 && currentGroup.every(e => e.type === 'asset_change')) {
         const combined = currentGroup[0] as AssetHistoryEntry;
         combined.notes = currentGroup.map(e => {
@@ -260,8 +257,6 @@ export const useToolHistory = () => {
       }
 
       setToolHistory(groupedHistory);
-      console.log('📦 Final toolHistory set:', groupedHistory.filter(e => 'observed_at' in e));
-      console.log('🔴 ALL entries in toolHistory:', groupedHistory.map(e => ({ id: e.id, type: 'type' in e ? e.type : 'unknown', hasObservedAt: 'observed_at' in e })));
     } catch (error) {
       console.error('Error fetching tool history:', error);
       toast({

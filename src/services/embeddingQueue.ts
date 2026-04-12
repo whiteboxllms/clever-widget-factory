@@ -175,7 +175,6 @@ export class EmbeddingQueue {
     try {
       // Skip empty text
       if (!job.text || job.text.trim().length === 0) {
-        console.log(`Skipping empty embedding job for ${job.table}:${job.id}:${job.embedding_type}`);
         return;
       }
 
@@ -185,8 +184,6 @@ export class EmbeddingQueue {
         delay_seconds: options.delaySeconds || 0,
         retry_count: options.retryCount || 3
       });
-
-      console.log(`Enqueued embedding job: ${job.table}:${job.id}:${job.embedding_type}`);
     } catch (error) {
       console.error(`Failed to enqueue embedding job for ${job.table}:${job.id}:${job.embedding_type}:`, error);
       // Don't throw - embedding failures shouldn't block main operations

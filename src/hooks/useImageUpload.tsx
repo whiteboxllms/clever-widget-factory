@@ -40,12 +40,6 @@ export const useImageUpload = () => {
     const { validateFile, onProgress } = options;
 
     const uploadId = Math.random().toString(36).substr(2, 9);
-    const startTime = performance.now();
-    console.log(`[UPLOAD-${uploadId}] START:`, { 
-      name: file.name, 
-      type: file.type, 
-      size: file.size
-    });
 
     if (validateFile) {
       validateFile(file);
@@ -68,17 +62,13 @@ export const useImageUpload = () => {
     }
 
     try {
-      console.log(`[UPLOAD-${uploadId}] REQUESTING_PRESIGNED_URL`);
       const presignedResponse = await apiService.post('/upload/presigned-url', {
         filename: file.name,
         contentType: file.type
       });
       
       const { presignedUrl, publicUrl } = presignedResponse;
-      console.log(`[UPLOAD-${uploadId}] PRESIGNED_URL_RECEIVED:`, { publicUrl });
 
-      console.log(`[UPLOAD-${uploadId}] UPLOADING_TO_S3`);
-      
       // Initialize progress
       updateProgress(file.name, 0);
       
@@ -89,7 +79,6 @@ export const useImageUpload = () => {
         xhr.upload.addEventListener('progress', (event) => {
           if (event.lengthComputable) {
             const percentComplete = (event.loaded / event.total) * 100;
-            console.log(`[UPLOAD-${uploadId}] PROGRESS: ${percentComplete.toFixed(1)}%`);
             updateProgress(file.name, percentComplete);
             onProgress?.(file.name, percentComplete);
           }
@@ -114,11 +103,6 @@ export const useImageUpload = () => {
         xhr.open('PUT', presignedUrl);
         xhr.setRequestHeader('Content-Type', file.type);
         xhr.send(file);
-      });
-
-      console.log(`[UPLOAD-${uploadId}] SUCCESS:`, { 
-        totalElapsed: performance.now() - startTime,
-        url: publicUrl
       });
 
       // Clear progress after success

@@ -84,7 +84,6 @@ export function useInvitations(options?: UseInvitationsOptions) {
     try {
       // For now, we'll return an empty array since admin.listUsers requires service role
       // In production, this would be called from an edge function with proper admin access
-      console.log('Pending invitations feature requires server-side implementation');
       return [];
     } catch (error) {
       console.error('Error fetching pending invitations:', error);

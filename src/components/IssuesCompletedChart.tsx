@@ -69,9 +69,6 @@ export function IssuesCreatedChart({ startDate, endDate, selectedUsers }: Issues
         const { data, error } = await q;
         if (error) throw error;
 
-        console.log('Issues created raw data:', data);
-        console.log('Date range:', startDate, 'to', endDate);
-
         const mapped: RawIssueRow[] = (data || [])
           .filter((r: any) => r.reported_by)
           .map((r: any) => ({
@@ -79,7 +76,6 @@ export function IssuesCreatedChart({ startDate, endDate, selectedUsers }: Issues
             reported_by: r.reported_by as string,
           }));
         
-        console.log('Mapped issues created:', mapped);
         setCreatedRows(mapped);
 
         // Fetch resolved issues
@@ -93,8 +89,6 @@ export function IssuesCreatedChart({ startDate, endDate, selectedUsers }: Issues
         const { data: resolvedData, error: resolvedError } = await resolvedQuery;
         if (resolvedError) throw resolvedError;
 
-        console.log('Resolved issues raw data:', resolvedData);
-        
         const resolvedMapped: RawResolvedRow[] = (resolvedData || [])
           .filter((r: any) => r.resolved_at) // Filter by resolved_at instead of resolved_by
           .map((r: any) => ({
@@ -102,7 +96,6 @@ export function IssuesCreatedChart({ startDate, endDate, selectedUsers }: Issues
             resolved_by: r.resolved_by || 'Unknown Resolver', // Use fallback if resolved_by is null
           }));
         
-        console.log('Mapped issues resolved:', resolvedMapped);
         setResolvedRows(resolvedMapped);
 
         // Build name map from org members (both created and resolved)
@@ -110,7 +103,6 @@ export function IssuesCreatedChart({ startDate, endDate, selectedUsers }: Issues
           ...mapped.map(r => r.reported_by),
           ...resolvedMapped.map(r => r.resolved_by).filter(id => id !== 'Unknown Resolver')
         ]));
-        console.log('Unique reporter IDs:', uniqueIds);
         if (uniqueIds.length > 0) {
           const { data: members } = await supabase
             .from('organization_members')
@@ -120,7 +112,6 @@ export function IssuesCreatedChart({ startDate, endDate, selectedUsers }: Issues
           (members || []).forEach((m: any) => { if (m?.user_id) nm[m.user_id] = String(m.full_name || 'Unknown User').trim(); });
           // Add fallback for Unknown Resolver
           nm['Unknown Resolver'] = 'Unknown Resolver';
-          console.log('Name map:', nm);
           setNameMap(nm);
         } else {
           setNameMap({ 'Unknown Resolver': 'Unknown Resolver' });
@@ -138,10 +129,6 @@ export function IssuesCreatedChart({ startDate, endDate, selectedUsers }: Issues
   }, [startDate, endDate, selectedUsers]);
 
   const chartData = useMemo(() => {
-    console.log('Building chart data from created rows:', createdRows);
-    console.log('Building chart data from resolved rows:', resolvedRows);
-    console.log('Name map:', nameMap);
-    
     // Group counts by date and user
     const byDate: Record<string, Record<string, { created: number; resolved: number }>> = {};
     
@@ -177,7 +164,6 @@ export function IssuesCreatedChart({ startDate, endDate, selectedUsers }: Issues
       return entry;
     });
     
-    console.log('Final chart data:', result);
     return result;
   }, [createdRows, resolvedRows, nameMap]);
 

@@ -92,21 +92,8 @@ export function ActionScoreDialog({
 
   // Initialize form based on existing score or create mode
   useEffect(() => {
-    console.log('[ActionScoreDialog] useEffect triggered', {
-      open,
-      actionId: action.id,
-      actionTitle: action.title,
-      existingScore: existingScore ? {
-        id: existingScore.id,
-        action_id: existingScore.action_id,
-        hasAiResponse: !!existingScore.ai_response,
-        aiResponsePreview: existingScore.ai_response ? JSON.stringify(existingScore.ai_response).substring(0, 100) : 'none'
-      } : null
-    });
-    
     if (open) {
       // Always clear state first when opening for a new action
-      console.log('[ActionScoreDialog] Clearing all state');
       setIsEditMode(false);
       setSelectedPromptId("");
       setAiResponse("");
@@ -116,17 +103,14 @@ export function ActionScoreDialog({
       
       // Then populate if there's an existing score
       if (existingScore) {
-        console.log('[ActionScoreDialog] Populating from existing score');
         setIsEditMode(true);
         setSelectedPromptId(existingScore.prompt_id);
         // Only set AI response if it exists and has content
         const aiResponseContent = existingScore.ai_response && Object.keys(existingScore.ai_response).length > 0 
           ? JSON.stringify(existingScore.ai_response, null, 2)
           : "";
-        console.log('[ActionScoreDialog] Setting AI response:', aiResponseContent.substring(0, 100));
         setAiResponse(aiResponseContent);
       } else {
-        console.log('[ActionScoreDialog] No existing score, setting default prompt');
         // Set default prompt if not already set
         if (prompts.length > 0 && !selectedPromptId) {
           const defaultPrompt = prompts.find(p => p.is_default) || prompts[0];
@@ -135,7 +119,6 @@ export function ActionScoreDialog({
       }
     } else {
       // Clear everything when dialog closes
-      console.log('[ActionScoreDialog] Dialog closed, clearing state');
       setIsEditMode(false);
       setSelectedPromptId("");
       setAiResponse("");

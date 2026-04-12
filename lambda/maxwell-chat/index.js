@@ -104,6 +104,7 @@ exports.handler = async (event) => {
     }
     enhancedMessage += `[Context: ${contextParts.join('. ')}] `;
   }
+  enhancedMessage += `[Today's date: ${new Date().toISOString().split('T')[0]}] `;
   enhancedMessage += message;
 
   if (!AGENT_ID || !AGENT_ALIAS_ID) {
@@ -124,6 +125,7 @@ exports.handler = async (event) => {
   const mergedSessionAttributes = {
     ...sessionAttributes,
     organization_id: authContext.organization_id,
+    current_date: new Date().toISOString().split('T')[0],
   };
 
   // Convert all session attribute values to strings (Bedrock requirement)

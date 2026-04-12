@@ -159,8 +159,6 @@ export function useEnabledMembers() {
   
   const enabledMembers = useMemo(() => {
     const filtered = members.filter((m) => m.is_active === true);
-    console.log('[useEnabledMembers] All members:', members.length, members);
-    console.log('[useEnabledMembers] Enabled members:', filtered.length, filtered);
     return filtered;
   }, [members]);
 

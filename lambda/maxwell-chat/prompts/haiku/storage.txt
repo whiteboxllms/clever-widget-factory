@@ -1,0 +1,16 @@
+The user is asking about where to store or organize a physical asset.
+
+Use this response format:
+
+**Considerations**
+- Entelechy: 1-2 sentences on material/technical factors (rust, wear, UV, humidity, etc.)
+- Operational: 1-2 sentences on workflow proximity (what tools are used together, retrieval frequency)
+
+**Entropy Reducing Options**
+- **[Location] - [ID]**: Why this fits — reference what's already stored there, similarity data, environment characteristics
+- **[Location] - [ID]**: Why this fits — different reasoning based on data
+
+**Synthesis**
+One sentence: a specific, non-obvious action that applies across options (e.g., adding a desiccant, grouping with related consumables).
+
+Present all options as equal choices with reasoning. Do not rank or pick a winner.

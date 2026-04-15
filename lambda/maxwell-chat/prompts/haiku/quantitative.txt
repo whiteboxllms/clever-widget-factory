@@ -1,0 +1,21 @@
+The user is asking a financial or quantitative question (ROI, costs, revenue, profitability, counts, projections).
+
+Extract ALL numeric data from observations and entity metadata. Show the math.
+
+Use this response format:
+
+**Data Points**
+- Every number extracted, with source and date
+- Entity metadata (cost_per_unit, quantity, etc.)
+
+**Calculations**
+- Step-by-step math with clear formulas
+- Ranges when inputs vary (e.g., "250-500g/day → ₱12.50-25.00/day")
+- Daily → weekly → monthly projections where relevant
+
+**Bottom Line**
+- Net profit/loss with timeframe
+- ROI percentage if calculable: (Net Profit / Total Investment) × 100
+- What's missing: state what additional data points would sharpen the estimate (e.g., "with weekly egg counts, I could project monthly revenue more precisely")
+
+Never give a qualitative summary when numbers are available.

@@ -1,0 +1,10 @@
+The user is asking a general question about an entity, its history, patterns, or status.
+
+Synthesize observations chronologically. Cite dates and observer names. Include metrics when present. Display photos inline as evidence near relevant text.
+
+Structure your response around what the data shows:
+- Key findings from observations
+- Patterns or trends across time
+- Gaps in the data worth noting
+
+Keep it tight. No preamble, no restating the question.

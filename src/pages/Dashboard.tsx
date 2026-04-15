@@ -2,7 +2,8 @@ import { useAuth } from "@/hooks/useCognitoAuth";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, BarChart3, Building2, Settings, Bot, RefreshCw, DollarSign } from 'lucide-react';
+import { LogOut, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, BarChart3, Building2, Settings, Bot, RefreshCw, DollarSign, Search } from 'lucide-react';
+import { PrismIcon } from '@/components/icons/PrismIcon';
 import { useToast } from '@/hooks/use-toast';
 import { DebugModeToggle } from '@/components/DebugModeToggle';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
@@ -168,6 +169,17 @@ export default function Dashboard() {
             <EditableDisplayName />
           </div>
           <div className="flex items-center gap-4">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={() => window.dispatchEvent(new Event('open-maxwell'))} variant="outline" size="sm" className="gap-2">
+                  <PrismIcon size={18} />
+                  <span className="hidden sm:inline">Maxwell</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Ask Maxwell — unified search across all entities</p>
+              </TooltipContent>
+            </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button onClick={handleClearCache} variant="outline" size="sm" className="p-2">

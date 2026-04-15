@@ -48,6 +48,7 @@ async function resolveAndQueueEmbedding(stateId, organizationId) {
       LEFT JOIN metric_snapshots ms ON ms.state_id = s.id
       LEFT JOIN metrics m ON ms.metric_id = m.metric_id
       WHERE s.id = $1
+      GROUP BY s.id, s.state_text
     `, [stateId]);
 
     if (result.rows.length === 0) {

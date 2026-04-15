@@ -1,0 +1,10 @@
+{
+  "name": "maxwell-unified-search",
+  "version": "1.0.0",
+  "description": "Bedrock Action Group tool Lambda for Maxwell — cross-entity semantic search across all entity types in unified_embeddings",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.0.0",
+    "pg": "^8.11.0"
+  }
+}

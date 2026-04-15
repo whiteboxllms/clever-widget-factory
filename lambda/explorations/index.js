@@ -2,6 +2,7 @@ const { Pool } = require('pg');
 const { getAuthorizerContext } = require('@cwf/authorizerContext');
 const { success, error } = require('@cwf/response');
 const { logRequest } = require('@cwf/logger');
+const { broadcastInvalidation } = require('/opt/nodejs/broadcastInvalidation');
 
 const pool = new Pool({
   host: process.env.DB_HOST,
@@ -127,6 +128,19 @@ exports.handler = async (event) => {
         [exploration_code, name || null, exploration_notes_text || null, metrics_text || null, public_flag || false, status || 'in_progress']
       );
 
+      // Broadcast cache invalidation to WebSocket clients
+      try {
+        await broadcastInvalidation({
+          entityType: 'exploration',
+          entityId: result.rows[0].id,
+          mutationType: 'created',
+          organizationId,
+          excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+        });
+      } catch (err) {
+        console.error('[EXPLORATIONS] Broadcast failed:', err.message);
+      }
+
       return success(result.rows[0]);
     }
 
@@ -164,6 +178,19 @@ exports.handler = async (event) => {
         return error('Exploration not found', 404);
       }
 
+      // Broadcast cache invalidation to WebSocket clients
+      try {
+        await broadcastInvalidation({
+          entityType: 'exploration',
+          entityId: exploration_id,
+          mutationType: 'updated',
+          organizationId,
+          excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+        });
+      } catch (err) {
+        console.error('[EXPLORATIONS] Broadcast failed:', err.message);
+      }
+
       return success(result.rows[0]);
     }
 
@@ -196,6 +223,19 @@ exports.handler = async (event) => {
         return error('Exploration not found', 404);
       }
 
+      // Broadcast cache invalidation to WebSocket clients
+      try {
+        await broadcastInvalidation({
+          entityType: 'exploration',
+          entityId: pathParameters.id,
+          mutationType: 'updated',
+          organizationId,
+          excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+        });
+      } catch (err) {
+        console.error('[EXPLORATIONS] Broadcast failed:', err.message);
+      }
+
       return success(result.rows[0]);
     }
 
@@ -213,6 +253,19 @@ exports.handler = async (event) => {
 
       if (result.rows.length === 0) {
         return error('Exploration not found', 404);
+      }
+
+      // Broadcast cache invalidation to WebSocket clients
+      try {
+        await broadcastInvalidation({
+          entityType: 'exploration',
+          entityId: id,
+          mutationType: 'deleted',
+          organizationId,
+          excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+        });
+      } catch (err) {
+        console.error('[EXPLORATIONS] Broadcast failed:', err.message);
       }
 
       return success({ message: 'Exploration deleted successfully' });

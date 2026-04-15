@@ -6,6 +6,15 @@
 /**
  * Extract organization context from API Gateway event
  * Supports both direct authorizer context and nested context structure
+ * 
+ * If the request includes an X-Organization-Id header, and that org is in the
+ * user's accessible_organization_ids, the context is scoped to that org:
+ *   - organization_id is overridden to the requested org
+ *   - user_role is set to the user's role in that specific org
+ *   - permissions are recalculated for that role
+ *   - accessible_organization_ids is narrowed to just that org
+ * 
+ * This allows frontend org switching without changing the authorizer or API Gateway.
  */
 function getAuthorizerContext(event) {
   const authorizer = event.requestContext?.authorizer || {};
@@ -54,7 +63,105 @@ function getAuthorizerContext(event) {
     }
   }
   
+  // --- X-Organization-Id header override ---
+  // If the frontend sends this header, scope the context to that org.
+  // The header is validated against accessible_organization_ids so users
+  // cannot escalate access to orgs they don't belong to.
+  const requestedOrgId = getHeader(event, 'X-Organization-Id');
+  
+  if (requestedOrgId && requestedOrgId !== context.organization_id) {
+    const isAccessible = context.accessible_organization_ids?.includes(requestedOrgId);
+    
+    if (isAccessible) {
+      // Find the user's role in the requested org
+      const membership = context.organization_memberships?.find(
+        m => m.organization_id === requestedOrgId
+      );
+      const orgRole = membership?.role || 'viewer';
+      
+      console.log('🔄 [ORG-SWITCH] Overriding organization context via X-Organization-Id header:', {
+        original_org_id: context.organization_id,
+        requested_org_id: requestedOrgId,
+        original_role: context.user_role,
+        new_role: orgRole
+      });
+      
+      context.organization_id = requestedOrgId;
+      context.user_role = orgRole;
+      // Recalculate permissions for the selected org's role
+      // Explicitly remove data:read:all so buildOrganizationFilter scopes to this org only
+      context.permissions = calculatePermissionsForRole(orgRole, context.organization_memberships)
+        .filter(p => p !== 'data:read:all' && p !== 'data:write:all');
+      // Scope accessible orgs to just the selected org for data filtering
+      context.accessible_organization_ids = [requestedOrgId];
+    } else {
+      console.warn('⚠️ [ORG-SWITCH] Requested org not in accessible list, ignoring:', {
+        requested_org_id: requestedOrgId,
+        accessible_organization_ids: context.accessible_organization_ids
+      });
+    }
+  }
+  
   return context;
+}
+
+/**
+ * Extract a header value from the API Gateway event (case-insensitive)
+ */
+function getHeader(event, headerName) {
+  const headers = event.headers || {};
+  // API Gateway may lowercase header names
+  const lowerName = headerName.toLowerCase();
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === lowerName) {
+      return headers[key];
+    }
+  }
+  return null;
+}
+
+/**
+ * Calculate permissions for a given role
+ * Mirrors the authorizer's calculatePermissions logic
+ */
+function calculatePermissionsForRole(role, organizationMemberships) {
+  const permissions = [];
+  
+  switch (role) {
+    case 'admin':
+      permissions.push(
+        'organizations:read',
+        'organizations:update',
+        'members:manage',
+        'data:read',
+        'data:read:all',
+        'data:write',
+        'data:write:all'
+      );
+      break;
+    case 'leadership':
+      permissions.push(
+        'organizations:read',
+        'data:read',
+        'data:read:org',
+        'data:write',
+        'data:write:org'
+      );
+      break;
+    case 'contributor':
+      permissions.push(
+        'data:read',
+        'data:write'
+      );
+      break;
+    case 'viewer':
+      permissions.push('data:read');
+      break;
+    default:
+      permissions.push('data:read');
+  }
+  
+  return permissions;
 }
 
 /**
@@ -167,6 +274,8 @@ module.exports = {
   canAccessOrganization,
   buildOrganizationFilter,
   getRoleInOrganization,
+  calculatePermissionsForRole,
+  getHeader,
   parseJSON
 };
 

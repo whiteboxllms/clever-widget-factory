@@ -1,0 +1,9 @@
+{
+  "name": "cwf-ws-connect",
+  "version": "1.0.0",
+  "description": "WebSocket $connect handler - records connections and sends catch-up events",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.0.0"
+  }
+}

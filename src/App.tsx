@@ -8,11 +8,13 @@ import { queryCachePersister, QUERY_CACHE_MAX_AGE } from "@/lib/queryPersistAdap
 import { setQueryClient } from "@/lib/apiService";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { AuthProvider } from "@/hooks/useCognitoAuth";
+import { AuthProvider, useAuth } from "@/hooks/useCognitoAuth";
 import { OrganizationProvider } from "@/hooks/useOrganization";
 import { AppSettingsProvider } from "@/hooks/useAppSettings";
 import { useSessionMonitor } from "@/hooks/useSessionMonitor";
+import { useCacheInvalidation } from "@/hooks/useCacheInvalidation";
 import { TokenRefreshIndicator } from "@/components/TokenRefreshIndicator";
+import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminRoute from "@/components/AdminRoute";
 import LeadershipRoute from "@/components/LeadershipRoute";
@@ -82,6 +84,8 @@ setQueryClient(queryClient);
 
 function AppContent() {
   useSessionMonitor();
+  useCacheInvalidation(); // Subscribe to real-time cache invalidation via WebSocket
+  const { user } = useAuth();
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
@@ -92,6 +96,11 @@ function AppContent() {
   return (
     <div style={{ opacity: isHydrated ? 1 : 0, transition: 'opacity 0.1s' }}>
       <TokenRefreshIndicator />
+      {user && (
+        <div className="fixed bottom-4 left-4 z-50 rounded-full bg-background/80 backdrop-blur-sm border px-2.5 py-1.5 shadow-sm">
+          <ConnectionStatusIndicator />
+        </div>
+      )}
       <MaxwellRecordHighlightProvider>
       <Routes>
         <Route path="/auth" element={<Auth />} />

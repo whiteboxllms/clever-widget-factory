@@ -239,9 +239,10 @@ export default function AddObservation() {
       console.error(`Failed to ${isEditMode ? 'update' : 'create'} observation:`, error);
       // Reset uploading state on error
       setPhotos(prev => prev.map(p => ({ ...p, isUploading: false })));
+      const errorDetail = error instanceof Error ? error.message : String(error);
       toast({
         title: 'Error',
-        description: `Failed to ${isEditMode ? 'update' : 'save'} observation. Please try again.`,
+        description: `Failed to ${isEditMode ? 'update' : 'save'} observation: ${errorDetail}`,
         variant: 'destructive'
       });
     }

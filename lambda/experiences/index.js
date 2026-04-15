@@ -1,6 +1,7 @@
 const { Pool } = require('pg');
 const { getAuthorizerContext } = require('/opt/nodejs/authorizerContext');
 const { successResponse, errorResponse } = require('/opt/nodejs/response');
+const { broadcastInvalidation } = require('/opt/nodejs/broadcastInvalidation');
 const success = (data) => successResponse(data);
 const error = (message, statusCode = 500) => errorResponse(statusCode, message);
 
@@ -396,6 +397,19 @@ exports.handler = async (event) => {
         };
 
         await client.query('COMMIT');
+
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'experience',
+            entityId: experience.id,
+            mutationType: 'created',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[EXPERIENCES] Broadcast failed:', err.message);
+        }
 
         return success({
           ...experience,

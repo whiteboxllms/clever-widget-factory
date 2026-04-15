@@ -1,0 +1,7 @@
+{
+  "name": "cwf-ws-cleanup",
+  "version": "1.0.0",
+  "description": "Scheduled cleanup - marks stale WebSocket connections as disconnected and deletes old entity_changes records",
+  "main": "index.js",
+  "dependencies": {}
+}

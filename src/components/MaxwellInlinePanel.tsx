@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, KeyboardEvent } from 'react';
-import type { JSX } from 'react';
 import { X, Send, RefreshCw, Loader2, Copy, Check, Code } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 import { useMaxwell, MaxwellSessionAttributes, MaxwellMessage } from '@/hooks/useMaxwell';
 import { useMaxwellStorage } from '@/hooks/useMaxwellStorage';
@@ -58,80 +58,12 @@ function MessageBubble({ message }: { message: MaxwellMessage }) {
     }
   };
 
-  const renderContent = (text: string) => {
-    // Split into lines for block-level parsing
-    const lines = text.split('\n');
-    const elements: (string | JSX.Element)[] = [];
-    let listItems: JSX.Element[] = [];
-    let lineKey = 0;
-
-    const flushList = () => {
-      if (listItems.length > 0) {
-        elements.push(<ul key={`ul-${lineKey}`} className="list-disc pl-5 space-y-0.5 my-1">{listItems}</ul>);
-        listItems = [];
-      }
-    };
-
-    const renderInline = (raw: string, key: string): JSX.Element => {
-      // Handle images, bold, and inline code
-      const parts: (string | JSX.Element)[] = [];
-      const inlineRegex = /!\[([^\]]*)\]\(([^)]+)\)|\*\*(.+?)\*\*|`([^`]+)`/g;
-      let last = 0;
-      let m;
-      let idx = 0;
-      while ((m = inlineRegex.exec(raw)) !== null) {
-        if (m.index > last) parts.push(raw.slice(last, m.index));
-        if (m[2]) {
-          // Image
-          const resolvedUrl = getImageUrl(m[2]) || m[2];
-          parts.push(
-            <a key={`${key}-img-${idx}`} href={resolvedUrl} target="_blank" rel="noopener noreferrer" className="block mt-2">
-              <img src={resolvedUrl} alt={m[1]} title={`${m[1]} (click to view full resolution)`} className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity" style={{ maxHeight: '300px', objectFit: 'contain' }} />
-            </a>
-          );
-        } else if (m[3]) {
-          parts.push(<strong key={`${key}-b-${idx}`}>{m[3]}</strong>);
-        } else if (m[4]) {
-          parts.push(<code key={`${key}-c-${idx}`} className="bg-muted-foreground/15 rounded px-1 py-0.5 text-xs">{m[4]}</code>);
-        }
-        last = m.index + m[0].length;
-        idx++;
-      }
-      if (last < raw.length) parts.push(raw.slice(last));
-      return <span key={key}>{parts}</span>;
-    };
-
-    for (const line of lines) {
-      lineKey++;
-      const trimmed = line.trimStart();
-
-      // List item
-      if (/^[-*]\s/.test(trimmed)) {
-        listItems.push(<li key={`li-${lineKey}`}>{renderInline(trimmed.replace(/^[-*]\s/, ''), `li-${lineKey}`)}</li>);
-        continue;
-      }
-
-      flushList();
-
-      // Empty line
-      if (!trimmed) {
-        elements.push(<br key={`br-${lineKey}`} />);
-        continue;
-      }
-
-      // Heading-like lines (### or ##)
-      const headingMatch = trimmed.match(/^(#{1,3})\s+(.+)/);
-      if (headingMatch) {
-        elements.push(<div key={`h-${lineKey}`} className="font-semibold mt-2 mb-0.5">{renderInline(headingMatch[2], `h-${lineKey}`)}</div>);
-        continue;
-      }
-
-      // Regular line
-      elements.push(<div key={`p-${lineKey}`}>{renderInline(line, `p-${lineKey}`)}</div>);
-    }
-
-    flushList();
-    return elements;
+  // Resolve S3 image URLs in markdown image syntax
+  const resolveImageUrls = (text: string) => {
+    return text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_match, alt, url) => {
+      const resolvedUrl = getImageUrl(url) || url;
+      return `![${alt}](${resolvedUrl})`;
+    });
   };
 
   return (
@@ -144,7 +76,13 @@ function MessageBubble({ message }: { message: MaxwellMessage }) {
             : 'bg-muted text-foreground rounded-bl-sm'
         )}
       >
-        <div className="whitespace-pre-wrap break-words text-sm">{renderContent(message.content)}</div>
+        {isUser ? (
+          <p className="whitespace-pre-wrap break-words text-sm">{message.content}</p>
+        ) : (
+          <div className="maxwell-markdown prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+            <ReactMarkdown>{resolveImageUrls(message.content)}</ReactMarkdown>
+          </div>
+        )}
         <button
           onClick={handleCopy}
           className={cn(
@@ -209,7 +147,7 @@ export function MaxwellInlinePanel({ context, onClose, className, hideHeader = f
       }
     : null;
 
-  const { messages, isLoading, error, sendMessage, resetSession } = useMaxwell(
+  const { messages, isLoading, progressStep, error, sendMessage, resetSession } = useMaxwell(
     sessionAttributes ?? { entityId: '', entityType: 'action', entityName: '', policy: '', implementation: '' }
   );
 
@@ -349,8 +287,11 @@ export function MaxwellInlinePanel({ context, onClose, className, hideHeader = f
 
         {isLoading && (
           <div className="flex items-start">
-            <div className="bg-muted rounded-2xl rounded-bl-sm px-4 py-2">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <div className="bg-muted rounded-2xl rounded-bl-sm px-4 py-2 flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground flex-shrink-0" />
+              {progressStep && (
+                <span className="text-xs text-muted-foreground animate-fade-in">{progressStep}</span>
+              )}
             </div>
           </div>
         )}

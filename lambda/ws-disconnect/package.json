@@ -1,0 +1,7 @@
+{
+  "name": "cwf-ws-disconnect",
+  "version": "1.0.0",
+  "description": "WebSocket $disconnect handler - marks connections as disconnected (soft delete)",
+  "main": "index.js",
+  "dependencies": {}
+}

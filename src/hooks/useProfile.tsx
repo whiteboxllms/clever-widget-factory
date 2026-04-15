@@ -84,26 +84,25 @@ export function useProfile() {
   });
 
   // Fetch organization memberships
+  // Use shorter staleTime than offlineQueryConfig so org changes are picked up quickly
   const { data: memberships = [], isLoading: membershipsLoading } = useQuery<OrganizationMember[]>({
     queryKey: ['organization_memberships', user?.userId],
     queryFn: async () => {
       if (!user?.userId) return [];
 
-      // Prefer existing organization_members data from cache to avoid extra network calls
-      const cachedMembers = queryClient.getQueryData<OrganizationMember[]>(['organization_members']);
-      if (cachedMembers && cachedMembers.length > 0) {
-        return cachedMembers.filter(
-          (member) => member.cognito_user_id === user.userId
-        );
-      }
-
-      // Fallback: fetch memberships directly when cache is not populated
-      const response = await apiService.get(`/organization_members?cognito_user_id=${encodeURIComponent(user.userId)}`);
+      // Fetch all memberships for this user (includes organization_id for each)
+      // Skip org header — this query must return ALL memberships across all orgs
+      const response = await apiService.get(
+        `/organization_members?cognito_user_id=${encodeURIComponent(user.userId)}`,
+        { skipOrgHeader: true } as any
+      );
       const data = getApiData(response);
       return Array.isArray(data) ? (data as OrganizationMember[]) : [];
     },
     enabled: !!user?.userId,
-    ...offlineQueryConfig,
+    staleTime: 5 * 60 * 1000, // 5 minutes — memberships can change when orgs are created
+    gcTime: 30 * 60 * 1000,
+    networkMode: 'offlineFirst' as const,
   });
 
   // Get primary organization (oldest membership by created_at to match backend authorizer)

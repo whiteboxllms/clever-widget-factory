@@ -48,6 +48,7 @@ async function resolveAndQueueEmbedding(stateId, organizationId) {
       LEFT JOIN metric_snapshots ms ON ms.state_id = s.id
       LEFT JOIN metrics m ON ms.metric_id = m.metric_id
       WHERE s.id = $1
+      GROUP BY s.id, s.state_text
     `, [stateId]);
 
     if (result.rows.length === 0) {
@@ -87,7 +88,7 @@ async function resolveAndQueueEmbedding(stateId, organizationId) {
 const headers = {
   'Content-Type': 'application/json',
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id',
   'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
 };
 

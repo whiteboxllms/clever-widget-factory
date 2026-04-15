@@ -2,6 +2,7 @@ const { Client } = require('pg');
 const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
 const { getAuthorizerContext, buildOrganizationFilter } = require('/opt/nodejs/authorizerContext');
 const { composeActionEmbeddingSource } = require('/opt/nodejs/embedding-composition');
+const { broadcastInvalidation } = require('/opt/nodejs/broadcastInvalidation');
 
 const sqs = new SQSClient({ region: 'us-west-2' });
 const EMBEDDINGS_QUEUE_URL = 'https://sqs.us-west-2.amazonaws.com/131745734428/cwf-embeddings-queue';
@@ -40,6 +41,7 @@ exports.handler = async (event) => {
   
   const { httpMethod, path, queryStringParameters } = event;
   const authContext = getAuthorizerContext(event);
+  const organizationId = authContext.organization_id || (authContext.accessible_organization_ids || [])[0];
   const accessibleOrgIds = authContext.accessible_organization_ids || [];
   
   if (accessibleOrgIds.length === 0) {
@@ -58,7 +60,7 @@ exports.handler = async (event) => {
     const headers = {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id',
       'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
     };
 
@@ -68,7 +70,7 @@ exports.handler = async (event) => {
         statusCode: 200,
         headers: {
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+          'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id',
           'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
         },
         body: ''
@@ -163,6 +165,20 @@ exports.handler = async (event) => {
       const orgFilter = buildOrganizationFilter(authContext, 'actions');
       const sql = `DELETE FROM actions WHERE id = '${actionId}' ${orgFilter.condition ? 'AND ' + orgFilter.condition : ''} RETURNING id`;
       const result = await queryJSON(sql);
+
+      // Broadcast cache invalidation to WebSocket clients
+      try {
+        await broadcastInvalidation({
+          entityType: 'action',
+          entityId: actionId,
+          mutationType: 'deleted',
+          organizationId,
+          excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+        });
+      } catch (err) {
+        console.error('[ACTIONS] Broadcast failed:', err.message);
+      }
+
       return {
         statusCode: 200,
         headers,
@@ -378,12 +394,29 @@ exports.handler = async (event) => {
             WHERE checkouts.tool_id = t.id AND checkouts.is_returned = false
             ORDER BY checkouts.checkout_date DESC LIMIT 1
           ) c ON true
-          LEFT JOIN organization_members om ON c.user_id = om.cognito_user_id
+          LEFT JOIN LATERAL (
+            SELECT full_name FROM organization_members
+            WHERE cognito_user_id = c.user_id
+            LIMIT 1
+          ) om ON true
           WHERE t.id IN (${affectedToolIds.map(id => `'${id}'`).join(',')})
         `;
         affectedTools = await queryJSON(toolsSql);
       }
       
+      // Broadcast cache invalidation to WebSocket clients
+      try {
+        await broadcastInvalidation({
+          entityType: 'action',
+          entityId: actionId,
+          mutationType: 'updated',
+          organizationId,
+          excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+        });
+      } catch (err) {
+        console.error('[ACTIONS] Broadcast failed:', err.message);
+      }
+
       return { 
         statusCode: 200, 
         headers, 
@@ -434,6 +467,19 @@ exports.handler = async (event) => {
         const sql = `UPDATE actions SET ${updates.join(', ')}, updated_at = NOW() WHERE id = '${id}' RETURNING *`;
         const result = await queryJSON(sql);
         
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'action',
+            entityId: id,
+            mutationType: 'updated',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[ACTIONS] Broadcast failed:', err.message);
+        }
+
         return { statusCode: 200, headers, body: JSON.stringify({ data: result[0] }) };
       } else {
         // Create
@@ -517,6 +563,19 @@ exports.handler = async (event) => {
           await Promise.all(checkoutPromises);
         }
         
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'action',
+            entityId: newAction.id,
+            mutationType: 'created',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[ACTIONS] Broadcast failed:', err.message);
+        }
+
         return { statusCode: 201, headers, body: JSON.stringify({ data: newAction }) };
       }
     }

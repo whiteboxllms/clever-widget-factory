@@ -1,5 +1,5 @@
 const { Client } = require('pg');
-const { getAuthorizerContext } = require('./shared/authorizerContext');
+const { getAuthorizerContext } = require('/opt/nodejs/authorizerContext');
 
 // Database configuration
 // SECURITY: Password must be provided via environment variable
@@ -30,6 +30,18 @@ async function queryJSON(sql) {
   }
 }
 
+// Helper to execute parameterized SQL
+async function queryParams(sql, params) {
+  const client = new Client(dbConfig);
+  try {
+    await client.connect();
+    const result = await client.query(sql, params);
+    return result.rows;
+  } finally {
+    await client.end();
+  }
+}
+
 exports.handler = async (event) => {
   console.log('Event:', JSON.stringify(event, null, 2));
   
@@ -53,7 +65,7 @@ exports.handler = async (event) => {
     const headers = {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id',
       'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
     };
 
@@ -69,16 +81,43 @@ exports.handler = async (event) => {
     // Organization members endpoint
     if (httpMethod === 'GET' && path.endsWith('/organization_members')) {
       const orgIdsList = accessibleOrgIds.map(id => `'${id.replace(/'/g, "''")}'`).join(',');
+      const filterUserId = queryStringParameters?.cognito_user_id;
       
-      const sql = `SELECT json_agg(row_to_json(t)) FROM (
-        SELECT DISTINCT ON (cognito_user_id) cognito_user_id as user_id, full_name, role, cognito_user_id, favorite_color, is_active
-        FROM organization_members
-        WHERE full_name IS NOT NULL 
-          AND trim(full_name) != ''
-          AND cognito_user_id IS NOT NULL
-          AND organization_id IN (${orgIdsList})
-        ORDER BY cognito_user_id, full_name
-      ) t;`;
+      let sql;
+      if (filterUserId) {
+        // Return all memberships for a specific user across ALL their orgs
+        // Don't filter by accessibleOrgIds here — this is needed for org switching
+        // Security: user can only query their own memberships (cognito_user_id from authorizer)
+        const requestingUserId = authContext.cognito_user_id;
+        const targetUserId = filterUserId === requestingUserId ? filterUserId : null;
+        
+        if (!targetUserId) {
+          return {
+            statusCode: 403,
+            headers,
+            body: JSON.stringify({ error: 'Can only query your own memberships' })
+          };
+        }
+        
+        sql = `SELECT json_agg(row_to_json(t)) FROM (
+          SELECT user_id, cognito_user_id, organization_id, full_name, role, favorite_color, is_active
+          FROM organization_members
+          WHERE cognito_user_id = '${targetUserId.replace(/'/g, "''")}'
+            AND is_active = true
+          ORDER BY created_at ASC
+        ) t;`;
+      } else {
+        // Default: deduplicated list of all members across accessible orgs
+        sql = `SELECT json_agg(row_to_json(t)) FROM (
+          SELECT DISTINCT ON (cognito_user_id) cognito_user_id as user_id, full_name, role, cognito_user_id, favorite_color, is_active
+          FROM organization_members
+          WHERE full_name IS NOT NULL 
+            AND trim(full_name) != ''
+            AND cognito_user_id IS NOT NULL
+            AND organization_id IN (${orgIdsList})
+          ORDER BY cognito_user_id, full_name
+        ) t;`;
+      }
       
       const result = await queryJSON(sql);
       return {
@@ -132,6 +171,52 @@ exports.handler = async (event) => {
         statusCode: 200,
         headers,
         body: JSON.stringify({ data: member })
+      };
+    }
+
+    // Create organization (admin only)
+    if (httpMethod === 'POST' && path.endsWith('/organizations')) {
+      // Only admins can create organizations
+      if (authContext.user_role !== 'admin') {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Only admin users can create organizations' })
+        };
+      }
+
+      const body = JSON.parse(event.body || '{}');
+      const { name, subdomain } = body;
+
+      if (!name || !name.trim()) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Organization name is required' })
+        };
+      }
+
+      // Create the organization
+      const createOrgSql = `
+        INSERT INTO organizations (name, subdomain, is_active, created_at, updated_at)
+        VALUES ($1, $2, true, NOW(), NOW())
+        RETURNING id, name, subdomain, is_active, created_at, updated_at;
+      `;
+      const orgRows = await queryParams(createOrgSql, [name.trim(), subdomain || null]);
+      const newOrg = orgRows[0];
+
+      // Add the creating user as an admin member of the new organization
+      const addMemberSql = `
+        INSERT INTO organization_members (organization_id, user_id, cognito_user_id, role, is_active, created_at)
+        VALUES ($1, $2, $2, 'admin', true, NOW())
+        ON CONFLICT DO NOTHING;
+      `;
+      await queryParams(addMemberSql, [newOrg.id, authContext.cognito_user_id]);
+
+      return {
+        statusCode: 201,
+        headers,
+        body: JSON.stringify({ data: newOrg })
       };
     }
 

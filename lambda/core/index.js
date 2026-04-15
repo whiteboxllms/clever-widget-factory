@@ -4,6 +4,7 @@ const { getAuthorizerContext, buildOrganizationFilter, hasPermission, canAccessO
 const { composePartEmbeddingSource, composeToolEmbeddingSource, composeIssueEmbeddingSource, composePolicyEmbeddingSource } = require('/opt/nodejs/embedding-composition');
 const { getDbClient } = require('/opt/nodejs/db');
 const { escapeLiteral, formatSqlValue, buildUpdateClauses } = require('/opt/nodejs/sqlUtils');
+const { broadcastInvalidation } = require('/opt/nodejs/broadcastInvalidation');
 
 const sqs = new SQSClient({ region: 'us-west-2' });
 const EMBEDDINGS_QUEUE_URL = 'https://sqs.us-west-2.amazonaws.com/131745734428/cwf-embeddings-queue';
@@ -30,7 +31,7 @@ exports.handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
   };
   
@@ -190,6 +191,19 @@ exports.handler = async (event) => {
           }
         }
         
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'tool',
+            entityId: toolId,
+            mutationType: 'created',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
+        }
+        
         return {
           statusCode: 201,
           headers,
@@ -287,6 +301,19 @@ exports.handler = async (event) => {
           }
         }
         
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'tool',
+            entityId: toolId,
+            mutationType: 'updated',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
+        }
+        
         return {
           statusCode: 200,
           headers,
@@ -369,7 +396,11 @@ exports.handler = async (event) => {
             ORDER BY checkouts.checkout_date DESC NULLS LAST, checkouts.created_at DESC
             LIMIT 1
           ) active_checkouts ON true
-          LEFT JOIN organization_members om_checkout ON active_checkouts.user_id = om_checkout.cognito_user_id
+          LEFT JOIN LATERAL (
+            SELECT full_name FROM organization_members
+            WHERE cognito_user_id = active_checkouts.user_id
+            LIMIT 1
+          ) om_checkout ON true
           ${whereClause}
           ORDER BY tools.id, tools.name 
           LIMIT ${limit} OFFSET ${offset}
@@ -453,6 +484,19 @@ exports.handler = async (event) => {
         }
       }
       
+      // Broadcast cache invalidation to WebSocket clients
+      try {
+        await broadcastInvalidation({
+          entityType: 'part',
+          entityId: partId,
+          mutationType: 'created',
+          organizationId,
+          excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+        });
+      } catch (err) {
+        console.error('[CORE] Broadcast failed:', err.message);
+      }
+      
       return {
         statusCode: 201,
         headers,
@@ -478,6 +522,20 @@ exports.handler = async (event) => {
           body: JSON.stringify({ error: 'Part not found' })
         };
       }
+      
+      // Broadcast cache invalidation to WebSocket clients
+      try {
+        await broadcastInvalidation({
+          entityType: 'part',
+          entityId: partId,
+          mutationType: 'deleted',
+          organizationId,
+          excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+        });
+      } catch (err) {
+        console.error('[CORE] Broadcast failed:', err.message);
+      }
+      
       return {
         statusCode: 200,
         headers,
@@ -579,6 +637,19 @@ exports.handler = async (event) => {
             // Non-fatal - continue with response
           }
         }
+      }
+      
+      // Broadcast cache invalidation to WebSocket clients
+      try {
+        await broadcastInvalidation({
+          entityType: 'part',
+          entityId: partId,
+          mutationType: 'updated',
+          organizationId,
+          excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+        });
+      } catch (err) {
+        console.error('[CORE] Broadcast failed:', err.message);
       }
       
       return {
@@ -691,7 +762,11 @@ exports.handler = async (event) => {
             ph.*,
             COALESCE(om.full_name, ph.changed_by::text) as changed_by_name
           FROM parts_history ph
-          LEFT JOIN organization_members om ON ph.changed_by::text = om.cognito_user_id::text
+          LEFT JOIN LATERAL (
+            SELECT full_name FROM organization_members
+            WHERE cognito_user_id::text = ph.changed_by::text
+            LIMIT 1
+          ) om ON true
           ${whereClause} ORDER BY ph.changed_at DESC ${limitClause}
         ) t;`;
         
@@ -897,6 +972,19 @@ exports.handler = async (event) => {
           }
         }
         
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'issue',
+            entityId: issue.id,
+            mutationType: 'created',
+            organizationId: orgId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
+        }
+        
         return {
           statusCode: 201,
           headers,
@@ -989,6 +1077,19 @@ exports.handler = async (event) => {
               // Non-fatal - continue with response
             }
           }
+        }
+        
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'issue',
+            entityId: issueId,
+            mutationType: 'updated',
+            organizationId: result[0].organization_id,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
         }
         
         return {
@@ -1725,6 +1826,20 @@ exports.handler = async (event) => {
         console.log('Checkin data:', JSON.stringify(insertData, null, 2));
         
         const result = await queryJSON(sql);
+        
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'checkin',
+            entityId: result[0].id,
+            mutationType: 'created',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
+        }
+        
         return {
           statusCode: 201,
           headers,
@@ -1770,7 +1885,11 @@ exports.handler = async (event) => {
               c.created_at,
               COALESCE(om.full_name, 'Unknown User') as user_display_name
             FROM checkouts c
-            LEFT JOIN organization_members om ON c.user_id::text = om.cognito_user_id::text
+            LEFT JOIN LATERAL (
+              SELECT full_name FROM organization_members
+              WHERE cognito_user_id::text = c.user_id::text
+              LIMIT 1
+            ) om ON true
             WHERE c.tool_id::text = '${escapeLiteral(toolId)}'
             ORDER BY c.checkout_date DESC
           ) t;`;
@@ -1795,7 +1914,11 @@ exports.handler = async (event) => {
               i.updated_at,
               COALESCE(om.full_name, i.reported_by::text) as reported_by_name
             FROM issues i
-            LEFT JOIN organization_members om ON i.reported_by::text = om.cognito_user_id::text
+            LEFT JOIN LATERAL (
+              SELECT full_name FROM organization_members
+              WHERE cognito_user_id::text = i.reported_by::text
+              LIMIT 1
+            ) om ON true
             WHERE i.context_type = 'tool' AND i.context_id::text = '${escapeLiteral(toolId)}'
             ORDER BY i.reported_at DESC
           ) t;`;
@@ -1817,7 +1940,11 @@ exports.handler = async (event) => {
               a.updated_at,
               COALESCE(om.full_name, 'System') as created_by_name
             FROM actions a
-            LEFT JOIN organization_members om ON a.created_by::text = om.cognito_user_id::text
+            LEFT JOIN LATERAL (
+              SELECT full_name FROM organization_members
+              WHERE cognito_user_id::text = a.created_by::text
+              LIMIT 1
+            ) om ON true
             WHERE a.asset_id::text = '${escapeLiteral(toolId)}'
             ORDER BY a.created_at DESC
           ) t;`;
@@ -1845,7 +1972,11 @@ exports.handler = async (event) => {
               ) as photos
             FROM observations o
             JOIN observation_links ol ON ol.observation_id = o.id
-            LEFT JOIN organization_members om ON o.observed_by::text = om.cognito_user_id::text
+            LEFT JOIN LATERAL (
+              SELECT full_name FROM organization_members
+              WHERE cognito_user_id::text = o.observed_by::text
+              LIMIT 1
+            ) om ON true
             WHERE ol.entity_type = 'tool' AND ol.entity_id::text = '${escapeLiteral(toolId)}'
             ORDER BY o.observed_at DESC
           ) t;`;
@@ -1863,7 +1994,11 @@ exports.handler = async (event) => {
               ah.notes,
               COALESCE(om.full_name, 'System') as user_name
             FROM asset_history ah
-            LEFT JOIN organization_members om ON ah.changed_by::text = om.cognito_user_id::text
+            LEFT JOIN LATERAL (
+              SELECT full_name FROM organization_members
+              WHERE cognito_user_id::text = ah.changed_by::text
+              LIMIT 1
+            ) om ON true
             WHERE ah.asset_id::text = '${escapeLiteral(toolId)}'
             ORDER BY ah.changed_at DESC
           ) t;`;
@@ -1975,6 +2110,20 @@ exports.handler = async (event) => {
         const checkoutId = path.split('/').pop();
         const sql = `DELETE FROM checkouts WHERE id = '${checkoutId}' RETURNING *`;
         const result = await queryJSON(sql);
+        
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'checkout',
+            entityId: checkoutId,
+            mutationType: 'deleted',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
+        }
+        
         return {
           statusCode: 200,
           headers,
@@ -1997,6 +2146,20 @@ exports.handler = async (event) => {
         }
         const sql = `UPDATE checkouts SET ${updates.join(', ')} WHERE id = '${checkoutId}' RETURNING *`;
         const result = await queryJSON(sql);
+        
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'checkout',
+            entityId: checkoutId,
+            mutationType: 'updated',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
+        }
+        
         return {
           statusCode: 200,
           headers,
@@ -2055,6 +2218,20 @@ exports.handler = async (event) => {
         
         try {
           const result = await queryJSON(sql);
+          
+          // Broadcast cache invalidation to WebSocket clients
+          try {
+            await broadcastInvalidation({
+              entityType: 'checkout',
+              entityId: result[0].id,
+              mutationType: 'created',
+              organizationId: orgId,
+              excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+            });
+          } catch (err) {
+            console.error('[CORE] Broadcast failed:', err.message);
+          }
+          
           return {
             statusCode: 201,
             headers,
@@ -2106,7 +2283,11 @@ exports.handler = async (event) => {
             a.title as action_title
           FROM checkouts c
           LEFT JOIN tools t ON c.tool_id = t.id
-          LEFT JOIN organization_members om ON c.user_id = om.cognito_user_id
+          LEFT JOIN LATERAL (
+            SELECT full_name FROM organization_members
+            WHERE cognito_user_id = c.user_id
+            LIMIT 1
+          ) om ON true
           LEFT JOIN actions a ON c.action_id = a.id
           ${whereClause} ORDER BY c.checkout_date DESC
         ) t;`;
@@ -2179,6 +2360,20 @@ exports.handler = async (event) => {
         
         try {
           const result = await queryJSON(sql);
+          
+          // Broadcast cache invalidation to WebSocket clients
+          try {
+            await broadcastInvalidation({
+              entityType: 'exploration',
+              entityId: result[0].id.toString(),
+              mutationType: 'created',
+              organizationId,
+              excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+            });
+          } catch (err) {
+            console.error('[CORE] Broadcast failed:', err.message);
+          }
+          
           return {
             statusCode: 201,
             headers,
@@ -2230,6 +2425,20 @@ exports.handler = async (event) => {
               body: JSON.stringify({ error: 'Exploration not found' })
             };
           }
+          
+          // Broadcast cache invalidation to WebSocket clients
+          try {
+            await broadcastInvalidation({
+              entityType: 'exploration',
+              entityId: explorationId.toString(),
+              mutationType: 'updated',
+              organizationId,
+              excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+            });
+          } catch (err) {
+            console.error('[CORE] Broadcast failed:', err.message);
+          }
+          
           return {
             statusCode: 200,
             headers,
@@ -2400,7 +2609,11 @@ exports.handler = async (event) => {
             e.public_flag
           FROM actions a
           LEFT JOIN exploration e ON a.id = e.action_id
-          LEFT JOIN organization_members om ON a.created_by::text = om.cognito_user_id::text
+          LEFT JOIN LATERAL (
+            SELECT full_name FROM organization_members
+            WHERE cognito_user_id::text = a.created_by::text
+            LIMIT 1
+          ) om ON true
           ${whereClause}
           ORDER BY a.created_at DESC
           LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
@@ -2556,6 +2769,19 @@ exports.handler = async (event) => {
             }
           }
           
+          // Broadcast cache invalidation to WebSocket clients
+          try {
+            await broadcastInvalidation({
+              entityType: 'policy',
+              entityId: result[0].id.toString(),
+              mutationType: 'created',
+              organizationId,
+              excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+            });
+          } catch (err) {
+            console.error('[CORE] Broadcast failed:', err.message);
+          }
+          
           return {
             statusCode: 201,
             headers,
@@ -2646,6 +2872,19 @@ exports.handler = async (event) => {
             }
           }
           
+          // Broadcast cache invalidation to WebSocket clients
+          try {
+            await broadcastInvalidation({
+              entityType: 'policy',
+              entityId: policyId.toString(),
+              mutationType: 'updated',
+              organizationId,
+              excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+            });
+          } catch (err) {
+            console.error('[CORE] Broadcast failed:', err.message);
+          }
+          
           return {
             statusCode: 200,
             headers,
@@ -2708,7 +2947,11 @@ exports.handler = async (event) => {
               p.*,
               om.full_name as created_by_name
             FROM policy p
-            LEFT JOIN organization_members om ON p.created_by_user_id = om.cognito_user_id
+            LEFT JOIN LATERAL (
+              SELECT full_name FROM organization_members
+              WHERE cognito_user_id = p.created_by_user_id
+              LIMIT 1
+            ) om ON true
             ${whereClause}
             ORDER BY p.created_at DESC
             LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
@@ -2760,6 +3003,20 @@ exports.handler = async (event) => {
               body: JSON.stringify({ error: 'Policy not found' })
             };
           }
+          
+          // Broadcast cache invalidation to WebSocket clients
+          try {
+            await broadcastInvalidation({
+              entityType: 'policy',
+              entityId: policyId.toString(),
+              mutationType: 'deleted',
+              organizationId,
+              excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+            });
+          } catch (err) {
+            console.error('[CORE] Broadcast failed:', err.message);
+          }
+          
           return {
             statusCode: 200,
             headers,
@@ -2809,7 +3066,11 @@ exports.handler = async (event) => {
             p.*,
             om.full_name as created_by_name
           FROM policy p
-          LEFT JOIN organization_members om ON p.created_by_user_id = om.cognito_user_id
+          LEFT JOIN LATERAL (
+            SELECT full_name FROM organization_members
+            WHERE cognito_user_id = p.created_by_user_id
+            LIMIT 1
+          ) om ON true
           ${whereClause}
           ORDER BY p.created_at DESC
           LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
@@ -3003,6 +3264,20 @@ exports.handler = async (event) => {
         
         console.log('SQL:', sql);
         const result = await queryJSON(sql);
+        
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'mission',
+            entityId: result[0].id,
+            mutationType: 'created',
+            organizationId: orgId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
+        }
+        
         return {
           statusCode: 201,
           headers,
@@ -3072,6 +3347,19 @@ exports.handler = async (event) => {
           };
         }
         
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'mission',
+            entityId: missionId,
+            mutationType: 'updated',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
+        }
+        
         return {
           statusCode: 200,
           headers,
@@ -3094,6 +3382,19 @@ exports.handler = async (event) => {
             headers,
             body: JSON.stringify({ error: 'Mission not found' })
           };
+        }
+        
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'mission',
+            entityId: missionId,
+            mutationType: 'deleted',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
         }
         
         return {
@@ -3172,7 +3473,11 @@ exports.handler = async (event) => {
             )
           END as mission
         FROM actions a
-        LEFT JOIN organization_members om ON a.assigned_to::text = om.cognito_user_id::text
+        LEFT JOIN LATERAL (
+          SELECT full_name, favorite_color FROM organization_members
+          WHERE cognito_user_id::text = a.assigned_to::text
+          LIMIT 1
+        ) om ON true
         LEFT JOIN profiles p ON a.assigned_to::text = p.user_id::text
         LEFT JOIN analysis_contexts scores ON a.id = scores.context_id AND scores.context_service = 'action_score'
         LEFT JOIN (
@@ -3363,6 +3668,19 @@ exports.handler = async (event) => {
         
         const fetchResult = await queryJSON(fetchSql);
         
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'action',
+            entityId: newActionId,
+            mutationType: 'created',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
+        }
+        
         return {
           statusCode: 201,
           headers,
@@ -3493,6 +3811,19 @@ exports.handler = async (event) => {
         ) t;`;
         
         const fetchResult = await queryJSON(fetchSql);
+        
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'action',
+            entityId: actionId,
+            mutationType: 'updated',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
+        }
         
         return {
           statusCode: 200,
@@ -3627,6 +3958,19 @@ exports.handler = async (event) => {
           updated_by: stateResult[0].captured_by
         };
         
+        // Broadcast cache invalidation for the new state/observation
+        try {
+          await broadcastInvalidation({
+            entityType: 'state',
+            entityId: stateId,
+            mutationType: 'created',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
+        }
+
         return {
           statusCode: 201,
           headers,
@@ -3684,7 +4028,11 @@ exports.handler = async (event) => {
           FROM states s
           JOIN state_links sl ON s.id = sl.state_id
           LEFT JOIN actions a ON sl.entity_id = a.id
-          LEFT JOIN organization_members om ON s.captured_by::text = om.cognito_user_id::text
+          LEFT JOIN LATERAL (
+            SELECT full_name, favorite_color FROM organization_members
+            WHERE cognito_user_id::text = s.captured_by::text
+            LIMIT 1
+          ) om ON true
           LEFT JOIN profiles p ON s.captured_by::text = p.user_id::text
           ${whereClause}
           ORDER BY s.created_at DESC 

@@ -9,20 +9,24 @@ const AGENT_ID = process.env.MAXWELL_AGENT_ID;
 const AGENT_ALIAS_ID = process.env.MAXWELL_AGENT_ALIAS_ID;
 
 // Load prompt fragments once at cold start
-const PROMPTS_DIR = path.join(__dirname, 'prompts');
+// PROMPT_SET env var selects the prompt directory: "sonnet46" (default), "haiku", etc.
+const PROMPT_SET = process.env.PROMPT_SET || 'sonnet46';
+const PROMPTS_DIR = path.join(__dirname, 'prompts', PROMPT_SET);
+console.log(`Loading prompt set: ${PROMPT_SET} from ${PROMPTS_DIR}`);
+
 const loadPrompt = (name) => {
   try {
     return fs.readFileSync(path.join(PROMPTS_DIR, name), 'utf-8').trim();
   } catch (e) {
-    console.warn(`Failed to load prompt ${name}:`, e.message);
+    console.warn(`Failed to load prompt ${name} from set ${PROMPT_SET}:`, e.message);
     return '';
   }
 };
 
-const TONE_PROMPT = loadPrompt('maxwell-tone.txt');
-const STORAGE_PROMPT = loadPrompt('maxwell-storage.txt');
-const QUANTITATIVE_PROMPT = loadPrompt('maxwell-quantitative.txt');
-const GENERAL_PROMPT = loadPrompt('maxwell-general.txt');
+const TONE_PROMPT = loadPrompt('tone.txt');
+const STORAGE_PROMPT = loadPrompt('storage.txt');
+const QUANTITATIVE_PROMPT = loadPrompt('quantitative.txt');
+const GENERAL_PROMPT = loadPrompt('general.txt');
 
 const STORAGE_KEYWORDS = /\b(store|storage|where.*put|where.*keep|organize|location|shelf|shed|toolbox|cabinet)\b/i;
 const QUANTITATIVE_KEYWORDS = /\b(roi|cost|revenue|profit|price|expense|budget|investment|how much|per month|per day|per week|earnings|income|margin|break.?even|spend|spent|purchase|purchased|bought|transaction|payment|balance)\b/i;
@@ -31,8 +35,8 @@ const QUANTITATIVE_KEYWORDS = /\b(roi|cost|revenue|profit|price|expense|budget|i
  * Detect question type and return the appropriate prompt fragment.
  */
 function detectPromptMode(message) {
-  if (STORAGE_KEYWORDS.test(message)) return STORAGE_PROMPT;
-  if (QUANTITATIVE_KEYWORDS.test(message)) return QUANTITATIVE_PROMPT;
+  if (STORAGE_PROMPT && STORAGE_KEYWORDS.test(message)) return STORAGE_PROMPT;
+  if (QUANTITATIVE_PROMPT && QUANTITATIVE_KEYWORDS.test(message)) return QUANTITATIVE_PROMPT;
   return GENERAL_PROMPT;
 }
 
@@ -54,7 +58,7 @@ exports.handler = async (event) => {
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id',
         'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
       },
       body: JSON.stringify({ error: 'Unauthorized: No organization context' }) 
@@ -70,7 +74,7 @@ exports.handler = async (event) => {
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id',
         'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
       },
       body: JSON.stringify({ error: 'Invalid request body' }) 
@@ -85,7 +89,7 @@ exports.handler = async (event) => {
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id',
         'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
       },
       body: JSON.stringify({ error: 'message is required' }) 
@@ -114,7 +118,7 @@ exports.handler = async (event) => {
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id',
         'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
       },
       body: JSON.stringify({ error: 'Agent not configured' }) 
@@ -171,7 +175,7 @@ exports.handler = async (event) => {
       headers: { 
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id',
         'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
       },
       body: JSON.stringify({ 
@@ -189,7 +193,7 @@ exports.handler = async (event) => {
         headers: {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+          'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id',
           'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
         },
         body: JSON.stringify({ error: 'Maxwell is busy, please try again' }) 
@@ -201,7 +205,7 @@ exports.handler = async (event) => {
         headers: {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+          'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id',
           'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
         },
         body: JSON.stringify({ error: 'Maxwell took too long to respond' }) 
@@ -213,7 +217,7 @@ exports.handler = async (event) => {
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id',
         'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
       },
       body: JSON.stringify({ error: 'Internal error communicating with Maxwell' }) 

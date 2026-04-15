@@ -9,6 +9,7 @@ import { DebugModeToggle } from '@/components/DebugModeToggle';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { EditableDisplayName } from '@/components/EditableDisplayName';
 import { useOrganization } from '@/hooks/useOrganization';
+import { OrganizationSwitcher } from '@/components/OrganizationSwitcher';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useQueryClient } from '@tanstack/react-query';
 import { actionsQueryKey, toolsQueryKey } from '@/lib/queryKeys';
@@ -166,7 +167,10 @@ export default function Dashboard() {
         <div className="flex items-center justify-between p-4">
           <div>
             <h1 className="text-2xl font-bold">{appTitle}</h1>
-            <EditableDisplayName />
+            <div className="flex items-center gap-2 mt-1">
+              <EditableDisplayName />
+              <OrganizationSwitcher />
+            </div>
           </div>
           <div className="flex items-center gap-4">
             <Tooltip>

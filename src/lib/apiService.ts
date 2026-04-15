@@ -28,6 +28,17 @@ export function setQueryClient(queryClient: QueryClient) {
   globalQueryClient = queryClient;
 }
 
+// Active organization override — when set, all API requests include X-Organization-Id header
+let activeOrganizationId: string | null = null;
+
+export function setActiveOrganizationId(orgId: string | null) {
+  activeOrganizationId = orgId;
+}
+
+export function getActiveOrganizationId(): string | null {
+  return activeOrganizationId;
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 // Validate API_BASE_URL configuration
@@ -197,6 +208,15 @@ async function apiRequest<T = any>(
       tokenTrimmed: idToken?.trim() || 'N/A'
     });
     // Don't set Authorization header if token is empty - let it fail with proper error
+  }
+
+  // Add X-Organization-Id header if an active org is set
+  // Callers can opt out by passing skipOrgHeader: true in options
+  if (activeOrganizationId && !(options as any)?.skipOrgHeader) {
+    (headers as Record<string, string>)['X-Organization-Id'] = activeOrganizationId;
+    console.log('[apiService] Adding X-Organization-Id:', activeOrganizationId, url);
+  } else if (activeOrganizationId && (options as any)?.skipOrgHeader) {
+    console.log('[apiService] Skipping X-Organization-Id for:', url);
   }
 
   // Make the request

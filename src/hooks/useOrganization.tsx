@@ -1,7 +1,9 @@
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useCognitoAuth';
 import { useProfile } from '@/hooks/useProfile';
+import { setActiveOrganizationId } from '@/lib/apiService';
+import { apiService, getApiData } from '@/lib/apiService';
 
 interface Organization {
   id: string;
@@ -27,25 +29,157 @@ interface OrganizationContextType {
   isAdmin: boolean;
   loading: boolean;
   refreshOrganization: () => Promise<void>;
+  /** All organizations the user can access */
+  accessibleOrganizations: Organization[];
+  /** Switch the active organization */
+  switchOrganization: (orgId: string) => void;
+  /** Whether the user has multiple orgs and can switch */
+  canSwitchOrganization: boolean;
 }
 
 const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
+
+const ACTIVE_ORG_KEY = 'cwf_active_organization_id';
 
 export function OrganizationProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
-  // Use useProfile to get real organization data instead of mock data
   const {
-    organization,
-    organizationMember,
-    isAdmin,
-    isLoading
+    organization: primaryOrganization,
+    organizationMember: primaryMember,
+    isAdmin: primaryIsAdmin,
+    isLoading,
+    allMemberships,
   } = useProfile();
 
+  // Accessible organizations with full details (name, subdomain, etc.)
+  const [accessibleOrganizations, setAccessibleOrganizations] = useState<Organization[]>([]);
+  const [orgsLoaded, setOrgsLoaded] = useState(false);
+
+  // Active org ID — persisted in localStorage
+  const [activeOrgId, setActiveOrgId] = useState<string | null>(() => {
+    try {
+      const stored = localStorage.getItem(ACTIVE_ORG_KEY);
+      // Set the header immediately on init so first API calls use the right org
+      if (stored) {
+        setActiveOrganizationId(stored);
+      }
+      return stored;
+    } catch {
+      return null;
+    }
+  });
+
+  // Fetch full org details when memberships are available
+  // Re-run when membership count changes (e.g., from 1 to 2 as data loads)
+  const membershipCount = allMemberships?.length || 0;
+  
+  useEffect(() => {
+    if (!allMemberships || allMemberships.length === 0) return;
+
+    const fetchOrgs = async () => {
+      try {
+        // Skip org header so we get ALL orgs, not just the active one
+        const response = await apiService.get('/api/organizations', {
+          skipOrgHeader: true
+        } as any);
+        const orgs: Organization[] = getApiData(response) || [];
+        // Filter to only orgs the user is a member of
+        const memberOrgIds = new Set(allMemberships.map((m: any) => m.organization_id));
+        const accessible = orgs.filter(org => memberOrgIds.has(org.id));
+        setAccessibleOrganizations(accessible);
+        setOrgsLoaded(true);
+      } catch (error) {
+        console.error('Failed to fetch accessible organizations:', error);
+      }
+    };
+
+    fetchOrgs();
+  }, [membershipCount]);
+
+  // Determine the effective active org and membership
+  const effectiveOrgId = activeOrgId && allMemberships?.some((m: any) => m.organization_id === activeOrgId)
+    ? activeOrgId
+    : primaryOrganization?.id || null;
+
+  const effectiveMembership = allMemberships?.find((m: any) => m.organization_id === effectiveOrgId) || primaryMember;
+  const effectiveRole = effectiveMembership?.role || null;
+  const effectiveIsAdmin = effectiveRole === 'admin';
+
+  // Build the effective organization object
+  const effectiveOrganization: Organization | null = effectiveOrgId
+    ? accessibleOrganizations.find(org => org.id === effectiveOrgId) 
+      || (primaryOrganization?.id === effectiveOrgId ? primaryOrganization : null)
+    : primaryOrganization;
+
+  // Keep the header in sync when primary org info becomes available
+  // Also invalidate data caches when the effective org changes (e.g., on page load from localStorage)
+  const prevEffectiveOrgRef = { current: null as string | null };
+  useEffect(() => {
+    if (!effectiveOrgId) return;
+    // Don't clear the header if we're still waiting for memberships to load
+    if (!allMemberships || allMemberships.length === 0) return;
+    
+    if (effectiveOrgId !== primaryOrganization?.id) {
+      setActiveOrganizationId(effectiveOrgId);
+    } else {
+      setActiveOrganizationId(null);
+    }
+    
+    // If the effective org is different from primary (i.e., user switched orgs),
+    // invalidate data caches so they refetch with the org header
+    if (effectiveOrgId !== primaryOrganization?.id) {
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey;
+          if (Array.isArray(key) && (key[0] === 'organization_memberships' || key[0] === 'profile')) {
+            return false;
+          }
+          return true;
+        }
+      });
+    }
+  }, [effectiveOrgId, primaryOrganization?.id, allMemberships]);
+
+  const switchOrganization = useCallback((orgId: string) => {
+    // Validate the user has access
+    const hasMembership = allMemberships?.some((m: any) => m.organization_id === orgId);
+    if (!hasMembership) {
+      console.warn('Cannot switch to org — no membership:', orgId);
+      return;
+    }
+
+    // Set the header BEFORE invalidating queries so refetches use the new org
+    if (orgId !== primaryOrganization?.id) {
+      setActiveOrganizationId(orgId);
+    } else {
+      setActiveOrganizationId(null);
+    }
+
+    setActiveOrgId(orgId);
+    try {
+      localStorage.setItem(ACTIVE_ORG_KEY, orgId);
+    } catch {
+      // localStorage not available
+    }
+
+    // Invalidate all data caches EXCEPT membership queries so the switcher stays populated
+    queryClient.invalidateQueries({
+      predicate: (query) => {
+        const key = query.queryKey;
+        // Don't invalidate membership or profile queries — those are user-level, not org-scoped
+        if (Array.isArray(key) && (key[0] === 'organization_memberships' || key[0] === 'profile')) {
+          return false;
+        }
+        return true;
+      }
+    });
+  }, [allMemberships, queryClient, primaryOrganization?.id]);
+
   const refreshOrganization = async () => {
-    // Invalidate queries to force refetch
     if (user?.userId) {
+      setOrgsLoaded(false);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['profile', user.userId] }),
         queryClient.invalidateQueries({ queryKey: ['organization_memberships', user.userId] }),
@@ -53,19 +187,34 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     }
   };
 
+  const canSwitchOrganization = (allMemberships?.length || 0) > 1;
+
+  // Debug logging - remove after confirming switcher works
+  console.log('[OrgProvider]', {
+    allMemberships: allMemberships?.length,
+    membershipOrgIds: allMemberships?.map((m: any) => m.organization_id),
+    accessibleOrganizations: accessibleOrganizations.length,
+    canSwitchOrganization,
+    effectiveOrgId,
+    orgsLoaded,
+  });
+
   return (
     <OrganizationContext.Provider value={{
-      organization,
-      organizationMember: organizationMember ? {
-        id: organizationMember.id,
-        organization_id: organizationMember.organization_id,
-        user_id: organizationMember.user_id,
-        role: organizationMember.role,
+      organization: effectiveOrganization,
+      organizationMember: effectiveMembership ? {
+        id: effectiveMembership.id,
+        organization_id: effectiveMembership.organization_id,
+        user_id: effectiveMembership.user_id,
+        role: effectiveMembership.role,
         invited_by: null
       } : null,
-      isAdmin,
+      isAdmin: effectiveIsAdmin,
       loading: isLoading,
       refreshOrganization,
+      accessibleOrganizations,
+      switchOrganization,
+      canSwitchOrganization,
     }}>
       {children}
     </OrganizationContext.Provider>

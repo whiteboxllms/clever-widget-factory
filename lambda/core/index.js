@@ -4,6 +4,7 @@ const { getAuthorizerContext, buildOrganizationFilter, hasPermission, canAccessO
 const { composePartEmbeddingSource, composeToolEmbeddingSource, composeIssueEmbeddingSource, composePolicyEmbeddingSource } = require('/opt/nodejs/embedding-composition');
 const { getDbClient } = require('/opt/nodejs/db');
 const { escapeLiteral, formatSqlValue, buildUpdateClauses } = require('/opt/nodejs/sqlUtils');
+const { broadcastInvalidation } = require('/opt/nodejs/broadcastInvalidation');
 
 const sqs = new SQSClient({ region: 'us-west-2' });
 const EMBEDDINGS_QUEUE_URL = 'https://sqs.us-west-2.amazonaws.com/131745734428/cwf-embeddings-queue';
@@ -30,7 +31,7 @@ exports.handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
   };
   
@@ -190,6 +191,19 @@ exports.handler = async (event) => {
           }
         }
         
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'tool',
+            entityId: toolId,
+            mutationType: 'created',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
+        }
+        
         return {
           statusCode: 201,
           headers,
@@ -285,6 +299,19 @@ exports.handler = async (event) => {
               // Non-fatal - continue with response
             }
           }
+        }
+        
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'tool',
+            entityId: toolId,
+            mutationType: 'updated',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
         }
         
         return {
@@ -453,6 +480,19 @@ exports.handler = async (event) => {
         }
       }
       
+      // Broadcast cache invalidation to WebSocket clients
+      try {
+        await broadcastInvalidation({
+          entityType: 'part',
+          entityId: partId,
+          mutationType: 'created',
+          organizationId,
+          excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+        });
+      } catch (err) {
+        console.error('[CORE] Broadcast failed:', err.message);
+      }
+      
       return {
         statusCode: 201,
         headers,
@@ -478,6 +518,20 @@ exports.handler = async (event) => {
           body: JSON.stringify({ error: 'Part not found' })
         };
       }
+      
+      // Broadcast cache invalidation to WebSocket clients
+      try {
+        await broadcastInvalidation({
+          entityType: 'part',
+          entityId: partId,
+          mutationType: 'deleted',
+          organizationId,
+          excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+        });
+      } catch (err) {
+        console.error('[CORE] Broadcast failed:', err.message);
+      }
+      
       return {
         statusCode: 200,
         headers,
@@ -579,6 +633,19 @@ exports.handler = async (event) => {
             // Non-fatal - continue with response
           }
         }
+      }
+      
+      // Broadcast cache invalidation to WebSocket clients
+      try {
+        await broadcastInvalidation({
+          entityType: 'part',
+          entityId: partId,
+          mutationType: 'updated',
+          organizationId,
+          excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+        });
+      } catch (err) {
+        console.error('[CORE] Broadcast failed:', err.message);
       }
       
       return {
@@ -897,6 +964,19 @@ exports.handler = async (event) => {
           }
         }
         
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'issue',
+            entityId: issue.id,
+            mutationType: 'created',
+            organizationId: orgId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
+        }
+        
         return {
           statusCode: 201,
           headers,
@@ -989,6 +1069,19 @@ exports.handler = async (event) => {
               // Non-fatal - continue with response
             }
           }
+        }
+        
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'issue',
+            entityId: issueId,
+            mutationType: 'updated',
+            organizationId: result[0].organization_id,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
         }
         
         return {
@@ -1725,6 +1818,20 @@ exports.handler = async (event) => {
         console.log('Checkin data:', JSON.stringify(insertData, null, 2));
         
         const result = await queryJSON(sql);
+        
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'checkin',
+            entityId: result[0].id,
+            mutationType: 'created',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
+        }
+        
         return {
           statusCode: 201,
           headers,
@@ -1975,6 +2082,20 @@ exports.handler = async (event) => {
         const checkoutId = path.split('/').pop();
         const sql = `DELETE FROM checkouts WHERE id = '${checkoutId}' RETURNING *`;
         const result = await queryJSON(sql);
+        
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'checkout',
+            entityId: checkoutId,
+            mutationType: 'deleted',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
+        }
+        
         return {
           statusCode: 200,
           headers,
@@ -1997,6 +2118,20 @@ exports.handler = async (event) => {
         }
         const sql = `UPDATE checkouts SET ${updates.join(', ')} WHERE id = '${checkoutId}' RETURNING *`;
         const result = await queryJSON(sql);
+        
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'checkout',
+            entityId: checkoutId,
+            mutationType: 'updated',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
+        }
+        
         return {
           statusCode: 200,
           headers,
@@ -2055,6 +2190,20 @@ exports.handler = async (event) => {
         
         try {
           const result = await queryJSON(sql);
+          
+          // Broadcast cache invalidation to WebSocket clients
+          try {
+            await broadcastInvalidation({
+              entityType: 'checkout',
+              entityId: result[0].id,
+              mutationType: 'created',
+              organizationId: orgId,
+              excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+            });
+          } catch (err) {
+            console.error('[CORE] Broadcast failed:', err.message);
+          }
+          
           return {
             statusCode: 201,
             headers,
@@ -2179,6 +2328,20 @@ exports.handler = async (event) => {
         
         try {
           const result = await queryJSON(sql);
+          
+          // Broadcast cache invalidation to WebSocket clients
+          try {
+            await broadcastInvalidation({
+              entityType: 'exploration',
+              entityId: result[0].id.toString(),
+              mutationType: 'created',
+              organizationId,
+              excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+            });
+          } catch (err) {
+            console.error('[CORE] Broadcast failed:', err.message);
+          }
+          
           return {
             statusCode: 201,
             headers,
@@ -2230,6 +2393,20 @@ exports.handler = async (event) => {
               body: JSON.stringify({ error: 'Exploration not found' })
             };
           }
+          
+          // Broadcast cache invalidation to WebSocket clients
+          try {
+            await broadcastInvalidation({
+              entityType: 'exploration',
+              entityId: explorationId.toString(),
+              mutationType: 'updated',
+              organizationId,
+              excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+            });
+          } catch (err) {
+            console.error('[CORE] Broadcast failed:', err.message);
+          }
+          
           return {
             statusCode: 200,
             headers,
@@ -2556,6 +2733,19 @@ exports.handler = async (event) => {
             }
           }
           
+          // Broadcast cache invalidation to WebSocket clients
+          try {
+            await broadcastInvalidation({
+              entityType: 'policy',
+              entityId: result[0].id.toString(),
+              mutationType: 'created',
+              organizationId,
+              excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+            });
+          } catch (err) {
+            console.error('[CORE] Broadcast failed:', err.message);
+          }
+          
           return {
             statusCode: 201,
             headers,
@@ -2644,6 +2834,19 @@ exports.handler = async (event) => {
                 // Non-fatal - continue with response
               }
             }
+          }
+          
+          // Broadcast cache invalidation to WebSocket clients
+          try {
+            await broadcastInvalidation({
+              entityType: 'policy',
+              entityId: policyId.toString(),
+              mutationType: 'updated',
+              organizationId,
+              excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+            });
+          } catch (err) {
+            console.error('[CORE] Broadcast failed:', err.message);
           }
           
           return {
@@ -2760,6 +2963,20 @@ exports.handler = async (event) => {
               body: JSON.stringify({ error: 'Policy not found' })
             };
           }
+          
+          // Broadcast cache invalidation to WebSocket clients
+          try {
+            await broadcastInvalidation({
+              entityType: 'policy',
+              entityId: policyId.toString(),
+              mutationType: 'deleted',
+              organizationId,
+              excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+            });
+          } catch (err) {
+            console.error('[CORE] Broadcast failed:', err.message);
+          }
+          
           return {
             statusCode: 200,
             headers,
@@ -3003,6 +3220,20 @@ exports.handler = async (event) => {
         
         console.log('SQL:', sql);
         const result = await queryJSON(sql);
+        
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'mission',
+            entityId: result[0].id,
+            mutationType: 'created',
+            organizationId: orgId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
+        }
+        
         return {
           statusCode: 201,
           headers,
@@ -3072,6 +3303,19 @@ exports.handler = async (event) => {
           };
         }
         
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'mission',
+            entityId: missionId,
+            mutationType: 'updated',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
+        }
+        
         return {
           statusCode: 200,
           headers,
@@ -3094,6 +3338,19 @@ exports.handler = async (event) => {
             headers,
             body: JSON.stringify({ error: 'Mission not found' })
           };
+        }
+        
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'mission',
+            entityId: missionId,
+            mutationType: 'deleted',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
         }
         
         return {
@@ -3363,6 +3620,19 @@ exports.handler = async (event) => {
         
         const fetchResult = await queryJSON(fetchSql);
         
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'action',
+            entityId: newActionId,
+            mutationType: 'created',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
+        }
+        
         return {
           statusCode: 201,
           headers,
@@ -3493,6 +3763,19 @@ exports.handler = async (event) => {
         ) t;`;
         
         const fetchResult = await queryJSON(fetchSql);
+        
+        // Broadcast cache invalidation to WebSocket clients
+        try {
+          await broadcastInvalidation({
+            entityType: 'action',
+            entityId: actionId,
+            mutationType: 'updated',
+            organizationId,
+            excludeConnectionId: event.headers?.['x-connection-id'] || event.headers?.['X-Connection-Id'] || null
+          });
+        } catch (err) {
+          console.error('[CORE] Broadcast failed:', err.message);
+        }
         
         return {
           statusCode: 200,

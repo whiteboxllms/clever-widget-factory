@@ -394,7 +394,11 @@ exports.handler = async (event) => {
             WHERE checkouts.tool_id = t.id AND checkouts.is_returned = false
             ORDER BY checkouts.checkout_date DESC LIMIT 1
           ) c ON true
-          LEFT JOIN organization_members om ON c.user_id = om.cognito_user_id
+          LEFT JOIN LATERAL (
+            SELECT full_name FROM organization_members
+            WHERE cognito_user_id = c.user_id
+            LIMIT 1
+          ) om ON true
           WHERE t.id IN (${affectedToolIds.map(id => `'${id}'`).join(',')})
         `;
         affectedTools = await queryJSON(toolsSql);

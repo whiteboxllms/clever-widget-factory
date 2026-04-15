@@ -60,7 +60,11 @@ exports.handler = async (event) => {
           c.created_at,
           COALESCE(om.full_name, 'Unknown User') as user_display_name
         FROM checkouts c
-        LEFT JOIN organization_members om ON c.user_id::text = om.cognito_user_id::text
+        LEFT JOIN LATERAL (
+          SELECT full_name FROM organization_members
+          WHERE cognito_user_id::text = c.user_id::text
+          LIMIT 1
+        ) om ON true
         WHERE c.tool_id::text = '${escapeLiteral(toolId)}'
         ORDER BY c.checkout_date DESC
       ) t;`;
@@ -85,7 +89,11 @@ exports.handler = async (event) => {
           i.updated_at,
           COALESCE(om.full_name, i.reported_by::text) as reported_by_name
         FROM issues i
-        LEFT JOIN organization_members om ON i.reported_by::text = om.cognito_user_id::text
+        LEFT JOIN LATERAL (
+          SELECT full_name FROM organization_members
+          WHERE cognito_user_id::text = i.reported_by::text
+          LIMIT 1
+        ) om ON true
         WHERE i.context_type = 'tool' AND i.context_id::text = '${escapeLiteral(toolId)}'
         ORDER BY i.reported_at DESC
       ) t;`;
@@ -107,7 +115,11 @@ exports.handler = async (event) => {
           a.updated_at,
           COALESCE(om.full_name, 'System') as created_by_name
         FROM actions a
-        LEFT JOIN organization_members om ON a.created_by::text = om.cognito_user_id::text
+        LEFT JOIN LATERAL (
+          SELECT full_name FROM organization_members
+          WHERE cognito_user_id::text = a.created_by::text
+          LIMIT 1
+        ) om ON true
         WHERE a.asset_id::text = '${escapeLiteral(toolId)}'
         ORDER BY a.created_at DESC
       ) t;`;
@@ -146,7 +158,11 @@ exports.handler = async (event) => {
           ) as metrics
         FROM states s
         JOIN state_links sl ON sl.state_id = s.id
-        LEFT JOIN organization_members om ON s.captured_by::text = om.cognito_user_id::text
+        LEFT JOIN LATERAL (
+          SELECT full_name FROM organization_members
+          WHERE cognito_user_id::text = s.captured_by::text
+          LIMIT 1
+        ) om ON true
         WHERE sl.entity_type = 'tool' AND sl.entity_id::text = '${escapeLiteral(toolId)}'
         ORDER BY s.captured_at DESC
       ) t;`;
@@ -164,7 +180,11 @@ exports.handler = async (event) => {
           ah.notes,
           COALESCE(om.full_name, 'System') as user_name
         FROM asset_history ah
-        LEFT JOIN organization_members om ON ah.changed_by::text = om.cognito_user_id::text
+        LEFT JOIN LATERAL (
+          SELECT full_name FROM organization_members
+          WHERE cognito_user_id::text = ah.changed_by::text
+          LIMIT 1
+        ) om ON true
         WHERE ah.asset_id::text = '${escapeLiteral(toolId)}'
         ORDER BY ah.changed_at DESC
       ) t;`;
@@ -279,7 +299,11 @@ exports.handler = async (event) => {
           ph.*,
           COALESCE(om.full_name, ph.changed_by::text) as changed_by_name
         FROM parts_history ph
-        LEFT JOIN organization_members om ON ph.changed_by::text = om.cognito_user_id::text
+        LEFT JOIN LATERAL (
+          SELECT full_name FROM organization_members
+          WHERE cognito_user_id::text = ph.changed_by::text
+          LIMIT 1
+        ) om ON true
         ${whereClause} 
         ORDER BY ph.changed_at DESC 
         LIMIT 100
@@ -319,7 +343,11 @@ exports.handler = async (event) => {
           ) as metrics
         FROM states s
         JOIN state_links sl ON sl.state_id = s.id
-        LEFT JOIN organization_members om ON s.captured_by::text = om.cognito_user_id::text
+        LEFT JOIN LATERAL (
+          SELECT full_name FROM organization_members
+          WHERE cognito_user_id::text = s.captured_by::text
+          LIMIT 1
+        ) om ON true
         WHERE sl.entity_type = 'part' AND sl.entity_id::text = '${escapeLiteral(partId)}'
         ORDER BY s.captured_at DESC
       ) t;`;
@@ -336,7 +364,11 @@ exports.handler = async (event) => {
           i.resolved_at,
           COALESCE(om.full_name, i.reported_by::text) as reported_by_name
         FROM issues i
-        LEFT JOIN organization_members om ON i.reported_by::text = om.cognito_user_id::text
+        LEFT JOIN LATERAL (
+          SELECT full_name FROM organization_members
+          WHERE cognito_user_id::text = i.reported_by::text
+          LIMIT 1
+        ) om ON true
         WHERE i.context_type = 'inventory' AND i.context_id::text = '${escapeLiteral(partId)}'
         ORDER BY i.reported_at DESC
       ) t;`;
@@ -351,7 +383,11 @@ exports.handler = async (event) => {
           a.created_at,
           COALESCE(om.full_name, 'System') as created_by_name
         FROM actions a
-        LEFT JOIN organization_members om ON a.created_by::text = om.cognito_user_id::text
+        LEFT JOIN LATERAL (
+          SELECT full_name FROM organization_members
+          WHERE cognito_user_id::text = a.created_by::text
+          LIMIT 1
+        ) om ON true
         WHERE a.asset_id::text = '${escapeLiteral(partId)}'
         ORDER BY a.created_at DESC
       ) t;`;

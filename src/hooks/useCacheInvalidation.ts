@@ -10,6 +10,7 @@ import {
   missionsQueryKey,
   explorationsQueryKey,
   experiencesQueryKey,
+  statesQueryKey,
 } from '@/lib/queryKeys';
 
 interface CacheInvalidatePayload {

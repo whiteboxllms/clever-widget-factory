@@ -1,0 +1,10 @@
+{
+  "name": "cwf-ws-message-router",
+  "version": "1.0.0",
+  "description": "WebSocket $default route handler - routes incoming messages by type",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.0.0",
+    "@aws-sdk/client-lambda": "^3.0.0"
+  }
+}

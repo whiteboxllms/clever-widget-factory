@@ -8,8 +8,8 @@ Lambda functions use JavaScript/Node.js with the cwf-common-nodejs layer. Fronte
 
 ## Tasks
 
-- [ ] 1. Database migrations
-  - [ ] 1.1 Create websocket_connections table
+- [x] 1. Database migrations
+  - [x] 1.1 Create websocket_connections table
     - Write SQL migration for `websocket_connections` table with columns: id (UUID PK), connection_id (VARCHAR UNIQUE), user_id (UUID), organization_id (UUID FK → organizations), connected_at (TIMESTAMPTZ), disconnected_at (TIMESTAMPTZ nullable)
     - Create partial index `idx_ws_connections_org_active` on (organization_id) WHERE disconnected_at IS NULL
     - Create index `idx_ws_connections_user` on (user_id)
@@ -17,7 +17,7 @@ Lambda functions use JavaScript/Node.js with the cwf-common-nodejs layer. Fronte
     - Execute via cwf-db-migration Lambda
     - _Requirements: 6.6, 1.2, 1.3_
 
-  - [ ] 1.2 Create entity_changes table
+  - [x] 1.2 Create entity_changes table
     - Write SQL migration for `entity_changes` table with columns: id (UUID PK), entity_type (VARCHAR), entity_id (UUID), mutation_type (VARCHAR with CHECK IN created/updated/deleted), organization_id (UUID FK → organizations), changed_by_connection_id (VARCHAR nullable), created_at (TIMESTAMPTZ)
     - Create index `idx_entity_changes_catchup` on (organization_id, created_at)
     - Create index `idx_entity_changes_cleanup` on (created_at)
@@ -31,8 +31,8 @@ Lambda functions use JavaScript/Node.js with the cwf-common-nodejs layer. Fronte
     - Test that entity_changes older than 7 days are deleted and within 7 days are preserved
     - **Validates: Requirements 1.4, 3.6**
 
-- [ ] 2. Lambda authorizer (cwf-ws-authorizer)
-  - [ ] 2.1 Create cwf-ws-authorizer Lambda
+- [x] 2. Lambda authorizer (cwf-ws-authorizer)
+  - [x] 2.1 Create cwf-ws-authorizer Lambda
     - Create `lambda/ws-authorizer/` directory with index.js and package.json
     - Implement handler that reads JWT from `event.queryStringParameters.token` (not headers — browser WebSocket API doesn't support custom headers)
     - Reuse JWT verification and Cognito JWKS validation logic from existing `lambda/authorizer/`
@@ -47,13 +47,13 @@ Lambda functions use JavaScript/Node.js with the cwf-common-nodejs layer. Fronte
     - For any invalid token (expired, wrong issuer, malformed), authorizer returns Deny
     - **Validates: Requirements 1.1, 1.5**
 
-  - [ ] 2.3 Deploy cwf-ws-authorizer
+  - [x] 2.3 Deploy cwf-ws-authorizer
     - Run: `./scripts/deploy/deploy-lambda-with-layer.sh ws-authorizer cwf-ws-authorizer`
     - Verify deployment succeeds
     - _Requirements: 6.2_
 
-- [ ] 3. Connect and disconnect handlers
-  - [ ] 3.1 Create cwf-ws-connect Lambda
+- [x] 3. Connect and disconnect handlers
+  - [x] 3.1 Create cwf-ws-connect Lambda
     - Create `lambda/ws-connect/` directory with index.js and package.json
     - Implement handler that extracts connectionId from `event.requestContext.connectionId` and org context from `event.requestContext.authorizer`
     - INSERT into websocket_connections with connection_id, user_id, organization_id, connected_at
@@ -70,21 +70,21 @@ Lambda functions use JavaScript/Node.js with the cwf-common-nodejs layer. Fronte
       - No changes from other orgs are sent
     - **Validates: Requirements 3.4**
 
-  - [ ] 3.3 Create cwf-ws-disconnect Lambda
+  - [x] 3.3 Create cwf-ws-disconnect Lambda
     - Create `lambda/ws-disconnect/` directory with index.js and package.json
     - Implement handler that extracts connectionId from `event.requestContext.connectionId`
     - UPDATE websocket_connections SET disconnected_at = NOW() WHERE connection_id = $1 (soft delete)
     - Return `{ statusCode: 200 }`
     - _Requirements: 1.3_
 
-  - [ ] 3.4 Deploy connect and disconnect Lambdas
+  - [x] 3.4 Deploy connect and disconnect Lambdas
     - Run: `./scripts/deploy/deploy-lambda-with-layer.sh ws-connect cwf-ws-connect`
     - Run: `./scripts/deploy/deploy-lambda-with-layer.sh ws-disconnect cwf-ws-disconnect`
     - Verify both deployments succeed
     - _Requirements: 6.1, 6.3_
 
-- [ ] 4. Message router with Maxwell chat handler (cwf-ws-message-router)
-  - [ ] 4.1 Create cwf-ws-message-router Lambda
+- [x] 4. Message router with Maxwell chat handler (cwf-ws-message-router)
+  - [x] 4.1 Create cwf-ws-message-router Lambda
     - Create `lambda/ws-message-router/` directory with index.js and package.json
     - Implement handler that parses `event.body` as JSON
     - Route by `message.type`: `maxwell:chat` → handleMaxwellChat, `ping` → handlePing, unknown → handleUnknownType
@@ -102,7 +102,7 @@ Lambda functions use JavaScript/Node.js with the cwf-common-nodejs layer. Fronte
       - Connection is not closed
     - **Validates: Requirements 4.4**
 
-  - [ ] 4.3 Implement Maxwell chat handler module
+  - [x] 4.3 Implement Maxwell chat handler module
     - Create `lambda/ws-message-router/maxwellChatHandler.js`
     - Reuse prompt detection and instruction prefix logic from existing `lambda/maxwell-chat/index.js` (detectPromptMode, buildInstructionPrefix, prompt loading)
     - Copy prompts directory from `lambda/maxwell-chat/prompts/` to `lambda/ws-message-router/prompts/`
@@ -135,18 +135,18 @@ Lambda functions use JavaScript/Node.js with the cwf-common-nodejs layer. Fronte
     - For any message type and payload, serializing then deserializing produces identical type, deep-equal payload, and valid ISO 8601 timestamp
     - **Validates: Requirements 4.1**
 
-  - [ ] 4.8 Deploy cwf-ws-message-router
+  - [x] 4.8 Deploy cwf-ws-message-router
     - Run: `./scripts/deploy/deploy-lambda-with-layer.sh ws-message-router cwf-ws-message-router`
     - Add `@aws-sdk/client-bedrock-agent-runtime` and `@aws-sdk/client-apigatewaymanagementapi` as dependencies
     - Configure environment variables: MAXWELL_AGENT_ID, MAXWELL_AGENT_ALIAS_ID, BEDROCK_REGION
     - Verify deployment succeeds
     - _Requirements: 6.1, 6.4_
 
-- [ ] 5. Checkpoint - Backend Lambdas complete
+- [x] 5. Checkpoint - Backend Lambdas complete
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 6. API Gateway WebSocket API setup
-  - [ ] 6.1 Create WebSocket API and routes
+- [x] 6. API Gateway WebSocket API setup
+  - [x] 6.1 Create WebSocket API and routes
     - Create API Gateway WebSocket API (name: cwf-websocket-api)
     - Create $connect route with Lambda authorizer (cwf-ws-authorizer)
     - Create $disconnect route integrated with cwf-ws-disconnect
@@ -155,19 +155,19 @@ Lambda functions use JavaScript/Node.js with the cwf-common-nodejs layer. Fronte
     - Grant API Gateway invoke permissions on all four Lambda functions
     - _Requirements: 6.1, 6.2_
 
-  - [ ] 6.2 Deploy WebSocket API
+  - [x] 6.2 Deploy WebSocket API
     - Create deployment stage (name: prod)
     - Note the WebSocket endpoint URL: `wss://{api-id}.execute-api.us-west-2.amazonaws.com/prod`
     - Add `WS_API_ENDPOINT` environment variable to all mutation Lambdas (cwf-core-lambda, cwf-actions-lambda, cwf-explorations-lambda, cwf-experiences-lambda)
     - Add `execute-api:ManageConnections` permission to Lambda execution roles
     - _Requirements: 6.1, 6.4_
 
-  - [ ] 6.3 Add WebSocket endpoint to frontend environment
+  - [x] 6.3 Add WebSocket endpoint to frontend environment
     - Add `VITE_WS_API_URL` to `.env.local` and `.env.production` with the WebSocket endpoint URL
     - _Requirements: 5.1_
 
-- [ ] 7. broadcastInvalidation utility in Lambda layer
-  - [ ] 7.1 Create broadcastInvalidation module
+- [x] 7. broadcastInvalidation utility in Lambda layer
+  - [x] 7.1 Create broadcastInvalidation module
     - Create `lambda/layers/cwf-common-nodejs/nodejs/broadcastInvalidation.js`
     - Implement `broadcastInvalidation({ entityType, entityId, mutationType, organizationId, excludeConnectionId })` function
     - If `WS_API_ENDPOINT` env var is not set, return silently (graceful degradation)
@@ -186,60 +186,60 @@ Lambda functions use JavaScript/Node.js with the cwf-common-nodejs layer. Fronte
       - The originating connection does not receive the message
     - **Validates: Requirements 3.2, 6.5**
 
-  - [ ] 7.3 Deploy updated Lambda layer
+  - [x] 7.3 Deploy updated Lambda layer
     - Run the layer deploy script: `lambda/layers/cwf-common-nodejs/deploy-layer.sh`
     - Update layer version reference in deploy-lambda-with-layer.sh if needed
     - Redeploy mutation Lambdas to pick up new layer version
     - _Requirements: 3.1_
 
-- [ ] 8. Mutation Lambda integration
-  - [ ] 8.1 Add broadcastInvalidation calls to cwf-core-lambda
+- [x] 8. Mutation Lambda integration
+  - [x] 8.1 Add broadcastInvalidation calls to cwf-core-lambda
     - Import `broadcastInvalidation` from `/opt/nodejs/broadcastInvalidation`
     - Add calls after successful POST (created), PUT (updated), DELETE (deleted) operations for tools, parts, and other entities
     - Pass organizationId from authorizer context, excludeConnectionId from request headers (X-Connection-Id) if available
     - _Requirements: 3.1, 3.2_
 
-  - [ ] 8.2 Add broadcastInvalidation calls to cwf-actions-lambda
+  - [x] 8.2 Add broadcastInvalidation calls to cwf-actions-lambda
     - Import and call broadcastInvalidation after action create/update/delete operations
     - Entity type: 'action'
     - _Requirements: 3.1, 3.2_
 
-  - [ ] 8.3 Add broadcastInvalidation calls to cwf-explorations-lambda
+  - [x] 8.3 Add broadcastInvalidation calls to cwf-explorations-lambda
     - Import and call broadcastInvalidation after exploration create/update/delete operations
     - Entity type: 'exploration'
     - _Requirements: 3.1, 3.2_
 
-  - [ ] 8.4 Add broadcastInvalidation calls to cwf-experiences-lambda
+  - [x] 8.4 Add broadcastInvalidation calls to cwf-experiences-lambda
     - Import and call broadcastInvalidation after experience create/update/delete operations
     - Entity type: 'experience'
     - _Requirements: 3.1, 3.2_
 
-  - [ ] 8.5 Redeploy mutation Lambdas
+  - [x] 8.5 Redeploy mutation Lambdas
     - Run: `./scripts/deploy/deploy-lambda-with-layer.sh core cwf-core-lambda`
     - Run: `./scripts/deploy/deploy-lambda-with-layer.sh actions cwf-actions-lambda`
     - Run: `./scripts/deploy/deploy-lambda-with-layer.sh explorations cwf-explorations-lambda`
     - Run: `./scripts/deploy/deploy-lambda-with-layer.sh experiences cwf-experiences-lambda`
     - _Requirements: 3.1_
 
-- [ ] 9. Cleanup Lambda (cwf-ws-cleanup)
-  - [ ] 9.1 Create cwf-ws-cleanup Lambda
+- [x] 9. Cleanup Lambda (cwf-ws-cleanup)
+  - [x] 9.1 Create cwf-ws-cleanup Lambda
     - Create `lambda/ws-cleanup/` directory with index.js and package.json
     - Implement handler that marks connections older than 24h with NULL disconnected_at as disconnected
     - Delete entity_changes records older than 7 days
     - Log counts of cleaned-up records
     - _Requirements: 1.4, 3.6_
 
-  - [ ] 9.2 Deploy cwf-ws-cleanup and configure EventBridge schedule
+  - [x] 9.2 Deploy cwf-ws-cleanup and configure EventBridge schedule
     - Run: `./scripts/deploy/deploy-lambda-with-layer.sh ws-cleanup cwf-ws-cleanup`
     - Create EventBridge rule to invoke cwf-ws-cleanup every hour (rate(1 hour))
     - Grant EventBridge permission to invoke the Lambda
     - _Requirements: 1.4, 3.6_
 
-- [ ] 10. Checkpoint - Backend complete
+- [x] 10. Checkpoint - Backend complete
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 11. Frontend useWebSocket hook
-  - [ ] 11.1 Create useWebSocket hook
+- [x] 11. Frontend useWebSocket hook
+  - [x] 11.1 Create useWebSocket hook
     - Create `src/hooks/useWebSocket.ts`
     - Implement WebSocket connection to `VITE_WS_API_URL` with Cognito JWT token as query parameter
     - Expose connection status: 'connecting' | 'connected' | 'disconnected' | 'reconnecting'
@@ -249,7 +249,7 @@ Lambda functions use JavaScript/Node.js with the cwf-common-nodejs layer. Fronte
     - Use singleton pattern — one WebSocket connection shared across all consumers
     - _Requirements: 5.1, 5.6_
 
-  - [ ] 11.2 Implement reconnection with exponential backoff
+  - [x] 11.2 Implement reconnection with exponential backoff
     - On unexpected disconnect, set status to 'reconnecting'
     - Implement exponential backoff: delay = min(2^n * 1000, 30000) ms
     - Refresh Cognito JWT token before each reconnection attempt
@@ -262,7 +262,7 @@ Lambda functions use JavaScript/Node.js with the cwf-common-nodejs layer. Fronte
     - Delay is always between 1000ms and 30000ms inclusive
     - **Validates: Requirements 5.2**
 
-  - [ ] 11.4 Implement keepalive ping
+  - [x] 11.4 Implement keepalive ping
     - Send `ping` message every 5 minutes to prevent API Gateway idle timeout (10 min)
     - Handle `pong` response
     - If no pong received within timeout, close connection and trigger reconnect
@@ -275,8 +275,8 @@ Lambda functions use JavaScript/Node.js with the cwf-common-nodejs layer. Fronte
     - Test ping/pong keepalive
     - _Requirements: 5.1, 5.2, 5.6_
 
-- [ ] 12. Frontend useMaxwell hook update
-  - [ ] 12.1 Update useMaxwell to use WebSocket with REST fallback
+- [x] 12. Frontend useMaxwell hook update
+  - [x] 12.1 Update useMaxwell to use WebSocket with REST fallback
     - Import and use `useWebSocket` hook
     - When `status === 'connected'`, send `maxwell:chat` messages via WebSocket
     - Subscribe to `maxwell:response_chunk`, `maxwell:response_complete`, `maxwell:progress`, `maxwell:error`
@@ -305,8 +305,8 @@ Lambda functions use JavaScript/Node.js with the cwf-common-nodejs layer. Fronte
     - Test error handling for maxwell:error messages
     - _Requirements: 5.4, 5.7_
 
-- [ ] 13. Frontend useCacheInvalidation hook
-  - [ ] 13.1 Create useCacheInvalidation hook
+- [x] 13. Frontend useCacheInvalidation hook
+  - [x] 13.1 Create useCacheInvalidation hook
     - Create `src/hooks/useCacheInvalidation.ts`
     - Subscribe to `cache:invalidate` messages via useWebSocket
     - Map entityType to TanStack Query keys using existing queryKeys.ts functions:
@@ -320,7 +320,7 @@ Lambda functions use JavaScript/Node.js with the cwf-common-nodejs layer. Fronte
     - Call `queryClient.invalidateQueries()` with the mapped query key
     - _Requirements: 3.3, 5.3_
 
-  - [ ] 13.2 Mount useCacheInvalidation in app root
+  - [x] 13.2 Mount useCacheInvalidation in app root
     - Add `useCacheInvalidation()` call in the app's authenticated layout or provider
     - Ensure it runs for all authenticated users
     - _Requirements: 3.3_
@@ -330,52 +330,52 @@ Lambda functions use JavaScript/Node.js with the cwf-common-nodejs layer. Fronte
     - Test unknown entityType is handled gracefully (no crash)
     - _Requirements: 3.3_
 
-- [ ] 14. Frontend connection status indicator
-  - [ ] 14.1 Create WebSocket connection status indicator component
+- [x] 14. Frontend connection status indicator
+  - [x] 14.1 Create WebSocket connection status indicator component
     - Create a small UI component that shows connection status (connecting, connected, disconnected, reconnecting)
     - Use Lucide React icons (e.g., Wifi, WifiOff) with Tailwind CSS styling
     - Show as a subtle indicator in the app header or layout
     - Green dot/icon for connected, yellow for connecting/reconnecting, red for disconnected
     - _Requirements: 5.6_
 
-  - [ ] 14.2 Integrate status indicator into app layout
+  - [x] 14.2 Integrate status indicator into app layout
     - Add the connection status component to the main app layout
     - Only show when user is authenticated
     - _Requirements: 5.6_
 
-- [ ] 15. Checkpoint - Frontend complete
+- [x] 15. Checkpoint - Frontend complete
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 16. End-to-end testing and verification
-  - [ ] 16.1 Write integration tests for WebSocket connection lifecycle
+- [x] 16. End-to-end testing and verification
+  - [x] 16.1 Write integration tests for WebSocket connection lifecycle
     - Test $connect with valid Cognito token establishes connection and inserts DB record
     - Test $disconnect updates disconnected_at (soft delete)
     - Test connection with invalid token is rejected with 401
     - _Requirements: 1.1, 1.2, 1.3, 1.5_
 
-  - [ ] 16.2 Write integration tests for Maxwell chat over WebSocket
+  - [x] 16.2 Write integration tests for Maxwell chat over WebSocket
     - Test sending maxwell:chat message → receiving streamed response chunks → response_complete
     - Test progress events are received during Bedrock Agent processing
     - Test error handling (throttling, timeout)
     - _Requirements: 2.1, 2.2, 2.3, 2.6, 2.7_
 
-  - [ ] 16.3 Write integration tests for cache invalidation flow
+  - [x] 16.3 Write integration tests for cache invalidation flow
     - Test mutation → entity_changes INSERT → broadcast to connected clients
     - Test organization isolation (other org's connections don't receive events)
     - Test mutator exclusion (originating connection doesn't receive its own event)
     - _Requirements: 3.1, 3.2, 6.5_
 
-  - [ ] 16.4 Write integration tests for reconnection catch-up
+  - [x] 16.4 Write integration tests for reconnection catch-up
     - Test disconnect → mutation occurs → reconnect → catch-up events received
     - _Requirements: 3.4_
 
-  - [ ] 16.5 Write integration tests for cleanup Lambda
+  - [x] 16.5 Write integration tests for cleanup Lambda
     - Test stale connections (>24h) are marked disconnected
     - Test old entity_changes (>7 days) are deleted
     - Test recent records are preserved
     - _Requirements: 1.4, 3.6_
 
-- [ ] 17. Final checkpoint - Ensure all tests pass
+- [x] 17. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

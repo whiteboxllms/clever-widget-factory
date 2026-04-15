@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Shared utilities for Clever Widget Factory Lambda functions",
   "dependencies": {
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.0.0",
     "pg": "^8.11.3"
   }
 }

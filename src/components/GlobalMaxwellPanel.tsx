@@ -1,9 +1,9 @@
 import { useRef, useEffect, useState, KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
-import type { JSX } from 'react';
-import { X, Send, RefreshCw, Loader2, Copy, Check, Code, ArrowRight, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Send, RefreshCw, Loader2, Copy, Check, Code, ArrowRight, Maximize2, Minimize2, Zap, BookOpen, Info } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
-import { useMaxwell, MaxwellSessionAttributes, MaxwellMessage } from '@/hooks/useMaxwell';
+import { useMaxwell, MaxwellSessionAttributes, MaxwellMessage, MaxwellMode } from '@/hooks/useMaxwell';
 import { useMaxwellStorage, EntityContext } from '@/hooks/useMaxwellStorage';
 import { extractRecordIdsFromTrace } from '@/lib/traceParser';
 import { useMaxwellRecordHighlight } from '@/contexts/MaxwellRecordHighlightContext';
@@ -56,57 +56,12 @@ function MessageBubble({ message }: { message: MaxwellMessage }) {
     }
   };
   
-  // Parse markdown: images ![alt](url) and bold **text**
-  const renderContent = (text: string) => {
-    const parts: (string | JSX.Element)[] = [];
-    // Match images or bold markers
-    const markdownRegex = /!\[([^\]]*)\]\(([^)]+)\)|\*\*(.+?)\*\*/g;
-    let lastIndex = 0;
-    let match;
-    let keyIndex = 0;
-
-    while ((match = markdownRegex.exec(text)) !== null) {
-      // Add text before the match
-      if (match.index > lastIndex) {
-        parts.push(text.slice(lastIndex, match.index));
-      }
-
-      if (match[2]) {
-        // Image: ![alt](url)
-        const alt = match[1];
-        const url = match[2];
-        const resolvedUrl = getImageUrl(url) || url;
-        parts.push(
-          <a
-            key={`md-${keyIndex++}`}
-            href={resolvedUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block mt-2"
-          >
-            <img
-              src={resolvedUrl}
-              alt={alt}
-              title={`${alt} (click to view full resolution)`}
-              className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-              style={{ maxHeight: '300px', objectFit: 'contain' }}
-            />
-          </a>
-        );
-      } else if (match[3]) {
-        // Bold: **text**
-        parts.push(<strong key={`md-${keyIndex++}`}>{match[3]}</strong>);
-      }
-
-      lastIndex = match.index + match[0].length;
-    }
-
-    // Add remaining text
-    if (lastIndex < text.length) {
-      parts.push(text.slice(lastIndex));
-    }
-
-    return parts.length > 0 ? parts : text;
+  // Resolve S3 image URLs in markdown image syntax
+  const resolveImageUrls = (text: string) => {
+    return text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_match, alt, url) => {
+      const resolvedUrl = getImageUrl(url) || url;
+      return `![${alt}](${resolvedUrl})`;
+    });
   };
 
   return (
@@ -119,7 +74,13 @@ function MessageBubble({ message }: { message: MaxwellMessage }) {
             : 'maxwell-message-assistant bg-muted text-foreground rounded-bl-sm'
         )}
       >
-        <p className="whitespace-pre-wrap break-words">{renderContent(message.content)}</p>
+        {isUser ? (
+          <p className="whitespace-pre-wrap break-words">{message.content}</p>
+        ) : (
+          <div className="maxwell-markdown prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+            <ReactMarkdown>{resolveImageUrls(message.content)}</ReactMarkdown>
+          </div>
+        )}
         <button
           onClick={handleCopy}
           className={cn(
@@ -186,6 +147,7 @@ export function GlobalMaxwellPanel({
   const [input, setInput] = useState('');
   const [copiedAll, setCopiedAll] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [maxwellMode, setMaxwellMode] = useState<MaxwellMode>('quick');
   const [activeContext, setActiveContext] = useState<EntityContext | null>(context);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -250,7 +212,7 @@ export function GlobalMaxwellPanel({
       }
     : null;
 
-  const { messages, isLoading, error, sendMessage, resetSession } = useMaxwell(
+  const { messages, isLoading, progressStep, error, sendMessage, resetSession } = useMaxwell(
     sessionAttributes || {
       entityId: '',
       entityType: 'action',
@@ -313,13 +275,13 @@ export function GlobalMaxwellPanel({
     if (open) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isLoading, open]);
+  }, [messages, isLoading, progressStep, open]);
 
   const handleSend = async () => {
     const text = input.trim();
     if (!text || isLoading) return;
     setInput('');
-    await sendMessage(text);
+    await sendMessage(text, maxwellMode);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -457,7 +419,7 @@ export function GlobalMaxwellPanel({
               {starterQuestions.map((q) => (
                 <button
                   key={q}
-                  onClick={() => sendMessage(q)}
+                  onClick={() => sendMessage(q, maxwellMode)}
                   disabled={isLoading}
                   className="w-full rounded-xl border border-border bg-muted/50 px-4 py-2.5 text-left text-sm text-foreground hover:bg-muted transition-colors"
                 >
@@ -473,8 +435,11 @@ export function GlobalMaxwellPanel({
 
           {isLoading && (
             <div className="flex items-start gap-2">
-              <div className="maxwell-message-assistant bg-muted rounded-2xl rounded-bl-sm px-4 py-2">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <div className="maxwell-message-assistant bg-muted rounded-2xl rounded-bl-sm px-4 py-2 flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground flex-shrink-0" />
+                {progressStep && (
+                  <span className="text-xs text-muted-foreground animate-fade-in">{progressStep}</span>
+                )}
               </div>
             </div>
           )}
@@ -497,7 +462,40 @@ export function GlobalMaxwellPanel({
         </div>
 
         {/* Input */}
-        <div className="flex items-center gap-2 border-t px-4 py-3 pb-safe">
+        <div className="flex flex-col border-t">
+          {/* Mode selector row */}
+          <div className="flex items-center gap-2 px-4 pt-2 pb-1">
+            <button
+              onClick={() => setMaxwellMode(m => m === 'quick' ? 'deep' : 'quick')}
+              disabled={isLoading}
+              className={cn(
+                'flex h-7 items-center gap-1 flex-shrink-0 rounded-full px-2.5 text-xs font-medium transition-colors',
+                maxwellMode === 'quick'
+                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                  : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+              )}
+              aria-label={`Switch to ${maxwellMode === 'quick' ? 'deep' : 'quick'} mode`}
+            >
+              {maxwellMode === 'quick' ? (
+                <><Zap className="h-3 w-3" />Quick</>
+              ) : (
+                <><BookOpen className="h-3 w-3" />Deep</>
+              )}
+            </button>
+            <span className="text-[10px] text-muted-foreground">
+              Sonnet 4.6 · {maxwellMode === 'quick' ? '1 search · ~20s' : '2 searches · ~40s'}
+            </span>
+            <div className="relative group ml-auto">
+              <Info className="h-3.5 w-3.5 text-muted-foreground/50 cursor-help" />
+              <div className="absolute bottom-full right-0 mb-2 w-52 rounded-lg border bg-popover p-2.5 text-xs text-popover-foreground shadow-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity z-50">
+                <p className="font-medium mb-1">Maxwell Modes</p>
+                <p className="text-muted-foreground"><strong>⚡ Quick:</strong> 1 search, concise answer under 200 words. Best for simple lookups.</p>
+                <p className="text-muted-foreground mt-1"><strong>📖 Deep:</strong> 2 searches, thorough analysis with sources. Best for strategic questions.</p>
+              </div>
+            </div>
+          </div>
+          {/* Input row */}
+          <div className="flex items-center gap-2 px-4 pb-3 pt-1 pb-safe">
           <input
             ref={inputRef}
             type="text"
@@ -516,6 +514,7 @@ export function GlobalMaxwellPanel({
           >
             <Send className="h-4 w-4" />
           </button>
+          </div>
         </div>
       </div>
     </>,

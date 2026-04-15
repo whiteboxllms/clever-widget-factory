@@ -1,5 +1,6 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { apiService } from '@/lib/apiService';
+import { useWebSocket } from './useWebSocket';
 
 export interface MaxwellMessage {
   role: 'user' | 'assistant';
@@ -23,26 +24,47 @@ interface MaxwellChatResponse {
   trace?: any[];
 }
 
+export type MaxwellMode = 'quick' | 'deep';
+
 export interface UseMaxwellReturn {
   messages: MaxwellMessage[];
   isLoading: boolean;
+  progressStep: string | null;
   error: string | null;
   sessionId: string | null;
-  sendMessage: (text: string) => Promise<void>;
+  sendMessage: (text: string, mode?: MaxwellMode) => Promise<void>;
   resetSession: () => void;
+}
+
+/**
+ * Strip referenced_records XML tags from Maxwell replies.
+ */
+function stripReferencedRecords(reply: string): string {
+  return reply.replace(/<referenced_records>.*?<\/referenced_records>/s, '').trim();
 }
 
 export function useMaxwell(sessionAttributes: MaxwellSessionAttributes): UseMaxwellReturn {
   const [messages, setMessages] = useState<MaxwellMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [progressStep, setProgressStep] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+
+  const { status, sendMessage: wsSendMessage, subscribe } = useWebSocket();
+
+  // Track accumulated chunks for the current streaming response
+  const accumulatedChunksRef = useRef<string>('');
+  // Track whether we're currently streaming via WebSocket
+  const isStreamingRef = useRef(false);
 
   const resetSession = useCallback(() => {
     setMessages([]);
     setSessionId(null);
     setError(null);
     setIsLoading(false);
+    setProgressStep(null);
+    accumulatedChunksRef.current = '';
+    isStreamingRef.current = false;
   }, []);
 
   // Reset session when entity changes (session isolation)
@@ -50,8 +72,119 @@ export function useMaxwell(sessionAttributes: MaxwellSessionAttributes): UseMaxw
     resetSession();
   }, [sessionAttributes.entityId, resetSession]);
 
-  const sendMessage = useCallback(async (text: string) => {
+  // Subscribe to WebSocket maxwell events
+  useEffect(() => {
+    const unsubChunk = subscribe('maxwell:response_chunk', (payload: any) => {
+      if (!isStreamingRef.current) return;
+
+      // Clear progress step once actual content starts arriving
+      setProgressStep(null);
+
+      const chunk = payload?.chunk ?? '';
+      accumulatedChunksRef.current += chunk;
+
+      // Update the last assistant message in-place with accumulated text
+      const currentText = stripReferencedRecords(accumulatedChunksRef.current);
+      setMessages(prev => {
+        const last = prev[prev.length - 1];
+        if (last && last.role === 'assistant') {
+          // Update existing streaming assistant message
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            ...last,
+            content: currentText,
+          };
+          return updated;
+        }
+        // First chunk — create the assistant message placeholder
+        return [
+          ...prev,
+          {
+            role: 'assistant' as const,
+            content: currentText,
+            timestamp: new Date(),
+          },
+        ];
+      });
+    });
+
+    const unsubComplete = subscribe('maxwell:response_complete', (payload: any) => {
+      if (!isStreamingRef.current) return;
+
+      const reply = payload?.reply ?? accumulatedChunksRef.current;
+      const newSessionId = payload?.sessionId ?? null;
+      const trace = payload?.trace ?? [];
+
+      if (newSessionId) {
+        setSessionId(newSessionId);
+      }
+
+      // Finalize the assistant message with the complete reply
+      const finalContent = stripReferencedRecords(reply);
+      setMessages(prev => {
+        const last = prev[prev.length - 1];
+        if (last && last.role === 'assistant') {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            ...last,
+            content: finalContent,
+            trace,
+            rawReply: reply,
+          };
+          return updated;
+        }
+        // Edge case: complete arrived without any chunks
+        return [
+          ...prev,
+          {
+            role: 'assistant' as const,
+            content: finalContent,
+            timestamp: new Date(),
+            trace,
+            rawReply: reply,
+          },
+        ];
+      });
+
+      accumulatedChunksRef.current = '';
+      isStreamingRef.current = false;
+      setProgressStep(null);
+      setIsLoading(false);
+    });
+
+    const unsubProgress = subscribe('maxwell:progress', (payload: any) => {
+      if (!isStreamingRef.current) return;
+      const step = payload?.step ?? 'Processing...';
+      setProgressStep(step);
+    });
+
+    const unsubError = subscribe('maxwell:error', (payload: any) => {
+      if (!isStreamingRef.current) return;
+
+      const errorMessage = payload?.message ?? 'Maxwell failed to respond. Please try again.';
+      setError(errorMessage);
+      accumulatedChunksRef.current = '';
+      isStreamingRef.current = false;
+      setProgressStep(null);
+      setIsLoading(false);
+    });
+
+    return () => {
+      unsubChunk();
+      unsubComplete();
+      unsubProgress();
+      unsubError();
+    };
+  }, [subscribe]);
+
+  const sendMessage = useCallback(async (text: string, mode: MaxwellMode = 'deep') => {
     if (!text.trim() || isLoading) return;
+
+    // Prepend mode instruction so the agent adjusts its behavior
+    const modePrefix = mode === 'quick'
+      ? '[Mode: Quick — use 1 tool call maximum. Answer concisely in under 200 words. Skip detailed sourcing.]\n\n'
+      : '';
+    const enhancedText = modePrefix + text;
 
     const userMsg: MaxwellMessage = {
       role: 'user',
@@ -63,31 +196,51 @@ export function useMaxwell(sessionAttributes: MaxwellSessionAttributes): UseMaxw
     setIsLoading(true);
     setError(null);
 
-    try {
-      const response = await apiService.post<MaxwellChatResponse>('/agent/maxwell-chat', {
-        message: text,
-        sessionId,
-        sessionAttributes,
+    if (status === 'connected') {
+      // --- WebSocket path: send via WS and stream response ---
+      accumulatedChunksRef.current = '';
+      isStreamingRef.current = true;
+
+      wsSendMessage('maxwell:chat', {
+        message: enhancedText,
+        sessionId: sessionId ?? undefined,
+        sessionAttributes: {
+          entityId: sessionAttributes.entityId,
+          entityType: sessionAttributes.entityType,
+          entityName: sessionAttributes.entityName,
+          policy: sessionAttributes.policy,
+          implementation: sessionAttributes.implementation,
+        },
       });
+      // isLoading will be set to false by the response_complete or error handler
+    } else {
+      // --- REST fallback path ---
+      try {
+        const response = await apiService.post<MaxwellChatResponse>('/agent/maxwell-chat', {
+          message: enhancedText,
+          sessionId,
+          sessionAttributes,
+        });
 
-      setSessionId(response.sessionId);
+        setSessionId(response.sessionId);
 
-      const assistantMsg: MaxwellMessage = {
-        role: 'assistant',
-        content: response.reply.replace(/<referenced_records>.*?<\/referenced_records>/s, '').trim(),
-        timestamp: new Date(),
-        trace: response.trace,
-        rawReply: response.reply,
-      };
+        const assistantMsg: MaxwellMessage = {
+          role: 'assistant',
+          content: stripReferencedRecords(response.reply),
+          timestamp: new Date(),
+          trace: response.trace,
+          rawReply: response.reply,
+        };
 
-      setMessages(prev => [...prev, assistantMsg]);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Maxwell failed to respond. Please try again.';
-      setError(message);
-    } finally {
-      setIsLoading(false);
+        setMessages(prev => [...prev, assistantMsg]);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Maxwell failed to respond. Please try again.';
+        setError(message);
+      } finally {
+        setIsLoading(false);
+      }
     }
-  }, [isLoading, sessionId, sessionAttributes]);
+  }, [isLoading, sessionId, sessionAttributes, status, wsSendMessage]);
 
-  return { messages, isLoading, error, sessionId, sendMessage, resetSession };
+  return { messages, isLoading, progressStep, error, sessionId, sendMessage, resetSession };
 }

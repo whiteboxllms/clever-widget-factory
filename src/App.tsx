@@ -53,6 +53,7 @@ import StateSpacePage from "./pages/StateSpacePage";
 import RecordFinancialRecord from "./pages/RecordFinancialRecord";
 import FinancialRecordDetail from "./pages/FinancialRecordDetail";
 import Finances from "./pages/Finances";
+import QuizPage from "./pages/QuizPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -346,6 +347,14 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <FinancialRecordDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/actions/:actionId/quiz/:axisKey"
+          element={
+            <ProtectedRoute>
+              <QuizPage />
             </ProtectedRoute>
           }
         />

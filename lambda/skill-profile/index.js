@@ -289,18 +289,21 @@ async function handleApprove(event, organizationId) {
   const axisLabels = approvedProfile.axes.map(a => a.label).join(', ');
   const embeddingSource = `${approvedProfile.narrative} ${axisLabels}`;
 
-  // Send SQS message for embedding generation (fire-and-forget)
-  sqs.send(new SendMessageCommand({
-    QueueUrl: EMBEDDINGS_QUEUE_URL,
-    MessageBody: JSON.stringify({
-      entity_type: 'action_skill_profile',
-      entity_id: updatedAction.id,
-      embedding_source: embeddingSource,
-      organization_id: updatedAction.organization_id
-    })
-  }))
-  .then(() => console.log('Queued action_skill_profile embedding for action', updatedAction.id))
-  .catch(err => console.error('Failed to queue action_skill_profile embedding:', err));
+  // Send SQS message for embedding generation — await to ensure it completes before Lambda freezes
+  try {
+    await sqs.send(new SendMessageCommand({
+      QueueUrl: EMBEDDINGS_QUEUE_URL,
+      MessageBody: JSON.stringify({
+        entity_type: 'action_skill_profile',
+        entity_id: updatedAction.id,
+        embedding_source: embeddingSource,
+        organization_id: updatedAction.organization_id
+      })
+    }));
+    console.log('Queued action_skill_profile embedding for action', updatedAction.id);
+  } catch (err) {
+    console.error('Failed to queue action_skill_profile embedding:', err);
+  }
 
   return success(approvedProfile);
 }

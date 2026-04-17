@@ -1,0 +1,455 @@
+/**
+ * Gap Computation and Severity Functions for the Growth Learning Module.
+ *
+ * Pure functions that power the growth checklist by computing skill gaps
+ * between a person's demonstrated capability and an action's required levels.
+ *
+ * Bloom's taxonomy scale: 0-5 integers
+ *   0 = No exposure, 1 = Remember, 2 = Understand, 3 = Apply, 4 = Analyze, 5 = Create
+ *
+ * The Understand threshold (level 2) is the minimum bar before starting a task.
+ */
+
+import type { SkillProfile, SkillAxis } from '@/hooks/useSkillProfile';
+import type { CapabilityProfile, CapabilityAxis } from '@/hooks/useCapability';
+
+// --- Types ---
+
+export type GapSeverity = 'needs_learning' | 'partial_readiness' | 'met';
+
+export interface GapItem {
+  axisKey: string;
+  axisLabel: string;
+  requiredLevel: number;
+  currentLevel: number;
+  severity: GapSeverity;
+  distanceBelowUnderstand: number; // max(0, 2 - currentLevel)
+}
+
+/** The Understand threshold on Bloom's taxonomy scale */
+const UNDERSTAND_THRESHOLD = 2;
+
+/** Maximum Bloom's taxonomy level */
+const MAX_BLOOM_LEVEL = 5;
+
+// --- Helpers ---
+
+/**
+ * Ensure a Bloom's level is a valid integer in [0, 5].
+ *
+ * The skill profile stores required_level as an integer on the Bloom's
+ * 0–5 scale (same scale as the capability profile). This function
+ * clamps and rounds the value for safety.
+ */
+export function toBloomLevel(level: number): number {
+  return Math.max(0, Math.min(MAX_BLOOM_LEVEL, Math.round(level)));
+}
+
+// --- Core Functions ---
+
+/**
+ * Classify the severity of a gap on a single axis.
+ *
+ * - 'needs_learning': currentLevel < 2 (Understand) AND currentLevel < requiredLevel
+ * - 'partial_readiness': currentLevel >= 2 AND currentLevel < requiredLevel
+ * - 'met': currentLevel >= requiredLevel
+ *
+ * Both levels are on the Bloom's 0–5 integer scale.
+ */
+export function classifyGapSeverity(
+  requiredLevel: number,
+  currentLevel: number
+): GapSeverity {
+  if (currentLevel >= requiredLevel) {
+    return 'met';
+  }
+  if (currentLevel < UNDERSTAND_THRESHOLD) {
+    return 'needs_learning';
+  }
+  return 'partial_readiness';
+}
+
+/**
+ * Compute gap items from a skill profile and capability profile.
+ *
+ * Returns a GapItem for every axis where currentLevel < requiredLevel.
+ * When all axes are met, returns an empty array.
+ *
+ * Both required_level and capability level are on the Bloom's 0–5 integer scale.
+ */
+export function computeGapItems(
+  skillProfile: SkillProfile,
+  capabilityProfile: CapabilityProfile
+): GapItem[] {
+  const capabilityByKey = new Map<string, CapabilityAxis>();
+  for (const axis of capabilityProfile.axes) {
+    capabilityByKey.set(axis.key, axis);
+  }
+
+  const gaps: GapItem[] = [];
+
+  for (const skillAxis of skillProfile.axes) {
+    const requiredLevel = toBloomLevel(skillAxis.required_level);
+    const capAxis = capabilityByKey.get(skillAxis.key);
+    const currentLevel = capAxis?.level ?? 0;
+
+    if (currentLevel < requiredLevel) {
+      const severity = classifyGapSeverity(requiredLevel, currentLevel);
+      gaps.push({
+        axisKey: skillAxis.key,
+        axisLabel: skillAxis.label,
+        requiredLevel,
+        currentLevel,
+        severity,
+        distanceBelowUnderstand: Math.max(0, UNDERSTAND_THRESHOLD - currentLevel),
+      });
+    }
+  }
+
+  return gaps;
+}
+
+/**
+ * Sort gap items by severity — axes furthest below Bloom's level 2 listed first.
+ *
+ * Orders by distanceBelowUnderstand descending. Items with the same distance
+ * maintain their original relative order (stable sort).
+ */
+export function sortGapsBySeverity(gaps: GapItem[]): GapItem[] {
+  // Array.prototype.sort is stable in modern JS engines (ES2019+)
+  return [...gaps].sort(
+    (a, b) => b.distanceBelowUnderstand - a.distanceBelowUnderstand
+  );
+}
+
+/**
+ * Compute a gap summary: total axes and how many have gaps.
+ *
+ * Returns { total, gaps } where total is the number of skill axes
+ * and gaps is the count of axes where currentLevel < requiredLevel.
+ */
+export function computeGapSummary(
+  skillProfile: SkillProfile,
+  capabilityProfile: CapabilityProfile
+): { total: number; gaps: number } {
+  const total = skillProfile.axes.length;
+  const gapItems = computeGapItems(skillProfile, capabilityProfile);
+  return { total, gaps: gapItems.length };
+}
+
+// --- Quiz Evaluation Types ---
+
+export interface QuizAnswer {
+  questionId: string;
+  objectiveId: string;
+  selectedAnswer: string;
+  correctAnswer: string;
+  wasFirstAttempt: boolean;
+  wasCorrect: boolean;
+  timestamp: string;
+}
+
+// --- Quiz Evaluation Functions ---
+
+/**
+ * Determine which objectives still need a correct first-attempt answer.
+ *
+ * An objective is "complete" when there exists at least one answer where
+ * objectiveId matches, wasFirstAttempt is true, and wasCorrect is true.
+ * Returns the IDs from objectiveIds that lack such an answer.
+ */
+export function getIncompleteObjectives(
+  objectiveIds: string[],
+  answers: QuizAnswer[]
+): string[] {
+  const completedObjectives = new Set<string>();
+
+  for (const answer of answers) {
+    if (answer.wasFirstAttempt && answer.wasCorrect) {
+      completedObjectives.add(answer.objectiveId);
+    }
+  }
+
+  return objectiveIds.filter((id) => !completedObjectives.has(id));
+}
+
+/**
+ * Check if the quiz is complete — all objectives have a correct first-attempt answer.
+ *
+ * Returns true iff getIncompleteObjectives returns an empty array.
+ */
+export function isQuizComplete(
+  objectiveIds: string[],
+  answers: QuizAnswer[]
+): boolean {
+  return getIncompleteObjectives(objectiveIds, answers).length === 0;
+}
+
+/**
+ * Compute quiz summary statistics.
+ *
+ * Returns the total number of unique questions answered and how many
+ * had a correct first attempt.
+ */
+export function computeQuizSummary(
+  answers: QuizAnswer[]
+): { totalQuestions: number; correctFirstAttempt: number } {
+  const seenQuestions = new Set<string>();
+  let correctFirstAttempt = 0;
+
+  for (const answer of answers) {
+    if (!seenQuestions.has(answer.questionId)) {
+      seenQuestions.add(answer.questionId);
+      if (answer.wasFirstAttempt && answer.wasCorrect) {
+        correctFirstAttempt++;
+      }
+    }
+  }
+
+  return {
+    totalQuestions: seenQuestions.size,
+    correctFirstAttempt,
+  };
+}
+
+// --- Learning Progress Types ---
+
+export type ObjectiveStatus = 'not_started' | 'in_progress' | 'completed';
+export type CompletionType = 'quiz' | 'demonstrated' | null;
+
+export interface ObjectiveProgress {
+  objectiveId: string;
+  status: ObjectiveStatus;
+  completionType: CompletionType;
+}
+
+export interface KnowledgeState {
+  objectiveId: string;
+  wasFirstAttempt: boolean;
+  wasCorrect: boolean;
+  isDemonstration: boolean;
+}
+
+// --- Learning Progress Functions ---
+
+/**
+ * Derive the status and completion type for a single learning objective
+ * based on its associated knowledge states.
+ *
+ * Priority: quiz completion (correct first-attempt) takes precedence over
+ * demonstration if both exist.
+ *
+ * - 'completed'/'quiz': at least one knowledge state with wasFirstAttempt=true and wasCorrect=true
+ * - 'completed'/'demonstrated': at least one knowledge state with isDemonstration=true (and no quiz completion)
+ * - 'in_progress': knowledge states exist but none match the above
+ * - 'not_started': no knowledge states for this objective
+ */
+export function deriveObjectiveStatus(
+  objectiveId: string,
+  knowledgeStates: KnowledgeState[]
+): { status: ObjectiveStatus; completionType: CompletionType } {
+  const relevant = knowledgeStates.filter(
+    (ks) => ks.objectiveId === objectiveId
+  );
+
+  if (relevant.length === 0) {
+    return { status: 'not_started', completionType: null };
+  }
+
+  const hasQuizCompletion = relevant.some(
+    (ks) => ks.wasFirstAttempt && ks.wasCorrect
+  );
+  if (hasQuizCompletion) {
+    return { status: 'completed', completionType: 'quiz' };
+  }
+
+  const hasDemonstration = relevant.some((ks) => ks.isDemonstration);
+  if (hasDemonstration) {
+    return { status: 'completed', completionType: 'demonstrated' };
+  }
+
+  return { status: 'in_progress', completionType: null };
+}
+
+/**
+ * Check if all objectives for an axis are completed.
+ *
+ * Returns true iff every objective in the array has status 'completed'.
+ * An empty array returns true (vacuously true — no objectives to complete).
+ */
+export function isAxisComplete(objectives: ObjectiveProgress[]): boolean {
+  return objectives.every((obj) => obj.status === 'completed');
+}
+
+/**
+ * Check if all objectives across all axes are completed.
+ *
+ * Returns true iff isAxisComplete is true for every axis in the map.
+ * An empty map returns true (vacuously true — no axes to complete).
+ */
+export function isAllLearningComplete(
+  axisObjectives: Map<string, ObjectiveProgress[]>
+): boolean {
+  for (const objectives of axisObjectives.values()) {
+    if (!isAxisComplete(objectives)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Compute progress summary for an axis.
+ *
+ * Returns the count of completed objectives and the total number of objectives.
+ */
+export function computeAxisProgress(
+  objectives: ObjectiveProgress[]
+): { completed: number; total: number } {
+  const completed = objectives.filter(
+    (obj) => obj.status === 'completed'
+  ).length;
+  return { completed, total: objectives.length };
+}
+
+// --- Self-Assessment Comparison Types ---
+
+export interface VerificationResult {
+  confirmed: string[];   // Both person and AI agree
+  unconfirmed: string[]; // Person claimed, AI didn't see evidence
+  aiDetected: string[];  // AI found evidence person didn't claim
+}
+
+// --- Self-Assessment Comparison Functions ---
+
+/**
+ * Compare a person's self-assessed objective IDs against AI-evaluated objective IDs.
+ *
+ * Produces three disjoint sets whose union equals the union of the two inputs:
+ * - confirmed: intersection of selfAssessedIds and aiEvaluatedIds
+ * - unconfirmed: selfAssessedIds minus aiEvaluatedIds
+ * - aiDetected: aiEvaluatedIds minus selfAssessedIds
+ *
+ * Duplicate IDs within either input are treated as a single entry.
+ */
+export function compareAssessments(
+  selfAssessedIds: string[],
+  aiEvaluatedIds: string[]
+): VerificationResult {
+  const selfSet = new Set(selfAssessedIds);
+  const aiSet = new Set(aiEvaluatedIds);
+
+  const confirmed: string[] = [];
+  const unconfirmed: string[] = [];
+  const aiDetected: string[] = [];
+
+  for (const id of selfSet) {
+    if (aiSet.has(id)) {
+      confirmed.push(id);
+    } else {
+      unconfirmed.push(id);
+    }
+  }
+
+  for (const id of aiSet) {
+    if (!selfSet.has(id)) {
+      aiDetected.push(id);
+    }
+  }
+
+  return { confirmed, unconfirmed, aiDetected };
+}
+
+// --- State Text Format Types ---
+
+export interface ParsedLearningObjectiveStateText {
+  axisKey: string;
+  actionId: string;
+  userId: string;
+  objectiveText: string;
+}
+
+export interface ParsedKnowledgeStateText {
+  objectiveText: string;
+  questionText: string;
+  selectedAnswer: string;
+  wasCorrect: boolean;
+}
+
+// --- State Text Format Functions ---
+
+/**
+ * Compose a learning objective state_text in the canonical format:
+ *   [learning_objective] axis=<key> action=<id> user=<id> | <text>
+ *
+ * The [learning_objective] prefix and metadata allow querying objectives by type.
+ * The human-readable text after the pipe separator is the actual objective.
+ */
+export function composeLearningObjectiveStateText(
+  axisKey: string,
+  actionId: string,
+  userId: string,
+  objectiveText: string
+): string {
+  return `[learning_objective] axis=${axisKey} action=${actionId} user=${userId} | ${objectiveText}`;
+}
+
+/**
+ * Parse a learning objective state_text, extracting the axis key, action ID,
+ * user ID, and objective text from the canonical format.
+ *
+ * Returns null if the format doesn't match (does not throw).
+ */
+export function parseLearningObjectiveStateText(
+  stateText: string
+): ParsedLearningObjectiveStateText | null {
+  const match = stateText.match(
+    /^\[learning_objective\] axis=(\S+) action=(\S+) user=(\S+) \| (.+)$/
+  );
+  if (!match) {
+    return null;
+  }
+  return {
+    axisKey: match[1],
+    actionId: match[2],
+    userId: match[3],
+    objectiveText: match[4],
+  };
+}
+
+/**
+ * Compose a knowledge state state_text in the canonical format:
+ *   For learning objective '<objective>' and question '<question>', I selected '<answer>' which was the correct|incorrect answer.
+ */
+export function composeKnowledgeStateText(
+  objectiveText: string,
+  questionText: string,
+  selectedAnswer: string,
+  wasCorrect: boolean
+): string {
+  const correctness = wasCorrect ? 'correct' : 'incorrect';
+  return `For learning objective '${objectiveText}' and question '${questionText}', I selected '${selectedAnswer}' which was the ${correctness} answer.`;
+}
+
+/**
+ * Parse a knowledge state state_text, extracting the objective text, question text,
+ * selected answer, and correctness flag from the canonical format.
+ *
+ * Returns null if the format doesn't match (does not throw).
+ */
+export function parseKnowledgeStateText(
+  stateText: string
+): ParsedKnowledgeStateText | null {
+  const match = stateText.match(
+    /^For learning objective '(.+)' and question '(.+)', I selected '(.+)' which was the (correct|incorrect) answer\.$/
+  );
+  if (!match) {
+    return null;
+  }
+  return {
+    objectiveText: match[1],
+    questionText: match[2],
+    selectedAnswer: match[3],
+    wasCorrect: match[4] === 'correct',
+  };
+}

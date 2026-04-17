@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { format } from 'date-fns';
-import { ExternalLink, Camera } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ExternalLink, Camera, BookOpen } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -10,13 +11,17 @@ import {
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { getThumbnailUrl, getImageUrl } from '@/lib/imageUtils';
+import { useAuth } from '@/hooks/useCognitoAuth';
+import { useLearningObjectives } from '@/hooks/useLearning';
 import type { SkillProfile } from '@/hooks/useSkillProfile';
 import type { CapabilityProfile, ObservationEvidence } from '@/hooks/useCapability';
 
 export interface AxisDrilldownProps {
+  actionId: string;
   axisKey: string;
   skillProfile: SkillProfile;
   capabilityProfiles: CapabilityProfile[];
@@ -113,6 +118,7 @@ function EvidenceCard({ evidence }: { evidence: ObservationEvidence }) {
 }
 
 export function AxisDrilldown({
+  actionId,
   axisKey,
   skillProfile,
   capabilityProfiles,
@@ -120,6 +126,19 @@ export function AxisDrilldown({
   isOpen,
   onClose,
 }: AxisDrilldownProps) {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // Fetch learning objectives for the current user on this action
+  const { data: learningData } = useLearningObjectives(actionId, user?.id);
+
+  // Check if objectives already exist for this axis
+  const axisHasObjectives = useMemo(() => {
+    if (!learningData?.axes) return false;
+    return learningData.axes.some(
+      (a) => a.axisKey === axisKey && a.objectives.length > 0
+    );
+  }, [learningData, axisKey]);
   // Find the skill axis definition
   const skillAxis = useMemo(
     () => skillProfile.axes.find((a) => a.key === axisKey),
@@ -197,6 +216,8 @@ export function AxisDrilldown({
               if (!axis) return null;
 
               const gap = hasGap(skillAxis.required_level, axis.level);
+              // A gap axis is where currentLevel < requiredLevel (any gap, not just >1 difference)
+              const isGapAxis = axis.level < skillAxis.required_level;
 
               return (
                 <div key={profile.user_id} className="space-y-3">
@@ -252,6 +273,30 @@ export function AxisDrilldown({
                     <p className="text-xs text-muted-foreground italic">
                       No specific observations for this axis.
                     </p>
+                  )}
+
+                  {/* Start Learning / Review Learning button for gap axes */}
+                  {isGapAxis && profile.user_id === user?.id && (
+                    <div className="pt-1">
+                      {axisHasObjectives ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/actions/${actionId}/quiz/${axisKey}`)}
+                        >
+                          <BookOpen className="h-4 w-4 mr-1.5" />
+                          Review Learning
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => navigate(`/actions/${actionId}/quiz/${axisKey}`)}
+                        >
+                          <BookOpen className="h-4 w-4 mr-1.5" />
+                          Start Learning
+                        </Button>
+                      )}
+                    </div>
                   )}
 
                   <Separator />

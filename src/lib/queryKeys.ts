@@ -78,4 +78,8 @@ export const stateSpaceModelQueryKey = (id: string) => ['state_space_model', id]
 export const stateSpaceModelsByEntityQueryKey = (entityType: string, entityId: string) =>
   ['state_space_models_by_entity', entityType, entityId];
 
+// Learning query keys
+export const learningObjectivesQueryKey = (actionId: string, userId: string) =>
+  ['learning_objectives', actionId, userId];
+
 

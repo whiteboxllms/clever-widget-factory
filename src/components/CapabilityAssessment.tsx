@@ -1,12 +1,19 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { useQueries } from '@tanstack/react-query';
-import { Loader2, AlertCircle, RefreshCw, BarChart3 } from 'lucide-react';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import { Loader2, AlertCircle, RefreshCw, BarChart3, AlertTriangle, CircleMinus, CheckCircle2, Circle, CircleDot, BookOpen, GraduationCap, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { apiService } from '@/lib/apiService';
-import { capabilityProfileQueryKey, organizationCapabilityQueryKey } from '@/lib/queryKeys';
-import { useOrganizationCapability } from '@/hooks/useCapability';
+import { capabilityProfileQueryKey } from '@/lib/queryKeys';
+import { useAuth } from '@/hooks/useCognitoAuth';
+import { useLearningObjectives } from '@/hooks/useLearning';
+import type { LearningObjective, LearningAxis } from '@/hooks/useLearning';
 import { SkillRadarChart } from '@/components/RadarChart';
 import { AxisDrilldown } from '@/components/AxisDrilldown';
+import { computeGapItems, sortGapsBySeverity, computeGapSummary, computeAxisProgress, isAxisComplete, isAllLearningComplete } from '@/lib/learningUtils';
+import type { GapItem, ObjectiveProgress } from '@/lib/learningUtils';
 import type { BaseAction } from '@/types/actions';
 import type { SkillProfile } from '@/hooks/useSkillProfile';
 import type { CapabilityProfile } from '@/hooks/useCapability';
@@ -17,15 +24,329 @@ export interface CapabilityAssessmentProps {
   action: BaseAction;
 }
 
+/** Bloom's level labels for display */
+const BLOOM_LABELS: Record<number, string> = {
+  0: 'No exposure',
+  1: 'Remember',
+  2: 'Understand',
+  3: 'Apply',
+  4: 'Analyze',
+  5: 'Create',
+};
+
+function bloomLabel(level: number): string {
+  return BLOOM_LABELS[level] ?? `Level ${level}`;
+}
+
+/** Severity indicator component for a gap item */
+function SeverityIndicator({ severity }: { severity: GapItem['severity'] }) {
+  switch (severity) {
+    case 'needs_learning':
+      return (
+        <span className="inline-flex items-center gap-1 text-orange-600">
+          <AlertTriangle className="h-4 w-4" />
+          <span className="text-xs font-medium">Needs learning</span>
+        </span>
+      );
+    case 'partial_readiness':
+      return (
+        <span className="inline-flex items-center gap-1 text-yellow-600">
+          <CircleMinus className="h-4 w-4" />
+          <span className="text-xs font-medium">Partial readiness</span>
+        </span>
+      );
+    case 'met':
+      return (
+        <span className="inline-flex items-center gap-1 text-green-600">
+          <CheckCircle2 className="h-4 w-4" />
+          <span className="text-xs font-medium">Met</span>
+        </span>
+      );
+  }
+}
+
+/** Gap checklist for a single person */
+function PersonGapChecklist({
+  actionId,
+  profile,
+  skillProfile,
+  learningAxes,
+}: {
+  actionId: string;
+  profile: CapabilityProfile;
+  skillProfile: SkillProfile;
+  learningAxes?: LearningAxis[];
+}) {
+  const navigate = useNavigate();
+  const gapItems = useMemo(
+    () => sortGapsBySeverity(computeGapItems(skillProfile, profile)),
+    [skillProfile, profile]
+  );
+
+  const summary = useMemo(
+    () => computeGapSummary(skillProfile, profile),
+    [skillProfile, profile]
+  );
+
+  // Build learning status per axis from objectives data
+  const axisLearningStatus = useMemo(() => {
+    const status = new Map<string, { hasObjectives: boolean; allComplete: boolean; completed: number; total: number }>();
+    if (learningAxes) {
+      for (const axis of learningAxes) {
+        const total = axis.objectives.length;
+        const completed = axis.objectives.filter(o => o.status === 'completed').length;
+        status.set(axis.axisKey, {
+          hasObjectives: total > 0,
+          allComplete: total > 0 && completed === total,
+          completed,
+          total,
+        });
+      }
+    }
+    return status;
+  }, [learningAxes]);
+
+  // Count gaps that still need learning (not yet completed via quiz)
+  const gapsStillNeeding = gapItems.filter(g => {
+    const ls = axisLearningStatus.get(g.axisKey);
+    return !ls?.allComplete;
+  }).length;
+
+  const hasGaps = summary.gaps > 0;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-medium text-foreground">
+          {profile.user_name}
+        </h4>
+        {hasGaps ? (
+          <span className="text-xs text-muted-foreground">
+            {gapsStillNeeding > 0
+              ? `${gapsStillNeeding} of ${summary.total} skills need attention`
+              : `All learning complete — ${summary.gaps} skill${summary.gaps !== 1 ? 's' : ''} still building capability`}
+          </span>
+        ) : (
+          <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            All requirements met
+          </span>
+        )}
+      </div>
+
+      {hasGaps && (
+        <ul className="space-y-1.5">
+          {gapItems.map((gap) => {
+            const ls = axisLearningStatus.get(gap.axisKey);
+            const hasObjectives = ls?.hasObjectives ?? false;
+            const allComplete = ls?.allComplete ?? false;
+            return (
+              <li
+                key={gap.axisKey}
+                className={`rounded-md border px-3 py-2 text-sm space-y-1.5 ${allComplete ? 'border-green-200 bg-green-50/50' : ''}`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {allComplete && <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />}
+                    <span className="font-medium truncate">{gap.axisLabel}</span>
+                    <Badge variant="outline" className="text-xs shrink-0">
+                      {bloomLabel(gap.currentLevel)}
+                    </Badge>
+                    <span className="text-muted-foreground text-xs shrink-0">→</span>
+                    <Badge variant="secondary" className="text-xs shrink-0">
+                      {bloomLabel(gap.requiredLevel)}
+                    </Badge>
+                  </div>
+                  <div className="shrink-0 ml-2">
+                    {allComplete ? (
+                      <span className="inline-flex items-center gap-1 text-green-600">
+                        <CheckCircle2 className="h-4 w-4" />
+                        <span className="text-xs font-medium">Learning complete</span>
+                      </span>
+                    ) : ls && ls.total > 0 ? (
+                      <span className="text-xs text-muted-foreground">
+                        {ls.completed}/{ls.total} objectives
+                      </span>
+                    ) : (
+                      <SeverityIndicator severity={gap.severity} />
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <Button
+                    variant={hasObjectives ? 'outline' : 'default'}
+                    size="sm"
+                    onClick={() => navigate(`/actions/${actionId}/quiz/${gap.axisKey}`)}
+                  >
+                    <BookOpen className="h-4 w-4 mr-1.5" />
+                    {allComplete ? 'Review Learning' : hasObjectives ? 'Continue Learning' : 'Start Learning'}
+                  </Button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Convert a LearningObjective from the API into ObjectiveProgress for utility functions */
+function toObjectiveProgress(obj: LearningObjective): ObjectiveProgress {
+  return {
+    objectiveId: obj.id,
+    status: obj.status,
+    completionType: obj.completionType,
+  };
+}
+
+/** Status icon for a learning objective */
+function ObjectiveStatusIcon({ status }: { status: LearningObjective['status'] }) {
+  switch (status) {
+    case 'not_started':
+      return <Circle className="h-4 w-4 text-muted-foreground" />;
+    case 'in_progress':
+      return <CircleDot className="h-4 w-4 text-blue-500" />;
+    case 'completed':
+      return <CheckCircle2 className="h-4 w-4 text-green-600" />;
+  }
+}
+
+/** Learning objectives section */
+function LearningObjectivesSection({
+  actionId,
+  axes,
+}: {
+  actionId: string;
+  axes: LearningAxis[];
+}) {
+  const navigate = useNavigate();
+
+  // Only show axes that have objectives
+  const axesWithObjectives = axes.filter(a => a.objectives.length > 0);
+
+  if (axesWithObjectives.length === 0) {
+    return null;
+  }
+
+  // Build a Map<string, ObjectiveProgress[]> for isAllLearningComplete
+  const axisObjectivesMap = new Map<string, ObjectiveProgress[]>();
+  for (const axis of axesWithObjectives) {
+    axisObjectivesMap.set(
+      axis.axisKey,
+      axis.objectives.map(toObjectiveProgress)
+    );
+  }
+
+  const allComplete = isAllLearningComplete(axisObjectivesMap);
+  const [expanded, setExpanded] = useState(!allComplete);
+
+  return (
+    <div className="space-y-3">
+      {allComplete && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center justify-between w-full rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 cursor-pointer hover:bg-green-100 transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            All learning objectives completed for this action
+          </span>
+          <ChevronDown className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        </button>
+      )}
+
+      {(!allComplete || expanded) && (
+      <div className="space-y-3">
+        {axesWithObjectives.map((axisData) => {
+          const objectives = axisData.objectives;
+          const progressItems = objectives.map(toObjectiveProgress);
+          const progress = computeAxisProgress(progressItems);
+          const axisComplete = isAxisComplete(progressItems);
+          const progressPercent = progress.total > 0 ? (progress.completed / progress.total) * 100 : 0;
+          const axisLabel = axisData.axisLabel;
+
+          return (
+            <div key={axisData.axisKey} className={`rounded-md border p-3 space-y-2 ${axisComplete ? 'border-green-200 bg-green-50/50' : ''}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 min-w-0">
+                  {axisComplete && <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />}
+                  <span className="text-sm font-medium truncate">{axisLabel}</span>
+                </div>
+                <div className="shrink-0 ml-2">
+                  {axisComplete ? (
+                    <span className="inline-flex items-center gap-1 text-green-600">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span className="text-xs font-medium">Learning complete</span>
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      {progress.completed} of {progress.total} objectives
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <Progress value={progressPercent} className="h-2" />
+
+              <ul className="space-y-1">
+                  {objectives.map((obj) => (
+                    <li key={obj.id} className="flex items-center gap-2 text-sm py-0.5">
+                      <ObjectiveStatusIcon status={obj.status} />
+                      <span className={obj.status === 'completed' ? 'text-muted-foreground' : 'text-foreground'}>
+                        {obj.text}
+                      </span>
+                      {obj.status === 'completed' && obj.completionType && (
+                        <Badge variant="outline" className="text-xs shrink-0">
+                          {obj.completionType}
+                        </Badge>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+
+              {/* Action button */}
+              <div className="pt-1">
+                {axisComplete ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate(`/actions/${actionId}/quiz/${axisData.axisKey}`)}
+                  >
+                    <BookOpen className="h-4 w-4 mr-1.5" />
+                    Review Learning
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={() => navigate(`/actions/${actionId}/quiz/${axisData.axisKey}`)}
+                  >
+                    <BookOpen className="h-4 w-4 mr-1.5" />
+                    Continue Learning
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Container component that fetches capability profiles for all involved people
- * and the organization, then renders the radar chart with drilldown support.
+ * and the organization, then renders the radar chart with drilldown support
+ * and a gap checklist per person.
  *
- * Requirements: 3.1, 4.1, 4.7, 6.1, 6.2
+ * Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.7, 6.1, 6.2, 7.1, 7.2, 7.3, 7.4, 7.5
  */
 export function CapabilityAssessment({ action }: CapabilityAssessmentProps) {
   const [selectedAxis, setSelectedAxis] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   // Check if the action has an approved skill profile
   const hasApprovedSkillProfile = !!action.skill_profile?.approved_at;
@@ -62,17 +383,9 @@ export function CapabilityAssessment({ action }: CapabilityAssessmentProps) {
     })),
   });
 
-  // Fetch organization capability
-  const orgQuery = useOrganizationCapability(
-    action.id,
-    hasApprovedSkillProfile
-  );
-
   // Derive loading / error states from all queries
-  const isLoading =
-    capabilityQueries.some((q) => q.isLoading) || orgQuery.isLoading;
-  const hasError =
-    capabilityQueries.some((q) => q.isError) || orgQuery.isError;
+  const isLoading = capabilityQueries.some((q) => q.isLoading);
+  const hasError = capabilityQueries.some((q) => q.isError);
 
   // 30-second loading timeout
   useEffect(() => {
@@ -90,8 +403,7 @@ export function CapabilityAssessment({ action }: CapabilityAssessmentProps) {
     capabilityQueries.forEach((q) => {
       if (q.isError) q.refetch();
     });
-    if (orgQuery.isError) orgQuery.refetch();
-  }, [capabilityQueries, orgQuery]);
+  }, [capabilityQueries]);
 
   // Collect successful capability profiles
   const capabilityProfiles = useMemo(
@@ -102,7 +414,22 @@ export function CapabilityAssessment({ action }: CapabilityAssessmentProps) {
     [capabilityQueries]
   );
 
-  const organizationProfile = orgQuery.data ?? undefined;
+  // Fetch learning objectives for the current user (used by gap checklist and objectives section)
+  const { data: learningData, refetch: refetchLearning, isLoading: isLoadingLearning } = useLearningObjectives(
+    hasApprovedSkillProfile ? action.id : undefined,
+    hasApprovedSkillProfile ? user?.id : undefined
+  );
+  const learningAxes = learningData?.axes;
+
+  // Refetch learning objectives when capability data updates (e.g., after Regenerate)
+  const capabilitySettled = capabilityQueries.every((q) => !q.isLoading && !q.isFetching);
+  const [prevSettled, setPrevSettled] = useState(false);
+  useEffect(() => {
+    if (capabilitySettled && !prevSettled && user?.id) {
+      refetchLearning();
+    }
+    setPrevSettled(capabilitySettled);
+  }, [capabilitySettled, prevSettled, refetchLearning, user?.id]);
 
   // --- Empty state: no approved skill profile ---
   if (!hasApprovedSkillProfile || !skillProfile) {
@@ -110,7 +437,7 @@ export function CapabilityAssessment({ action }: CapabilityAssessmentProps) {
       <div className="flex flex-col items-center justify-center py-8 text-center">
         <BarChart3 className="h-10 w-10 text-muted-foreground/50 mb-3" />
         <p className="text-sm text-muted-foreground">
-          No skill profile available. Generate and approve a skill profile to see the growth checklist.
+          No skill profile available. Generate and approve a skill profile to see target growth areas.
         </p>
       </div>
     );
@@ -121,7 +448,7 @@ export function CapabilityAssessment({ action }: CapabilityAssessmentProps) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
-        <p className="text-sm text-muted-foreground">Loading growth checklist…</p>
+        <p className="text-sm text-muted-foreground">Analyzing target growth areas…</p>
       </div>
     );
   }
@@ -132,7 +459,7 @@ export function CapabilityAssessment({ action }: CapabilityAssessmentProps) {
       <div className="flex flex-col items-center justify-center py-8 text-center space-y-3">
         <AlertCircle className="h-8 w-8 text-destructive" />
         <p className="text-sm text-muted-foreground">
-          Loading growth checklist is taking longer than expected.
+          Analyzing growth areas is taking longer than expected.
         </p>
         <Button variant="outline" size="sm" onClick={handleRetry}>
           <RefreshCw className="h-4 w-4 mr-2" />
@@ -148,7 +475,7 @@ export function CapabilityAssessment({ action }: CapabilityAssessmentProps) {
       <div className="flex flex-col items-center justify-center py-8 text-center space-y-3">
         <AlertCircle className="h-8 w-8 text-destructive" />
         <p className="text-sm text-muted-foreground">
-          Unable to load growth checklist. Please try again.
+          Unable to load target growth areas. Please try again.
         </p>
         <Button variant="outline" size="sm" onClick={handleRetry}>
           <RefreshCw className="h-4 w-4 mr-2" />
@@ -158,22 +485,36 @@ export function CapabilityAssessment({ action }: CapabilityAssessmentProps) {
     );
   }
 
-  // --- Radar chart + drilldown ---
+  // --- Radar chart + gap checklist + drilldown ---
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
+      <h3 className="text-sm font-semibold text-foreground">Target Growth Areas</h3>
+
       <SkillRadarChart
         skillProfile={skillProfile}
         capabilityProfiles={capabilityProfiles}
-        organizationProfile={organizationProfile}
         onAxisClick={(axisKey) => setSelectedAxis(axisKey)}
       />
 
+      {/* Learning objectives */}
+      {isLoadingLearning ? (
+        <div className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading learning objectives…
+        </div>
+      ) : learningAxes && learningAxes.length > 0 ? (
+        <LearningObjectivesSection
+          actionId={action.id}
+          axes={learningAxes}
+        />
+      ) : null}
+
       {selectedAxis && (
         <AxisDrilldown
+          actionId={action.id}
           axisKey={selectedAxis}
           skillProfile={skillProfile}
           capabilityProfiles={capabilityProfiles}
-          organizationProfile={organizationProfile}
           isOpen={!!selectedAxis}
           onClose={() => setSelectedAxis(null)}
         />

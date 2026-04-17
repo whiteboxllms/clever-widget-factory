@@ -1,0 +1,10 @@
+{
+  "name": "cwf-learning-lambda",
+  "version": "1.0.0",
+  "description": "Lambda function for learning objectives, quiz generation, and observation verification",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.0.0",
+    "@aws-sdk/client-sqs": "^3.0.0"
+  }
+}

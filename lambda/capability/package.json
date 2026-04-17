@@ -1,0 +1,9 @@
+{
+  "name": "cwf-capability-lambda",
+  "version": "1.0.0",
+  "description": "Lambda function for on-demand capability assessment (individual and organization)",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.0.0"
+  }
+}

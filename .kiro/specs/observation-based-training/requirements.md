@@ -18,7 +18,7 @@ The system embodies **extreme ownership** — there are no strict roles in asses
 - **Skill_Profile**: An AI-generated profile of what capabilities an action demands, including a natural language narrative and 4-6 labeled skill axes with requirement levels. Generated on user request, reviewed and approved by a human before being stored.
 - **Capability_Vector**: A person's computed skill profile relative to a specific action context, derived from semantically relevant observations across all actions they were involved in. Computed on-demand, not stored as a static score.
 - **Radar_Chart**: A multi-axis visualization showing action skill requirements overlaid with each involved person's demonstrated capabilities. Axes are AI-derived from the action context — different actions surface different axes. Each axis is drillable to see the evidence and reasoning behind the score.
-- **Observation**: A photo-first state capture (stored in the `states` table) linked to an action via `state_links`. Each observation is both documentation and skill evidence. Embedded in `unified_embeddings` with entity_type `action_observation`.
+- **Observation**: A photo-first state capture (stored in the `states` table) linked to an action via `state_links`. Each observation is both documentation and skill evidence. Embedded in `unified_embeddings` with entity_type `state`.
 - **Arete_Delta**: The gap between an observation and the Expected State (S') for its action context. Computed by AI analysis of the observation against S'.
 - **Embedding_Space**: The 1536-dimensional semantic vector space (AWS Bedrock Titan v1) used to represent skill requirements and capabilities for similarity matching.
 
@@ -60,7 +60,7 @@ The system embodies **extreme ownership** — there are no strict roles in asses
 #### Acceptance Criteria
 
 1. WHEN an approved skill profile exists for an action and a person is the assigned worker or a participant, THE System SHALL compute a contextual capability profile for that person relative to the action.
-2. THE System SHALL search for relevant evidence by querying the `unified_embeddings` table for observations (entity_type `action_observation`) that are semantically similar to the action's skill profile embedding, filtering to observations from actions where the person was involved (as assigned worker, participant, or creator) within the same organization.
+2. THE System SHALL search for relevant evidence by querying the `unified_embeddings` table for observations (entity_type `state`) that are semantically similar to the action's skill profile embedding, filtering to observations from actions where the person was involved (as assigned worker, participant, or creator) within the same organization.
 3. THE System SHALL include observations taken by anyone on actions the person was involved in — not just observations the person personally captured. A person's capability reflects the quality of work that happened under their involvement.
 4. THE System SHALL synthesize a natural language capability narrative from the retrieved evidence and produce skill levels on a 0.0 to 1.0 scale on the same axes as the action's skill profile, using AI via Bedrock.
 5. THE System SHALL compute capability profiles on-demand at query time — profiles SHALL NOT be stored as static scores in the database.
@@ -90,9 +90,9 @@ The system embodies **extreme ownership** — there are no strict roles in asses
 
 #### Acceptance Criteria
 
-1. WHEN a person captures an observation (state) linked to an action, THE System SHALL generate an embedding for the observation via the existing SQS-based embedding pipeline and store it in the `unified_embeddings` table with entity_type `action_observation` and the state's ID as entity_id.
+1. WHEN a person captures an observation (state) linked to an action, THE System SHALL generate an embedding for the observation via the existing SQS-based embedding pipeline and store it in the `unified_embeddings` table with entity_type `state` and the state's ID as entity_id. No separate entity type is needed — the existing `state` embeddings serve as skill evidence, with action linkage resolved via `state_links` at query time.
 2. THE observation embedding source SHALL be composed from the observation's text content and all photo descriptions, following the existing embedding composition patterns.
-3. WHEN computing a person's capability profile for an action, THE System SHALL retrieve relevant observations by searching the `unified_embeddings` table for `action_observation` entries that are semantically similar to the action's skill profile embedding, filtered to actions the person was involved in.
+3. WHEN computing a person's capability profile for an action, THE System SHALL retrieve relevant observations by searching the `unified_embeddings` table for `state` entries that are semantically similar to the action's skill profile embedding, then filtering via `state_links` to observations linked to actions the person was involved in.
 4. THE System SHALL include ALL observations as evidence — both high-quality and low-quality work. Inconsistency across observations is itself a signal that the AI should reflect in the capability narrative.
 5. WHEN a person captures a new observation on an action that has a skill profile, THE Radar Chart SHALL reflect the updated capability profile on the next render, providing visible feedback that documenting work affects the person's profile.
 6. THE System SHALL scope all observation evidence queries by organization_id to maintain multi-tenant data isolation.
@@ -105,7 +105,7 @@ The system embodies **extreme ownership** — there are no strict roles in asses
 
 1. WHEN an action has an approved skill profile, THE System SHALL be able to compute an organization-level capability profile by aggregating observation evidence from all organization members across all actions semantically similar to the current action's skill profile.
 2. THE organization capability profile SHALL be displayed as an additional overlay on the radar chart — a "Company" polygon alongside individual profiles, using a distinct visual style.
-3. THE organization capability profile SHALL be computed on-demand using the same mechanism as individual capability profiles (semantic search of `action_observation` embeddings in `unified_embeddings`) but without filtering to a single person — it reflects the collective evidence across the entire organization.
+3. THE organization capability profile SHALL be computed on-demand using the same mechanism as individual capability profiles (semantic search of `state` embeddings in `unified_embeddings`) but without filtering to a single person — it reflects the collective evidence across the entire organization.
 4. WHEN the organization profile shows a gap on an axis, THAT gap represents a shared weakness — an area where the collective has not demonstrated competence. The gap is visible to everyone in the organization.
 5. WHEN any person in the organization captures observations that improve capability in a gap area, THE organization profile SHALL reflect that improvement on the next computation — one person's growth strengthens the whole.
 6. THE System SHALL scope the organization capability profile by organization_id to maintain multi-tenant isolation.

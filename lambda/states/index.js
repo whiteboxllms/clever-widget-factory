@@ -140,10 +140,7 @@ async function listStates(event, authContext, headers) {
     console.log('🔍 authContext:', JSON.stringify(authContext));
     console.log('🔍 queryParams:', JSON.stringify(queryParams));
     
-    // Temporary: bypass filter for testing
-    const whereClause = orgFilter.condition === '1=0' 
-      ? `s.organization_id = '${authContext.organization_id}'`
-      : orgFilter.condition;
+    const whereClause = orgFilter.condition;
     
     // Add entity filtering if provided
     let entityFilter = '';
@@ -162,29 +159,28 @@ async function listStates(event, authContext, headers) {
         s.updated_at,
         om.full_name as captured_by_name,
         COALESCE(
-          json_agg(
+          (SELECT json_agg(
             json_build_object(
               'id', sp.id,
               'photo_url', sp.photo_url,
               'photo_description', sp.photo_description,
               'photo_order', sp.photo_order
             ) ORDER BY sp.photo_order
-          ) FILTER (WHERE sp.id IS NOT NULL),
+          ) FROM state_photos sp WHERE sp.state_id = s.id),
           '[]'
         ) as photos,
         COALESCE(
-          json_agg(
-            DISTINCT jsonb_build_object(
-              'id', sl.id,
-              'entity_type', sl.entity_type,
-              'entity_id', sl.entity_id
+          (SELECT json_agg(
+            json_build_object(
+              'id', sl2.id,
+              'entity_type', sl2.entity_type,
+              'entity_id', sl2.entity_id
             )
-          ) FILTER (WHERE sl.id IS NOT NULL),
+          ) FROM state_links sl2 WHERE sl2.state_id = s.id),
           '[]'
         ) as links
       FROM states s
       LEFT JOIN organization_members om ON s.captured_by = om.user_id
-      LEFT JOIN state_photos sp ON s.id = sp.state_id
       LEFT JOIN state_links sl ON s.id = sl.state_id
       WHERE ${whereClause}${entityFilter}
       GROUP BY s.id, s.organization_id, s.state_text, s.captured_by, s.captured_at, s.created_at, s.updated_at, om.full_name
@@ -218,30 +214,28 @@ async function getState(id, authContext, headers) {
         s.updated_at,
         om.full_name as captured_by_name,
         COALESCE(
-          json_agg(
+          (SELECT json_agg(
             json_build_object(
               'id', sp.id,
               'photo_url', sp.photo_url,
               'photo_description', sp.photo_description,
               'photo_order', sp.photo_order
             ) ORDER BY sp.photo_order
-          ) FILTER (WHERE sp.id IS NOT NULL),
+          ) FROM state_photos sp WHERE sp.state_id = s.id),
           '[]'
         ) as photos,
         COALESCE(
-          json_agg(
-            DISTINCT jsonb_build_object(
+          (SELECT json_agg(
+            json_build_object(
               'id', sl.id,
               'entity_type', sl.entity_type,
               'entity_id', sl.entity_id
             )
-          ) FILTER (WHERE sl.id IS NOT NULL),
+          ) FROM state_links sl WHERE sl.state_id = s.id),
           '[]'
         ) as links
       FROM states s
       LEFT JOIN organization_members om ON s.captured_by = om.user_id
-      LEFT JOIN state_photos sp ON s.id = sp.state_id
-      LEFT JOIN state_links sl ON s.id = sl.state_id
       WHERE s.id = ${formatSqlValue(id)}::uuid AND ${orgFilter.condition}
       GROUP BY s.id, s.organization_id, s.state_text, s.captured_by, s.captured_at, s.created_at, s.updated_at, om.full_name
     `;

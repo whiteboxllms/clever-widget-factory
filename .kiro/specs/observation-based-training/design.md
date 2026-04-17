@@ -9,7 +9,7 @@ The system follows a **transparency over recommendation** principle: it surfaces
 Key architectural decisions:
 - **Skill profiles** are stored as JSON on the `actions` table and embedded in `unified_embeddings` with entity_type `action_skill_profile`
 - **Capability profiles** are computed on-demand via Bedrock AI — never stored as static scores
-- **Observations** (already stored as `states` linked via `state_links`) get embedded as `action_observation` in `unified_embeddings` and serve as skill evidence
+- **Observations** (already stored as `states` linked via `state_links`) are embedded as `state` in `unified_embeddings` and serve as skill evidence — no separate entity type needed
 - **Radar charts** render client-side using the action's skill axes with unlimited person overlays
 - The system is **role-agnostic** — assigned workers, participants, and creators are all assessed identically
 
@@ -38,7 +38,7 @@ flowchart TB
 
     subgraph Data["Data Layer"]
         ActionsTable["actions table<br/>+ expected_state TEXT<br/>+ skill_profile JSONB"]
-        UnifiedEmb["unified_embeddings<br/>action_skill_profile<br/>action_observation<br/>action, action_existing_state"]
+        UnifiedEmb["unified_embeddings<br/>action_skill_profile<br/>state<br/>action, action_existing_state"]
         StatesTable["states + state_links<br/>(observations)"]
         SQS["SQS Embedding Queue"]
         EmbProcessor["cwf-embeddings-processor"]
@@ -76,7 +76,7 @@ sequenceDiagram
 
     UI->>API: GET /capability/:actionId/:userId
     API->>DB: Fetch action skill_profile JSON
-    API->>Emb: Vector search: action_skill_profile embedding<br/>→ similar action_observation embeddings<br/>WHERE org_id = X
+    API->>Emb: Vector search: action_skill_profile embedding<br/>→ similar state embeddings<br/>WHERE org_id = X
     Emb-->>API: Top-K observation embeddings + metadata
     API->>DB: Resolve observation details:<br/>- state_text, photos from states<br/>- action involvement via state_links → actions<br/>- Filter to actions where user is<br/>  assigned_to OR in participants OR created_by
     DB-->>API: Filtered observation evidence
@@ -96,7 +96,7 @@ sequenceDiagram
 | `expected_state` | `TEXT` | YES | NULL | Expected outcome (S') for the action |
 | `skill_profile` | `JSONB` | YES | NULL | Approved skill profile (axes, levels, narrative) |
 
-No new tables are created. The `unified_embeddings` table gains two new entity_type values: `action_skill_profile` and `action_observation`.
+No new tables are created. The `unified_embeddings` table gains one new entity_type value: `action_skill_profile`. Observation evidence uses the existing `state` entity type — action linkage is resolved via `state_links` at query time.
 
 ### 2. Skill Profile JSON Schema
 
@@ -213,7 +213,7 @@ Computes on-demand capability profiles.
 **Capability computation flow:**
 
 1. Fetch the action's `skill_profile` JSON and its `action_skill_profile` embedding from `unified_embeddings`
-2. Vector search `unified_embeddings` for `action_observation` entries similar to the skill profile embedding, scoped by `organization_id`
+2. Vector search `unified_embeddings` for `state` entries similar to the skill profile embedding, scoped by `organization_id`
 3. For individual: filter observations to actions where the user is `assigned_to`, in `participants`, or is `created_by`
 4. For organization: no person filter — aggregate all observations
 5. Resolve observation details from `states` + `state_photos` + `state_links`
@@ -265,9 +265,10 @@ The existing SQS → `cwf-embeddings-processor` pipeline handles new entity type
 | entity_type | Source | Trigger |
 |-------------|--------|---------|
 | `action_skill_profile` | Skill narrative + axis labels | Skill profile approval |
-| `action_observation` | State text + photo descriptions | Observation creation (already `state` type — needs new type) |
 
-**Key change for observations:** Currently, observations are embedded as entity_type `state`. For this feature, observations linked to actions also need an `action_observation` embedding. The states Lambda will send an additional SQS message with `entity_type: 'action_observation'` when the state is linked to an action via `state_links`.
+Observations use the existing `state` entity type — no separate `action_observation` type is needed. The capability Lambda searches `state` embeddings by vector similarity, then filters to action-linked observations via `state_links` joins.
+
+**Simplified approach:** Instead of creating a duplicate embedding for observations linked to actions, the capability system searches existing `state` embeddings directly. The `state_links` table already tracks which observations are linked to which actions, so the action-linkage filtering happens in SQL after the vector search.
 
 The `composeActionEmbeddingSource` function is updated to include `expected_state` in the embedding composition.
 
@@ -291,7 +292,7 @@ erDiagram
 
     unified_embeddings {
         uuid id PK
-        varchar entity_type "action_skill_profile | action_observation | action | ..."
+        varchar entity_type "action_skill_profile | state | action | ..."
         uuid entity_id
         text embedding_source
         vector embedding "1536 dims"
@@ -329,7 +330,7 @@ erDiagram
     }
 
     actions ||--o{ unified_embeddings : "entity_id (action_skill_profile)"
-    states ||--o{ unified_embeddings : "entity_id (action_observation)"
+    states ||--o{ unified_embeddings : "entity_id (state)"
     states ||--o{ state_links : "state_id"
     state_links }o--|| actions : "entity_id WHERE entity_type='action'"
     states ||--o{ state_photos : "state_id"
@@ -339,10 +340,9 @@ erDiagram
 ### Data Flow: Observation → Skill Evidence
 
 1. User captures observation on action → `states` + `state_links` (entity_type='action') created
-2. States Lambda sends SQS: `{ entity_type: 'state', entity_id: state.id, ... }` (existing)
-3. States Lambda sends additional SQS: `{ entity_type: 'action_observation', entity_id: state.id, ... }` (new)
-4. Embeddings processor generates embedding and writes to `unified_embeddings`
-5. On next radar chart render, capability Lambda finds this observation via vector similarity search
+2. States Lambda sends SQS: `{ entity_type: 'state', entity_id: state.id, ... }` (existing — no additional message needed)
+3. Embeddings processor generates embedding and writes to `unified_embeddings`
+4. On next radar chart render, capability Lambda finds this observation via vector similarity search against `state` embeddings, then filters by action linkage via `state_links`
 
 ### Data Flow: Skill Profile Generation → Storage
 
@@ -430,9 +430,9 @@ No new indexes are needed — the `unified_embeddings` table already has indexes
 
 **Validates: Requirements 4.5**
 
-### Property 11: Observation creates action_observation embedding
+### Property 11: Observation embedding serves as skill evidence
 
-*For any* observation (state) that is linked to an action via `state_links` with `entity_type='action'`, the system should send an SQS message with `entity_type: 'action_observation'` and `entity_id` equal to the state's ID, in addition to the existing `state` embedding message.
+*For any* observation (state) that is linked to an action via `state_links` with `entity_type='action'`, the existing `state` embedding in `unified_embeddings` should be discoverable by the capability Lambda's vector similarity search. No separate entity type is needed — the `state_links` join filters observations to those linked to actions at query time.
 
 **Validates: Requirements 5.1**
 
@@ -474,7 +474,7 @@ No new indexes are needed — the `unified_embeddings` table already has indexes
 | Scenario | Handling |
 |----------|----------|
 | SQS message send fails | Log error, do not block the primary operation (fire-and-forget pattern, consistent with existing behavior). Embedding will be missing until next update triggers a retry. |
-| Embeddings processor fails for action_observation | SQS retry policy handles retries. After DLQ, the observation exists but won't appear in capability searches until reprocessed. |
+| Embeddings processor fails for state | SQS retry policy handles retries. After DLQ, the observation exists but won't appear in capability searches until reprocessed. |
 | Embedding dimension mismatch | Embeddings processor logs error and throws (existing behavior). SQS retries. |
 
 ### Frontend Error Handling
@@ -516,7 +516,7 @@ Property-based tests use [fast-check](https://github.com/dubzzz/fast-check) with
 ### Integration Tests
 
 - Skill profile generate → approve → embedding pipeline flow
-- Observation creation → `action_observation` embedding generation
+- Observation creation → `state` embedding generation
 - Capability computation with real vector search (test database)
 - Organization capability aggregation
 - Multi-tenant isolation (cross-org queries return no results)

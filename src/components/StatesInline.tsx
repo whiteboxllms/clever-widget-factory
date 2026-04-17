@@ -110,15 +110,20 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
           
           setUploadProgress(`Uploading photo ${i + 1} of ${newPhotos.length}...`);
           
-          const uploadResults = await uploadFiles([photo.file], { bucket: 'mission-attachments' });
-          const resultsArray = Array.isArray(uploadResults) ? uploadResults : [uploadResults];
-          const photoUrl = resultsArray[0].url;
-          
-          uploadedPhotos.push({
-            photo_url: photoUrl,
-            photo_description: photo.photo_description || '',
-            photo_order: uploadedPhotos.length
-          });
+          try {
+            const uploadResults = await uploadFiles([photo.file], { bucket: 'mission-attachments' });
+            const resultsArray = Array.isArray(uploadResults) ? uploadResults : [uploadResults];
+            const photoUrl = resultsArray[0].url;
+            
+            uploadedPhotos.push({
+              photo_url: photoUrl,
+              photo_description: photo.photo_description || '',
+              photo_order: uploadedPhotos.length
+            });
+          } catch (uploadErr) {
+            console.error('Failed to upload photo on save:', photo.file.name, uploadErr);
+            // Continue with other photos instead of failing the whole save
+          }
         }
         
         // Add all photos that already have URLs (existing + eagerly uploaded)

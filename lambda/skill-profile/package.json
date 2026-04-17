@@ -1,0 +1,10 @@
+{
+  "name": "cwf-skill-profile-lambda",
+  "version": "1.0.0",
+  "description": "Lambda function for skill profile generation, approval, and management",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-sqs": "^3.0.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.0.0"
+  }
+}

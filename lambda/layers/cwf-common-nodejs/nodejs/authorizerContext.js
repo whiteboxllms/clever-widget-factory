@@ -226,13 +226,17 @@ function canAccessOrganization(context, organizationId) {
 function buildOrganizationFilter(context, tableAlias = '') {
   const prefix = tableAlias ? `${tableAlias}.` : '';
   
-  // Users with data:read:all permission can access all organizations
-  // This replaces the old superadmin concept - access is now based on permissions
-  if (hasPermission(context, 'data:read:all')) {
-    return { condition: '1=1', params: [] };
+  // Always scope to the active organization when one is set.
+  // data:read:all is a superadmin permission for org setup — it should not
+  // bypass org scoping for normal data queries.
+  if (context.organization_id) {
+    return {
+      condition: `${prefix}organization_id = '${context.organization_id}'::uuid`,
+      params: []
+    };
   }
   
-  // Filter by accessible organizations
+  // Fallback: filter by accessible organizations
   const accessibleOrgs = context.accessible_organization_ids || [];
   
   if (accessibleOrgs.length === 0) {

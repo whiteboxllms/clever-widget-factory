@@ -128,9 +128,9 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     }
     
     // If the effective org is different from primary (i.e., user switched orgs),
-    // invalidate data caches so they refetch with the org header
+    // clear data caches so they refetch with the org header
     if (effectiveOrgId !== primaryOrganization?.id) {
-      queryClient.invalidateQueries({
+      queryClient.removeQueries({
         predicate: (query) => {
           const key = query.queryKey;
           if (Array.isArray(key) && (key[0] === 'organization_memberships' || key[0] === 'profile')) {
@@ -164,11 +164,13 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       // localStorage not available
     }
 
-    // Invalidate all data caches EXCEPT membership queries so the switcher stays populated
-    queryClient.invalidateQueries({
+    // Remove all data caches so components show loading states while fresh data loads.
+    // invalidateQueries only marks as stale (old data still visible during refetch);
+    // removeQueries actually clears the cache, preventing cross-org data leaks.
+    queryClient.removeQueries({
       predicate: (query) => {
         const key = query.queryKey;
-        // Don't invalidate membership or profile queries — those are user-level, not org-scoped
+        // Don't remove membership or profile queries — those are user-level, not org-scoped
         if (Array.isArray(key) && (key[0] === 'organization_memberships' || key[0] === 'profile')) {
           return false;
         }

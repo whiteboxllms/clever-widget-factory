@@ -64,6 +64,8 @@ import { PrismIcon } from "@/components/icons/PrismIcon";
 import { MaxwellInlinePanel } from "@/components/MaxwellInlinePanel";
 import { EntityContext } from "@/hooks/useEntityContext";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { SkillProfilePanel } from "@/components/SkillProfilePanel";
+import { CapabilityAssessment } from "@/components/CapabilityAssessment";
 
 interface UnifiedActionDialogProps {
   open: boolean;
@@ -245,6 +247,7 @@ export function UnifiedActionDialog({
   const isAutoSavingFromUploadRef = useRef<boolean>(false);
   const [attachmentFiles, setAttachmentFiles] = useState<Map<string, File>>(new Map());
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [isGeneratingExpectedState, setIsGeneratingExpectedState] = useState(false);
   const [isTitleEditing, setIsTitleEditing] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
 
@@ -513,6 +516,7 @@ export function UnifiedActionDialog({
         id: action.id,
         title: formData.title,
         description: formData.description,
+        expected_state: formData.expected_state,
         policy: formData.policy,
         assigned_to: formData.assigned_to,
         required_stock: formData.required_stock,
@@ -648,6 +652,54 @@ export function UnifiedActionDialog({
       });
     } finally {
       setIsGeneratingAI(false);
+    }
+  };
+
+  // Generate AI expected state (S') text
+  const generateAIExpectedState = async () => {
+    if (!formData.title && !formData.description) {
+      toast({
+        title: "Missing Information",
+        description: "Please add a title or description first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsGeneratingExpectedState(true);
+    try {
+      const response = await aiContentService.generateExpectedState({
+        title: formData.title || '',
+        description: formData.description || '',
+        asset_name: formData.asset?.name,
+        mission_title: missionData?.title
+      });
+
+      if (response?.content?.expected_state) {
+        setFormData(prev => ({
+          ...prev,
+          expected_state: response.content.expected_state
+        }));
+        toast({
+          title: "AI Suggestion Generated",
+          description: "Expected state has been updated with AI-generated content. You can edit it as needed.",
+        });
+      } else {
+        toast({
+          title: "AI Unavailable",
+          description: "AI service is currently unavailable. Please enter the expected state manually.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error generating AI expected state:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate AI expected state",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingExpectedState(false);
     }
   };
 
@@ -860,6 +912,7 @@ export function UnifiedActionDialog({
       const actionData: any = {
         title: formData.title.trim(),
         description: formData.description || null,
+        expected_state: formData.expected_state || null,
         policy: normalizedPolicy,
         assigned_to: formData.assigned_to === 'unassigned' ? null : formData.assigned_to || null,
         participants: formData.participants || [],
@@ -1115,6 +1168,36 @@ export function UnifiedActionDialog({
             />
           </div>
 
+          {/* Expected State (S') */}
+          <div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="expectedState">Where we want to get to</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={generateAIExpectedState}
+                disabled={isGeneratingExpectedState || (!formData.title && !formData.description)}
+                className="h-7 px-2 text-xs"
+              >
+                {isGeneratingExpectedState ? (
+                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent mr-1" />
+                ) : (
+                  <Sparkles className="h-3 w-3 mr-1" />
+                )}
+                AI Assist
+              </Button>
+            </div>
+            <Textarea
+              id="expectedState"
+              value={formData.expected_state || ''}
+              onChange={(e) => setFormData(prev => ({ ...prev, expected_state: e.target.value }))}
+              placeholder="Describe the desired outcome — what does 'done' look like?"
+              className="mt-1"
+              rows={2}
+            />
+          </div>
+
           {/* Assigned To, Participants, and Estimated Completion Date */}
           {/* Assigned To and Participants Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-4">
@@ -1160,6 +1243,20 @@ export function UnifiedActionDialog({
 
           {/* NOTE: Estimated Completion Date field removed in migration 005 */}
           {/* Duration tracking now uses objective data like image metadata */}
+
+          {/* Skill Profile Panel — only for existing actions */}
+          {!isCreating && action?.id && (
+            <SkillProfilePanel action={action} userId={user?.id || ''} />
+          )}
+
+          {/* Growth Checklist Radar Chart — only for existing actions */}
+          {!isCreating && action?.id && (
+            <CapabilityAssessment action={{
+              ...action,
+              assigned_to: formData.assigned_to || action.assigned_to,
+              participants: formData.participants || action.participants,
+            }} />
+          )}
 
           {/* Plan Commitment Toggle - Only show when assigned and user is leadership */}
           {formData.assigned_to && formData.assigned_to !== 'unassigned' && isLeadership && (

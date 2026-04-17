@@ -251,7 +251,7 @@ exports.handler = async (event) => {
       // Fire-and-forget pattern to avoid blocking the response
       if (result && result.length > 0) {
         const updatedAction = result[0];
-        const embeddingRelevantFields = ['description', 'state_text', 'summary_policy_text', 'observations'];
+        const embeddingRelevantFields = ['description', 'state_text', 'summary_policy_text', 'observations', 'expected_state'];
         const hasEmbeddingUpdate = embeddingRelevantFields.some(field => actionData[field] !== undefined);
         
         if (hasEmbeddingUpdate) {

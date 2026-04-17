@@ -82,6 +82,7 @@ function composeToolEmbeddingSource(tool) {
  * @param {string} [action.evidence_description] - Evidence of what was done
  * @param {string} [action.policy] - Lessons learned, best practices
  * @param {string} [action.observations] - Field observations
+ * @param {string} [action.expected_state] - Expected outcome (S') for the action
  * @returns {string} - Composed embedding source text
  * 
  * @example
@@ -89,16 +90,18 @@ function composeToolEmbeddingSource(tool) {
  *   description: 'Applied compost to banana plants',
  *   evidence_description: 'Spread 2 inches of compost around base',
  *   policy: 'Organic matter improves soil structure',
- *   observations: 'Plants showed improved vigor after 2 weeks'
+ *   observations: 'Plants showed improved vigor after 2 weeks',
+ *   expected_state: 'Healthy banana plants with improved soil nutrients'
  * })
- * // Returns: "Applied compost to banana plants. Spread 2 inches of compost around base. Organic matter improves soil structure. Plants showed improved vigor after 2 weeks"
+ * // Returns: "Applied compost to banana plants. Spread 2 inches of compost around base. Organic matter improves soil structure. Plants showed improved vigor after 2 weeks. Healthy banana plants with improved soil nutrients"
  */
 function composeActionEmbeddingSource(action) {
   const parts = [
     action.description,
     action.evidence_description,
     action.policy,
-    action.observations
+    action.observations,
+    action.expected_state
   ].filter(Boolean);
   
   return parts.join('. ');

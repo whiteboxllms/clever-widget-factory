@@ -12,7 +12,7 @@ fi
 
 LAMBDA_DIR="$1"
 FUNCTION_NAME="$2"
-LAYER_ARN="${3:-arn:aws:lambda:us-west-2:131745734428:layer:cwf-common-nodejs:18}"
+LAYER_ARN="${3:-arn:aws:lambda:us-west-2:131745734428:layer:cwf-common-nodejs:20}"
 REGION="us-west-2"
 ROLE_ARN="arn:aws:iam::131745734428:role/lambda-execution-role"
 

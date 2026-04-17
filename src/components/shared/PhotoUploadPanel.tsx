@@ -24,6 +24,7 @@ export interface PhotoItem {
   previewUrl?: string;
   isUploading?: boolean;
   isExisting?: boolean;
+  uploadFailed?: boolean;
 }
 
 export interface PhotoUploadPanelProps {
@@ -134,27 +135,32 @@ export function PhotoUploadPanel({
       onPhotosChange(updatedPhotos);
 
       // Eager upload: start uploading each new file immediately
+      // Uploads are serialized to avoid mobile browser memory pressure
+      // when multiple large photos are uploaded concurrently.
       if (onEagerUpload) {
-        newItems.forEach((item) => {
-          if (!item.file || !item.id) return;
-          const itemId = item.id;
-          onEagerUpload(item.file)
-            .then(({ url }) => {
+        const uploadSequentially = async () => {
+          for (const item of newItems) {
+            if (!item.file || !item.id) continue;
+            const itemId = item.id;
+            try {
+              const { url } = await onEagerUpload(item.file);
               const latest = photosRef.current.map((p) =>
                 p.id === itemId
                   ? { ...p, photo_url: url, isUploading: false, file: undefined }
                   : p
               );
               onPhotosChange(latest);
-            })
-            .catch((err) => {
+            } catch (err) {
               console.error('Eager upload failed for', item.file?.name, err);
+              // Mark as failed so user sees it needs attention
               const latest = photosRef.current.map((p) =>
-                p.id === itemId ? { ...p, isUploading: false } : p
+                p.id === itemId ? { ...p, isUploading: false, uploadFailed: true } : p
               );
               onPhotosChange(latest);
-            });
-        });
+            }
+          }
+        };
+        uploadSequentially();
       }
 
       // Reset input so the same file can be re-selected
@@ -346,6 +352,11 @@ export function PhotoUploadPanel({
                 {photo.isUploading && (
                   <div className="absolute inset-0 flex items-center justify-center bg-background/70 rounded">
                     <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  </div>
+                )}
+                {photo.uploadFailed && !photo.isUploading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-destructive/20 rounded">
+                    <AlertCircle className="h-5 w-5 text-destructive" />
                   </div>
                 )}
               </div>

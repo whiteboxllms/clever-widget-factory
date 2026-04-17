@@ -145,7 +145,7 @@ exports.handler = async (event) => {
       console.log(`Processing ${entity_type} ${entity_id}`);
       
       // Validate entity type (includes action variants like action_existing_state)
-      const validTypes = ['part', 'tool', 'action', 'issue', 'policy', 'action_existing_state', 'state', 'state_space_model', 'financial_record'];
+      const validTypes = ['part', 'tool', 'action', 'issue', 'policy', 'action_existing_state', 'state', 'state_space_model', 'financial_record', 'action_skill_profile'];
       if (!validTypes.includes(entity_type)) {
         console.log(`Skipping ${entity_type} - not a valid entity type`);
         continue;

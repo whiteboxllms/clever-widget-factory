@@ -68,6 +68,10 @@ export const experiencesQueryKey = (filters?: { entity_type?: string; entity_id?
   filters ? ['experiences', filters.entity_type ?? 'all', filters.entity_id ?? 'all'] : ['experiences'];
 export const experienceQueryKey = (experienceId: string) => ['experience', experienceId];
 
+// Capability query keys
+export const capabilityProfileQueryKey = (actionId: string, userId: string) => ['capability', actionId, userId];
+export const organizationCapabilityQueryKey = (actionId: string) => ['capability', actionId, 'organization'];
+
 // State space model query keys
 export const stateSpaceModelsQueryKey = () => ['state_space_models'];
 export const stateSpaceModelQueryKey = (id: string) => ['state_space_model', id];

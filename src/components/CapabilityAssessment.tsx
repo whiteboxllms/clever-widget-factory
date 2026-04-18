@@ -13,6 +13,7 @@ import type { LearningObjective, LearningAxis } from '@/hooks/useLearning';
 import { SkillRadialChart } from '@/components/RadialChart';
 import { AxisDrilldown } from '@/components/AxisDrilldown';
 import { computeGapItems, sortGapsBySeverity, computeGapSummary, computeAxisProgress, isAxisComplete, isAllLearningComplete } from '@/lib/learningUtils';
+import { scoreToGrowthLabel } from '@/lib/progressionUtils';
 import type { GapItem, ObjectiveProgress } from '@/lib/learningUtils';
 import type { BaseAction } from '@/types/actions';
 import type { SkillProfile } from '@/hooks/useSkillProfile';
@@ -88,9 +89,9 @@ function PersonGapChecklist({
     [skillProfile, profile]
   );
 
-  // Build learning status per axis from objectives data
+  // Build learning status per axis from objectives data (includes continuous score)
   const axisLearningStatus = useMemo(() => {
-    const status = new Map<string, { hasObjectives: boolean; allComplete: boolean; completed: number; total: number }>();
+    const status = new Map<string, { hasObjectives: boolean; allComplete: boolean; completed: number; total: number; continuousScore: number }>();
     if (learningAxes) {
       for (const axis of learningAxes) {
         const total = axis.objectives.length;
@@ -100,6 +101,7 @@ function PersonGapChecklist({
           allComplete: total > 0 && completed === total,
           completed,
           total,
+          continuousScore: axis.continuousScore ?? 0,
         });
       }
     }
@@ -150,7 +152,7 @@ function PersonGapChecklist({
                     {allComplete && <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />}
                     <span className="font-medium truncate">{gap.axisLabel}</span>
                     <Badge variant="outline" className="text-xs shrink-0">
-                      {bloomLabel(gap.currentLevel)}
+                      {ls && ls.continuousScore != null ? `${ls.continuousScore.toFixed(1)} — ${scoreToGrowthLabel(ls.continuousScore)}` : bloomLabel(gap.currentLevel)}
                     </Badge>
                     <span className="text-muted-foreground text-xs shrink-0">→</span>
                     <Badge variant="secondary" className="text-xs shrink-0">
@@ -272,6 +274,9 @@ function LearningObjectivesSection({
                 <div className="flex items-center gap-2 min-w-0">
                   {axisComplete && <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />}
                   <span className="text-sm font-medium truncate">{axisLabel}</span>
+                  <Badge variant="outline" className="text-xs shrink-0">
+                    {axisData.continuousScore != null ? `${axisData.continuousScore.toFixed(1)} — ${scoreToGrowthLabel(axisData.continuousScore)}` : bloomLabel(0)}
+                  </Badge>
                 </div>
                 <div className="shrink-0 ml-2">
                   {axisComplete ? (
@@ -421,6 +426,16 @@ export function CapabilityAssessment({ action }: CapabilityAssessmentProps) {
   );
   const learningAxes = learningData?.axes;
 
+  // Build continuous scores map from learning axes for the radar chart
+  const continuousScores = useMemo(() => {
+    if (!learningAxes) return undefined;
+    const scores = new Map<string, number>();
+    for (const axis of learningAxes) {
+      scores.set(axis.axisKey, axis.continuousScore);
+    }
+    return scores;
+  }, [learningAxes]);
+
   // Refetch learning objectives when capability data updates (e.g., after Regenerate)
   const capabilitySettled = capabilityQueries.every((q) => !q.isLoading && !q.isFetching);
   const [prevSettled, setPrevSettled] = useState(false);
@@ -493,8 +508,15 @@ export function CapabilityAssessment({ action }: CapabilityAssessmentProps) {
       <SkillRadialChart
         skillProfile={skillProfile}
         capabilityProfiles={capabilityProfiles}
+        continuousScores={continuousScores}
         onAxisClick={(axisKey) => setSelectedAxis(axisKey)}
       />
+      {isLoadingLearning && (
+        <div className="flex items-center justify-center gap-2 -mt-2 text-xs text-muted-foreground">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Updating scores…
+        </div>
+      )}
 
       {/* Learning objectives */}
       {isLoadingLearning ? (

@@ -3,6 +3,7 @@ const { getAuthorizerContext } = require('/opt/nodejs/authorizerContext');
 const { successResponse, errorResponse, corsResponse } = require('/opt/nodejs/response');
 const { getDbClient } = require('/opt/nodejs/db');
 const { escapeLiteral } = require('/opt/nodejs/sqlUtils');
+const { determineEvidenceTypeEnriched } = require('./capabilityUtils');
 
 const bedrock = new BedrockRuntimeClient({ region: process.env.BEDROCK_REGION || 'us-west-2' });
 
@@ -157,13 +158,16 @@ async function handlePerAxisCapability(db, actionId, userId, organizationId, ski
 
       const matches = (axisSearchResult.rows || []).map(row => {
         const stateText = row.state_text || '';
-        const evidenceType = determineEvidenceType(stateText);
+        const enrichedEvidence = determineEvidenceTypeEnriched(stateText);
 
         return {
           observation_id: row.entity_id,
           text_excerpt: stateText.substring(0, 500),
           similarity_score: Math.round(parseFloat(row.similarity) * 100) / 100,
-          evidence_type: evidenceType,
+          evidence_type: enrichedEvidence.type,
+          question_type: enrichedEvidence.questionType,
+          continuous_score: enrichedEvidence.continuousScore,
+          evaluation_status: enrichedEvidence.evaluationStatus,
           source_action_title: '' // Will be resolved below
         };
       });
@@ -592,10 +596,27 @@ async function callBedrockForPerAxisCapability(skillProfile, perAxisEvidence, us
 No evidence found for this axis.`;
     }
 
-    const evidenceLines = evidence.map((e, i) =>
-      `${i + 1}. [${e.observation_id}] Similarity: ${e.similarity_score} | Type: ${e.evidence_type}${e.evidence_type === 'quiz' ? ' (Bloom\'s level 2 minimum — demonstrates understanding)' : ' (varies — may range from recall to application)'}${e.source_action_title ? ` | From: "${e.source_action_title}"` : ''}
-   Text: ${e.text_excerpt}`
-    ).join('\n\n');
+    const evidenceLines = evidence.map((e, i) => {
+      // Build evidence tag based on question_type, continuous_score, and evaluation_status
+      let tag;
+      if (e.question_type === 'recognition') {
+        tag = '[quiz:recognition]';
+      } else if (e.question_type && e.question_type !== 'recognition') {
+        if (e.evaluation_status === 'pending') {
+          tag = `[quiz:${e.question_type}, pending]`;
+        } else if (e.continuous_score != null) {
+          tag = `[quiz:${e.question_type}, score:${e.continuous_score}, ${e.evaluation_status || 'sufficient'}]`;
+        } else {
+          tag = `[quiz:${e.question_type}]`;
+        }
+      } else if (e.evidence_type === 'observation') {
+        tag = '[observation]';
+      } else {
+        tag = `[${e.evidence_type}]`;
+      }
+
+      return `${i + 1}. ${tag} ${e.text_excerpt} (similarity: ${e.similarity_score})${e.source_action_title ? ` | From: "${e.source_action_title}"` : ''}`;
+    }).join('\n\n');
 
     return `### Axis: ${axis.key} ("${axis.label}")
 ${evidenceLines}`;
@@ -633,8 +654,14 @@ AXES (each has a required level on the 0-5 Bloom's scale):
 ${axesDescription}
 
 EVIDENCE TYPE INTERPRETATION:
-- "quiz" evidence: The person completed a quiz testing "why" comprehension. This demonstrates at minimum Bloom's level 2 (Understand). The similarity score indicates how relevant this quiz topic is to the axis.
-- "observation" evidence: A field observation or demonstration. The Bloom's level varies — could be recall (level 1) if just following procedures, or higher if showing reasoning or adaptation. Assess based on the text content.
+- "recognition" (quiz): Multiple-choice correct answer. Demonstrates at minimum Bloom's level 1 (Remember).
+- "bridging" (quiz): Open-ended connection to action context. Demonstrates level 1 completion.
+- "self_explanation" (quiz, score: 2.4): Open-form explanation. Score indicates demonstrated depth.
+- "application" (quiz, score: 3.1): Scenario-based transfer. Score indicates demonstrated depth.
+- "analysis" (quiz, score: 4.0): Tradeoff evaluation. Score indicates demonstrated depth.
+- "synthesis" (quiz, score: 4.8): Design/teaching response. Score indicates demonstrated depth.
+- "observation": Field observation. Bloom's level varies based on content.
+- "pending": Open-form response awaiting evaluation. Include as evidence but note evaluation is in progress.
 
 PER-AXIS EVIDENCE (each axis has its own evidence, sorted by similarity):
 ${perAxisSections}
@@ -642,7 +669,8 @@ ${learningSection}
 
 ASSESSMENT GUIDELINES:
 - Score each axis as an INTEGER from 0 to 5 using the Bloom's scale above.
-- Use the evidence type to inform your scoring: quiz evidence guarantees at least level 2, observation evidence requires judgment.
+- Use the evidence type and continuous score to inform your scoring: recognition evidence guarantees at least level 1, open-form evidence with a score directly indicates demonstrated depth, observation evidence requires judgment based on text content.
+- Evidence marked "pending" should be included but weighted less — evaluation is still in progress.
 - Consider the similarity score — higher similarity means the evidence is more directly relevant to the axis.
 - A person with no evidence and no learning for an axis should score 0.
 - Be fair and evidence-based. Do not infer skills not demonstrated in the evidence.

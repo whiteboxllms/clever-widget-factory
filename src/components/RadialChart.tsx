@@ -11,6 +11,8 @@ export interface SkillRadialChartProps {
   capabilityProfiles: CapabilityProfile[];
   organizationProfile?: CapabilityProfile;
   onAxisClick?: (axisKey: string) => void;
+  /** Optional continuous (decimal) scores per axis key, used for granular polygon rendering */
+  continuousScores?: Map<string, number>;
 }
 
 interface AxisData {
@@ -57,6 +59,7 @@ export function SkillRadialChart({
   capabilityProfiles,
   organizationProfile,
   onAxisClick,
+  continuousScores,
 }: SkillRadialChartProps) {
   const [animProgress, setAnimProgress] = useState(0);
   const [hoveredAxis, setHoveredAxis] = useState<string | null>(null);
@@ -84,14 +87,17 @@ export function SkillRadialChart({
     const primary = capabilityProfiles[0];
     return skillProfile.axes.map((sa) => {
       const cap = primary?.axes.find((a) => a.key === sa.key);
+      const capLevel = cap?.level ?? 0;
+      // Use the higher of continuous learning score and capability assessment level
+      const continuousScore = continuousScores?.get(sa.key);
       return {
         key: sa.key,
         label: sa.label,
         requirement: sa.required_level,
-        capability: cap?.level ?? 0,
+        capability: Math.max(continuousScore ?? 0, capLevel),
       };
     });
-  }, [skillProfile, capabilityProfiles]);
+  }, [skillProfile, capabilityProfiles, continuousScores]);
 
   const count = axes.length;
 
@@ -244,7 +250,7 @@ export function SkillRadialChart({
               style={{ cursor: onAxisClick ? 'pointer' : 'default' }}
               role="button"
               tabIndex={0}
-              aria-label={`${axis.label}: Level ${Math.round(axis.capability)}, Required: ${axis.requirement}`}
+              aria-label={`${axis.label}: Level ${Number.isInteger(axis.capability) ? axis.capability : axis.capability.toFixed(1)}, Required: ${axis.requirement}`}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
@@ -252,7 +258,7 @@ export function SkillRadialChart({
                 }
               }}
             >
-              <title>{axis.label} — Level {Math.round(axis.capability)} / {axis.requirement}</title>
+              <title>{axis.label} — Level {Number.isInteger(axis.capability) ? axis.capability : axis.capability.toFixed(1)} / {axis.requirement}</title>
               <text
                 x={x}
                 y={y}
@@ -272,11 +278,12 @@ export function SkillRadialChart({
         {hoveredAxis && (() => {
           const axis = axes.find((a) => a.key === hoveredAxis);
           if (!axis) return null;
+          const displayScore = Number.isInteger(axis.capability) ? `${axis.capability}` : axis.capability.toFixed(1);
           const bloomLabel = BLOOM_LABELS[Math.round(Math.max(0, Math.min(MAX_LEVEL, axis.capability)))] || '';
           return (
             <>
               <text x={cx} y={cy - 8} textAnchor="middle" fontSize={16} fontWeight={600} className="fill-foreground">
-                {Math.round(axis.capability)} / {axis.requirement}
+                {displayScore} / {axis.requirement}
               </text>
               <text x={cx} y={cy + 10} textAnchor="middle" fontSize={10} className="fill-muted-foreground">
                 {bloomLabel}

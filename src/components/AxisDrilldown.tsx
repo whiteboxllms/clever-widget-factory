@@ -17,6 +17,7 @@ import { Progress } from '@/components/ui/progress';
 import { getThumbnailUrl, getImageUrl } from '@/lib/imageUtils';
 import { useAuth } from '@/hooks/useCognitoAuth';
 import { useLearningObjectives } from '@/hooks/useLearning';
+import { scoreToGrowthLabel } from '@/lib/progressionUtils';
 import type { SkillProfile } from '@/hooks/useSkillProfile';
 import type { CapabilityProfile, ObservationEvidence, AxisEvidence } from '@/hooks/useCapability';
 
@@ -49,6 +50,18 @@ function relevanceLabel(score: number): string {
   if (score >= 0.8) return 'High';
   if (score >= 0.5) return 'Medium';
   return 'Low';
+}
+
+/**
+ * Format a question type string for display.
+ * Replaces underscores with hyphens and capitalizes each word.
+ * e.g., "self_explanation" → "Self-Explanation"
+ */
+function formatQuestionTypeLabel(questionType: string): string {
+  return questionType
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join('-');
 }
 
 function relevanceVariant(score: number): 'default' | 'secondary' | 'outline' {
@@ -185,6 +198,13 @@ export function AxisDrilldown({
       (a) => a.axisKey === axisKey && a.objectives.length > 0
     );
   }, [learningData, axisKey]);
+
+  // Find the learning axis data for continuous score and progression level
+  const learningAxis = useMemo(() => {
+    if (!learningData?.axes) return null;
+    return learningData.axes.find((a) => a.axisKey === axisKey) ?? null;
+  }, [learningData, axisKey]);
+
   // Find the skill axis definition
   const skillAxis = useMemo(
     () => skillProfile.axes.find((a) => a.key === axisKey),
@@ -218,6 +238,20 @@ export function AxisDrilldown({
             Requirement level: {formatLevel(skillAxis.required_level)}
           </SheetDescription>
         </SheetHeader>
+
+        {/* Continuous score and progression level */}
+        {learningAxis && learningAxis.continuousScore > 0 && (
+          <div className="mt-3 space-y-1.5 px-1">
+            <p className="text-sm font-semibold">
+              {learningAxis.continuousScore.toFixed(1)} — {scoreToGrowthLabel(learningAxis.continuousScore)}
+            </p>
+            {learningAxis.progressionLevel && (
+              <p className="text-xs text-muted-foreground">
+                Currently working on: {formatQuestionTypeLabel(learningAxis.progressionLevel)} questions
+              </p>
+            )}
+          </div>
+        )}
 
         <ScrollArea className="h-[calc(100vh-8rem)] mt-4 pr-2">
           <div className="space-y-6">

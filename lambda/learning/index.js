@@ -52,11 +52,26 @@ exports.handler = async (event) => {
       return await handleGetObjectives(actionId, userId, organizationId);
     }
 
+    // GET /api/learning/:actionId/:userId/evaluation-status
+    if (httpMethod === 'GET' && segments.length === 3 && segments[2] === 'evaluation-status') {
+      const actionId = segments[0];
+      const userId = segments[1];
+      const queryParams = event.queryStringParameters || {};
+      return await handleEvaluationStatus(actionId, userId, organizationId, queryParams);
+    }
+
     // POST /api/learning/:actionId/quiz/generate
     if (httpMethod === 'POST' && segments.length === 3 && segments[1] === 'quiz' && segments[2] === 'generate') {
       const actionId = segments[0];
       const body = JSON.parse(event.body || '{}');
       return await handleQuizGenerate(actionId, body, organizationId);
+    }
+
+    // POST /api/learning/:actionId/quiz/evaluate
+    if (httpMethod === 'POST' && segments.length === 3 && segments[1] === 'quiz' && segments[2] === 'evaluate') {
+      const actionId = segments[0];
+      const body = JSON.parse(event.body || '{}');
+      return await handleEvaluate(actionId, body, organizationId);
     }
 
     // POST /api/learning/:actionId/verify
@@ -256,9 +271,43 @@ async function handleGetObjectives(actionId, userId, organizationId) {
       }
     }
 
-    // 9. Build response grouped by axis with semantic evidence
+    // 9. Build response grouped by axis with semantic evidence, continuous scores, and progression levels
     const axes = allAxes.map((gap) => {
-      const objectives = (existingByAxis[gap.axisKey] || []).map((obj) => {
+      const axisObjectives = existingByAxis[gap.axisKey] || [];
+
+      // Collect all knowledge states for this axis and derive per-axis metrics
+      let totalRecognitionObjectives = axisObjectives.length;
+      let correctRecognitionCount = 0;
+      const allAxisOpenFormStates = [];
+
+      for (const obj of axisObjectives) {
+        const knowledgeStates = knowledgeStatesByObjective[obj.id] || [];
+        for (const stateText of knowledgeStates) {
+          // Count correct recognition answers
+          if (stateText.includes('which was the correct answer')) {
+            correctRecognitionCount++;
+          }
+          // Parse open-form states for progression/score derivation
+          const parsed = parseOpenFormStateText(stateText);
+          if (parsed) {
+            allAxisOpenFormStates.push(parsed);
+          }
+        }
+      }
+
+      // Derive recognition completion for progression level
+      const recognitionComplete = totalRecognitionObjectives > 0 &&
+        correctRecognitionCount >= totalRecognitionObjectives;
+
+      // Compute continuous score and progression level for this axis
+      const continuousScore = computeContinuousScore(
+        allAxisOpenFormStates, totalRecognitionObjectives, correctRecognitionCount
+      );
+      const { currentLevel: progressionLevel } = deriveProgressionLevel(
+        allAxisOpenFormStates, recognitionComplete
+      );
+
+      const objectives = axisObjectives.map((obj) => {
         const knowledgeStates = knowledgeStatesByObjective[obj.id] || [];
         const { status, completionType } = deriveObjectiveStatusFromStates(knowledgeStates);
 
@@ -282,6 +331,8 @@ async function handleGetObjectives(actionId, userId, organizationId) {
         axisLabel: gap.axisLabel,
         requiredLevel: gap.requiredLevel,
         currentLevel: gap.currentLevel,
+        continuousScore,
+        progressionLevel,
         objectives
       };
     });
@@ -618,6 +669,189 @@ function deriveObjectiveStatusFromStates(knowledgeStateTexts) {
   return { status: 'in_progress', completionType: null };
 }
 
+// --- Bloom's Progression Constants and Functions (server-side JS equivalents) ---
+
+/** Bloom's level mapping for each question type */
+const BLOOM_LEVEL_MAP = {
+  recognition: 1,
+  bridging: 1,
+  self_explanation: 2,
+  application: 3,
+  analysis: 4,
+  synthesis: 5,
+};
+
+/** Score thresholds for advancing past each open-form question type */
+const ADVANCEMENT_THRESHOLDS = {
+  self_explanation: 2.0,
+  application: 3.0,
+  analysis: 4.0,
+};
+
+/** Open-form question types in progression order (after Recognition) */
+const OPEN_FORM_PROGRESSION = [
+  'bridging',
+  'self_explanation',
+  'application',
+  'analysis',
+  'synthesis',
+];
+
+/**
+ * Map a question type to its Bloom's taxonomy level.
+ * Returns 0 for invalid types.
+ */
+function questionTypeToBloomLevel(questionType) {
+  return BLOOM_LEVEL_MAP[questionType] ?? 0;
+}
+
+/**
+ * Parse an open-form knowledge state text back to its component fields.
+ * Server-side JS equivalent of the frontend parseOpenFormStateText.
+ * Returns null if the text doesn't match the open-form format.
+ */
+function parseOpenFormStateText(stateText) {
+  const corePattern =
+    /^For learning objective '(.+?)' and (\S+) question '(.+?)', I responded: '(.+?)'\. Ideal answer: '(.+?)'\. Evaluation: (.+)$/s;
+
+  const match = stateText.match(corePattern);
+  if (!match) return null;
+
+  const objectiveText = match[1];
+  const questionType = match[2];
+  const questionText = match[3];
+  const responseText = match[4];
+  const idealAnswer = match[5];
+  const evaluationPart = match[6];
+
+  if (evaluationPart === 'pending.') {
+    return {
+      objectiveText, questionType, questionText, responseText, idealAnswer,
+      evaluationStatus: 'pending', continuousScore: null, reasoning: null,
+    };
+  }
+
+  if (evaluationPart === 'error.') {
+    return {
+      objectiveText, questionType, questionText, responseText, idealAnswer,
+      evaluationStatus: 'error', continuousScore: null, reasoning: null,
+    };
+  }
+
+  const evalPattern = /^(sufficient|insufficient) \(score: ([\d.]+)\)\. (.+)\.$/s;
+  const evalMatch = evaluationPart.match(evalPattern);
+  if (!evalMatch) return null;
+
+  return {
+    objectiveText, questionType, questionText, responseText, idealAnswer,
+    evaluationStatus: evalMatch[1],
+    continuousScore: parseFloat(evalMatch[2]),
+    reasoning: evalMatch[3],
+  };
+}
+
+/**
+ * Check if at least one sufficient evaluation exists for a given question type.
+ */
+function hasSufficientForType(openFormStates, questionType) {
+  return openFormStates.some(
+    (state) => state.questionType === questionType && state.evaluationStatus === 'sufficient'
+  );
+}
+
+/**
+ * Check if a level is complete — sufficient evaluation with score meeting threshold.
+ */
+function isLevelComplete(openFormStates, questionType) {
+  const threshold = ADVANCEMENT_THRESHOLDS[questionType];
+  if (threshold === undefined) {
+    return hasSufficientForType(openFormStates, questionType);
+  }
+  return openFormStates.some(
+    (state) =>
+      state.questionType === questionType &&
+      state.evaluationStatus === 'sufficient' &&
+      state.continuousScore !== null &&
+      state.continuousScore >= threshold
+  );
+}
+
+/**
+ * Derive the current progression level for an axis from knowledge states.
+ * Server-side JS equivalent of the frontend deriveProgressionLevel.
+ *
+ * @param {Array} openFormStates - Parsed open-form knowledge states for this axis
+ * @param {boolean} recognitionComplete - Whether all Recognition objectives are answered correctly
+ * @returns {{ currentLevel: string, bloomLevel: number }}
+ */
+function deriveProgressionLevel(openFormStates, recognitionComplete) {
+  if (!recognitionComplete) {
+    return { currentLevel: 'recognition', bloomLevel: 1 };
+  }
+
+  if (!hasSufficientForType(openFormStates, 'bridging')) {
+    return { currentLevel: 'bridging', bloomLevel: 1 };
+  }
+
+  for (let i = 1; i < OPEN_FORM_PROGRESSION.length; i++) {
+    const currentType = OPEN_FORM_PROGRESSION[i];
+    const previousType = OPEN_FORM_PROGRESSION[i - 1];
+
+    if (!isLevelComplete(openFormStates, previousType)) {
+      return {
+        currentLevel: previousType,
+        bloomLevel: questionTypeToBloomLevel(previousType),
+      };
+    }
+
+    if (!hasSufficientForType(openFormStates, currentType)) {
+      return {
+        currentLevel: currentType,
+        bloomLevel: questionTypeToBloomLevel(currentType),
+      };
+    }
+  }
+
+  return { currentLevel: 'synthesis', bloomLevel: 5 };
+}
+
+/**
+ * Compute continuous Bloom's score for an axis from all knowledge states.
+ * Server-side JS equivalent of the frontend computeContinuousScore.
+ *
+ * @param {Array} openFormStates - Parsed open-form knowledge states for this axis
+ * @param {number} totalRecognitionObjectives - Total recognition objectives for the axis
+ * @param {number} correctRecognitionCount - Count of correct recognition answers for the axis
+ * @returns {number} Continuous score clamped to [0.0, 5.0]
+ */
+function computeContinuousScore(openFormStates, totalRecognitionObjectives, correctRecognitionCount) {
+  // 1. Recognition score: proportion of correct first-attempt answers, capped at 1.0
+  const recognitionScore =
+    totalRecognitionObjectives > 0
+      ? Math.min(1.0, correctRecognitionCount / totalRecognitionObjectives)
+      : 0;
+
+  // 2. Bridging score: 1.0 if bridging is complete
+  const bridgingScore = hasSufficientForType(openFormStates, 'bridging')
+    ? 1.0
+    : 0;
+
+  // 3. Open-form max: highest continuous score from evaluated (non-pending, non-error) states
+  let openFormMax = 0;
+  for (const state of openFormStates) {
+    if (
+      state.continuousScore !== null &&
+      state.evaluationStatus !== 'pending' &&
+      state.evaluationStatus !== 'error'
+    ) {
+      openFormMax = Math.max(openFormMax, state.continuousScore);
+    }
+  }
+
+  // Return the maximum of all computed scores, clamped to [0.0, 5.0]
+  return Math.min(5.0, Math.max(recognitionScore, bridgingScore, openFormMax));
+}
+
 /**
  * Compute recency weight for an observation based on its capture date.
  * Matches the capability Lambda's recency weighting.
@@ -636,7 +870,8 @@ function computeRecencyWeight(capturedAt) {
 /**
  * POST /api/learning/:actionId/quiz/generate
  * Generate a round of quiz questions for selected learning objectives.
- * Requirements: 4.1, 4.2, 4.3, 4.4, 4.7, 8.7, 8.8
+ * Extended for Bloom's progression: derives question type per objective from knowledge states.
+ * Requirements: 1.1, 1.6, 2.1, 3.1, 4.1, 4.2, 4.3, 4.4, 4.7, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 8.7, 8.8
  */
 async function handleQuizGenerate(actionId, body, organizationId) {
   const { userId, axisKey, objectiveIds, previousAnswers } = body;
@@ -700,23 +935,103 @@ async function handleQuizGenerate(actionId, body, organizationId) {
       };
     });
 
-    // 3. Skip expensive evidence/tool fetching to stay within API Gateway 29s timeout.
-    //    The quiz prompt uses action context + objectives + previous answers only.
-    //    Evidence and tools can be added in a future optimization with async generation.
-
-    // 4. Build structured prompt and call Bedrock Sonnet
-    const questions = await generateQuizViaBedrock(
-      action,
-      targetAxis,
-      objectives,
-      { observations: [], photoUrls: [] },
-      [],
-      {},
-      previousAnswers || []
+    // 3. Fetch ALL learning objectives for this axis to determine Recognition completion
+    const allAxisObjectivesResult = await db.query(
+      `SELECT s.id, s.state_text
+       FROM states s
+       INNER JOIN state_links sl ON sl.state_id = s.id
+       WHERE sl.entity_type = 'action' AND sl.entity_id = '${actionIdSafe}'
+         AND s.organization_id = '${orgIdSafe}'
+         AND s.state_text LIKE '[learning_objective]%'
+         AND s.state_text LIKE '%axis=${escapeLiteral(axisKey)}%'`
     );
 
-    // 5. Validate response structure
-    const validatedQuestions = validateQuizQuestions(questions, objectiveIds);
+    const allAxisObjectiveIds = allAxisObjectivesResult.rows.map(r => r.id);
+
+    // 4. Fetch existing knowledge states for the user on this axis
+    let knowledgeStatesForAxis = {};
+    if (allAxisObjectiveIds.length > 0) {
+      const allAxisObjIdsList = allAxisObjectiveIds.map(id => `'${escapeLiteral(id)}'`).join(',');
+      const knowledgeResult = await db.query(
+        `SELECT sl.entity_id as objective_id, s.state_text
+         FROM states s
+         INNER JOIN state_links sl ON sl.state_id = s.id
+         WHERE sl.entity_type = 'learning_objective'
+           AND sl.entity_id IN (${allAxisObjIdsList})
+           AND s.organization_id = '${orgIdSafe}'
+         ORDER BY s.captured_at ASC`
+      );
+
+      for (const row of knowledgeResult.rows) {
+        if (!knowledgeStatesForAxis[row.objective_id]) {
+          knowledgeStatesForAxis[row.objective_id] = [];
+        }
+        knowledgeStatesForAxis[row.objective_id].push(row.state_text);
+      }
+    }
+
+    // 5. Determine Recognition completion: all axis objectives have a correct first-attempt answer
+    const recognitionComplete = allAxisObjectiveIds.every(objId => {
+      const states = knowledgeStatesForAxis[objId] || [];
+      return states.some(text => text.includes('which was the correct answer'));
+    });
+
+    // 6. Parse open-form knowledge states for progression derivation
+    const openFormStates = [];
+    for (const states of Object.values(knowledgeStatesForAxis)) {
+      for (const stateText of states) {
+        const parsed = parseOpenFormStateText(stateText);
+        if (parsed) {
+          openFormStates.push(parsed);
+        }
+      }
+    }
+
+    // 7. Derive progression level for this axis
+    const progression = deriveProgressionLevel(openFormStates, recognitionComplete);
+    const questionType = progression.currentLevel;
+    const bloomLevel = progression.bloomLevel;
+
+    console.log(`Progression for axis ${axisKey}: questionType=${questionType}, bloomLevel=${bloomLevel}, recognitionComplete=${recognitionComplete}`);
+
+    // 8. Generate questions based on the derived question type
+    let validatedQuestions;
+
+    if (questionType === 'recognition') {
+      // Recognition: use existing multiple-choice generation flow unchanged
+      const questions = await generateQuizViaBedrock(
+        action,
+        targetAxis,
+        objectives,
+        { observations: [], photoUrls: [] },
+        [],
+        knowledgeStatesForAxis,
+        previousAnswers || []
+      );
+
+      validatedQuestions = validateQuizQuestions(questions, objectiveIds);
+
+      // Add progression fields to Recognition questions
+      validatedQuestions = validatedQuestions.map(q => ({
+        ...q,
+        questionType: 'recognition',
+        bloomLevel: 1,
+        idealAnswer: null,
+      }));
+    } else {
+      // Open-form questions (bridging, self_explanation, application, analysis, synthesis)
+      const questions = await generateOpenFormQuizViaBedrock(
+        action,
+        targetAxis,
+        objectives,
+        questionType,
+        bloomLevel,
+        openFormStates,
+        previousAnswers || []
+      );
+
+      validatedQuestions = validateOpenFormQuestions(questions, objectiveIds, questionType, bloomLevel);
+    }
 
     return success({ questions: validatedQuestions });
   } finally {
@@ -1054,6 +1369,183 @@ No markdown, no code fences, no explanation outside the JSON.`;
 }
 
 /**
+ * Generate open-form quiz questions via Bedrock Sonnet.
+ * Produces question prompt + ideal reference answer for each objective.
+ * Used for bridging, self_explanation, application, analysis, and synthesis question types.
+ *
+ * Requirements: 3.1, 6.3, 6.4, 6.5, 6.7
+ */
+async function generateOpenFormQuizViaBedrock(action, targetAxis, objectives, questionType, bloomLevel, previousOpenFormStates, previousAnswers) {
+  // Build question type instructions based on the current progression level
+  const questionTypeInstructions = {
+    bridging: `Generate a BRIDGING question for the entire axis. This is a single open-ended question asking the learner to connect the concepts they've learned to their specific action context. Example framing: "Now that you've reviewed these concepts, what from this area do you see as worth adopting for this action, and why?"
+The question should reference the action context and ask the learner to make connections between the concepts and their work.`,
+    self_explanation: `Generate SELF-EXPLANATION questions (Bloom's Level 2 — Understand). Each question should ask the learner to explain a concept in their own words. Example framings:
+- "Explain in your own words why..."
+- "What does this mean in your own words?"
+- "Describe how... works and why it matters"
+Focus on the "why" behind concepts, not just recall.`,
+    application: `Generate APPLICATION questions (Bloom's Level 3 — Apply). Each question should present a scenario and ask the learner to transfer knowledge to a novel context. Example framings:
+- "How would you apply this in [new situation]?"
+- "Given this scenario, what approach would you take and why?"
+- "If you encountered [situation], how would you use what you know about [concept]?"
+Focus on practical transfer to new contexts.`,
+    analysis: `Generate ANALYSIS questions (Bloom's Level 4 — Analyze). Each question should ask the learner to evaluate tradeoffs between approaches. Example framings:
+- "Compare these two methods and explain the tradeoffs"
+- "What are the advantages and disadvantages of [approach] vs [approach]?"
+- "Evaluate why [approach A] might be preferred over [approach B] in this context"
+Focus on critical evaluation and comparison.`,
+    synthesis: `Generate SYNTHESIS questions (Bloom's Level 5 — Create). Each question should ask the learner to construct, design, or teach. Example framings:
+- "Design a procedure for..."
+- "How would you teach this concept to someone new?"
+- "Create a plan that combines [concept A] and [concept B] to achieve [goal]"
+Focus on creative construction and integration of knowledge.`,
+  };
+
+  const typeInstruction = questionTypeInstructions[questionType] || questionTypeInstructions.self_explanation;
+
+  // Build previous open-form responses section for context
+  const previousResponsesSection = previousOpenFormStates.length > 0
+    ? `\nPREVIOUS OPEN-FORM RESPONSES (use these to target gaps and avoid repetition):\n${previousOpenFormStates.slice(0, 5).map((state, i) => {
+        const evalInfo = state.evaluationStatus === 'sufficient'
+          ? `Evaluation: sufficient (score: ${state.continuousScore})`
+          : state.evaluationStatus === 'insufficient'
+            ? `Evaluation: insufficient (score: ${state.continuousScore}) — ${state.reasoning || 'No reasoning'}`
+            : `Evaluation: ${state.evaluationStatus}`;
+        return `  ${i + 1}. Type: ${state.questionType}\n     Question: ${state.questionText}\n     Response: ${state.responseText.substring(0, 200)}\n     ${evalInfo}`;
+      }).join('\n')}`
+    : '';
+
+  // Build previous wrong answers section (from Recognition phase)
+  const wrongAnswersSection = (previousAnswers || []).filter(a => !a.wasCorrect).length > 0
+    ? `\nPREVIOUS WRONG ANSWERS FROM RECOGNITION PHASE (address these misconceptions):\n${previousAnswers.filter(a => !a.wasCorrect).map(a =>
+        `  - Objective: ${a.objectiveId}\n    Question: ${a.questionText}\n    Misconception: chose "${a.selectedAnswer}" instead of "${a.correctAnswer}"`
+      ).join('\n')}`
+    : '';
+
+  const objectivesSection = objectives.map(obj =>
+    `  - ID: ${obj.id}\n    Objective: ${obj.text}`
+  ).join('\n');
+
+  const prompt = `You are an expert learning assessment designer. Generate open-form quiz questions with ideal reference answers to assess a person's understanding at a specific Bloom's taxonomy level.
+
+ACTION CONTEXT:
+- Title: ${action.title || 'Untitled'}
+- Description: ${action.description || 'No description'}
+- Expected Outcome (S'): ${action.expected_state || 'Not specified'}
+
+SKILL AXIS: ${targetAxis.label} (${targetAxis.key})
+${targetAxis.description ? `Axis Description: ${targetAxis.description}` : ''}
+
+QUESTION TYPE: ${questionType} (Bloom's Level ${bloomLevel})
+${typeInstruction}
+
+LEARNING OBJECTIVES TO COVER:
+${objectivesSection}
+${previousResponsesSection}
+${wrongAnswersSection}
+
+INSTRUCTIONS:
+1. ${questionType === 'bridging' ? 'Generate ONE bridging question for the entire axis (not per objective). Pick the first objective ID as the objectiveId.' : 'Generate one question per learning objective.'}
+2. For each question, also generate an IDEAL REFERENCE ANSWER that demonstrates the expected depth for this Bloom's level.
+3. The ideal answer should be thorough but concise (2-4 sentences for self_explanation, 3-5 sentences for application/analysis/synthesis).
+4. The ideal answer should model the kind of thinking expected at this Bloom's level:
+   - Self-Explanation: Clear "why" reasoning showing understanding of underlying principles
+   - Application: Specific transfer to a concrete context with reasoning
+   - Analysis: Explicit comparison of tradeoffs with evidence-based evaluation
+   - Synthesis: Coherent design or teaching approach integrating multiple concepts
+5. Questions should be growth-oriented — frame them as opportunities to demonstrate understanding, not tests.
+6. If previous responses were insufficient, generate questions that approach the same concepts from a different angle.
+
+Return ONLY a JSON object with:
+{
+  "questions": [
+    {
+      "objectiveId": "<objective_id from the list above>",
+      "text": "<question prompt text>",
+      "idealAnswer": "<ideal reference answer text>"
+    }
+  ]
+}
+
+No markdown, no code fences, no explanation outside the JSON.`;
+
+  const payload = {
+    anthropic_version: 'bedrock-2023-05-31',
+    max_tokens: 4000,
+    temperature: 0.7,
+    messages: [{ role: 'user', content: prompt }]
+  };
+
+  const command = new InvokeModelCommand({
+    modelId: OBJECTIVE_MODEL_ID,
+    body: JSON.stringify(payload),
+    contentType: 'application/json',
+    accept: 'application/json'
+  });
+
+  const response = await bedrock.send(command);
+  const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+
+  if (!responseBody.content?.[0]?.text) {
+    throw new Error('Invalid response from Bedrock: missing content');
+  }
+
+  const text = responseBody.content[0].text.trim();
+  const cleaned = text.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+
+  try {
+    const parsed = JSON.parse(cleaned);
+    return parsed.questions || [];
+  } catch (parseErr) {
+    console.error('Failed to parse Bedrock open-form quiz response:', text);
+    throw new Error('Failed to generate open-form quiz questions — AI returned invalid format');
+  }
+}
+
+/**
+ * Validate and normalize open-form quiz question structure.
+ * Ensures each question has required fields including idealAnswer.
+ * Assigns unique IDs and adds questionType/bloomLevel fields.
+ */
+function validateOpenFormQuestions(questions, requestedObjectiveIds, questionType, bloomLevel) {
+  const validObjectiveIds = new Set(requestedObjectiveIds);
+  const validated = [];
+
+  for (const q of questions) {
+    // Skip questions that don't map to a requested objective
+    if (!q.objectiveId || !validObjectiveIds.has(q.objectiveId)) {
+      console.warn('Skipping open-form question with invalid objectiveId:', q.objectiveId);
+      continue;
+    }
+
+    // Validate idealAnswer is present
+    const idealAnswer = q.idealAnswer && typeof q.idealAnswer === 'string' && q.idealAnswer.trim().length > 0
+      ? q.idealAnswer.trim()
+      : `An ideal response would demonstrate understanding of the learning objective at Bloom's level ${bloomLevel}.`;
+
+    if (!q.idealAnswer || !q.idealAnswer.trim()) {
+      console.warn('Open-form question missing idealAnswer, using fallback for objective:', q.objectiveId);
+    }
+
+    validated.push({
+      id: `q-${require('crypto').randomUUID()}`,
+      objectiveId: q.objectiveId,
+      type: 'concept',
+      questionType: questionType,
+      bloomLevel: bloomLevel,
+      text: q.text || '',
+      photoUrl: null,
+      options: null,
+      correctIndex: null,
+      idealAnswer: idealAnswer,
+    });
+  }
+
+  return validated;
+}
+
+/**
  * Validate and normalize quiz question structure.
  * Ensures each question has required fields and maps to a requested objective.
  * Assigns unique IDs to each question.
@@ -1105,6 +1597,321 @@ function validateQuizQuestions(questions, requestedObjectiveIds) {
   }
 
   return validated;
+}
+
+/**
+ * POST /api/learning/:actionId/quiz/evaluate
+ * Trigger asynchronous evaluation of an open-form response.
+ * The handler performs the evaluation synchronously within the Lambda invocation
+ * but returns 202 to indicate the result will be available later via polling.
+ * Requirements: 3.5, 3.6, 7.1, 7.2, 7.3, 7.4, 7.5
+ */
+async function handleEvaluate(actionId, body, organizationId) {
+  const { stateId, responseText, idealAnswer, questionType, objectiveText, questionText } = body;
+
+  // Validate required fields
+  if (!stateId || !responseText || !idealAnswer || !questionType || !objectiveText || !questionText) {
+    return error('Missing required fields: stateId, responseText, idealAnswer, questionType, objectiveText, questionText', 400);
+  }
+
+  // Return 202 immediately — from the frontend's perspective this is fire-and-forget.
+  // The evaluation work happens synchronously in this Lambda invocation, but the
+  // frontend doesn't wait for the result. It polls via evaluation-status later.
+  const db = await getDbClient();
+  try {
+    const orgIdSafe = escapeLiteral(organizationId);
+    const stateIdSafe = escapeLiteral(stateId);
+
+    // Verify the state exists and belongs to this organization
+    const stateResult = await db.query(
+      `SELECT id, state_text FROM states
+       WHERE id = '${stateIdSafe}' AND organization_id = '${orgIdSafe}'`
+    );
+
+    if (!stateResult.rows || stateResult.rows.length === 0) {
+      return error('Knowledge state not found', 404);
+    }
+
+    const currentStateText = stateResult.rows[0].state_text;
+
+    // Call Bedrock to evaluate the response
+    let evaluation;
+    try {
+      evaluation = await callBedrockForEvaluation(responseText, idealAnswer, questionType, objectiveText, questionText);
+    } catch (bedrockErr) {
+      console.error('Bedrock evaluation failed for state', stateId, ':', bedrockErr.message);
+
+      // Mark state as error
+      const errorStateText = appendEvaluationErrorToStateTextServer(currentStateText);
+      await db.query(
+        `UPDATE states SET state_text = '${escapeLiteral(errorStateText)}'
+         WHERE id = '${stateIdSafe}' AND organization_id = '${orgIdSafe}'`
+      );
+
+      // Re-queue embedding for the error-updated state text
+      queueEvaluationEmbedding(stateId, errorStateText, organizationId)
+        .catch(err => console.error('Failed to queue embedding after evaluation error:', err));
+
+      // Still return 202 — the error is recorded in the state, frontend will see it via polling
+      return {
+        statusCode: 202,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+          'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+        },
+        body: JSON.stringify({ message: 'Evaluation queued' })
+      };
+    }
+
+    // Update the knowledge state with evaluation results
+    const updatedStateText = appendEvaluationToStateTextServer(currentStateText, evaluation);
+    await db.query(
+      `UPDATE states SET state_text = '${escapeLiteral(updatedStateText)}'
+       WHERE id = '${stateIdSafe}' AND organization_id = '${orgIdSafe}'`
+    );
+
+    // Re-queue embedding generation for the updated state text
+    queueEvaluationEmbedding(stateId, updatedStateText, organizationId)
+      .catch(err => console.error('Failed to queue embedding after evaluation:', err));
+
+    console.log(`Evaluation complete for state ${stateId}: score=${evaluation.score}, sufficient=${evaluation.sufficient}`);
+
+    return {
+      statusCode: 202,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+      },
+      body: JSON.stringify({ message: 'Evaluation queued' })
+    };
+  } finally {
+    db.release();
+  }
+}
+
+/**
+ * GET /api/learning/:actionId/:userId/evaluation-status
+ * Check evaluation status for one or more knowledge states.
+ * Requirements: 7.6
+ */
+async function handleEvaluationStatus(actionId, userId, organizationId, queryParams) {
+  const stateIdsParam = queryParams.stateIds;
+  if (!stateIdsParam || typeof stateIdsParam !== 'string' || stateIdsParam.trim().length === 0) {
+    return error('stateIds query parameter is required (comma-separated UUIDs)', 400);
+  }
+
+  const stateIds = stateIdsParam.split(',').map(id => id.trim()).filter(id => id.length > 0);
+  if (stateIds.length === 0) {
+    return error('stateIds query parameter must contain at least one UUID', 400);
+  }
+
+  const db = await getDbClient();
+  try {
+    const orgIdSafe = escapeLiteral(organizationId);
+    const stateIdsList = stateIds.map(id => `'${escapeLiteral(id)}'`).join(',');
+
+    // Fetch knowledge states by IDs, scoped to organization
+    const result = await db.query(
+      `SELECT id, state_text
+       FROM states
+       WHERE id IN (${stateIdsList})
+         AND organization_id = '${orgIdSafe}'`
+    );
+
+    // Build a map of found states for quick lookup
+    const foundStates = {};
+    for (const row of result.rows) {
+      foundStates[row.id] = row.state_text;
+    }
+
+    // Build evaluations array
+    const evaluations = stateIds.map(stateId => {
+      const stateText = foundStates[stateId];
+
+      // State not found in DB
+      if (!stateText) {
+        return { stateId, status: 'not_found' };
+      }
+
+      // Try to parse as open-form state text
+      const parsed = parseOpenFormStateText(stateText);
+      if (!parsed) {
+        return { stateId, status: 'unknown' };
+      }
+
+      // Map evaluation status to response format
+      if (parsed.evaluationStatus === 'pending') {
+        return { stateId, status: 'pending' };
+      }
+
+      if (parsed.evaluationStatus === 'error') {
+        return { stateId, status: 'error' };
+      }
+
+      if (parsed.evaluationStatus === 'sufficient' || parsed.evaluationStatus === 'insufficient') {
+        return {
+          stateId,
+          status: 'evaluated',
+          score: parsed.continuousScore,
+          sufficient: parsed.evaluationStatus === 'sufficient',
+          reasoning: parsed.reasoning,
+        };
+      }
+
+      return { stateId, status: 'unknown' };
+    });
+
+    return success({ evaluations });
+  } finally {
+    db.release();
+  }
+}
+
+/**
+ * Call Bedrock to evaluate an open-form response against the ideal answer.
+ * Returns { score, sufficient, reasoning } with score on a continuous Bloom's scale [0.0, 5.0].
+ */
+async function callBedrockForEvaluation(responseText, idealAnswer, questionType, objectiveText, questionText) {
+  const bloomLevel = questionTypeToBloomLevel(questionType);
+
+  const prompt = `You are an expert learning evaluator. Assess a learner's open-form response against an ideal answer, scoring on a continuous Bloom's taxonomy scale.
+
+LEARNING OBJECTIVE: ${objectiveText}
+
+QUESTION TYPE: ${questionType} (Bloom's Level ${bloomLevel})
+QUESTION: ${questionText}
+
+LEARNER'S RESPONSE:
+${responseText}
+
+IDEAL REFERENCE ANSWER:
+${idealAnswer}
+
+EVALUATION INSTRUCTIONS:
+1. Score the response on a continuous Bloom's scale from 0.0 to 5.0, where:
+   - 0.0-0.9: No meaningful understanding demonstrated
+   - 1.0-1.9: Basic recall/recognition only
+   - 2.0-2.9: Understanding — can explain "why" in own words
+   - 3.0-3.9: Application — can transfer knowledge to new contexts
+   - 4.0-4.9: Analysis — can evaluate tradeoffs and compare approaches
+   - 5.0: Synthesis — can design, create, or teach the concept
+
+2. The score should reflect the ACTUAL depth demonstrated, regardless of the question type asked.
+   A strong response to a Level 2 question that shows Level 4 thinking should score 4.0+.
+
+3. Determine sufficiency: the response is "sufficient" if the score meets or exceeds the question type's Bloom's level (${bloomLevel}.0).
+
+4. Provide a brief reasoning summary (1-2 sentences) explaining what the response demonstrates and any gaps.
+
+Return ONLY a JSON object with:
+{
+  "score": <decimal 0.0-5.0>,
+  "sufficient": <true|false>,
+  "reasoning": "<1-2 sentence explanation>"
+}
+
+No markdown, no code fences, no explanation outside the JSON.`;
+
+  const payload = {
+    anthropic_version: 'bedrock-2023-05-31',
+    max_tokens: 500,
+    temperature: 0.3,
+    messages: [{ role: 'user', content: prompt }]
+  };
+
+  const command = new InvokeModelCommand({
+    modelId: OBJECTIVE_MODEL_ID,
+    body: JSON.stringify(payload),
+    contentType: 'application/json',
+    accept: 'application/json'
+  });
+
+  const response = await bedrock.send(command);
+  const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+
+  if (!responseBody.content?.[0]?.text) {
+    throw new Error('Invalid response from Bedrock: missing content');
+  }
+
+  const text = responseBody.content[0].text.trim();
+  const cleaned = text.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+
+  let parsed;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (parseErr) {
+    console.error('Failed to parse Bedrock evaluation response:', text);
+    throw new Error('Bedrock returned invalid evaluation format');
+  }
+
+  // Validate and clamp score to [0.0, 5.0]
+  let score = parseFloat(parsed.score);
+  if (isNaN(score)) {
+    throw new Error('Bedrock evaluation missing valid score');
+  }
+  if (score < 0.0 || score > 5.0) {
+    console.warn(`Evaluation score ${score} outside [0.0, 5.0], clamping`);
+    score = Math.max(0.0, Math.min(5.0, score));
+  }
+
+  const sufficient = typeof parsed.sufficient === 'boolean' ? parsed.sufficient : score >= bloomLevel;
+  const reasoning = typeof parsed.reasoning === 'string' && parsed.reasoning.trim().length > 0
+    ? parsed.reasoning.trim()
+    : 'Evaluation completed';
+
+  return { score, sufficient, reasoning };
+}
+
+/**
+ * Server-side equivalent of appendEvaluationToStateText.
+ * Replaces "Evaluation: pending." with the evaluation result.
+ */
+function appendEvaluationToStateTextServer(stateText, evaluation) {
+  const sufficiency = evaluation.sufficient ? 'sufficient' : 'insufficient';
+  const replacement = `Evaluation: ${sufficiency} (score: ${evaluation.score}). ${evaluation.reasoning}.`;
+  return stateText.replace('Evaluation: pending.', replacement);
+}
+
+/**
+ * Server-side equivalent of appendEvaluationErrorToStateText.
+ * Replaces "Evaluation: pending." with "Evaluation: error."
+ */
+function appendEvaluationErrorToStateTextServer(stateText) {
+  return stateText.replace('Evaluation: pending.', 'Evaluation: error.');
+}
+
+/**
+ * Queue embedding generation for an updated evaluation state via SQS.
+ * Uses the same pipeline as the states Lambda.
+ */
+async function queueEvaluationEmbedding(stateId, stateText, organizationId) {
+  const embeddingSource = composeStateEmbeddingSource({
+    entity_names: [],
+    state_text: stateText,
+    photo_descriptions: [],
+    metrics: []
+  });
+
+  if (!embeddingSource || !embeddingSource.trim()) {
+    console.log('Empty embedding source for evaluation state', stateId, '— skipping SQS send');
+    return;
+  }
+
+  await sqs.send(new SendMessageCommand({
+    QueueUrl: EMBEDDINGS_QUEUE_URL,
+    MessageBody: JSON.stringify({
+      entity_type: 'state',
+      entity_id: stateId,
+      embedding_source: embeddingSource,
+      organization_id: organizationId
+    })
+  }));
+
+  console.log('Queued embedding for evaluation state', stateId);
 }
 
 /**

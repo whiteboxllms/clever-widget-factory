@@ -82,4 +82,7 @@ export const stateSpaceModelsByEntityQueryKey = (entityType: string, entityId: s
 export const learningObjectivesQueryKey = (actionId: string, userId: string) =>
   ['learning_objectives', actionId, userId];
 
+export const evaluationStatusQueryKey = (actionId: string, userId: string, stateIds: string[]) =>
+  ['evaluation_status', actionId, userId, ...stateIds.sort()];
+
 

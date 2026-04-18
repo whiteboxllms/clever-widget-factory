@@ -10,6 +10,7 @@ import {
   RotateCcw,
   Trophy,
   AlertCircle,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,18 +30,23 @@ import { useAuth } from '@/hooks/useCognitoAuth';
 import {
   useLearningObjectives,
   useQuizGeneration,
+  useQuizEvaluation,
+  useEvaluationStatus,
   type QuizQuestion,
   type LearningObjective,
 } from '@/hooks/useLearning';
+import { OpenFormInput } from '@/components/OpenFormInput';
 import { ObjectivesView } from '@/components/ObjectivesView';
 import { apiService } from '@/lib/apiService';
 import {
   composeKnowledgeStateText,
+  composeOpenFormStateText,
   isQuizComplete,
   getIncompleteObjectives,
   computeQuizSummary,
   type QuizAnswer,
 } from '@/lib/learningUtils';
+import { isOpenFormQuestion, type QuestionType } from '@/lib/progressionUtils';
 import {
   actionsQueryKey,
   completedActionsQueryKey,
@@ -65,6 +71,21 @@ interface AnswerSelection {
 // --- Constants ---
 
 const GENERATION_TIMEOUT_MS = 30_000;
+
+/** Growth milestone messages shown when transitioning to a new question type (Req 10.1, 10.2) */
+const GROWTH_MILESTONE_MESSAGES: Partial<Record<QuestionType, string>> = {
+  bridging: "You've built a strong foundation. Let's connect these concepts to your work.",
+  self_explanation: "You're ready to explain your understanding",
+  application: "Time to apply what you know to new situations",
+  analysis: "You're ready to analyze and evaluate approaches",
+  synthesis: "You're ready to create and teach",
+};
+
+/** Duration to show growth milestone message (ms) */
+const MILESTONE_DISPLAY_MS = 4000;
+
+/** Polling interval for evaluation status (ms) */
+const EVALUATION_POLL_INTERVAL_MS = 5000;
 
 // --- Component ---
 
@@ -132,21 +153,78 @@ export default function QuizPage() {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roundNumberRef = useRef(1);
 
+  // --- Open-form state ---
+  const [openFormSubmitted, setOpenFormSubmitted] = useState(false);
+  const [openFormSaving, setOpenFormSaving] = useState(false);
+  const [openFormEvaluationResult, setOpenFormEvaluationResult] = useState<
+    { score: number; sufficient: boolean; reasoning: string } | null
+  >(null);
+  const [openFormStateIds, setOpenFormStateIds] = useState<string[]>([]);
+  const [growthMilestone, setGrowthMilestone] = useState<string | null>(null);
+  const previousQuestionTypeRef = useRef<QuestionType | null>(null);
+
   // --- Quiz generation mutation ---
   const quizGeneration = useQuizGeneration();
+
+  // --- Quiz evaluation mutation (fire-and-forget) ---
+  const quizEvaluation = useQuizEvaluation();
+
+  // --- Evaluation status polling ---
+  // Poll when quiz is complete and there are pending open-form state IDs
+  const shouldPollEvaluation =
+    quizState === 'quiz_complete' && openFormStateIds.length > 0;
+  const { data: evaluationStatusData } = useEvaluationStatus(
+    actionId,
+    userId,
+    shouldPollEvaluation ? openFormStateIds : [],
+    shouldPollEvaluation ? EVALUATION_POLL_INTERVAL_MS : false
+  );
 
   // Current question
   const currentQuestion = questions[currentQuestionIndex] ?? null;
 
   // Has the user answered the current question correctly (first attempt)?
   const hasCorrectFirstAttempt = useMemo(() => {
-    if (!currentQuestion) return false;
+    if (!currentQuestion || currentQuestion.correctIndex === null) return false;
     const selection = currentSelections.get(currentQuestion.correctIndex);
     return selection?.wasFirstAttempt === true;
   }, [currentQuestion, currentSelections]);
 
   // Has any selection been made on the current question?
   const hasAnySelection = currentSelections.size > 0;
+
+  // --- Detect question type transitions for growth milestones ---
+  useEffect(() => {
+    if (!currentQuestion || quizState !== 'quiz_in_progress') return;
+
+    const currentType = currentQuestion.questionType;
+    const previousType = previousQuestionTypeRef.current;
+
+    // Show milestone when transitioning to a new (non-recognition) question type
+    if (
+      previousType !== null &&
+      currentType !== previousType &&
+      currentType !== 'recognition'
+    ) {
+      const message = GROWTH_MILESTONE_MESSAGES[currentType];
+      if (message) {
+        setGrowthMilestone(message);
+        const timer = setTimeout(() => {
+          setGrowthMilestone(null);
+        }, MILESTONE_DISPLAY_MS);
+        return () => clearTimeout(timer);
+      }
+    }
+
+    previousQuestionTypeRef.current = currentType;
+  }, [currentQuestion, quizState]);
+
+  // Reset open-form state when question changes
+  useEffect(() => {
+    setOpenFormSubmitted(false);
+    setOpenFormSaving(false);
+    setOpenFormEvaluationResult(null);
+  }, [currentQuestionIndex]);
 
   // --- beforeunload guard ---
   useEffect(() => {
@@ -259,7 +337,7 @@ export default function QuizPage() {
     [generateQuiz]
   );
 
-  // --- Answer selection ---
+  // --- Answer selection (Recognition questions) ---
   const handleSelectOption = useCallback(
     (optionIndex: number) => {
       if (!currentQuestion || isSavingAnswer) return;
@@ -285,6 +363,118 @@ export default function QuizPage() {
     [currentQuestion, firstAttemptRecorded, isSavingAnswer]
   );
 
+  // --- Open-form submission handler ---
+  const handleOpenFormSubmit = useCallback(
+    async (responseText: string) => {
+      if (!currentQuestion || !actionId || !userId) return;
+
+      setOpenFormSaving(true);
+
+      const objective = axisObjectives.find(
+        (o) => o.id === currentQuestion.objectiveId
+      );
+      const objectiveText = objective?.text ?? currentQuestion.objectiveId;
+
+      // 1. Compose open-form state text and save knowledge state immediately
+      try {
+        const stateText = composeOpenFormStateText(
+          objectiveText,
+          currentQuestion.questionType,
+          currentQuestion.text,
+          responseText,
+          currentQuestion.idealAnswer ?? ''
+        );
+
+        const stateResult = await apiService.post<{ data: { id: string } }>('/states', {
+          state_text: stateText,
+          photos: [],
+          links: [
+            {
+              entity_type: 'learning_objective',
+              entity_id: currentQuestion.objectiveId,
+            },
+          ],
+        });
+
+        const stateId = stateResult?.data?.id;
+
+        // Track state ID for evaluation polling
+        if (stateId) {
+          setOpenFormStateIds((prev) => [...prev, stateId]);
+
+          // 3. Fire-and-forget evaluation call
+          quizEvaluation.mutate({
+            actionId,
+            stateId,
+            responseText,
+            idealAnswer: currentQuestion.idealAnswer ?? '',
+            questionType: currentQuestion.questionType,
+            objectiveText,
+            questionText: currentQuestion.text,
+          });
+        }
+
+        // Optimistically update learning objectives cache
+        queryClient.setQueryData(
+          learningObjectivesQueryKey(actionId, userId),
+          (old: any) => {
+            if (!old?.axes) return old;
+            return {
+              ...old,
+              axes: old.axes.map((axis: any) => ({
+                ...axis,
+                objectives: axis.objectives.map((obj: any) => {
+                  if (obj.id !== currentQuestion.objectiveId) return obj;
+                  if (obj.status === 'not_started') {
+                    return { ...obj, status: 'in_progress' };
+                  }
+                  return obj;
+                }),
+              })),
+            };
+          }
+        );
+      } catch (err) {
+        console.error('Failed to save open-form knowledge state:', err);
+        // Continue anyway — reveal ideal answer regardless
+      }
+
+      setOpenFormSaving(false);
+
+      // 2. Reveal ideal answer panel
+      setOpenFormSubmitted(true);
+    },
+    [currentQuestion, actionId, userId, axisObjectives, quizEvaluation, queryClient]
+  );
+
+  // --- Open-form "Next" handler ---
+  const handleOpenFormNext = useCallback(() => {
+    if (!currentQuestion) return;
+
+    // Record the answer locally (open-form answers are always treated as "attempted")
+    const answer: QuizAnswer = {
+      questionId: currentQuestion.id,
+      objectiveId: currentQuestion.objectiveId,
+      selectedAnswer: '[open-form response]',
+      correctAnswer: currentQuestion.idealAnswer ?? '',
+      wasFirstAttempt: true,
+      wasCorrect: true, // Open-form submissions count as completed for round progression
+      timestamp: new Date().toISOString(),
+    };
+
+    const updatedAnswers = [...allAnswers, answer];
+    setAllAnswers(updatedAnswers);
+
+    // Advance to next question or evaluate round
+    if (currentQuestionIndex < questions.length - 1) {
+      setCurrentQuestionIndex((i) => i + 1);
+      setCurrentSelections(new Map());
+      setFirstAttemptRecorded(false);
+    } else {
+      evaluateRound(updatedAnswers);
+    }
+  }, [currentQuestion, allAnswers, currentQuestionIndex, questions.length]);
+
   // --- Record answer and advance ---
   const handleNext = useCallback(async () => {
     if (!currentQuestion || !actionId || !userId) return;
@@ -302,8 +492,10 @@ export default function QuizPage() {
 
     const [firstOptionIndex] = firstAttemptEntry;
     const wasCorrect = firstOptionIndex === currentQuestion.correctIndex;
-    const selectedOption = currentQuestion.options[firstOptionIndex];
-    const correctOption = currentQuestion.options[currentQuestion.correctIndex];
+    const selectedOption = currentQuestion.options?.[firstOptionIndex];
+    const correctOption = currentQuestion.correctIndex !== null
+      ? currentQuestion.options?.[currentQuestion.correctIndex]
+      : null;
 
     // Find the objective for this question
     const objective = axisObjectives.find(
@@ -546,15 +738,42 @@ export default function QuizPage() {
 
         {/* Quiz In Progress */}
         {quizState === 'quiz_in_progress' && currentQuestion && (
-          <QuestionView
-            question={currentQuestion}
-            selections={currentSelections}
-            hasCorrectFirstAttempt={hasCorrectFirstAttempt}
-            hasAnySelection={hasAnySelection}
-            isSaving={isSavingAnswer}
-            onSelectOption={handleSelectOption}
-            onNext={handleNext}
-          />
+          <>
+            {/* Growth milestone message */}
+            {growthMilestone && (
+              <Card className="border-2 border-purple-200 bg-purple-50/50 animate-in fade-in slide-in-from-top-2 duration-300">
+                <CardContent className="p-3 flex items-center gap-3">
+                  <Sparkles className="h-5 w-5 text-purple-600 shrink-0" />
+                  <p className="text-sm font-medium text-purple-900">
+                    {growthMilestone}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Render Recognition or Open-Form question */}
+            {isOpenFormQuestion(currentQuestion.questionType) ? (
+              <OpenFormInput
+                question={currentQuestion}
+                onSubmit={handleOpenFormSubmit}
+                onNext={handleOpenFormNext}
+                idealAnswer={currentQuestion.idealAnswer ?? ''}
+                evaluationResult={openFormEvaluationResult}
+                isSubmitted={openFormSubmitted}
+                isSaving={openFormSaving}
+              />
+            ) : (
+              <QuestionView
+                question={currentQuestion}
+                selections={currentSelections}
+                hasCorrectFirstAttempt={hasCorrectFirstAttempt}
+                hasAnySelection={hasAnySelection}
+                isSaving={isSavingAnswer}
+                onSelectOption={handleSelectOption}
+                onNext={handleNext}
+              />
+            )}
+          </>
         )}
 
         {/* Round Complete */}
@@ -652,7 +871,7 @@ function QuestionView({
   }, [selections]);
 
   const lastSelectedOption =
-    lastSelectedIndex !== null ? question.options[lastSelectedIndex] : null;
+    lastSelectedIndex !== null ? question.options?.[lastSelectedIndex] ?? null : null;
 
   return (
     <div className="space-y-4">
@@ -674,7 +893,7 @@ function QuestionView({
 
       {/* Answer options */}
       <div className="space-y-2">
-        {question.options.map((option) => {
+        {question.options?.map((option) => {
           const isSelected = selections.has(option.index);
           const isCorrect = option.index === question.correctIndex;
           const firstAttemptSelection = Array.from(

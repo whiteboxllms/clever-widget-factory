@@ -1054,19 +1054,7 @@ export function UnifiedActionDialog({
               >
                 <Flag className="h-4 w-4" />
               </Button>
-              {!isCreating && action?.id && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={() => navigate(`/actions/${action.id}/state-space`)}
-                      className="h-7 w-7 flex items-center justify-center rounded hover:opacity-80 transition-opacity"
-                    >
-                      <img src="/dormant_gundam_state.png" alt="State Space" className="h-7 w-7 rounded" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>State Space</TooltipContent>
-                </Tooltip>
-              )}
+
               {!isCreating && action?.id && (
                 <Button
                   variant="ghost"

@@ -12,6 +12,7 @@
 
 import type { SkillProfile, SkillAxis } from '@/hooks/useSkillProfile';
 import type { CapabilityProfile, CapabilityAxis } from '@/hooks/useCapability';
+import type { QuestionType } from '@/lib/progressionUtils';
 
 // --- Types ---
 
@@ -482,4 +483,138 @@ export function parseKnowledgeStateText(
     selectedAnswer: match[3],
     wasCorrect: match[4] === 'correct',
   };
+}
+
+// --- Open-Form State Text Types ---
+
+export interface ParsedOpenFormState {
+  objectiveText: string;
+  questionType: QuestionType;
+  questionText: string;
+  responseText: string;
+  idealAnswer: string;
+  evaluationStatus: 'pending' | 'sufficient' | 'insufficient' | 'error';
+  continuousScore: number | null;
+  reasoning: string | null;
+}
+
+// --- Open-Form State Text Functions ---
+
+/**
+ * Compose an open-form knowledge state text in the canonical format:
+ *   For learning objective '{objective}' and {question_type} question '{question}',
+ *   I responded: '{response}'. Ideal answer: '{ideal}'. Evaluation: pending.
+ *
+ * The initial evaluation status is always 'pending' — async evaluation
+ * updates the state text later via appendEvaluationToStateText.
+ */
+export function composeOpenFormStateText(
+  objectiveText: string,
+  questionType: QuestionType,
+  questionText: string,
+  responseText: string,
+  idealAnswer: string
+): string {
+  return `For learning objective '${objectiveText}' and ${questionType} question '${questionText}', I responded: '${responseText}'. Ideal answer: '${idealAnswer}'. Evaluation: pending.`;
+}
+
+/**
+ * Parse an open-form knowledge state text back to its component fields.
+ *
+ * Handles all evaluation statuses: pending, sufficient, insufficient, error.
+ * Returns null if the text doesn't match the open-form format.
+ */
+export function parseOpenFormStateText(
+  stateText: string
+): ParsedOpenFormState | null {
+  // Match the core structure: objective, question type, question, response, ideal answer
+  const corePattern =
+    /^For learning objective '(.+?)' and (\S+) question '(.+?)', I responded: '(.+?)'\. Ideal answer: '(.+?)'\. Evaluation: (.+)$/s;
+
+  const match = stateText.match(corePattern);
+  if (!match) {
+    return null;
+  }
+
+  const objectiveText = match[1];
+  const questionType = match[2] as QuestionType;
+  const questionText = match[3];
+  const responseText = match[4];
+  const idealAnswer = match[5];
+  const evaluationPart = match[6];
+
+  // Parse the evaluation portion
+  if (evaluationPart === 'pending.') {
+    return {
+      objectiveText,
+      questionType,
+      questionText,
+      responseText,
+      idealAnswer,
+      evaluationStatus: 'pending',
+      continuousScore: null,
+      reasoning: null,
+    };
+  }
+
+  if (evaluationPart === 'error.') {
+    return {
+      objectiveText,
+      questionType,
+      questionText,
+      responseText,
+      idealAnswer,
+      evaluationStatus: 'error',
+      continuousScore: null,
+      reasoning: null,
+    };
+  }
+
+  // Match: sufficient (score: 2.4). Reasoning text.
+  // or:   insufficient (score: 1.2). Reasoning text.
+  const evalPattern =
+    /^(sufficient|insufficient) \(score: ([\d.]+)\)\. (.+)\.$/s;
+  const evalMatch = evaluationPart.match(evalPattern);
+  if (!evalMatch) {
+    return null;
+  }
+
+  return {
+    objectiveText,
+    questionType,
+    questionText,
+    responseText,
+    idealAnswer,
+    evaluationStatus: evalMatch[1] as 'sufficient' | 'insufficient',
+    continuousScore: parseFloat(evalMatch[2]),
+    reasoning: evalMatch[3],
+  };
+}
+
+/**
+ * Update an open-form state text with evaluation results.
+ *
+ * Replaces "Evaluation: pending." with the evaluation outcome:
+ *   Evaluation: sufficient (score: 2.4). Reasoning summary.
+ *   Evaluation: insufficient (score: 1.2). Reasoning summary.
+ */
+export function appendEvaluationToStateText(
+  stateText: string,
+  evaluation: { score: number; sufficient: boolean; reasoning: string }
+): string {
+  const sufficiency = evaluation.sufficient ? 'sufficient' : 'insufficient';
+  return stateText.replace(
+    /Evaluation: pending\.$/,
+    `Evaluation: ${sufficiency} (score: ${evaluation.score}). ${evaluation.reasoning}.`
+  );
+}
+
+/**
+ * Update an open-form state text with error status.
+ *
+ * Replaces "Evaluation: pending." with "Evaluation: error."
+ * Used when the Bedrock evaluation call fails or times out.
+ */
+export function appendEvaluationErrorToStateText(stateText: string): string {
+  return stateText.replace(/Evaluation: pending\.$/, 'Evaluation: error.');
 }

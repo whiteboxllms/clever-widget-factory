@@ -6,6 +6,7 @@ const { getDbClient } = require('/opt/nodejs/db');
 const { escapeLiteral } = require('/opt/nodejs/sqlUtils');
 const { composeStateEmbeddingSource } = require('/opt/nodejs/embedding-composition');
 const { filterCompletedKnowledgeStates, extractBestMatch, extractTopKMatches } = require('./evidenceUtils');
+const { distributeMatchesToObjectives, composeAxisAwareEmbeddingSource } = require('./objectiveMatchUtils');
 
 const bedrock = new BedrockRuntimeClient({ region: process.env.BEDROCK_REGION || 'us-west-2' });
 const sqs = new SQSClient({ region: 'us-west-2' });
@@ -240,34 +241,104 @@ async function handleGetObjectives(actionId, userId, organizationId) {
       }
     }
 
-    // 8. Semantic evidence tagging via vector similarity search per objective
-    //    For each objective, find the top 5 most similar completed knowledge states
-    //    captured by the current user (replacing the old tagObjectiveEvidence approach).
+    // 8. Semantic evidence tagging via vector similarity search
+    //    Primary path: one query per axis using skill_axis embeddings (4-6 queries)
+    //    Fallback path: one query per objective (15-25 queries) if no skill_axis embeddings exist
     const similarityByObjective = {};
-    for (const objectiveId of allObjectiveIds) {
-      try {
-        const simResult = await db.query(
-          `SELECT ue.entity_id, ue.embedding_source,
-                  (1 - (ue.embedding <=> (SELECT embedding FROM unified_embeddings WHERE entity_type = 'state' AND entity_id = $1 LIMIT 1))) as similarity
-           FROM unified_embeddings ue
-           INNER JOIN states s ON s.id::text = ue.entity_id
-           WHERE ue.entity_type = 'state'
-             AND ue.organization_id = $2
-             AND s.captured_by = $3
-             AND s.state_text LIKE '%which was the correct answer%'
-             AND ue.entity_id != $1
-           ORDER BY similarity DESC
-           LIMIT 5`,
-          [objectiveId, organizationId, userId]
-        );
 
-        similarityByObjective[objectiveId] = simResult.rows.map(r => ({
-          similarity: parseFloat(r.similarity),
-          embedding_source: r.embedding_source
-        }));
+    // 8a. Check if skill_axis embeddings exist for this action
+    let usePerAxisPath = false;
+    if (allObjectiveIds.length > 0) {
+      try {
+        const axisEmbeddingCheck = await db.query(
+          `SELECT COUNT(*) as cnt FROM unified_embeddings
+           WHERE entity_type = 'skill_axis'
+             AND entity_id LIKE $1
+             AND organization_id = $2`,
+          [`${actionId}:%`, organizationId]
+        );
+        usePerAxisPath = parseInt(axisEmbeddingCheck.rows[0].cnt, 10) > 0;
       } catch (err) {
-        console.warn('Vector similarity search failed for objective', objectiveId, ':', err.message);
-        similarityByObjective[objectiveId] = [];
+        console.warn('Failed to check for skill_axis embeddings, falling back to per-objective:', err.message);
+      }
+    }
+
+    if (usePerAxisPath) {
+      // 8b. Per-axis similarity search: one query per axis, then distribute to objectives
+      console.log(`Using per-axis similarity search for action ${actionId} (${allAxes.length} axes)`);
+      const allAxisMatches = [];
+
+      for (const axis of allAxes) {
+        const axisEntityId = `${actionId}:${axis.axisKey}`;
+        try {
+          const simResult = await db.query(
+            `SELECT ue.entity_id, ue.embedding_source,
+                    (1 - (ue.embedding <=> (SELECT embedding FROM unified_embeddings WHERE entity_type = 'skill_axis' AND entity_id = $1 LIMIT 1))) as similarity
+             FROM unified_embeddings ue
+             INNER JOIN states s ON s.id::text = ue.entity_id
+             WHERE ue.entity_type = 'state'
+               AND ue.organization_id = $2
+               AND s.captured_by = $3
+               AND s.state_text LIKE '%which was the correct answer%'
+             ORDER BY similarity DESC
+             LIMIT 10`,
+            [axisEntityId, organizationId, userId]
+          );
+
+          for (const row of simResult.rows) {
+            allAxisMatches.push({
+              entity_id: row.entity_id,
+              embedding_source: row.embedding_source,
+              similarity: parseFloat(row.similarity)
+            });
+          }
+        } catch (err) {
+          console.warn('Vector similarity search failed for axis', axisEntityId, ':', err.message);
+        }
+      }
+
+      // Build objectives list for distribution (all objectives across all axes)
+      const allObjectivesForDistribution = [];
+      for (const objectives of Object.values(existingByAxis)) {
+        for (const obj of objectives) {
+          allObjectivesForDistribution.push({ id: obj.id, text: obj.text });
+        }
+      }
+
+      // Distribute axis matches to individual objectives by text comparison
+      const distributedMatches = distributeMatchesToObjectives(allAxisMatches, allObjectivesForDistribution);
+
+      for (const objectiveId of allObjectiveIds) {
+        similarityByObjective[objectiveId] = distributedMatches.get(objectiveId) || [];
+      }
+    } else {
+      // 8c. Fallback: per-objective similarity search (backward compatibility)
+      console.log(`Using per-objective similarity search for action ${actionId} (${allObjectiveIds.length} objectives, no skill_axis embeddings)`);
+      for (const objectiveId of allObjectiveIds) {
+        try {
+          const simResult = await db.query(
+            `SELECT ue.entity_id, ue.embedding_source,
+                    (1 - (ue.embedding <=> (SELECT embedding FROM unified_embeddings WHERE entity_type = 'state' AND entity_id = $1 LIMIT 1))) as similarity
+             FROM unified_embeddings ue
+             INNER JOIN states s ON s.id::text = ue.entity_id
+             WHERE ue.entity_type = 'state'
+               AND ue.organization_id = $2
+               AND s.captured_by = $3
+               AND s.state_text LIKE '%which was the correct answer%'
+               AND ue.entity_id != $1
+             ORDER BY similarity DESC
+             LIMIT 5`,
+            [objectiveId, organizationId, userId]
+          );
+
+          similarityByObjective[objectiveId] = simResult.rows.map(r => ({
+            similarity: parseFloat(r.similarity),
+            embedding_source: r.embedding_source
+          }));
+        } catch (err) {
+          console.warn('Vector similarity search failed for objective', objectiveId, ':', err.message);
+          similarityByObjective[objectiveId] = [];
+        }
       }
     }
 
@@ -1634,6 +1705,37 @@ async function handleEvaluate(actionId, body, organizationId) {
 
     const currentStateText = stateResult.rows[0].state_text;
 
+    // Look up the axis label for this knowledge state via its linked learning objective
+    let axisLabel = null;
+    try {
+      const objectiveLinkResult = await db.query(
+        `SELECT s.state_text
+         FROM state_links sl
+         INNER JOIN states s ON s.id::text = sl.entity_id
+         WHERE sl.state_id = '${stateIdSafe}'
+           AND sl.entity_type = 'learning_objective'
+         LIMIT 1`
+      );
+      if (objectiveLinkResult.rows.length > 0) {
+        const parsedObj = parseLearningObjectiveStateText(objectiveLinkResult.rows[0].state_text);
+        if (parsedObj && parsedObj.axisKey) {
+          // Look up axis label from the action's skill profile
+          const actionResult = await db.query(
+            `SELECT skill_profile FROM actions
+             WHERE id = '${escapeLiteral(actionId)}' AND organization_id = '${orgIdSafe}'`
+          );
+          if (actionResult.rows.length > 0 && actionResult.rows[0].skill_profile) {
+            const axis = actionResult.rows[0].skill_profile.axes?.find(a => a.key === parsedObj.axisKey);
+            if (axis) {
+              axisLabel = axis.label;
+            }
+          }
+        }
+      }
+    } catch (axisErr) {
+      console.warn('Failed to look up axis label for evaluation embedding:', axisErr.message);
+    }
+
     // Call Bedrock to evaluate the response
     let evaluation;
     try {
@@ -1649,7 +1751,7 @@ async function handleEvaluate(actionId, body, organizationId) {
       );
 
       // Re-queue embedding for the error-updated state text
-      queueEvaluationEmbedding(stateId, errorStateText, organizationId)
+      queueEvaluationEmbedding(stateId, errorStateText, organizationId, axisLabel)
         .catch(err => console.error('Failed to queue embedding after evaluation error:', err));
 
       // Still return 202 — the error is recorded in the state, frontend will see it via polling
@@ -1673,7 +1775,7 @@ async function handleEvaluate(actionId, body, organizationId) {
     );
 
     // Re-queue embedding generation for the updated state text
-    queueEvaluationEmbedding(stateId, updatedStateText, organizationId)
+    queueEvaluationEmbedding(stateId, updatedStateText, organizationId, axisLabel)
       .catch(err => console.error('Failed to queue embedding after evaluation:', err));
 
     console.log(`Evaluation complete for state ${stateId}: score=${evaluation.score}, sufficient=${evaluation.sufficient}`);
@@ -1887,9 +1989,10 @@ function appendEvaluationErrorToStateTextServer(stateText) {
 /**
  * Queue embedding generation for an updated evaluation state via SQS.
  * Uses the same pipeline as the states Lambda.
+ * When axisLabel is provided, prepends it to the embedding source for better axis-level matching.
  */
-async function queueEvaluationEmbedding(stateId, stateText, organizationId) {
-  const embeddingSource = composeStateEmbeddingSource({
+async function queueEvaluationEmbedding(stateId, stateText, organizationId, axisLabel) {
+  let embeddingSource = composeStateEmbeddingSource({
     entity_names: [],
     state_text: stateText,
     photo_descriptions: [],
@@ -1899,6 +2002,11 @@ async function queueEvaluationEmbedding(stateId, stateText, organizationId) {
   if (!embeddingSource || !embeddingSource.trim()) {
     console.log('Empty embedding source for evaluation state', stateId, '— skipping SQS send');
     return;
+  }
+
+  // Prepend axis label for improved per-axis similarity matching
+  if (axisLabel) {
+    embeddingSource = composeAxisAwareEmbeddingSource(axisLabel, embeddingSource);
   }
 
   await sqs.send(new SendMessageCommand({
@@ -1985,9 +2093,26 @@ async function handleVerify(actionId, body, organizationId) {
       const parsed = parseLearningObjectiveStateText(row.state_text);
       return {
         id: row.id,
-        text: parsed ? parsed.objectiveText : row.state_text
+        text: parsed ? parsed.objectiveText : row.state_text,
+        axisKey: parsed ? parsed.axisKey : null
       };
     });
+
+    // Look up axis labels from the action's skill profile for embedding enrichment
+    let axisLabelMap = {};
+    try {
+      const actionResult = await db.query(
+        `SELECT skill_profile FROM actions
+         WHERE id = '${actionIdSafe}' AND organization_id = '${orgIdSafe}'`
+      );
+      if (actionResult.rows.length > 0 && actionResult.rows[0].skill_profile?.axes) {
+        for (const axis of actionResult.rows[0].skill_profile.axes) {
+          axisLabelMap[axis.key] = axis.label;
+        }
+      }
+    } catch (axisErr) {
+      console.warn('Failed to look up axis labels for demonstration embeddings:', axisErr.message);
+    }
 
     // 4. Call Bedrock Sonnet to evaluate which objectives the observation demonstrates
     const aiEvaluatedIds = await evaluateObservationViaBedrock(
@@ -2024,7 +2149,8 @@ async function handleVerify(actionId, body, organizationId) {
         await db.query('COMMIT');
 
         // 7. Queue embedding for each new demonstration state via SQS (fire-and-forget)
-        queueDemonstrationEmbedding(stateId, stateText, organizationId)
+        const axisLabel = objective.axisKey ? axisLabelMap[objective.axisKey] : null;
+        queueDemonstrationEmbedding(stateId, stateText, organizationId, axisLabel || null)
           .catch(err => console.error('Failed to queue demonstration embedding:', err));
       } catch (insertErr) {
         await db.query('ROLLBACK');
@@ -2153,9 +2279,10 @@ function compareAssessments(selfAssessedIds, aiEvaluatedIds) {
 /**
  * Queue embedding generation for a new demonstration knowledge state via SQS.
  * Uses the same pipeline as the states Lambda.
+ * When axisLabel is provided, prepends it to the embedding source for better axis-level matching.
  */
-async function queueDemonstrationEmbedding(stateId, stateText, organizationId) {
-  const embeddingSource = composeStateEmbeddingSource({
+async function queueDemonstrationEmbedding(stateId, stateText, organizationId, axisLabel) {
+  let embeddingSource = composeStateEmbeddingSource({
     entity_names: [],
     state_text: stateText,
     photo_descriptions: [],
@@ -2165,6 +2292,11 @@ async function queueDemonstrationEmbedding(stateId, stateText, organizationId) {
   if (!embeddingSource || !embeddingSource.trim()) {
     console.log('Empty embedding source for demonstration state', stateId, '— skipping SQS send');
     return;
+  }
+
+  // Prepend axis label for improved per-axis similarity matching
+  if (axisLabel) {
+    embeddingSource = composeAxisAwareEmbeddingSource(axisLabel, embeddingSource);
   }
 
   await sqs.send(new SendMessageCommand({

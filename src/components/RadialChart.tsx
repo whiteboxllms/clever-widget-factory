@@ -305,7 +305,7 @@ export function SkillRadialChart({
         </span>
       </div>
       <div className="text-center text-xs text-muted-foreground">
-        Click axis labels to see evidence
+        Tap an axis for details
       </div>
     </div>
   );

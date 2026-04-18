@@ -4,6 +4,7 @@ const { successResponse, errorResponse, corsResponse } = require('/opt/nodejs/re
 const { getDbClient } = require('/opt/nodejs/db');
 const { escapeLiteral } = require('/opt/nodejs/sqlUtils');
 const { determineEvidenceTypeEnriched } = require('./capabilityUtils');
+const { composeCapabilityProfileStateText, parseCapabilityProfileStateText, computeEvidenceHash, determineCacheAction } = require('./cacheUtils');
 
 const bedrock = new BedrockRuntimeClient({ region: process.env.BEDROCK_REGION || 'us-west-2' });
 
@@ -48,11 +49,14 @@ exports.handler = async (event) => {
         return error('Invalid path. Expected /api/capability/:actionId/:userId or /api/capability/:actionId/organization', 400);
       }
 
+      const queryParams = event.queryStringParameters || {};
+      const forceRescore = queryParams.force === 'true';
+
       if (secondSegment === 'organization') {
-        return await handleOrganizationCapability(actionId, organizationId);
+        return await handleOrganizationCapability(actionId, organizationId, forceRescore);
       } else {
         const userId = secondSegment;
-        return await handleIndividualCapability(actionId, userId, organizationId);
+        return await handleIndividualCapability(actionId, userId, organizationId, forceRescore);
       }
     }
 
@@ -71,7 +75,7 @@ exports.handler = async (event) => {
  * falling back to whole-profile search for backward compatibility.
  * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9
  */
-async function handleIndividualCapability(actionId, userId, organizationId) {
+async function handleIndividualCapability(actionId, userId, organizationId, forceRescore = false) {
   const db = await getDbClient();
   try {
     const actionIdSafe = escapeLiteral(actionId);
@@ -94,13 +98,39 @@ async function handleIndividualCapability(actionId, userId, organizationId) {
       return error('No skill profile found for this action. Generate and approve one first.', 404);
     }
 
+    // ── Cache-first logic ──
+    // Requirements: 2.1, 2.2, 2.3, 2.4, 2.5
+    const cachedRow = await lookupCachedProfile(db, actionId, userId, organizationId);
+    const evidenceStateIds = await fetchEvidenceStateIds(db, userId, organizationId);
+    const learningCompletionCount = await fetchLearningCompletionCount(db, actionId, userId, organizationId);
+    const currentHash = computeEvidenceHash(evidenceStateIds, learningCompletionCount);
+
+    const parsedCached = cachedRow ? parseCapabilityProfileStateText(cachedRow.state_text) : null;
+    const cacheAction = determineCacheAction(parsedCached, currentHash);
+
+    if (cacheAction === 'hit' && !forceRescore) {
+      // Cache hit — return stored profile immediately, no Bedrock call
+      console.log(`Cache HIT for capability profile: action=${actionId} user=${userId}`);
+      return success(parsedCached.profile);
+    }
+
+    if (forceRescore) {
+      console.log(`Force RESCORE for capability profile: action=${actionId} user=${userId}`);
+    } else if (cacheAction === 'stale') {
+      console.log(`Cache STALE for capability profile: action=${actionId} user=${userId} (old hash=${parsedCached.evidenceHash}, new hash=${currentHash})`);
+    } else {
+      console.log(`Cache MISS for capability profile: action=${actionId} user=${userId}`);
+    }
+
+    // ── Compute profile via existing flow ──
+
     // Resolve user name from organization_members
     const userResult = await db.query(
       `SELECT full_name FROM organization_members WHERE user_id = '${userIdSafe}' AND organization_id = '${orgIdSafe}'`
     );
     const userName = userResult.rows?.[0]?.full_name || 'Unknown';
 
-    // 2. Check for per-axis skill_axis embeddings (new flow)
+    // Check for per-axis skill_axis embeddings (new flow)
     const axisEmbeddingsResult = await db.query(
       `SELECT entity_id FROM unified_embeddings
        WHERE entity_type = 'skill_axis'
@@ -110,14 +140,37 @@ async function handleIndividualCapability(actionId, userId, organizationId) {
 
     const hasPerAxisEmbeddings = axisEmbeddingsResult.rows && axisEmbeddingsResult.rows.length > 0;
 
+    let computedResponse;
     if (hasPerAxisEmbeddings) {
       // ── Per-axis evidence retrieval flow ──
-      return await handlePerAxisCapability(db, actionId, userId, organizationId, skillProfile, userName);
+      computedResponse = await handlePerAxisCapability(db, actionId, userId, organizationId, skillProfile, userName);
+    } else {
+      // ── Fallback: whole-profile search (profiles approved before per-axis feature) ──
+      console.log(`No skill_axis embeddings found for action ${actionId}, falling back to whole-profile search`);
+      computedResponse = await handleWholeProfileCapability(db, actionId, userId, organizationId, skillProfile, userName);
     }
 
-    // ── Fallback: whole-profile search (profiles approved before per-axis feature) ──
-    console.log(`No skill_axis embeddings found for action ${actionId}, falling back to whole-profile search`);
-    return await handleWholeProfileCapability(db, actionId, userId, organizationId, skillProfile, userName);
+    // ── Store/update cache after computation ──
+    // Only cache successful responses (statusCode 200)
+    try {
+      const responseBody = JSON.parse(computedResponse.body);
+      if (computedResponse.statusCode === 200 && responseBody.data) {
+        const stateText = composeCapabilityProfileStateText(actionId, userId, currentHash, responseBody.data);
+
+        if ((cacheAction === 'stale' || forceRescore) && cachedRow) {
+          await updateCachedProfile(db, cachedRow.id, stateText);
+          console.log(`Cache UPDATED for capability profile: action=${actionId} user=${userId}`);
+        } else {
+          await storeCachedProfile(db, actionId, userId, organizationId, stateText);
+          console.log(`Cache STORED for capability profile: action=${actionId} user=${userId}`);
+        }
+      }
+    } catch (cacheErr) {
+      // Cache storage failure should not break the response
+      console.error('Failed to store/update capability profile cache:', cacheErr);
+    }
+
+    return computedResponse;
   } finally {
     db.release();
   }
@@ -217,7 +270,7 @@ async function handlePerAxisCapability(db, actionId, userId, organizationId, ski
   // Build response with per-axis evidence and narratives
   const axes = skillProfile.axes.map(skillAxis => {
     const aiAxis = capabilityResult.axes.find(a => a.key === skillAxis.key);
-    const level = aiAxis ? Math.max(0, Math.min(5, Math.round(aiAxis.level))) : 0;
+    const level = aiAxis ? Math.round(Math.max(0, Math.min(5, aiAxis.level)) * 10) / 10 : 0;
     const axisEvidence = perAxisEvidence[skillAxis.key] || [];
 
     return {
@@ -298,7 +351,7 @@ async function handleWholeProfileCapability(db, actionId, userId, organizationId
         return {
           key: skillAxis.key,
           label: skillAxis.label,
-          level: aiAxis ? Math.max(0, Math.min(5, Math.round(aiAxis.level))) : 0,
+          level: aiAxis ? Math.round(Math.max(0, Math.min(5, aiAxis.level)) * 10) / 10 : 0,
           evidence_count: 0,
           evidence: []
         };
@@ -346,7 +399,7 @@ async function handleWholeProfileCapability(db, actionId, userId, organizationId
         return {
           key: skillAxis.key,
           label: skillAxis.label,
-          level: aiAxis ? Math.max(0, Math.min(5, Math.round(aiAxis.level))) : 0,
+          level: aiAxis ? Math.round(Math.max(0, Math.min(5, aiAxis.level)) * 10) / 10 : 0,
           evidence_count: 0,
           evidence: []
         };
@@ -411,7 +464,7 @@ async function handleWholeProfileCapability(db, actionId, userId, organizationId
   // Build response
   const axes = skillProfile.axes.map(skillAxis => {
     const aiAxis = capabilityResult.axes.find(a => a.key === skillAxis.key);
-    const level = aiAxis ? Math.max(0, Math.min(5, Math.round(aiAxis.level))) : 0;
+    const level = aiAxis ? Math.round(Math.max(0, Math.min(5, aiAxis.level)) * 10) / 10 : 0;
 
     const axisEvidence = aiAxis?.evidence_ids
       ? allEvidence.filter(e => aiAxis.evidence_ids.includes(e.observation_id))
@@ -503,13 +556,14 @@ Factor this learning data into your assessment. Quiz completion that tests "why"
 
   const prompt = `You are a skill assessment expert. Analyze the following evidence observations and learning data for ${userName} and produce a capability assessment relative to the skill profile axes.
 
-SKILL LEVEL SCALE (Bloom's Taxonomy — use integers 0-5):
+SKILL LEVEL SCALE (Bloom's Taxonomy — use decimal scores 0.0-5.0):
   0 = No exposure — no evidence of this skill
   1 = Remember — evidence shows they can recall facts and follow documented procedures
   2 = Understand — evidence shows they can explain why, not just how
   3 = Apply — evidence shows they can use knowledge in new situations without guidance
   4 = Analyze — evidence shows they can break down problems, evaluate tradeoffs
   5 = Create — evidence shows they can innovate, teach others, set standards
+Use decimal values (e.g., 1.3, 2.7) to reflect partial progress between levels.
 
 SKILL PROFILE:
 ${skillProfile.narrative}
@@ -522,7 +576,7 @@ ${evidenceSummary || 'No observation evidence available.'}
 ${learningSection}
 
 ASSESSMENT GUIDELINES:
-- Score each axis as an INTEGER from 0 to 5 using the Bloom's scale above.
+- Score each axis as a DECIMAL from 0.0 to 5.0 using the Bloom's scale above. Use values like 1.3 or 2.7 to reflect partial progress between levels.
 - Consider consistency across multiple observations — mastery requires repeated demonstration.
 - Weight recent evidence more heavily (recency_weight is already provided).
 - A person with no evidence and no learning for an axis should score 0.
@@ -535,7 +589,7 @@ Produce a JSON object with:
 1. "narrative": A 2-4 sentence assessment of ${userName}'s demonstrated capabilities relative to this action's requirements. Be specific about strengths and gaps. Mention learning completion where relevant.
 2. "axes": An array with one entry per skill axis, each containing:
    - "key": The axis key (must match exactly)
-   - "level": An INTEGER from 0 to 5 representing demonstrated capability on the Bloom's scale
+   - "level": A DECIMAL from 0.0 to 5.0 representing demonstrated capability on the Bloom's scale
    - "evidence_ids": An array of observation_id strings (from the evidence list) that support this score
 
 Respond with ONLY the JSON object, no markdown formatting, no code fences, no explanation.`;
@@ -639,13 +693,14 @@ Factor this learning data into your assessment. Quiz completion that tests "why"
 
   const prompt = `You are a skill assessment expert. Analyze the following per-axis evidence for ${userName} and produce a capability assessment relative to the skill profile axes.
 
-SKILL LEVEL SCALE (Bloom's Taxonomy — use integers 0-5):
+SKILL LEVEL SCALE (Bloom's Taxonomy — use decimal scores 0.0-5.0):
   0 = No exposure — no evidence of this skill
   1 = Remember — evidence shows they can recall facts and follow documented procedures
   2 = Understand — evidence shows they can explain why, not just how
   3 = Apply — evidence shows they can use knowledge in new situations without guidance
   4 = Analyze — evidence shows they can break down problems, evaluate tradeoffs
   5 = Create — evidence shows they can innovate, teach others, set standards
+Use decimal values (e.g., 1.3, 2.7) to reflect partial progress between levels.
 
 SKILL PROFILE:
 ${skillProfile.narrative}
@@ -668,7 +723,7 @@ ${perAxisSections}
 ${learningSection}
 
 ASSESSMENT GUIDELINES:
-- Score each axis as an INTEGER from 0 to 5 using the Bloom's scale above.
+- Score each axis as a DECIMAL from 0.0 to 5.0 using the Bloom's scale above. Use values like 1.3 or 2.7 to reflect partial progress between levels.
 - Use the evidence type and continuous score to inform your scoring: recognition evidence guarantees at least level 1, open-form evidence with a score directly indicates demonstrated depth, observation evidence requires judgment based on text content.
 - Evidence marked "pending" should be included but weighted less — evaluation is still in progress.
 - Consider the similarity score — higher similarity means the evidence is more directly relevant to the axis.
@@ -680,7 +735,7 @@ Produce a JSON object with:
 1. "narrative": A 2-4 sentence overall assessment of ${userName}'s demonstrated capabilities. Be specific about strengths and gaps.
 2. "axes": An array with one entry per skill axis, each containing:
    - "key": The axis key (must match exactly)
-   - "level": An INTEGER from 0 to 5 representing demonstrated capability on the Bloom's scale
+   - "level": A DECIMAL from 0.0 to 5.0 representing demonstrated capability on the Bloom's scale
    - "axis_narrative": A 1-2 sentence explanation of what evidence supports this score and where knowledge transfers from
 
 Respond with ONLY the JSON object, no markdown formatting, no code fences, no explanation.`;
@@ -725,7 +780,7 @@ Respond with ONLY the JSON object, no markdown formatting, no code fences, no ex
  * Compute organization-level capability profile for an action.
  * Requirements: 6.1, 6.2, 6.3, 6.6
  */
-async function handleOrganizationCapability(actionId, organizationId) {
+async function handleOrganizationCapability(actionId, organizationId, forceRescore = false) {
   const db = await getDbClient();
   try {
     const actionIdSafe = escapeLiteral(actionId);
@@ -746,6 +801,32 @@ async function handleOrganizationCapability(actionId, organizationId) {
     if (!skillProfile || !skillProfile.approved_at) {
       return error('No skill profile found for this action. Generate and approve one first.', 404);
     }
+
+    // ── Cache-first logic ──
+    // Requirements: 4.1, 4.2, 4.3
+    const cachedRow = await lookupCachedProfile(db, actionId, 'organization', organizationId);
+    const evidenceStateIds = await fetchOrgEvidenceStateIds(db, organizationId);
+    const learningCompletionCount = await fetchOrgLearningCompletionCount(db, actionId, organizationId);
+    const currentHash = computeEvidenceHash(evidenceStateIds, learningCompletionCount);
+
+    const parsedCached = cachedRow ? parseCapabilityProfileStateText(cachedRow.state_text) : null;
+    const cacheAction = determineCacheAction(parsedCached, currentHash);
+
+    if (cacheAction === 'hit' && !forceRescore) {
+      // Cache hit — return stored profile immediately, no Bedrock call
+      console.log(`Cache HIT for organization capability profile: action=${actionId}`);
+      return success(parsedCached.profile);
+    }
+
+    if (forceRescore) {
+      console.log(`Force RESCORE for organization capability profile: action=${actionId}`);
+    } else if (cacheAction === 'stale') {
+      console.log(`Cache STALE for organization capability profile: action=${actionId} (old hash=${parsedCached.evidenceHash}, new hash=${currentHash})`);
+    } else {
+      console.log(`Cache MISS for organization capability profile: action=${actionId}`);
+    }
+
+    // ── Compute profile via existing flow ──
 
     // 2. Fetch the action_skill_profile embedding from unified_embeddings
     const embeddingResult = await db.query(
@@ -852,7 +933,7 @@ async function handleOrganizationCapability(actionId, organizationId) {
     // 8. Build and return the organization-level CapabilityProfile response
     const axes = skillProfile.axes.map(skillAxis => {
       const aiAxis = capabilityResult.axes.find(a => a.key === skillAxis.key);
-      const level = aiAxis ? Math.max(0, Math.min(5, Math.round(aiAxis.level))) : 0;
+      const level = aiAxis ? Math.round(Math.max(0, Math.min(5, aiAxis.level)) * 10) / 10 : 0;
 
       // Attach evidence to each axis
       const axisEvidence = aiAxis?.evidence_ids
@@ -868,7 +949,7 @@ async function handleOrganizationCapability(actionId, organizationId) {
       };
     });
 
-    const capabilityProfile = {
+    const computedResponse = success({
       user_id: 'organization',
       user_name: 'Organization',
       action_id: actionId,
@@ -876,9 +957,29 @@ async function handleOrganizationCapability(actionId, organizationId) {
       axes,
       total_evidence_count: allEvidence.length,
       computed_at: new Date().toISOString()
-    };
+    });
 
-    return success(capabilityProfile);
+    // ── Store/update cache after computation ──
+    // Only cache successful responses (statusCode 200)
+    try {
+      const responseBody = JSON.parse(computedResponse.body);
+      if (computedResponse.statusCode === 200 && responseBody.data) {
+        const stateText = composeCapabilityProfileStateText(actionId, 'organization', currentHash, responseBody.data);
+
+        if ((cacheAction === 'stale' || forceRescore) && cachedRow) {
+          await updateCachedProfile(db, cachedRow.id, stateText);
+          console.log(`Cache UPDATED for organization capability profile: action=${actionId}`);
+        } else {
+          await storeCachedProfile(db, actionId, 'organization', organizationId, stateText);
+          console.log(`Cache STORED for organization capability profile: action=${actionId}`);
+        }
+      }
+    } catch (cacheErr) {
+      // Cache storage failure should not break the response
+      console.error('Failed to store/update organization capability profile cache:', cacheErr);
+    }
+
+    return computedResponse;
   } finally {
     db.release();
   }
@@ -1023,3 +1124,221 @@ async function fetchLearningCompletionData(db, actionIdSafe, userIdSafe, orgIdSa
 }
 module.exports.buildEvidenceQuery = buildEvidenceQuery;
 module.exports.buildZeroCapabilityProfile = buildZeroCapabilityProfile;
+
+/**
+ * Fetch evidence state IDs for a user in an organization.
+ * Returns a sorted array of state ID strings captured by this user,
+ * excluding [capability_profile] and [learning_objective] prefixed states.
+ * Used for computing the deterministic evidence hash.
+ *
+ * @param {object} db - database connection pool client
+ * @param {string} userId - the user whose evidence to fetch
+ * @param {string} orgId - the organization ID
+ * @returns {Promise<string[]>} - sorted array of state ID strings
+ */
+async function fetchEvidenceStateIds(db, userId, orgId) {
+  const userIdSafe = escapeLiteral(userId);
+  const orgIdSafe = escapeLiteral(orgId);
+
+  const result = await db.query(
+    `SELECT s.id::text
+     FROM states s
+     WHERE s.captured_by = '${userIdSafe}'
+       AND s.organization_id = '${orgIdSafe}'
+       AND s.state_text NOT LIKE '[capability_profile]%'
+       AND s.state_text NOT LIKE '[learning_objective]%'
+     ORDER BY s.id`
+  );
+
+  return result.rows.map(row => row.id);
+}
+
+/**
+ * Count completed learning objectives for a user on a specific action.
+ * A learning objective is "completed" when there is a knowledge state containing
+ * "which was the correct answer" linked to a learning objective for the action.
+ *
+ * @param {object} db - database connection pool client
+ * @param {string} actionId - the action ID
+ * @param {string} userId - the user ID
+ * @param {string} orgId - the organization ID
+ * @returns {Promise<number>} - count of completed learning objectives
+ */
+async function fetchLearningCompletionCount(db, actionId, userId, orgId) {
+  const actionIdSafe = escapeLiteral(actionId);
+  const userIdSafe = escapeLiteral(userId);
+  const orgIdSafe = escapeLiteral(orgId);
+
+  const result = await db.query(
+    `SELECT COUNT(*) as completion_count
+     FROM states s
+     INNER JOIN state_links sl ON sl.state_id = s.id
+     WHERE sl.entity_type = 'learning_objective'
+       AND sl.entity_id IN (
+         SELECT s2.id FROM states s2
+         INNER JOIN state_links sl2 ON sl2.state_id = s2.id
+         WHERE sl2.entity_type = 'action' AND sl2.entity_id = '${actionIdSafe}'
+           AND s2.state_text LIKE '[learning_objective]%'
+           AND s2.state_text LIKE '%user=' || '${userIdSafe}' || '%'
+       )
+       AND s.state_text LIKE '%which was the correct answer%'
+       AND s.organization_id = '${orgIdSafe}'`
+  );
+
+  return parseInt(result.rows[0].completion_count, 10) || 0;
+}
+
+/**
+ * Fetch ALL evidence state IDs in an organization (no user filter).
+ * Used for computing the organization-level evidence hash.
+ * Returns a sorted array of state ID strings, excluding [capability_profile]
+ * and [learning_objective] prefixed states.
+ *
+ * @param {object} db - database connection pool client
+ * @param {string} orgId - the organization ID
+ * @returns {Promise<string[]>} - sorted array of state ID strings
+ */
+async function fetchOrgEvidenceStateIds(db, orgId) {
+  const orgIdSafe = escapeLiteral(orgId);
+
+  const result = await db.query(
+    `SELECT s.id::text
+     FROM states s
+     WHERE s.organization_id = '${orgIdSafe}'
+       AND s.state_text NOT LIKE '[capability_profile]%'
+       AND s.state_text NOT LIKE '[learning_objective]%'
+     ORDER BY s.id`
+  );
+
+  return result.rows.map(row => row.id);
+}
+
+/**
+ * Count completed learning objectives across ALL users for a specific action.
+ * Used for computing the organization-level evidence hash.
+ * Sums completions across all users (no user filter on the learning objective states).
+ *
+ * @param {object} db - database connection pool client
+ * @param {string} actionId - the action ID
+ * @param {string} orgId - the organization ID
+ * @returns {Promise<number>} - count of completed learning objectives across all users
+ */
+async function fetchOrgLearningCompletionCount(db, actionId, orgId) {
+  const actionIdSafe = escapeLiteral(actionId);
+  const orgIdSafe = escapeLiteral(orgId);
+
+  const result = await db.query(
+    `SELECT COUNT(*) as completion_count
+     FROM states s
+     INNER JOIN state_links sl ON sl.state_id = s.id
+     WHERE sl.entity_type = 'learning_objective'
+       AND sl.entity_id IN (
+         SELECT s2.id FROM states s2
+         INNER JOIN state_links sl2 ON sl2.state_id = s2.id
+         WHERE sl2.entity_type = 'action' AND sl2.entity_id = '${actionIdSafe}'
+           AND s2.state_text LIKE '[learning_objective]%'
+       )
+       AND s.state_text LIKE '%which was the correct answer%'
+       AND s.organization_id = '${orgIdSafe}'`
+  );
+
+  return parseInt(result.rows[0].completion_count, 10) || 0;
+}
+
+module.exports.fetchEvidenceStateIds = fetchEvidenceStateIds;
+module.exports.fetchLearningCompletionCount = fetchLearningCompletionCount;
+module.exports.fetchOrgEvidenceStateIds = fetchOrgEvidenceStateIds;
+module.exports.fetchOrgLearningCompletionCount = fetchOrgLearningCompletionCount;
+
+/**
+ * Look up a cached capability profile state for a given action + user + org.
+ * Queries states + state_links for an existing [capability_profile] state
+ * matching captured_by = userId and entity_type = 'capability_profile', entity_id = actionId.
+ *
+ * @param {object} db - database connection pool client
+ * @param {string} actionId - the action ID
+ * @param {string} userId - the user ID (or 'organization' for org profiles)
+ * @param {string} orgId - the organization ID
+ * @returns {Promise<{ id: string, state_text: string } | null>} - cached state row or null
+ */
+async function lookupCachedProfile(db, actionId, userId, orgId) {
+  const actionIdSafe = escapeLiteral(actionId);
+  const userIdSafe = escapeLiteral(userId);
+  const orgIdSafe = escapeLiteral(orgId);
+
+  const result = await db.query(
+    `SELECT s.id, s.state_text
+     FROM states s
+     INNER JOIN state_links sl ON sl.state_id = s.id
+     WHERE sl.entity_type = 'capability_profile'
+       AND sl.entity_id = '${actionIdSafe}'
+       AND s.captured_by = '${userIdSafe}'
+       AND s.state_text LIKE '[capability_profile]%'
+       AND s.organization_id = '${orgIdSafe}'
+     LIMIT 1`
+  );
+
+  if (!result.rows || result.rows.length === 0) {
+    return null;
+  }
+
+  return result.rows[0];
+}
+
+/**
+ * Store a new cached capability profile state and link it to the action.
+ * INSERTs a new state row and a state_link with entity_type = 'capability_profile'.
+ *
+ * @param {object} db - database connection pool client
+ * @param {string} actionId - the action ID to link to
+ * @param {string} userId - the user ID (or 'organization' for org profiles)
+ * @param {string} orgId - the organization ID
+ * @param {string} stateText - the composed [capability_profile] state text
+ * @returns {Promise<string>} - the new state ID
+ */
+async function storeCachedProfile(db, actionId, userId, orgId, stateText) {
+  const actionIdSafe = escapeLiteral(actionId);
+  const userIdSafe = escapeLiteral(userId);
+  const orgIdSafe = escapeLiteral(orgId);
+  const stateTextSafe = escapeLiteral(stateText);
+
+  const insertResult = await db.query(
+    `INSERT INTO states (organization_id, state_text, captured_by, captured_at)
+     VALUES ('${orgIdSafe}', '${stateTextSafe}', '${userIdSafe}', NOW())
+     RETURNING id`
+  );
+
+  const stateId = insertResult.rows[0].id;
+  const stateIdSafe = escapeLiteral(stateId);
+
+  await db.query(
+    `INSERT INTO state_links (state_id, entity_type, entity_id)
+     VALUES ('${stateIdSafe}', 'capability_profile', '${actionIdSafe}')`
+  );
+
+  return stateId;
+}
+
+/**
+ * Update an existing cached capability profile state's text and timestamp.
+ * Used when the cache is stale and needs to be refreshed with a new profile.
+ *
+ * @param {object} db - database connection pool client
+ * @param {string} existingStateId - the state ID to update
+ * @param {string} stateText - the new composed [capability_profile] state text
+ * @returns {Promise<void>}
+ */
+async function updateCachedProfile(db, existingStateId, stateText) {
+  const existingStateIdSafe = escapeLiteral(existingStateId);
+  const stateTextSafe = escapeLiteral(stateText);
+
+  await db.query(
+    `UPDATE states
+     SET state_text = '${stateTextSafe}', updated_at = NOW()
+     WHERE id = '${existingStateIdSafe}'`
+  );
+}
+
+module.exports.lookupCachedProfile = lookupCachedProfile;
+module.exports.storeCachedProfile = storeCachedProfile;
+module.exports.updateCachedProfile = updateCachedProfile;

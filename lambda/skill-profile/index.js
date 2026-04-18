@@ -266,6 +266,44 @@ async function handleApprove(event, organizationId) {
     approved_by
   };
 
+  // Delete cached capability_profile states linked to this action before storing new profile.
+  // This ensures the next capability read triggers a fresh computation against the new axes.
+  const cacheDb = await getDbClient();
+  try {
+    const actionIdSafe = escapeLiteral(action_id);
+    const orgIdSafe = escapeLiteral(organizationId);
+
+    const stateIdsResult = await cacheDb.query(
+      `SELECT s.id FROM states s
+       INNER JOIN state_links sl ON sl.state_id = s.id
+       WHERE sl.entity_type = 'capability_profile'
+         AND sl.entity_id = '${actionIdSafe}'
+         AND s.organization_id = '${orgIdSafe}'`
+    );
+
+    if (stateIdsResult.rows.length > 0) {
+      const stateIds = stateIdsResult.rows.map(r => r.id);
+      const stateIdList = stateIds.map(id => `'${escapeLiteral(id)}'`).join(',');
+
+      // Delete states (CASCADE handles state_links cleanup)
+      await cacheDb.query(
+        `DELETE FROM states WHERE id IN (${stateIdList})`
+      );
+
+      // Clean up unified_embeddings for the deleted states
+      const stateIdStrings = stateIds.map(id => `'${escapeLiteral(String(id))}'`).join(',');
+      await cacheDb.query(
+        `DELETE FROM unified_embeddings WHERE entity_type = 'state' AND entity_id IN (${stateIdStrings}) AND organization_id = '${orgIdSafe}'`
+      );
+
+      console.log('Deleted', stateIds.length, 'capability_profile cache states for action', action_id);
+    }
+  } catch (cacheErr) {
+    console.error('Failed to delete capability_profile cache states during approve:', cacheErr);
+  } finally {
+    cacheDb.release();
+  }
+
   // Store the profile as JSONB in actions.skill_profile
   const db = await getDbClient();
   let updatedAction;
@@ -369,6 +407,37 @@ async function handleDelete(actionId, organizationId) {
     await db.query(
       `DELETE FROM unified_embeddings WHERE entity_type = 'action_skill_profile' AND entity_id = '${actionIdSafe}' AND organization_id = '${orgIdSafe}'`
     );
+
+    // 3. Delete cached capability_profile states linked to this action
+    try {
+      const stateIdsResult = await db.query(
+        `SELECT s.id FROM states s
+         INNER JOIN state_links sl ON sl.state_id = s.id
+         WHERE sl.entity_type = 'capability_profile'
+           AND sl.entity_id = '${actionIdSafe}'
+           AND s.organization_id = '${orgIdSafe}'`
+      );
+
+      if (stateIdsResult.rows.length > 0) {
+        const stateIds = stateIdsResult.rows.map(r => r.id);
+        const stateIdList = stateIds.map(id => `'${escapeLiteral(id)}'`).join(',');
+
+        // Delete states (CASCADE handles state_links cleanup)
+        await db.query(
+          `DELETE FROM states WHERE id IN (${stateIdList})`
+        );
+
+        // Clean up unified_embeddings for the deleted states
+        const stateIdStrings = stateIds.map(id => `'${escapeLiteral(String(id))}'`).join(',');
+        await db.query(
+          `DELETE FROM unified_embeddings WHERE entity_type = 'state' AND entity_id IN (${stateIdStrings}) AND organization_id = '${orgIdSafe}'`
+        );
+
+        console.log('Deleted', stateIds.length, 'capability_profile cache states for action', actionId);
+      }
+    } catch (cacheErr) {
+      console.error('Failed to delete capability_profile cache states:', cacheErr);
+    }
 
     return success({ deleted: true, action_id: actionId });
   } finally {

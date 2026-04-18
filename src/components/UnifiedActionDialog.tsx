@@ -95,9 +95,28 @@ export function UnifiedActionDialog({
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   
-  // Look up action from cache using ID
-  const cachedActions = queryClient.getQueryData(['actions']) as BaseAction[] | undefined;
-  const action = actionId && cachedActions ? cachedActions.find(a => a.id === actionId) : undefined;
+  // Look up action reactively from cache — checks unresolved, completed, and single-action caches.
+  // Using useQuery with select ensures the component re-renders when the cache is populated
+  // (getQueryData is a non-reactive snapshot that misses async cache updates on page refresh).
+  const { data: unresolvedMatch } = useQuery<BaseAction[], Error, BaseAction | undefined>({
+    queryKey: ['actions'],
+    queryFn: () => { throw new Error('cache-only'); },
+    enabled: false,
+    select: (actions) => actionId ? actions.find(a => a.id === actionId) : undefined,
+  });
+  const { data: completedMatch } = useQuery<BaseAction[], Error, BaseAction | undefined>({
+    queryKey: ['actions_completed'],
+    queryFn: () => { throw new Error('cache-only'); },
+    enabled: false,
+    select: (actions) => actionId ? actions.find(a => a.id === actionId) : undefined,
+  });
+  const { data: singleMatch } = useQuery<BaseAction, Error, BaseAction | undefined>({
+    queryKey: ['action', actionId || ''],
+    queryFn: () => { throw new Error('cache-only'); },
+    enabled: false,
+    select: (a) => a,
+  });
+  const action = unresolvedMatch || completedMatch || singleMatch;
   const { toast } = useToast();
   const { isLeadership, user } = useAuth();
   const organizationId = useOrganizationId();

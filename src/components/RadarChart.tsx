@@ -259,7 +259,7 @@ export function SkillRadarChart({
         </RechartsRadarChart>
       </div>
       <div className="text-center text-xs text-muted-foreground mt-1">
-        Hover for details · Click axis labels to see evidence · ⚠ = gap &gt; 1 level
+        Hover for details · Tap an axis for details · ⚠ = gap &gt; 1 level
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, AlertCircle, RefreshCw, BarChart3, AlertTriangle, CircleMinus, CheckCircle2, Circle, CircleDot, BookOpen, GraduationCap, ChevronDown } from 'lucide-react';
+import { Loader2, AlertCircle, RefreshCw, BarChart3, AlertTriangle, CircleMinus, CheckCircle2, CircleDot, BookOpen, GraduationCap, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -152,7 +152,10 @@ function PersonGapChecklist({
                     {allComplete && <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />}
                     <span className="font-medium truncate">{gap.axisLabel}</span>
                     <Badge variant="outline" className="text-xs shrink-0">
-                      {ls && ls.continuousScore != null ? `${ls.continuousScore.toFixed(1)} — ${scoreToGrowthLabel(ls.continuousScore)}` : bloomLabel(gap.currentLevel)}
+                      {(() => {
+                        const displayScore = Math.max(ls?.continuousScore ?? 0, gap.currentLevel);
+                        return `${displayScore.toFixed(1)} — ${scoreToGrowthLabel(displayScore)}`;
+                      })()}
                     </Badge>
                     <span className="text-muted-foreground text-xs shrink-0">→</span>
                     <Badge variant="secondary" className="text-xs shrink-0">
@@ -206,7 +209,7 @@ function toObjectiveProgress(obj: LearningObjective): ObjectiveProgress {
 function ObjectiveStatusIcon({ status }: { status: LearningObjective['status'] }) {
   switch (status) {
     case 'not_started':
-      return <Circle className="h-4 w-4 text-muted-foreground" />;
+      return <span className="h-4 w-4 flex items-center justify-center text-muted-foreground">•</span>;
     case 'in_progress':
       return <CircleDot className="h-4 w-4 text-blue-500" />;
     case 'completed':
@@ -218,9 +221,11 @@ function ObjectiveStatusIcon({ status }: { status: LearningObjective['status'] }
 function LearningObjectivesSection({
   actionId,
   axes,
+  capabilityLevels,
 }: {
   actionId: string;
   axes: LearningAxis[];
+  capabilityLevels?: Map<string, number>;
 }) {
   const navigate = useNavigate();
 
@@ -275,7 +280,11 @@ function LearningObjectivesSection({
                   {axisComplete && <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />}
                   <span className="text-sm font-medium truncate">{axisLabel}</span>
                   <Badge variant="outline" className="text-xs shrink-0">
-                    {axisData.continuousScore != null ? `${axisData.continuousScore.toFixed(1)} — ${scoreToGrowthLabel(axisData.continuousScore)}` : bloomLabel(0)}
+                    {(() => {
+                      const capLevel = capabilityLevels?.get(axisData.axisKey) ?? 0;
+                      const displayScore = Math.max(axisData.continuousScore ?? 0, capLevel);
+                      return `${displayScore.toFixed(1)} — ${scoreToGrowthLabel(displayScore)}`;
+                    })()}
                   </Badge>
                 </div>
                 <div className="shrink-0 ml-2">
@@ -350,6 +359,7 @@ function LearningObjectivesSection({
 export function CapabilityAssessment({ action }: CapabilityAssessmentProps) {
   const [selectedAxis, setSelectedAxis] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
+  const [isRescoring, setIsRescoring] = useState(false);
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -436,6 +446,17 @@ export function CapabilityAssessment({ action }: CapabilityAssessmentProps) {
     return scores;
   }, [learningAxes]);
 
+  // Build capability level map per axis for consistent score display (Math.max of learning + capability)
+  const capabilityLevelsByAxis = useMemo(() => {
+    const levels = new Map<string, number>();
+    for (const p of capabilityProfiles) {
+      for (const axis of p.axes) {
+        levels.set(axis.key, Math.max(levels.get(axis.key) ?? 0, axis.level));
+      }
+    }
+    return levels;
+  }, [capabilityProfiles]);
+
   // Refetch learning objectives when capability data updates (e.g., after Regenerate)
   const capabilitySettled = capabilityQueries.every((q) => !q.isLoading && !q.isFetching);
   const [prevSettled, setPrevSettled] = useState(false);
@@ -445,6 +466,26 @@ export function CapabilityAssessment({ action }: CapabilityAssessmentProps) {
     }
     setPrevSettled(capabilitySettled);
   }, [capabilitySettled, prevSettled, refetchLearning, user?.id]);
+
+  // Force rescore — bypasses cache and recomputes via Bedrock
+  const handleRescore = useCallback(async () => {
+    setIsRescoring(true);
+    try {
+      await Promise.all(
+        involvedUserIds.map(async (userId) => {
+          const result = await apiService.get<{ data: CapabilityProfile }>(
+            `/capability/${action.id}/${userId}?force=true`
+          );
+          queryClient.setQueryData(capabilityProfileQueryKey(action.id, userId), result.data);
+        })
+      );
+      refetchLearning();
+    } catch (err) {
+      console.error('Rescore failed:', err);
+    } finally {
+      setIsRescoring(false);
+    }
+  }, [involvedUserIds, action.id, queryClient, refetchLearning]);
 
   // --- Empty state: no approved skill profile ---
   if (!hasApprovedSkillProfile || !skillProfile) {
@@ -503,7 +544,23 @@ export function CapabilityAssessment({ action }: CapabilityAssessmentProps) {
   // --- Radar chart + gap checklist + drilldown ---
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold text-foreground">Target Growth Areas</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-foreground">Target Growth Areas</h3>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRescore}
+          disabled={isRescoring || isLoading}
+          className="h-7 px-2 text-xs"
+        >
+          {isRescoring ? (
+            <Loader2 className="h-3 w-3 animate-spin mr-1" />
+          ) : (
+            <RefreshCw className="h-3 w-3 mr-1" />
+          )}
+          Rescore
+        </Button>
+      </div>
 
       <SkillRadialChart
         skillProfile={skillProfile}
@@ -528,6 +585,7 @@ export function CapabilityAssessment({ action }: CapabilityAssessmentProps) {
         <LearningObjectivesSection
           actionId={action.id}
           axes={learningAxes}
+          capabilityLevels={capabilityLevelsByAxis}
         />
       ) : null}
 

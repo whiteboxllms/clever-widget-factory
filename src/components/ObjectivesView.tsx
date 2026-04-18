@@ -1,11 +1,17 @@
 import { useState, useMemo } from 'react';
-import { BookOpen, Loader2 } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import type { LearningObjective } from '@/hooks/useLearning';
+import { classifySimilarity } from '@/lib/learningUtils';
 
 export interface ObjectivesViewProps {
   objectives: LearningObjective[];
@@ -14,30 +20,77 @@ export interface ObjectivesViewProps {
   isLoading?: boolean;
 }
 
-/** Map evidence tags to badge display config */
-function evidenceTagBadge(tag: LearningObjective['evidenceTag']) {
-  switch (tag) {
-    case 'no_evidence':
-      return { label: 'Required', variant: 'destructive' as const, className: '' };
-    case 'some_evidence':
+/** Map similarity classification to badge display config */
+function similarityBadge(score: number | null | undefined) {
+  const classification = classifySimilarity(score ?? 0);
+  switch (classification) {
+    case 'likely_covered':
       return {
-        label: 'Some evidence',
-        variant: 'outline' as const,
-        className: 'border-yellow-400 bg-yellow-50 text-yellow-700',
-      };
-    case 'previously_correct':
-      return {
-        label: 'Previously correct',
+        label: 'Likely covered',
         variant: 'outline' as const,
         className: 'border-green-400 bg-green-50 text-green-700',
       };
+    case 'related_learning':
+      return {
+        label: 'Related learning found',
+        variant: 'outline' as const,
+        className: 'border-yellow-400 bg-yellow-50 text-yellow-700',
+      };
+    case 'new_material':
+      return { label: 'New material', variant: 'destructive' as const, className: '' };
   }
 }
 
 /**
+ * Expandable section showing prior learning matches for an objective.
+ * Uses Radix Collapsible for accessible disclosure.
+ */
+function PriorLearningSection({
+  objective,
+}: {
+  objective: LearningObjective;
+}) {
+  const [open, setOpen] = useState(false);
+  const matches = objective.priorLearning;
+
+  if (!matches || matches.length === 0) return null;
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
+          aria-expanded={open}
+        >
+          {open ? (
+            <ChevronUp className="h-3 w-3" />
+          ) : (
+            <ChevronDown className="h-3 w-3" />
+          )}
+          Show prior learning ({matches.length})
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <ul className="mt-2 space-y-1.5 pl-4 border-l-2 border-muted">
+          {matches.map((match, idx) => (
+            <li key={idx} className="text-xs text-muted-foreground">
+              <span className="font-medium tabular-nums">
+                {Math.round(match.similarityScore * 100)}%
+              </span>{' '}
+              — {match.sourceText}
+            </li>
+          ))}
+        </ul>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+/**
  * Displays learning objectives before quiz starts.
- * Required objectives (no_evidence / some_evidence) are shown prominently and pre-selected.
- * Optional review objectives (previously_correct) are shown as toggleable.
+ * Required objectives (new_material / related_learning) are shown prominently and pre-selected.
+ * Optional review objectives (likely_covered, similarityScore >= 0.8) are shown as toggleable.
  *
  * Requirements: 3.5.4, 3.5.5, 3.5.6, 3.5.8
  */
@@ -47,12 +100,13 @@ export function ObjectivesView({
   onStartQuiz,
   isLoading = false,
 }: ObjectivesViewProps) {
-  // Split objectives into required and optional
+  // Split objectives into required and optional based on similarity score
   const { required, optional } = useMemo(() => {
     const req: LearningObjective[] = [];
     const opt: LearningObjective[] = [];
     for (const obj of objectives) {
-      if (obj.evidenceTag === 'previously_correct') {
+      const score = obj.similarityScore ?? 0;
+      if (classifySimilarity(score) === 'likely_covered') {
         opt.push(obj);
       } else {
         req.push(obj);
@@ -121,31 +175,45 @@ export function ObjectivesView({
             </h4>
             <ul className="space-y-2">
               {required.map((obj) => {
-                const badge = evidenceTagBadge(obj.evidenceTag);
+                const score = obj.similarityScore ?? 0;
+                const badge = similarityBadge(score);
                 const checked = selectedRequired.has(obj.id);
                 return (
                   <li
                     key={obj.id}
-                    className="flex items-start gap-3 rounded-md border px-3 py-2.5"
+                    className="rounded-md border px-3 py-2.5"
                   >
-                    <Checkbox
-                      id={`obj-${obj.id}`}
-                      checked={checked}
-                      onCheckedChange={() => toggleRequired(obj.id)}
-                      className="mt-0.5"
-                    />
-                    <label
-                      htmlFor={`obj-${obj.id}`}
-                      className="flex-1 text-sm cursor-pointer select-none"
-                    >
-                      {obj.text}
-                    </label>
-                    <Badge
-                      variant={badge.variant}
-                      className={`shrink-0 text-xs ${badge.className}`}
-                    >
-                      {badge.label}
-                    </Badge>
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        id={`obj-${obj.id}`}
+                        checked={checked}
+                        onCheckedChange={() => toggleRequired(obj.id)}
+                        className="mt-0.5"
+                      />
+                      <label
+                        htmlFor={`obj-${obj.id}`}
+                        className="flex-1 text-sm cursor-pointer select-none"
+                      >
+                        {obj.text}
+                      </label>
+                      <Badge
+                        variant={badge.variant}
+                        className={`shrink-0 text-xs ${badge.className}`}
+                      >
+                        {badge.label}
+                      </Badge>
+                    </div>
+                    {/* Show matched text for related_learning objectives */}
+                    {classifySimilarity(score) === 'related_learning' &&
+                      obj.matchedObjectiveText && (
+                        <p className="mt-1 ml-7 text-xs text-muted-foreground italic">
+                          Closest match: {obj.matchedObjectiveText}
+                        </p>
+                      )}
+                    {/* Expandable prior learning section */}
+                    <div className="ml-7">
+                      <PriorLearningSection objective={obj} />
+                    </div>
                   </li>
                 );
               })}
@@ -161,30 +229,43 @@ export function ObjectivesView({
             </h4>
             <ul className="space-y-2">
               {optional.map((obj) => {
-                const badge = evidenceTagBadge(obj.evidenceTag);
+                const score = obj.similarityScore ?? 0;
+                const badge = similarityBadge(score);
                 const checked = selectedOptional.has(obj.id);
                 return (
                   <li
                     key={obj.id}
-                    className="flex items-center gap-3 rounded-md border border-dashed px-3 py-2.5"
+                    className="rounded-md border border-dashed px-3 py-2.5"
                   >
-                    <Switch
-                      id={`opt-${obj.id}`}
-                      checked={checked}
-                      onCheckedChange={() => toggleOptional(obj.id)}
-                    />
-                    <label
-                      htmlFor={`opt-${obj.id}`}
-                      className="flex-1 text-sm cursor-pointer select-none text-muted-foreground"
-                    >
-                      {obj.text}
-                    </label>
-                    <Badge
-                      variant={badge.variant}
-                      className={`shrink-0 text-xs ${badge.className}`}
-                    >
-                      {badge.label}
-                    </Badge>
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        id={`opt-${obj.id}`}
+                        checked={checked}
+                        onCheckedChange={() => toggleOptional(obj.id)}
+                      />
+                      <label
+                        htmlFor={`opt-${obj.id}`}
+                        className="flex-1 text-sm cursor-pointer select-none text-muted-foreground"
+                      >
+                        {obj.text}
+                      </label>
+                      <Badge
+                        variant={badge.variant}
+                        className={`shrink-0 text-xs ${badge.className}`}
+                      >
+                        {badge.label}
+                      </Badge>
+                    </div>
+                    {/* Show matched text for likely_covered objectives */}
+                    {obj.matchedObjectiveText && (
+                      <p className="mt-1 ml-12 text-xs text-muted-foreground italic">
+                        Closest match: {obj.matchedObjectiveText}
+                      </p>
+                    )}
+                    {/* Expandable prior learning section */}
+                    <div className="ml-12">
+                      <PriorLearningSection objective={obj} />
+                    </div>
                   </li>
                 );
               })}

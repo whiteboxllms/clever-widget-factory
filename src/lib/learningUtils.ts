@@ -360,6 +360,36 @@ export function compareAssessments(
   return { confirmed, unconfirmed, aiDetected };
 }
 
+// --- Similarity Threshold Constants ---
+
+/** Score at or above which prior learning is classified as 'likely_covered' */
+export const LIKELY_COVERED_THRESHOLD = 0.8;
+
+/** Score at or above which prior learning is classified as 'related_learning' */
+export const RELATED_LEARNING_THRESHOLD = 0.5;
+
+// --- Similarity Classification Types ---
+
+export type SimilarityClassification = 'likely_covered' | 'related_learning' | 'new_material';
+
+// --- Similarity Classification Functions ---
+
+/**
+ * Classify a similarity score into one of three categories for UI display.
+ *
+ * - 'likely_covered': score >= 0.8 — optional review
+ * - 'related_learning': 0.5 <= score < 0.8 — recommended review
+ * - 'new_material': score < 0.5 — required
+ *
+ * These thresholds are frontend-only constants used to drive UI decisions.
+ * The backend returns raw similarity scores (0.0–1.0).
+ */
+export function classifySimilarity(score: number): SimilarityClassification {
+  if (score >= LIKELY_COVERED_THRESHOLD) return 'likely_covered';
+  if (score >= RELATED_LEARNING_THRESHOLD) return 'related_learning';
+  return 'new_material';
+}
+
 // --- State Text Format Types ---
 
 export interface ParsedLearningObjectiveStateText {

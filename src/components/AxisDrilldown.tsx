@@ -18,7 +18,7 @@ import { getThumbnailUrl, getImageUrl } from '@/lib/imageUtils';
 import { useAuth } from '@/hooks/useCognitoAuth';
 import { useLearningObjectives } from '@/hooks/useLearning';
 import type { SkillProfile } from '@/hooks/useSkillProfile';
-import type { CapabilityProfile, ObservationEvidence } from '@/hooks/useCapability';
+import type { CapabilityProfile, ObservationEvidence, AxisEvidence } from '@/hooks/useCapability';
 
 export interface AxisDrilldownProps {
   actionId: string;
@@ -113,6 +113,52 @@ function EvidenceCard({ evidence }: { evidence: ObservationEvidence }) {
         <Camera className="h-3 w-3" />
         <span>{capturedDate}</span>
       </div>
+    </div>
+  );
+}
+
+/** Format evidence type as a human-readable label. */
+function evidenceTypeLabel(type: string): string {
+  if (type === 'quiz') return 'Quiz';
+  return 'Observation';
+}
+
+/** Get badge variant for evidence type. */
+function evidenceTypeVariant(type: string): 'default' | 'secondary' {
+  if (type === 'quiz') return 'default';
+  return 'secondary';
+}
+
+/** Render a single per-axis evidence card with similarity score and evidence type. */
+function AxisEvidenceCard({ evidence }: { evidence: AxisEvidence }) {
+  return (
+    <div className="rounded-lg border bg-card p-3 space-y-2">
+      {/* Header: source action title + badges */}
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-sm font-medium min-w-0 truncate">
+          {evidence.source_action_title || 'Unknown source'}
+        </span>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {evidence.similarity_score != null && (
+            <Badge variant="outline" className="text-xs">
+              {Math.round(evidence.similarity_score * 100)}%
+            </Badge>
+          )}
+          <Badge
+            variant={evidenceTypeVariant(evidence.evidence_type)}
+            className="text-xs"
+          >
+            {evidenceTypeLabel(evidence.evidence_type)}
+          </Badge>
+        </div>
+      </div>
+
+      {/* Text excerpt */}
+      {evidence.text_excerpt && (
+        <p className="text-sm text-muted-foreground line-clamp-3">
+          {evidence.text_excerpt}
+        </p>
+      )}
     </div>
   );
 }
@@ -248,11 +294,11 @@ export function AxisDrilldown({
                     </div>
                   </div>
 
-                  {/* AI reasoning narrative */}
-                  {profile.narrative && (
+                  {/* AI reasoning narrative — prefer per-axis narrative, fall back to profile narrative */}
+                  {(axis.axis_narrative || profile.narrative) && (
                     <div className="rounded-md bg-muted/50 p-2">
                       <p className="text-xs text-muted-foreground italic">
-                        {profile.narrative}
+                        {axis.axis_narrative || profile.narrative}
                       </p>
                     </div>
                   )}
@@ -262,8 +308,17 @@ export function AxisDrilldown({
                     {axis.evidence_count} contributing observation{axis.evidence_count !== 1 ? 's' : ''}
                   </p>
 
-                  {/* Evidence list */}
-                  {axis.evidence.length > 0 ? (
+                  {/* Evidence list — prefer per-axis evidence, fall back to observation evidence */}
+                  {(axis.axis_evidence?.length ?? 0) > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Per-axis evidence matches
+                      </p>
+                      {axis.axis_evidence.map((ev, idx) => (
+                        <AxisEvidenceCard key={ev.observation_id || idx} evidence={ev} />
+                      ))}
+                    </div>
+                  ) : (axis.evidence?.length ?? 0) > 0 ? (
                     <div className="space-y-2">
                       {axis.evidence.map((ev) => (
                         <EvidenceCard key={ev.observation_id} evidence={ev} />

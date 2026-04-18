@@ -9,6 +9,8 @@ const sqs = new SQSClient({ region: 'us-west-2' });
 const bedrock = new BedrockRuntimeClient({ region: process.env.BEDROCK_REGION || 'us-west-2' });
 const EMBEDDINGS_QUEUE_URL = 'https://sqs.us-west-2.amazonaws.com/131745734428/cwf-embeddings-queue';
 
+const { composeAxisEmbeddingSource, composeAxisEntityId, parseAxisEntityId } = require('./axisUtils');
+
 const success = (data) => successResponse({ data });
 const error = (message, statusCode = 500) => errorResponse(statusCode, message);
 
@@ -285,18 +287,53 @@ async function handleApprove(event, organizationId) {
     db.release();
   }
 
-  // Compose embedding source from narrative + axis labels
-  const axisLabels = approvedProfile.axes.map(a => a.label).join(', ');
-  const embeddingSource = `${approvedProfile.narrative} ${axisLabels}`;
+  // Delete existing skill_axis embeddings for this action before generating new ones
+  const deleteDb = await getDbClient();
+  try {
+    const actionIdPattern = escapeLiteral(updatedAction.id + ':%');
+    await deleteDb.query(
+      `DELETE FROM unified_embeddings WHERE entity_type = 'skill_axis' AND entity_id LIKE '${actionIdPattern}'`
+    );
+    console.log('Deleted existing skill_axis embeddings for action', updatedAction.id);
+  } catch (err) {
+    console.error('Failed to delete existing skill_axis embeddings:', err);
+  } finally {
+    deleteDb.release();
+  }
 
-  // Send SQS message for embedding generation — await to ensure it completes before Lambda freezes
+  // Generate per-axis embedding SQS messages — await all sends
+  const axisEmbeddingPromises = approvedProfile.axes.map(axis => {
+    const entityId = composeAxisEntityId(updatedAction.id, axis.key);
+    const embeddingSource = composeAxisEmbeddingSource(axis, approvedProfile.narrative);
+
+    return sqs.send(new SendMessageCommand({
+      QueueUrl: EMBEDDINGS_QUEUE_URL,
+      MessageBody: JSON.stringify({
+        entity_type: 'skill_axis',
+        entity_id: entityId,
+        embedding_source: embeddingSource,
+        organization_id: updatedAction.organization_id
+      })
+    })).then(() => {
+      console.log('Queued skill_axis embedding:', entityId);
+    }).catch(err => {
+      console.error('Failed to queue skill_axis embedding:', entityId, err);
+    });
+  });
+
+  await Promise.all(axisEmbeddingPromises);
+
+  // Retain existing action_skill_profile embedding for backward compatibility
+  const axisLabels = approvedProfile.axes.map(a => a.label).join(', ');
+  const wholeProfileEmbeddingSource = `${approvedProfile.narrative} ${axisLabels}`;
+
   try {
     await sqs.send(new SendMessageCommand({
       QueueUrl: EMBEDDINGS_QUEUE_URL,
       MessageBody: JSON.stringify({
         entity_type: 'action_skill_profile',
         entity_id: updatedAction.id,
-        embedding_source: embeddingSource,
+        embedding_source: wholeProfileEmbeddingSource,
         organization_id: updatedAction.organization_id
       })
     }));
@@ -338,3 +375,8 @@ async function handleDelete(actionId, organizationId) {
     db.release();
   }
 }
+
+// Export utility functions for testing
+exports.composeAxisEmbeddingSource = composeAxisEmbeddingSource;
+exports.composeAxisEntityId = composeAxisEntityId;
+exports.parseAxisEntityId = parseAxisEntityId;

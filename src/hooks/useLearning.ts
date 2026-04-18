@@ -4,10 +4,17 @@ import { learningObjectivesQueryKey } from '@/lib/queryKeys';
 
 // --- Types ---
 
+export interface PriorLearningMatch {
+  similarityScore: number;  // 0.0–1.0
+  sourceText: string;
+}
+
 export interface LearningObjective {
   id: string;
   text: string;
-  evidenceTag: 'no_evidence' | 'some_evidence' | 'previously_correct';
+  similarityScore: number;           // Best match similarity (0.0–1.0)
+  matchedObjectiveText: string | null; // Text of best match, or null
+  priorLearning: PriorLearningMatch[]; // Top 5 matches
   status: 'not_started' | 'in_progress' | 'completed';
   completionType: 'quiz' | 'demonstrated' | null;
 }

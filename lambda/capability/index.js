@@ -66,6 +66,8 @@ exports.handler = async (event) => {
 /**
  * GET /api/capability/:actionId/:userId
  * Compute capability profile for one person relative to an action.
+ * Uses per-axis evidence retrieval when skill_axis embeddings exist,
+ * falling back to whole-profile search for backward compatibility.
  * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9
  */
 async function handleIndividualCapability(actionId, userId, organizationId) {
@@ -97,208 +99,350 @@ async function handleIndividualCapability(actionId, userId, organizationId) {
     );
     const userName = userResult.rows?.[0]?.full_name || 'Unknown';
 
-    // 2. Fetch the action_skill_profile embedding from unified_embeddings
-    //    Retry with short waits if not found — the embedding pipeline may still be processing
-    //    after a skill profile was just approved.
-    let skillProfileEmbedding = null;
-    for (let attempt = 0; attempt < 4; attempt++) {
-      const embeddingResult = await db.query(
-        `SELECT embedding FROM unified_embeddings WHERE entity_type = 'action_skill_profile' AND entity_id = '${actionIdSafe}' AND organization_id = '${orgIdSafe}' LIMIT 1`
-      );
-      if (embeddingResult.rows && embeddingResult.rows.length > 0) {
-        skillProfileEmbedding = embeddingResult.rows[0].embedding;
-        break;
-      }
-      if (attempt < 3) {
-        console.log(`Embedding not found for action ${actionId}, retrying in ${(attempt + 1) * 3}s (attempt ${attempt + 1}/4)`);
-        await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 3000));
-      }
-    }
-
-    if (!skillProfileEmbedding) {
-      console.error('No action_skill_profile embedding found for action', actionId, 'after retries');
-      return error('Skill profile embedding not found. Please try again in a few seconds.', 500);
-    }
-
-    // 3. Vector similarity search for observation evidence scoped by organization_id
-    // Search 'state' embeddings — observations linked to actions are filtered via state_links join
-    const OBSERVATION_LIMIT = 50;
-    const observationSearchResult = await db.query(
-      `SELECT
-        entity_id,
-        embedding_source,
-        (1 - (embedding <=> '${skillProfileEmbedding}'::vector)) as similarity
-      FROM unified_embeddings
-      WHERE entity_type = 'state'
-        AND organization_id = '${orgIdSafe}'
-      ORDER BY embedding <=> '${skillProfileEmbedding}'::vector
-      LIMIT ${OBSERVATION_LIMIT}`
+    // 2. Check for per-axis skill_axis embeddings (new flow)
+    const axisEmbeddingsResult = await db.query(
+      `SELECT entity_id FROM unified_embeddings
+       WHERE entity_type = 'skill_axis'
+         AND entity_id LIKE '${actionIdSafe}:%'
+         AND organization_id = '${orgIdSafe}'`
     );
 
-    const candidateStateIds = observationSearchResult.rows.map(r => r.entity_id);
+    const hasPerAxisEmbeddings = axisEmbeddingsResult.rows && axisEmbeddingsResult.rows.length > 0;
 
-    if (candidateStateIds.length === 0) {
-      // 7. No observations — but check if learning data exists
-      const learningCompletionData = await fetchLearningCompletionData(db, actionIdSafe, userIdSafe, orgIdSafe, skillProfile);
-      if (learningCompletionData.length > 0) {
-        // Has learning data — let Bedrock score based on that
-        const capabilityResult = await callBedrockForCapability(skillProfile, [], userName, learningCompletionData);
-        const axes = skillProfile.axes.map(skillAxis => {
-          const aiAxis = capabilityResult.axes.find(a => a.key === skillAxis.key);
-          return {
-            key: skillAxis.key,
-            label: skillAxis.label,
-            level: aiAxis ? Math.max(0, Math.min(5, Math.round(aiAxis.level))) : 0,
-            evidence_count: 0,
-            evidence: []
-          };
-        });
-        return success({
-          user_id: userId, user_name: userName, action_id: actionId,
-          narrative: capabilityResult.narrative || 'Assessment based on learning completion.',
-          axes, total_evidence_count: 0, computed_at: new Date().toISOString()
-        });
-      }
-      return success(buildZeroCapabilityProfile(skillProfile, actionId, userId, userName));
+    if (hasPerAxisEmbeddings) {
+      // ── Per-axis evidence retrieval flow ──
+      return await handlePerAxisCapability(db, actionId, userId, organizationId, skillProfile, userName);
     }
 
-    // 4. Filter to states relevant to this user:
-    //    - Observations linked to actions where the user is involved (existing behavior)
-    //    - Knowledge states (quiz answers, learning objectives) captured by the user
-    const stateIdsList = candidateStateIds.map(id => `'${escapeLiteral(id)}'`).join(',');
-
-    const filteredObservationsResult = await db.query(
-      `SELECT DISTINCT s.id as state_id, s.state_text, s.captured_at, s.organization_id,
-        COALESCE(a.id, sl_lo_action.entity_id) as linked_action_id,
-        COALESCE(a.title, '') as action_title
-      FROM states s
-      LEFT JOIN state_links sl ON sl.state_id = s.id AND sl.entity_type = 'action'
-      LEFT JOIN actions a ON a.id = sl.entity_id
-      LEFT JOIN state_links sl_lo ON sl_lo.state_id = s.id AND sl_lo.entity_type = 'learning_objective'
-      LEFT JOIN state_links sl_lo_action ON sl_lo_action.state_id = sl_lo.entity_id AND sl_lo_action.entity_type = 'action'
-      WHERE s.id IN (${stateIdsList})
-        AND s.organization_id = '${orgIdSafe}'
-        AND (
-          -- Observations linked to actions where user is involved
-          (a.id IS NOT NULL AND (
-            a.assigned_to = '${userIdSafe}'
-            OR a.created_by = '${userIdSafe}'
-            OR '${userIdSafe}' = ANY(a.participants)
-          ))
-          OR
-          -- Knowledge states captured by this user (quiz answers, learning data)
-          s.captured_by = '${userIdSafe}'
-        )`
-    );
-
-    if (filteredObservationsResult.rows.length === 0) {
-      // 7. No relevant observations — but check if learning data exists
-      const learningCompletionData = await fetchLearningCompletionData(db, actionIdSafe, userIdSafe, orgIdSafe, skillProfile);
-      if (learningCompletionData.length > 0) {
-        const capabilityResult = await callBedrockForCapability(skillProfile, [], userName, learningCompletionData);
-        const axes = skillProfile.axes.map(skillAxis => {
-          const aiAxis = capabilityResult.axes.find(a => a.key === skillAxis.key);
-          return {
-            key: skillAxis.key,
-            label: skillAxis.label,
-            level: aiAxis ? Math.max(0, Math.min(5, Math.round(aiAxis.level))) : 0,
-            evidence_count: 0,
-            evidence: []
-          };
-        });
-        return success({
-          user_id: userId, user_name: userName, action_id: actionId,
-          narrative: capabilityResult.narrative || 'Assessment based on learning completion.',
-          axes, total_evidence_count: 0, computed_at: new Date().toISOString()
-        });
-      }
-      return success(buildZeroCapabilityProfile(skillProfile, actionId, userId, userName));
-    }
-
-    // Build a map of similarity scores from the vector search
-    const similarityMap = {};
-    for (const row of observationSearchResult.rows) {
-      similarityMap[row.entity_id] = parseFloat(row.similarity);
-    }
-
-    // 5. Resolve observation details: photos from state_photos
-    const relevantStateIds = filteredObservationsResult.rows.map(r => r.state_id);
-    const relevantStateIdsList = relevantStateIds.map(id => `'${escapeLiteral(id)}'`).join(',');
-
-    const photosResult = await db.query(
-      `SELECT state_id, photo_url, photo_description, photo_order
-      FROM state_photos
-      WHERE state_id IN (${relevantStateIdsList})
-      ORDER BY state_id, photo_order`
-    );
-
-    // Group photos by state_id
-    const photosByState = {};
-    for (const photo of photosResult.rows) {
-      if (!photosByState[photo.state_id]) {
-        photosByState[photo.state_id] = [];
-      }
-      photosByState[photo.state_id].push(photo.photo_url);
-    }
-
-    // 6. Apply recency weighting and build evidence list
-    const allEvidence = filteredObservationsResult.rows.map(obs => {
-      const recencyWeight = computeRecencyWeight(obs.captured_at);
-      const relevanceScore = (similarityMap[obs.state_id] || 0) * recencyWeight;
-
-      return {
-        observation_id: obs.state_id,
-        action_id: obs.linked_action_id,
-        action_title: obs.action_title || '',
-        text_excerpt: (obs.state_text || '').substring(0, 500),
-        photo_urls: photosByState[obs.state_id] || [],
-        captured_at: obs.captured_at,
-        relevance_score: Math.round(relevanceScore * 100) / 100,
-        recency_weight: recencyWeight
-      };
-    });
-
-    // Sort by relevance_score descending
-    allEvidence.sort((a, b) => b.relevance_score - a.relevance_score);
-
-    // 8. Send evidence + skill axes to Bedrock Claude for capability synthesis
-    // Include learning completion data so the model can factor in quiz-demonstrated understanding
-    const learningCompletionData = await fetchLearningCompletionData(db, actionIdSafe, userIdSafe, orgIdSafe, skillProfile);
-    const capabilityResult = await callBedrockForCapability(skillProfile, allEvidence, userName, learningCompletionData);
-
-    // 9. Build and return the CapabilityProfile response
-    const axes = skillProfile.axes.map(skillAxis => {
-      const aiAxis = capabilityResult.axes.find(a => a.key === skillAxis.key);
-      const level = aiAxis ? Math.max(0, Math.min(5, Math.round(aiAxis.level))) : 0;
-
-      // Attach evidence to each axis — use AI axis_evidence mapping if available, otherwise distribute top evidence
-      const axisEvidence = aiAxis?.evidence_ids
-        ? allEvidence.filter(e => aiAxis.evidence_ids.includes(e.observation_id))
-        : [];
-
-      return {
-        key: skillAxis.key,
-        label: skillAxis.label,
-        level,
-        evidence_count: axisEvidence.length,
-        evidence: axisEvidence.slice(0, 5) // Limit evidence per axis
-      };
-    });
-
-    const capabilityProfile = {
-      user_id: userId,
-      user_name: userName,
-      action_id: actionId,
-      narrative: capabilityResult.narrative || 'Capability assessment completed.',
-      axes,
-      total_evidence_count: allEvidence.length,
-      computed_at: new Date().toISOString()
-    };
-
-    return success(capabilityProfile);
+    // ── Fallback: whole-profile search (profiles approved before per-axis feature) ──
+    console.log(`No skill_axis embeddings found for action ${actionId}, falling back to whole-profile search`);
+    return await handleWholeProfileCapability(db, actionId, userId, organizationId, skillProfile, userName);
   } finally {
     db.release();
   }
+}
+
+/**
+ * Per-axis evidence retrieval flow.
+ * For each axis in the skill profile, runs a vector similarity search against
+ * the user's knowledge states and observation states using the axis-specific embedding.
+ * Collects top 5 matches per axis with similarity scores, source text, and evidence type.
+ */
+async function handlePerAxisCapability(db, actionId, userId, organizationId, skillProfile, userName) {
+  const actionIdSafe = escapeLiteral(actionId);
+  const userIdSafe = escapeLiteral(userId);
+  const orgIdSafe = escapeLiteral(organizationId);
+
+  // For each axis, run a per-axis vector similarity search
+  const perAxisEvidence = {};
+  let totalEvidenceCount = 0;
+
+  for (const axis of skillProfile.axes) {
+    const axisEntityId = `${actionId}:${axis.key}`;
+    const axisEntityIdSafe = escapeLiteral(axisEntityId);
+
+    try {
+      // Per-axis vector search: find top 5 states most similar to this axis embedding
+      const axisSearchResult = await db.query(
+        `SELECT ue.entity_id, ue.embedding_source, s.state_text,
+                (1 - (ue.embedding <=> (SELECT embedding FROM unified_embeddings WHERE entity_type = 'skill_axis' AND entity_id = '${axisEntityIdSafe}' LIMIT 1))) as similarity
+         FROM unified_embeddings ue
+         INNER JOIN states s ON s.id::text = ue.entity_id
+         WHERE ue.entity_type = 'state'
+           AND ue.organization_id = '${orgIdSafe}'
+           AND s.captured_by = '${userIdSafe}'
+         ORDER BY similarity DESC
+         LIMIT 5`
+      );
+
+      const matches = (axisSearchResult.rows || []).map(row => {
+        const stateText = row.state_text || '';
+        const evidenceType = determineEvidenceType(stateText);
+
+        return {
+          observation_id: row.entity_id,
+          text_excerpt: stateText.substring(0, 500),
+          similarity_score: Math.round(parseFloat(row.similarity) * 100) / 100,
+          evidence_type: evidenceType,
+          source_action_title: '' // Will be resolved below
+        };
+      });
+
+      // Resolve source action titles for the matched states
+      if (matches.length > 0) {
+        const matchStateIds = matches.map(m => `'${escapeLiteral(m.observation_id)}'`).join(',');
+        const actionTitlesResult = await db.query(
+          `SELECT DISTINCT s.id::text as state_id, COALESCE(a.title, '') as action_title
+           FROM states s
+           LEFT JOIN state_links sl ON sl.state_id = s.id AND sl.entity_type = 'action'
+           LEFT JOIN actions a ON a.id = sl.entity_id
+           WHERE s.id IN (${matchStateIds})`
+        );
+
+        const titleMap = {};
+        for (const row of actionTitlesResult.rows) {
+          titleMap[row.state_id] = row.action_title;
+        }
+
+        for (const match of matches) {
+          match.source_action_title = titleMap[match.observation_id] || '';
+        }
+      }
+
+      perAxisEvidence[axis.key] = matches;
+      totalEvidenceCount += matches.length;
+    } catch (axisErr) {
+      console.error(`Error fetching per-axis evidence for axis ${axis.key} on action ${actionId}:`, axisErr);
+      perAxisEvidence[axis.key] = [];
+    }
+  }
+
+  // Fetch learning completion data
+  const learningCompletionData = await fetchLearningCompletionData(db, actionIdSafe, userIdSafe, orgIdSafe, skillProfile);
+
+  // If no evidence at all and no learning data, return zero profile
+  if (totalEvidenceCount === 0 && learningCompletionData.length === 0) {
+    return success(buildZeroCapabilityProfile(skillProfile, actionId, userId, userName));
+  }
+
+  // Send per-axis evidence to Bedrock for scoring with evidence types
+  const capabilityResult = await callBedrockForPerAxisCapability(
+    skillProfile, perAxisEvidence, userName, learningCompletionData
+  );
+
+  // Build response with per-axis evidence and narratives
+  const axes = skillProfile.axes.map(skillAxis => {
+    const aiAxis = capabilityResult.axes.find(a => a.key === skillAxis.key);
+    const level = aiAxis ? Math.max(0, Math.min(5, Math.round(aiAxis.level))) : 0;
+    const axisEvidence = perAxisEvidence[skillAxis.key] || [];
+
+    return {
+      key: skillAxis.key,
+      label: skillAxis.label,
+      level,
+      evidence_count: axisEvidence.length,
+      evidence: axisEvidence.slice(0, 5),
+      axis_narrative: aiAxis?.axis_narrative || ''
+    };
+  });
+
+  return success({
+    user_id: userId,
+    user_name: userName,
+    action_id: actionId,
+    narrative: capabilityResult.narrative || 'Capability assessment completed.',
+    axes,
+    total_evidence_count: totalEvidenceCount,
+    computed_at: new Date().toISOString()
+  });
+}
+
+/**
+ * Fallback: whole-profile search flow.
+ * Used when no skill_axis embeddings exist (profiles approved before per-axis feature).
+ * This is the original handleIndividualCapability logic preserved for backward compatibility.
+ */
+async function handleWholeProfileCapability(db, actionId, userId, organizationId, skillProfile, userName) {
+  const actionIdSafe = escapeLiteral(actionId);
+  const userIdSafe = escapeLiteral(userId);
+  const orgIdSafe = escapeLiteral(organizationId);
+
+  // Fetch the action_skill_profile embedding from unified_embeddings
+  // Retry with short waits if not found — the embedding pipeline may still be processing
+  let skillProfileEmbedding = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const embeddingResult = await db.query(
+      `SELECT embedding FROM unified_embeddings WHERE entity_type = 'action_skill_profile' AND entity_id = '${actionIdSafe}' AND organization_id = '${orgIdSafe}' LIMIT 1`
+    );
+    if (embeddingResult.rows && embeddingResult.rows.length > 0) {
+      skillProfileEmbedding = embeddingResult.rows[0].embedding;
+      break;
+    }
+    if (attempt < 3) {
+      console.log(`Embedding not found for action ${actionId}, retrying in ${(attempt + 1) * 3}s (attempt ${attempt + 1}/4)`);
+      await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 3000));
+    }
+  }
+
+  if (!skillProfileEmbedding) {
+    console.error('No action_skill_profile embedding found for action', actionId, 'after retries');
+    return error('Skill profile embedding not found. Please try again in a few seconds.', 500);
+  }
+
+  // Vector similarity search for observation evidence scoped by organization_id
+  const OBSERVATION_LIMIT = 50;
+  const observationSearchResult = await db.query(
+    `SELECT
+      entity_id,
+      embedding_source,
+      (1 - (embedding <=> '${skillProfileEmbedding}'::vector)) as similarity
+    FROM unified_embeddings
+    WHERE entity_type = 'state'
+      AND organization_id = '${orgIdSafe}'
+    ORDER BY embedding <=> '${skillProfileEmbedding}'::vector
+    LIMIT ${OBSERVATION_LIMIT}`
+  );
+
+  const candidateStateIds = observationSearchResult.rows.map(r => r.entity_id);
+
+  if (candidateStateIds.length === 0) {
+    const learningCompletionData = await fetchLearningCompletionData(db, actionIdSafe, userIdSafe, orgIdSafe, skillProfile);
+    if (learningCompletionData.length > 0) {
+      const capabilityResult = await callBedrockForCapability(skillProfile, [], userName, learningCompletionData);
+      const axes = skillProfile.axes.map(skillAxis => {
+        const aiAxis = capabilityResult.axes.find(a => a.key === skillAxis.key);
+        return {
+          key: skillAxis.key,
+          label: skillAxis.label,
+          level: aiAxis ? Math.max(0, Math.min(5, Math.round(aiAxis.level))) : 0,
+          evidence_count: 0,
+          evidence: []
+        };
+      });
+      return success({
+        user_id: userId, user_name: userName, action_id: actionId,
+        narrative: capabilityResult.narrative || 'Assessment based on learning completion.',
+        axes, total_evidence_count: 0, computed_at: new Date().toISOString()
+      });
+    }
+    return success(buildZeroCapabilityProfile(skillProfile, actionId, userId, userName));
+  }
+
+  // Filter to states relevant to this user
+  const stateIdsList = candidateStateIds.map(id => `'${escapeLiteral(id)}'`).join(',');
+
+  const filteredObservationsResult = await db.query(
+    `SELECT DISTINCT s.id as state_id, s.state_text, s.captured_at, s.organization_id,
+      COALESCE(a.id, sl_lo_action.entity_id) as linked_action_id,
+      COALESCE(a.title, '') as action_title
+    FROM states s
+    LEFT JOIN state_links sl ON sl.state_id = s.id AND sl.entity_type = 'action'
+    LEFT JOIN actions a ON a.id = sl.entity_id
+    LEFT JOIN state_links sl_lo ON sl_lo.state_id = s.id AND sl_lo.entity_type = 'learning_objective'
+    LEFT JOIN state_links sl_lo_action ON sl_lo_action.state_id = sl_lo.entity_id AND sl_lo_action.entity_type = 'action'
+    WHERE s.id IN (${stateIdsList})
+      AND s.organization_id = '${orgIdSafe}'
+      AND (
+        (a.id IS NOT NULL AND (
+          a.assigned_to = '${userIdSafe}'
+          OR a.created_by = '${userIdSafe}'
+          OR '${userIdSafe}' = ANY(a.participants)
+        ))
+        OR
+        s.captured_by = '${userIdSafe}'
+      )`
+  );
+
+  if (filteredObservationsResult.rows.length === 0) {
+    const learningCompletionData = await fetchLearningCompletionData(db, actionIdSafe, userIdSafe, orgIdSafe, skillProfile);
+    if (learningCompletionData.length > 0) {
+      const capabilityResult = await callBedrockForCapability(skillProfile, [], userName, learningCompletionData);
+      const axes = skillProfile.axes.map(skillAxis => {
+        const aiAxis = capabilityResult.axes.find(a => a.key === skillAxis.key);
+        return {
+          key: skillAxis.key,
+          label: skillAxis.label,
+          level: aiAxis ? Math.max(0, Math.min(5, Math.round(aiAxis.level))) : 0,
+          evidence_count: 0,
+          evidence: []
+        };
+      });
+      return success({
+        user_id: userId, user_name: userName, action_id: actionId,
+        narrative: capabilityResult.narrative || 'Assessment based on learning completion.',
+        axes, total_evidence_count: 0, computed_at: new Date().toISOString()
+      });
+    }
+    return success(buildZeroCapabilityProfile(skillProfile, actionId, userId, userName));
+  }
+
+  // Build similarity map
+  const similarityMap = {};
+  for (const row of observationSearchResult.rows) {
+    similarityMap[row.entity_id] = parseFloat(row.similarity);
+  }
+
+  // Resolve photos
+  const relevantStateIds = filteredObservationsResult.rows.map(r => r.state_id);
+  const relevantStateIdsList = relevantStateIds.map(id => `'${escapeLiteral(id)}'`).join(',');
+
+  const photosResult = await db.query(
+    `SELECT state_id, photo_url, photo_description, photo_order
+    FROM state_photos
+    WHERE state_id IN (${relevantStateIdsList})
+    ORDER BY state_id, photo_order`
+  );
+
+  const photosByState = {};
+  for (const photo of photosResult.rows) {
+    if (!photosByState[photo.state_id]) {
+      photosByState[photo.state_id] = [];
+    }
+    photosByState[photo.state_id].push(photo.photo_url);
+  }
+
+  // Build evidence list with recency weighting
+  const allEvidence = filteredObservationsResult.rows.map(obs => {
+    const recencyWeight = computeRecencyWeight(obs.captured_at);
+    const relevanceScore = (similarityMap[obs.state_id] || 0) * recencyWeight;
+
+    return {
+      observation_id: obs.state_id,
+      action_id: obs.linked_action_id,
+      action_title: obs.action_title || '',
+      text_excerpt: (obs.state_text || '').substring(0, 500),
+      photo_urls: photosByState[obs.state_id] || [],
+      captured_at: obs.captured_at,
+      relevance_score: Math.round(relevanceScore * 100) / 100,
+      recency_weight: recencyWeight
+    };
+  });
+
+  allEvidence.sort((a, b) => b.relevance_score - a.relevance_score);
+
+  // Send to Bedrock
+  const learningCompletionData = await fetchLearningCompletionData(db, actionIdSafe, userIdSafe, orgIdSafe, skillProfile);
+  const capabilityResult = await callBedrockForCapability(skillProfile, allEvidence, userName, learningCompletionData);
+
+  // Build response
+  const axes = skillProfile.axes.map(skillAxis => {
+    const aiAxis = capabilityResult.axes.find(a => a.key === skillAxis.key);
+    const level = aiAxis ? Math.max(0, Math.min(5, Math.round(aiAxis.level))) : 0;
+
+    const axisEvidence = aiAxis?.evidence_ids
+      ? allEvidence.filter(e => aiAxis.evidence_ids.includes(e.observation_id))
+      : [];
+
+    return {
+      key: skillAxis.key,
+      label: skillAxis.label,
+      level,
+      evidence_count: axisEvidence.length,
+      evidence: axisEvidence.slice(0, 5)
+    };
+  });
+
+  return success({
+    user_id: userId,
+    user_name: userName,
+    action_id: actionId,
+    narrative: capabilityResult.narrative || 'Capability assessment completed.',
+    axes,
+    total_evidence_count: allEvidence.length,
+    computed_at: new Date().toISOString()
+  });
+}
+
+/**
+ * Determine evidence type from state text.
+ * Quiz completions contain "which was the correct answer" — evidence_type = "quiz".
+ * Everything else is an observation — evidence_type = "observation".
+ */
+function determineEvidenceType(stateText) {
+  if (stateText && stateText.toLowerCase().includes('which was the correct answer')) {
+    return 'quiz';
+  }
+  return 'observation';
 }
 
 /**
@@ -424,6 +568,126 @@ Respond with ONLY the JSON object, no markdown formatting, no code fences, no ex
     return {
       narrative: 'Capability assessment could not be fully synthesized from available evidence.',
       axes: skillProfile.axes.map(a => ({ key: a.key, level: 0.0, evidence_ids: [] }))
+    };
+  }
+}
+
+/**
+ * Call Bedrock Claude to synthesize capability levels from per-axis evidence.
+ * Each axis has its own evidence list with evidence types (quiz vs observation).
+ * Returns { narrative, axes: [{ key, level, axis_narrative }] }
+ */
+async function callBedrockForPerAxisCapability(skillProfile, perAxisEvidence, userName, learningCompletionData = []) {
+  const MODEL_ID = 'us.anthropic.claude-sonnet-4-20250514-v1:0';
+
+  const axesDescription = skillProfile.axes.map(a =>
+    `- ${a.key} ("${a.label}"): required level ${a.required_level}`
+  ).join('\n');
+
+  // Build per-axis evidence sections
+  const perAxisSections = skillProfile.axes.map(axis => {
+    const evidence = perAxisEvidence[axis.key] || [];
+    if (evidence.length === 0) {
+      return `### Axis: ${axis.key} ("${axis.label}")
+No evidence found for this axis.`;
+    }
+
+    const evidenceLines = evidence.map((e, i) =>
+      `${i + 1}. [${e.observation_id}] Similarity: ${e.similarity_score} | Type: ${e.evidence_type}${e.evidence_type === 'quiz' ? ' (Bloom\'s level 2 minimum — demonstrates understanding)' : ' (varies — may range from recall to application)'}${e.source_action_title ? ` | From: "${e.source_action_title}"` : ''}
+   Text: ${e.text_excerpt}`
+    ).join('\n\n');
+
+    return `### Axis: ${axis.key} ("${axis.label}")
+${evidenceLines}`;
+  }).join('\n\n');
+
+  // Build learning completion section if data exists
+  let learningSection = '';
+  if (learningCompletionData.length > 0) {
+    const learningLines = learningCompletionData.map(ld =>
+      `- Axis "${ld.axisLabel}" (${ld.axisKey}): ${ld.completedObjectives} of ${ld.totalObjectives} learning objectives completed via quiz.\n  Completed objectives: ${ld.objectiveTexts.join('; ')}`
+    ).join('\n');
+    learningSection = `
+
+LEARNING COMPLETION (quiz-based training results):
+The person completed adaptive quizzes that test understanding (Bloom's level 2 — "why" comprehension, not just recall). Each completed objective means the person answered correctly on the first attempt for a question testing that concept.
+${learningLines}
+
+Factor this learning data into your assessment. Quiz completion that tests "why" reasoning demonstrates at least Understand-level capability on the relevant axis. Combine this with observation evidence for the final score.`;
+  }
+
+  const prompt = `You are a skill assessment expert. Analyze the following per-axis evidence for ${userName} and produce a capability assessment relative to the skill profile axes.
+
+SKILL LEVEL SCALE (Bloom's Taxonomy — use integers 0-5):
+  0 = No exposure — no evidence of this skill
+  1 = Remember — evidence shows they can recall facts and follow documented procedures
+  2 = Understand — evidence shows they can explain why, not just how
+  3 = Apply — evidence shows they can use knowledge in new situations without guidance
+  4 = Analyze — evidence shows they can break down problems, evaluate tradeoffs
+  5 = Create — evidence shows they can innovate, teach others, set standards
+
+SKILL PROFILE:
+${skillProfile.narrative}
+
+AXES (each has a required level on the 0-5 Bloom's scale):
+${axesDescription}
+
+EVIDENCE TYPE INTERPRETATION:
+- "quiz" evidence: The person completed a quiz testing "why" comprehension. This demonstrates at minimum Bloom's level 2 (Understand). The similarity score indicates how relevant this quiz topic is to the axis.
+- "observation" evidence: A field observation or demonstration. The Bloom's level varies — could be recall (level 1) if just following procedures, or higher if showing reasoning or adaptation. Assess based on the text content.
+
+PER-AXIS EVIDENCE (each axis has its own evidence, sorted by similarity):
+${perAxisSections}
+${learningSection}
+
+ASSESSMENT GUIDELINES:
+- Score each axis as an INTEGER from 0 to 5 using the Bloom's scale above.
+- Use the evidence type to inform your scoring: quiz evidence guarantees at least level 2, observation evidence requires judgment.
+- Consider the similarity score — higher similarity means the evidence is more directly relevant to the axis.
+- A person with no evidence and no learning for an axis should score 0.
+- Be fair and evidence-based. Do not infer skills not demonstrated in the evidence.
+- For each axis, write a brief narrative explaining what evidence supports the score and where the person's knowledge transfers from.
+
+Produce a JSON object with:
+1. "narrative": A 2-4 sentence overall assessment of ${userName}'s demonstrated capabilities. Be specific about strengths and gaps.
+2. "axes": An array with one entry per skill axis, each containing:
+   - "key": The axis key (must match exactly)
+   - "level": An INTEGER from 0 to 5 representing demonstrated capability on the Bloom's scale
+   - "axis_narrative": A 1-2 sentence explanation of what evidence supports this score and where knowledge transfers from
+
+Respond with ONLY the JSON object, no markdown formatting, no code fences, no explanation.`;
+
+  const payload = {
+    anthropic_version: 'bedrock-2023-05-31',
+    max_tokens: 2000,
+    temperature: 0.3,
+    messages: [{ role: 'user', content: prompt }]
+  };
+
+  const command = new InvokeModelCommand({
+    modelId: MODEL_ID,
+    body: JSON.stringify(payload),
+    contentType: 'application/json',
+    accept: 'application/json'
+  });
+
+  const response = await bedrock.send(command);
+  const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+
+  if (!responseBody.content?.[0]?.text) {
+    throw new Error('Invalid response from Bedrock: missing content');
+  }
+
+  const text = responseBody.content[0].text.trim();
+  const cleaned = text.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+
+  try {
+    return JSON.parse(cleaned);
+  } catch (parseErr) {
+    console.error('Failed to parse Bedrock per-axis capability response:', text);
+    return {
+      narrative: 'Capability assessment could not be fully synthesized from available evidence.',
+      axes: skillProfile.axes.map(a => ({ key: a.key, level: 0, axis_narrative: '' }))
     };
   }
 }
@@ -638,6 +902,7 @@ function buildEvidenceQuery(skillProfileEmbedding, organizationId) {
 
 module.exports.computeRecencyWeight = computeRecencyWeight;
 module.exports.detectGap = detectGap;
+module.exports.determineEvidenceType = determineEvidenceType;
 
 /**
  * Fetch learning completion data for a user on an action.

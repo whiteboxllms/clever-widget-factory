@@ -967,3 +967,100 @@ describe('parseKnowledgeStateText', () => {
     expect(parsed).toEqual({ objectiveText, questionText, selectedAnswer, wasCorrect });
   });
 });
+
+
+// --- Similarity Threshold Classification Tests ---
+// Property 6: Similarity threshold classification
+// **Validates: Requirements 3.3**
+
+import fc from 'fast-check';
+import {
+  classifySimilarity,
+  LIKELY_COVERED_THRESHOLD,
+  RELATED_LEARNING_THRESHOLD,
+} from './learningUtils';
+import type { SimilarityClassification } from './learningUtils';
+
+const validClassifications: SimilarityClassification[] = [
+  'likely_covered',
+  'related_learning',
+  'new_material',
+];
+
+describe('Feature: transferable-learning, Property 6: Similarity threshold classification', () => {
+  it('for any score in [0.0, 1.0], the result is one of the three valid classifications', () => {
+    fc.assert(
+      fc.property(
+        fc.double({ min: 0.0, max: 1.0, noNaN: true }),
+        (score) => {
+          const result = classifySimilarity(score);
+          expect(validClassifications).toContain(result);
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  it('for any score >= 0.8, the result is likely_covered', () => {
+    fc.assert(
+      fc.property(
+        fc.double({ min: 0.8, max: 1.0, noNaN: true }),
+        (score) => {
+          expect(classifySimilarity(score)).toBe('likely_covered');
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  it('for any score in [0.5, 0.8), the result is related_learning', () => {
+    fc.assert(
+      fc.property(
+        fc.double({ min: 0.5, max: 0.7999999999999999, noNaN: true }),
+        (score) => {
+          expect(classifySimilarity(score)).toBe('related_learning');
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  it('for any score < 0.5, the result is new_material', () => {
+    fc.assert(
+      fc.property(
+        fc.double({ min: 0.0, max: 0.49999999999999994, noNaN: true }),
+        (score) => {
+          expect(classifySimilarity(score)).toBe('new_material');
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  it('the three categories are mutually exclusive and exhaustive', () => {
+    fc.assert(
+      fc.property(
+        fc.double({ min: 0.0, max: 1.0, noNaN: true }),
+        (score) => {
+          const result = classifySimilarity(score);
+
+          // Exactly one classification should match
+          const isLikelyCovered = score >= LIKELY_COVERED_THRESHOLD;
+          const isRelatedLearning =
+            score >= RELATED_LEARNING_THRESHOLD && score < LIKELY_COVERED_THRESHOLD;
+          const isNewMaterial = score < RELATED_LEARNING_THRESHOLD;
+
+          // Mutually exclusive: exactly one is true
+          const matchCount = [isLikelyCovered, isRelatedLearning, isNewMaterial].filter(Boolean).length;
+          expect(matchCount).toBe(1);
+
+          // Exhaustive: the result matches the expected category
+          if (isLikelyCovered) expect(result).toBe('likely_covered');
+          if (isRelatedLearning) expect(result).toBe('related_learning');
+          if (isNewMaterial) expect(result).toBe('new_material');
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+});

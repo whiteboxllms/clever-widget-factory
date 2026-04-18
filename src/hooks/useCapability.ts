@@ -14,12 +14,22 @@ export interface ObservationEvidence {
   relevance_score: number;
 }
 
+export interface AxisEvidence {
+  observation_id: string;
+  text_excerpt: string;
+  similarity_score: number;
+  evidence_type: 'quiz' | 'observation';
+  source_action_title: string;
+}
+
 export interface CapabilityAxis {
   key: string;
   label: string;
   level: number;
   evidence_count: number;
   evidence: ObservationEvidence[];
+  axis_evidence: AxisEvidence[];
+  axis_narrative: string;
 }
 
 export interface CapabilityProfile {

@@ -5,6 +5,7 @@ const { successResponse, errorResponse, corsResponse } = require('/opt/nodejs/re
 const { getDbClient } = require('/opt/nodejs/db');
 const { escapeLiteral } = require('/opt/nodejs/sqlUtils');
 const { composeStateEmbeddingSource } = require('/opt/nodejs/embedding-composition');
+const { filterCompletedKnowledgeStates, extractBestMatch, extractTopKMatches } = require('./evidenceUtils');
 
 const bedrock = new BedrockRuntimeClient({ region: process.env.BEDROCK_REGION || 'us-west-2' });
 const sqs = new SQSClient({ region: 'us-west-2' });
@@ -194,7 +195,7 @@ async function handleGetObjectives(actionId, userId, organizationId) {
       }
     }
 
-    // 7. Fetch knowledge states for evidence tagging
+    // 7. Fetch knowledge states for status derivation
     //    Knowledge states are linked to learning objectives via state_links entity_type='learning_objective'
     const allObjectiveIds = [];
     for (const objectives of Object.values(existingByAxis)) {
@@ -224,21 +225,53 @@ async function handleGetObjectives(actionId, userId, organizationId) {
       }
     }
 
-    // 8. Fetch capability evidence for 'some_evidence' tagging
-    //    Check if the action has an action_skill_profile embedding for evidence search
-    const evidenceObjectiveIds = await fetchEvidenceObjectiveIds(db, actionIdSafe, orgIdSafe, allObjectiveIds);
+    // 8. Semantic evidence tagging via vector similarity search per objective
+    //    For each objective, find the top 5 most similar completed knowledge states
+    //    captured by the current user (replacing the old tagObjectiveEvidence approach).
+    const similarityByObjective = {};
+    for (const objectiveId of allObjectiveIds) {
+      try {
+        const simResult = await db.query(
+          `SELECT ue.entity_id, ue.embedding_source,
+                  (1 - (ue.embedding <=> (SELECT embedding FROM unified_embeddings WHERE entity_type = 'state' AND entity_id = $1 LIMIT 1))) as similarity
+           FROM unified_embeddings ue
+           INNER JOIN states s ON s.id::text = ue.entity_id
+           WHERE ue.entity_type = 'state'
+             AND ue.organization_id = $2
+             AND s.captured_by = $3
+             AND s.state_text LIKE '%which was the correct answer%'
+             AND ue.entity_id != $1
+           ORDER BY similarity DESC
+           LIMIT 5`,
+          [objectiveId, organizationId, userId]
+        );
 
-    // 9. Build response grouped by axis
+        similarityByObjective[objectiveId] = simResult.rows.map(r => ({
+          similarity: parseFloat(r.similarity),
+          embedding_source: r.embedding_source
+        }));
+      } catch (err) {
+        console.warn('Vector similarity search failed for objective', objectiveId, ':', err.message);
+        similarityByObjective[objectiveId] = [];
+      }
+    }
+
+    // 9. Build response grouped by axis with semantic evidence
     const axes = allAxes.map((gap) => {
       const objectives = (existingByAxis[gap.axisKey] || []).map((obj) => {
         const knowledgeStates = knowledgeStatesByObjective[obj.id] || [];
         const { status, completionType } = deriveObjectiveStatusFromStates(knowledgeStates);
-        const evidenceTag = tagObjectiveEvidence(obj.id, knowledgeStates, evidenceObjectiveIds);
+
+        const simResults = similarityByObjective[obj.id] || [];
+        const bestMatch = extractBestMatch(simResults);
+        const priorLearning = extractTopKMatches(simResults, 5);
 
         return {
           id: obj.id,
           text: obj.text,
-          evidenceTag,
+          similarityScore: bestMatch.similarityScore,
+          matchedObjectiveText: bestMatch.matchedObjectiveText,
+          priorLearning,
           status,
           completionType
         };
@@ -583,65 +616,6 @@ function deriveObjectiveStatusFromStates(knowledgeStateTexts) {
   }
 
   return { status: 'in_progress', completionType: null };
-}
-
-/**
- * Tag an objective with evidence level based on knowledge states and capability evidence.
- * Returns 'previously_correct', 'some_evidence', or 'no_evidence'.
- */
-function tagObjectiveEvidence(objectiveId, knowledgeStateTexts, evidenceObjectiveIds) {
-  // Check for correct first-attempt answer in knowledge states
-  for (const text of knowledgeStateTexts) {
-    if (text.includes('which was the correct answer')) {
-      return 'previously_correct';
-    }
-  }
-
-  // Check if capability evidence exists for this objective
-  if (evidenceObjectiveIds.has(objectiveId)) {
-    return 'some_evidence';
-  }
-
-  return 'no_evidence';
-}
-
-/**
- * Fetch objective IDs that have some capability evidence (observations linked to the action).
- * Returns a Set of objective IDs that have related evidence.
- */
-async function fetchEvidenceObjectiveIds(db, actionIdSafe, orgIdSafe, allObjectiveIds) {
-  const evidenceSet = new Set();
-
-  if (allObjectiveIds.length === 0) {
-    return evidenceSet;
-  }
-
-  try {
-    // Check if there are any observations linked to this action
-    // If observations exist, we consider objectives on those axes as having "some_evidence"
-    const observationResult = await db.query(
-      `SELECT COUNT(*) as count
-       FROM states s
-       INNER JOIN state_links sl ON sl.state_id = s.id
-       WHERE sl.entity_type = 'action' AND sl.entity_id = '${actionIdSafe}'
-         AND s.organization_id = '${orgIdSafe}'
-         AND s.state_text NOT LIKE '[learning_objective]%'`
-    );
-
-    const hasObservations = parseInt(observationResult.rows[0].count) > 0;
-
-    if (hasObservations) {
-      // If there are observations linked to this action, mark all objectives as having some evidence
-      // This is a simplified heuristic — the capability Lambda does the full semantic matching
-      for (const id of allObjectiveIds) {
-        evidenceSet.add(id);
-      }
-    }
-  } catch (err) {
-    console.error('Error fetching evidence objective IDs:', err);
-  }
-
-  return evidenceSet;
 }
 
 /**
@@ -1398,3 +1372,8 @@ async function queueDemonstrationEmbedding(stateId, stateText, organizationId) {
 
   console.log('Queued embedding for demonstration state', stateId);
 }
+
+// Re-export pure functions from evidenceUtils for testing
+exports.filterCompletedKnowledgeStates = filterCompletedKnowledgeStates;
+exports.extractBestMatch = extractBestMatch;
+exports.extractTopKMatches = extractTopKMatches;

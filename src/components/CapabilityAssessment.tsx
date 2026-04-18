@@ -10,7 +10,7 @@ import { capabilityProfileQueryKey } from '@/lib/queryKeys';
 import { useAuth } from '@/hooks/useCognitoAuth';
 import { useLearningObjectives } from '@/hooks/useLearning';
 import type { LearningObjective, LearningAxis } from '@/hooks/useLearning';
-import { SkillRadarChart } from '@/components/RadarChart';
+import { SkillRadialChart } from '@/components/RadialChart';
 import { AxisDrilldown } from '@/components/AxisDrilldown';
 import { computeGapItems, sortGapsBySeverity, computeGapSummary, computeAxisProgress, isAxisComplete, isAllLearningComplete } from '@/lib/learningUtils';
 import type { GapItem, ObjectiveProgress } from '@/lib/learningUtils';
@@ -490,7 +490,7 @@ export function CapabilityAssessment({ action }: CapabilityAssessmentProps) {
     <div className="space-y-4">
       <h3 className="text-sm font-semibold text-foreground">Target Growth Areas</h3>
 
-      <SkillRadarChart
+      <SkillRadialChart
         skillProfile={skillProfile}
         capabilityProfiles={capabilityProfiles}
         onAxisClick={(axisKey) => setSelectedAxis(axisKey)}

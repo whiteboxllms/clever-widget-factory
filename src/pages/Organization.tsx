@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { useProfile } from '@/hooks/useProfile';
 import { OrganizationValuesSection } from '@/components/OrganizationValuesSection';
+import { AiConfigCard } from '@/components/AiConfigCard';
 import { apiService, getApiData } from '@/lib/apiService';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { useOrganizationMembersByOrg } from '@/hooks/useOrganizationMembers';
@@ -382,23 +383,28 @@ const Organization = () => {
 
       {/* Scoring Prompts */}
       {isAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MessageSquare className="w-5 h-5" />
-              AI Scoring Prompts
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              Manage AI prompts used for automated action scoring and accountability assessments.
-            </p>
-            <Button onClick={() => navigate('/prompts')} variant="outline">
-              <MessageSquare className="w-4 h-4 mr-2" />
-              Manage Scoring Prompts
-            </Button>
-          </CardContent>
-        </Card>
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5" />
+                AI Scoring Prompts
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                Manage AI prompts used for automated action scoring and accountability assessments.
+              </p>
+              <Button onClick={() => navigate('/prompts')} variant="outline">
+                <MessageSquare className="w-4 h-4 mr-2" />
+                Manage Scoring Prompts
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* AI Configuration */}
+          <AiConfigCard organizationId={targetOrganization.id} />
+        </>
       )}
 
       {/* Roles & Permissions */}

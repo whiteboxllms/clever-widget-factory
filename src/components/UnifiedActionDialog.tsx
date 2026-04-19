@@ -1253,7 +1253,7 @@ export function UnifiedActionDialog({
 
           {/* Skill Profile Panel — only for existing actions */}
           {!isCreating && action?.id && (
-            <SkillProfilePanel action={action} userId={user?.id || ''} />
+            <SkillProfilePanel action={action} userId={user?.id || ''} organizationId={organizationId} />
           )}
 
           {/* Growth Checklist Radar Chart — only for existing actions */}

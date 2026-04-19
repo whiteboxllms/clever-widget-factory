@@ -6,6 +6,13 @@
 const crypto = require('crypto');
 
 /**
+ * Prompt version identifier included in evidence hash computation.
+ * Bump this value whenever Bedrock prompts change to force recomputation
+ * of all cached capability profiles on next access.
+ */
+const PROMPT_VERSION = 'v3';
+
+/**
  * Compose a capability profile state_text in the canonical format.
  *
  * Format:
@@ -67,7 +74,7 @@ function parseCapabilityProfileStateText(stateText) {
  */
 function computeEvidenceHash(evidenceStateIds, learningCompletionCount) {
   const sorted = [...evidenceStateIds].sort();
-  const input = sorted.join(',') + ':' + learningCompletionCount;
+  const input = sorted.join(',') + ':' + learningCompletionCount + ':' + PROMPT_VERSION;
   const fullHash = crypto.createHash('sha256').update(input).digest('hex');
   return fullHash.substring(0, 16);
 }

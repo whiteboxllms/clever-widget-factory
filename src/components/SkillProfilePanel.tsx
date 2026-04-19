@@ -16,6 +16,7 @@ import { useState } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -33,6 +34,7 @@ import {
 } from '@/hooks/useSkillProfile';
 import type { SkillProfile } from '@/hooks/useSkillProfile';
 import type { BaseAction } from '@/types/actions';
+import { apiService, getApiData } from '@/lib/apiService';
 import {
   ChevronDown,
   Sparkles,
@@ -42,6 +44,22 @@ import {
   Loader2,
   Brain,
 } from 'lucide-react';
+
+// --- AI Config types and defaults (match AiConfigCard / backend) ---
+
+interface AiConfig {
+  max_axes: number;
+  min_axes: number;
+  evidence_limit: number;
+  quiz_temperature: number;
+}
+
+const AI_CONFIG_DEFAULTS: AiConfig = {
+  max_axes: 3,
+  min_axes: 2,
+  evidence_limit: 3,
+  quiz_temperature: 0.7,
+};
 
 // --- Zod schema for frontend validation before approve ---
 
@@ -55,26 +73,36 @@ const skillAxisSchema = z.object({
     .max(5, 'Max 5'),
 });
 
-const skillProfileFormSchema = z.object({
-  narrative: z.string().min(1, 'Narrative is required'),
-  axes: z
-    .array(skillAxisSchema)
-    .min(4, 'At least 4 axes required')
-    .max(6, 'At most 6 axes allowed'),
-});
+/**
+ * Creates a dynamic Zod schema for skill profile form validation.
+ * Axis count constraints come from the org's ai_config instead of
+ * being hardcoded to 4–6.
+ *
+ * Requirements: 1.5
+ */
+function createSkillProfileFormSchema(minAxes: number, maxAxes: number) {
+  return z.object({
+    narrative: z.string().min(1, 'Narrative is required'),
+    axes: z
+      .array(skillAxisSchema)
+      .min(minAxes, `At least ${minAxes} axes required`)
+      .max(maxAxes, `At most ${maxAxes} axes allowed`),
+  });
+}
 
-type SkillProfileFormData = z.infer<typeof skillProfileFormSchema>;
+type SkillProfileFormData = z.infer<ReturnType<typeof createSkillProfileFormSchema>>;
 
 // --- Props ---
 
 interface SkillProfilePanelProps {
   action: BaseAction;
   userId: string;
+  organizationId: string | null;
 }
 
 // --- Component ---
 
-export function SkillProfilePanel({ action, userId }: SkillProfilePanelProps) {
+export function SkillProfilePanel({ action, userId, organizationId }: SkillProfilePanelProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [previewProfile, setPreviewProfile] = useState<SkillProfile | null>(null);
 
@@ -82,6 +110,22 @@ export function SkillProfilePanel({ action, userId }: SkillProfilePanelProps) {
   const generateMutation = useGenerateSkillProfile();
   const approveMutation = useApproveSkillProfile();
   const deleteMutation = useDeleteSkillProfile();
+
+  // Fetch org ai_config — reuses the same query key as AiConfigCard
+  const { data: aiConfig } = useQuery<AiConfig>({
+    queryKey: ['ai-config', organizationId],
+    queryFn: async () => {
+      const response = await apiService.get(
+        `/organizations/${organizationId}/ai-config`
+      );
+      return getApiData(response) ?? AI_CONFIG_DEFAULTS;
+    },
+    enabled: !!organizationId,
+  });
+
+  // Derive min/max axes from config (fall back to defaults)
+  const minAxes = aiConfig?.min_axes ?? AI_CONFIG_DEFAULTS.min_axes;
+  const maxAxes = aiConfig?.max_axes ?? AI_CONFIG_DEFAULTS.max_axes;
 
   const approvedProfile = action.skill_profile as SkillProfile | null | undefined;
   const hasContext = !!(action.title || action.description || action.expected_state);
@@ -166,6 +210,8 @@ export function SkillProfilePanel({ action, userId }: SkillProfilePanelProps) {
             profile={previewProfile}
             actionId={action.id}
             userId={userId}
+            minAxes={minAxes}
+            maxAxes={maxAxes}
             isApproving={approveMutation.isPending}
             onApprove={async (data) => {
               try {
@@ -247,6 +293,8 @@ function PreviewState({
   profile,
   actionId,
   userId,
+  minAxes,
+  maxAxes,
   isApproving,
   onApprove,
   onDiscard,
@@ -254,17 +302,21 @@ function PreviewState({
   profile: SkillProfile;
   actionId: string;
   userId: string;
+  minAxes: number;
+  maxAxes: number;
   isApproving: boolean;
   onApprove: (data: SkillProfileFormData) => void;
   onDiscard: () => void;
 }) {
+  const schema = createSkillProfileFormSchema(minAxes, maxAxes);
+
   const {
     register,
     control,
     handleSubmit,
     formState: { errors },
   } = useForm<SkillProfileFormData>({
-    resolver: zodResolver(skillProfileFormSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       narrative: profile.narrative,
       axes: profile.axes.map((a) => ({

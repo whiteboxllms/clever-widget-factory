@@ -301,6 +301,9 @@ export default function QuizPage() {
           setCurrentQuestionIndex(0);
           setCurrentSelections(new Map());
           setFirstAttemptRecorded(false);
+          setOpenFormSubmitted(false);
+          setOpenFormSaving(false);
+          setOpenFormEvaluationResult(null);
           setQuizState('quiz_in_progress');
         } else {
           // No questions generated — treat as complete

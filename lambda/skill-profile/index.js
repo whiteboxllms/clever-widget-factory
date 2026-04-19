@@ -4,12 +4,13 @@ const { getAuthorizerContext } = require('/opt/nodejs/authorizerContext');
 const { successResponse, errorResponse, corsResponse } = require('/opt/nodejs/response');
 const { getDbClient } = require('/opt/nodejs/db');
 const { escapeLiteral } = require('/opt/nodejs/sqlUtils');
+const { fetchAiConfig, resolveAiConfig } = require('/opt/nodejs/aiConfigDefaults');
 
 const sqs = new SQSClient({ region: 'us-west-2' });
 const bedrock = new BedrockRuntimeClient({ region: process.env.BEDROCK_REGION || 'us-west-2' });
 const EMBEDDINGS_QUEUE_URL = 'https://sqs.us-west-2.amazonaws.com/131745734428/cwf-embeddings-queue';
 
-const { composeAxisEmbeddingSource, composeAxisEntityId, parseAxisEntityId } = require('./axisUtils');
+const { composeAxisEmbeddingSource, composeAxisEntityId, parseAxisEntityId } = require('/opt/nodejs/axisUtils');
 
 const success = (data) => successResponse({ data });
 const error = (message, statusCode = 500) => errorResponse(statusCode, message);
@@ -90,7 +91,16 @@ async function handleGenerate(event, organizationId) {
     return error('Insufficient context to generate skill profile. Add a title, description, or expected state.', 400);
   }
 
-  const prompt = buildSkillProfilePrompt(ctx);
+  // Fetch organization AI config (falls back to defaults on error or missing config)
+  const db = await getDbClient();
+  let aiConfig;
+  try {
+    aiConfig = await fetchAiConfig(db, organizationId);
+  } finally {
+    db.release();
+  }
+
+  const prompt = buildSkillProfilePrompt(ctx, false, aiConfig);
 
   let profile;
   try {
@@ -101,9 +111,9 @@ async function handleGenerate(event, organizationId) {
   }
 
   // Validate the AI response structure; retry once with a stricter prompt if malformed
-  if (!isValidSkillProfile(profile)) {
+  if (!isValidSkillProfile(profile, aiConfig)) {
     console.warn('First attempt returned malformed profile, retrying with stricter prompt');
-    const stricterPrompt = buildSkillProfilePrompt(ctx, true);
+    const stricterPrompt = buildSkillProfilePrompt(ctx, true, aiConfig);
     try {
       profile = await callBedrockForSkillProfile(stricterPrompt);
     } catch (err) {
@@ -111,7 +121,7 @@ async function handleGenerate(event, organizationId) {
       return error('AI service temporarily unavailable. Please try again.', 503);
     }
 
-    if (!isValidSkillProfile(profile)) {
+    if (!isValidSkillProfile(profile, aiConfig)) {
       console.error('Second attempt also returned malformed profile:', JSON.stringify(profile));
       return error('Failed to generate valid profile.', 500);
     }
@@ -125,9 +135,13 @@ async function handleGenerate(event, organizationId) {
  * Build the prompt for Bedrock Claude to generate a skill profile.
  * @param {Object} ctx - Action context
  * @param {boolean} strict - Whether to use a stricter prompt (retry)
+ * @param {Object|null} aiConfig - Resolved AI config (uses defaults if null)
  * @returns {string}
  */
-function buildSkillProfilePrompt(ctx, strict = false) {
+function buildSkillProfilePrompt(ctx, strict = false, aiConfig = null) {
+  if (!aiConfig) {
+    aiConfig = resolveAiConfig(null);
+  }
   const parts = [];
   if (ctx.title) parts.push(`Title: ${ctx.title}`);
   if (ctx.description) parts.push(`Description: ${ctx.description}`);
@@ -141,7 +155,7 @@ function buildSkillProfilePrompt(ctx, strict = false) {
   const actionContext = parts.join('\n');
 
   const strictClause = strict
-    ? `\nCRITICAL: You MUST return EXACTLY 4 to 6 axes. Each required_level MUST be an INTEGER between 0 and 5 inclusive. Do NOT return fewer than 4 or more than 6 axes. Do NOT return levels outside 0-5. Failure to comply will cause an error.`
+    ? `\nCRITICAL: You MUST return EXACTLY ${aiConfig.min_axes} to ${aiConfig.max_axes} axes. Each required_level MUST be an INTEGER between 0 and 5 inclusive. Do NOT return fewer than ${aiConfig.min_axes} or more than ${aiConfig.max_axes} axes. Do NOT return levels outside 0-5. Failure to comply will cause an error.`
     : '';
 
   return `You are a skill assessment expert. Analyze the following action context and produce a JSON skill requirements profile.
@@ -161,7 +175,7 @@ Most routine tasks require level 1-2. Tasks requiring judgment or adaptation req
 
 Produce a JSON object with these fields:
 1. "narrative": A 2-4 sentence natural language description of what capabilities this action demands.
-2. "axes": An array of 4 to 6 skill axes, each with:
+2. "axes": An array of ${aiConfig.min_axes} to ${aiConfig.max_axes} skill axes, each with:
    - "key": A snake_case identifier (e.g., "regulatory_navigation")
    - "label": A human-readable label (e.g., "Regulatory Navigation")
    - "required_level": An INTEGER from 0 to 5 using the Bloom's scale above. Be realistic — most axes should be 1-3.
@@ -212,17 +226,21 @@ async function callBedrockForSkillProfile(prompt) {
 /**
  * Validate that a skill profile has the correct structure.
  * - narrative: non-empty string
- * - axes: array of 4-6 objects, each with non-empty key, label, and required_level in [0.0, 1.0]
+ * - axes: array within configured min/max range, each with non-empty key, label, and required_level in [0, 5]
  * - generated_at: non-empty string
  * @param {Object} profile
+ * @param {Object|null} aiConfig - Resolved AI config (uses defaults if null)
  * @returns {boolean}
  */
-function isValidSkillProfile(profile) {
+function isValidSkillProfile(profile, aiConfig = null) {
+  if (!aiConfig) {
+    aiConfig = resolveAiConfig(null);
+  }
   if (!profile || typeof profile !== 'object') return false;
   if (typeof profile.narrative !== 'string' || !profile.narrative.trim()) return false;
   if (typeof profile.generated_at !== 'string' || !profile.generated_at.trim()) return false;
   if (!Array.isArray(profile.axes)) return false;
-  if (profile.axes.length < 4 || profile.axes.length > 6) return false;
+  if (profile.axes.length < aiConfig.min_axes || profile.axes.length > aiConfig.max_axes) return false;
 
   for (const axis of profile.axes) {
     if (!axis || typeof axis !== 'object') return false;
@@ -254,9 +272,18 @@ async function handleApprove(event, organizationId) {
     return error('skill_profile is required', 400);
   }
 
+  // Fetch organization AI config for validation (falls back to defaults on error)
+  const configDb = await getDbClient();
+  let aiConfig;
+  try {
+    aiConfig = await fetchAiConfig(configDb, organizationId);
+  } finally {
+    configDb.release();
+  }
+
   // Validate profile structure using existing validator
-  if (!isValidSkillProfile(skill_profile)) {
-    return error('Invalid skill profile structure: requires non-empty narrative, generated_at, and 4-6 axes each with non-empty key, label, and required_level in [0.0, 1.0]', 400);
+  if (!isValidSkillProfile(skill_profile, aiConfig)) {
+    return error(`Invalid skill profile structure: requires non-empty narrative, generated_at, and ${aiConfig.min_axes}-${aiConfig.max_axes} axes each with non-empty key, label, and required_level in [0, 5]`, 400);
   }
 
   // Add approval metadata to the profile

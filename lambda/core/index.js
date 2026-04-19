@@ -5,6 +5,7 @@ const { composePartEmbeddingSource, composeToolEmbeddingSource, composeIssueEmbe
 const { getDbClient } = require('/opt/nodejs/db');
 const { escapeLiteral, formatSqlValue, buildUpdateClauses } = require('/opt/nodejs/sqlUtils');
 const { broadcastInvalidation } = require('/opt/nodejs/broadcastInvalidation');
+const { fetchAiConfig, resolveAiConfig, isValidInt, isValidFloat } = require('/opt/nodejs/aiConfigDefaults');
 
 const sqs = new SQSClient({ region: 'us-west-2' });
 const EMBEDDINGS_QUEUE_URL = 'https://sqs.us-west-2.amazonaws.com/131745734428/cwf-embeddings-queue';
@@ -1441,6 +1442,104 @@ exports.handler = async (event) => {
       }
     }
     
+    // Organizations AI Config endpoint (must be before /organizations/:id catch-all)
+    if (path.match(/\/organizations\/[^/]+\/ai-config$/)) {
+      const pathParts = path.split('/');
+      const orgId = pathParts[pathParts.length - 2]; // e.g. /organizations/{id}/ai-config
+
+      if (httpMethod === 'GET') {
+        if (!canAccessOrganization(authContext, orgId)) {
+          return {
+            statusCode: 403,
+            headers,
+            body: JSON.stringify({ error: 'Forbidden' })
+          };
+        }
+
+        const client = await getDbClient();
+        try {
+          const result = await client.query(
+            'SELECT ai_config FROM organizations WHERE id = $1',
+            [orgId]
+          );
+          const aiConfig = resolveAiConfig(result.rows?.[0]?.ai_config);
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ data: aiConfig })
+          };
+        } finally {
+          client.release();
+        }
+      }
+
+      if (httpMethod === 'PUT') {
+        if (!hasPermission(authContext, 'organizations:update')) {
+          return {
+            statusCode: 403,
+            headers,
+            body: JSON.stringify({ error: 'Forbidden: organizations:update permission required' })
+          };
+        }
+
+        const body = JSON.parse(event.body || '{}');
+        const { max_axes, min_axes, evidence_limit, quiz_temperature } = body;
+
+        // Validate input fields
+        const errors = [];
+        if (max_axes !== undefined && !isValidInt(max_axes, 1, 6)) {
+          errors.push('max_axes must be an integer between 1 and 6');
+        }
+        if (min_axes !== undefined && !isValidInt(min_axes, 1, 6)) {
+          errors.push('min_axes must be an integer between 1 and 6');
+        }
+        if (evidence_limit !== undefined && !isValidInt(evidence_limit, 1, 10)) {
+          errors.push('evidence_limit must be an integer between 1 and 10');
+        }
+        if (quiz_temperature !== undefined && !isValidFloat(quiz_temperature, 0.0, 1.0)) {
+          errors.push('quiz_temperature must be a number between 0.0 and 1.0');
+        }
+
+        if (errors.length > 0) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: errors.join('; ') })
+          };
+        }
+
+        // Build the ai_config object from provided fields
+        const aiConfigInput = {};
+        if (max_axes !== undefined) aiConfigInput.max_axes = max_axes;
+        if (min_axes !== undefined) aiConfigInput.min_axes = min_axes;
+        if (evidence_limit !== undefined) aiConfigInput.evidence_limit = evidence_limit;
+        if (quiz_temperature !== undefined) aiConfigInput.quiz_temperature = quiz_temperature;
+
+        const client = await getDbClient();
+        try {
+          // Write ai_config JSONB to the organizations table
+          await client.query(
+            `UPDATE organizations SET ai_config = COALESCE(ai_config, '{}'::jsonb) || $1::jsonb WHERE id = $2`,
+            [JSON.stringify(aiConfigInput), orgId]
+          );
+
+          // Read back and resolve with defaults
+          const result = await client.query(
+            'SELECT ai_config FROM organizations WHERE id = $1',
+            [orgId]
+          );
+          const resolved = resolveAiConfig(result.rows?.[0]?.ai_config);
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ data: resolved })
+          };
+        } finally {
+          client.release();
+        }
+      }
+    }
+
     // Organizations by ID endpoint
     if (path.match(/\/organizations\/[^/]+$/)) {
       const orgId = path.split('/').pop();

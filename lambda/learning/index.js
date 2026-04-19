@@ -5,6 +5,7 @@ const { successResponse, errorResponse, corsResponse } = require('/opt/nodejs/re
 const { getDbClient } = require('/opt/nodejs/db');
 const { escapeLiteral } = require('/opt/nodejs/sqlUtils');
 const { composeStateEmbeddingSource } = require('/opt/nodejs/embedding-composition');
+const { fetchAiConfig, resolveAiConfig } = require('/opt/nodejs/aiConfigDefaults');
 const { filterCompletedKnowledgeStates, extractBestMatch, extractTopKMatches } = require('./evidenceUtils');
 const { distributeMatchesToObjectives, composeAxisAwareEmbeddingSource } = require('./objectiveMatchUtils');
 
@@ -43,6 +44,15 @@ exports.handler = async (event) => {
   }
 
   try {
+    // Fetch AI config once per request for configurable Bedrock parameters
+    const db = await getDbClient();
+    let aiConfig;
+    try {
+      aiConfig = await fetchAiConfig(db, organizationId);
+    } finally {
+      db.release();
+    }
+
     // Route dispatch based on HTTP method and path segments
     const segments = path.replace('/api/learning/', '').split('/');
 
@@ -50,7 +60,7 @@ exports.handler = async (event) => {
     if (httpMethod === 'GET' && segments.length === 3 && segments[2] === 'objectives') {
       const actionId = segments[0];
       const userId = segments[1];
-      return await handleGetObjectives(actionId, userId, organizationId);
+      return await handleGetObjectives(actionId, userId, organizationId, aiConfig);
     }
 
     // GET /api/learning/:actionId/:userId/evaluation-status
@@ -72,14 +82,14 @@ exports.handler = async (event) => {
     if (httpMethod === 'POST' && segments.length === 3 && segments[1] === 'quiz' && segments[2] === 'evaluate') {
       const actionId = segments[0];
       const body = JSON.parse(event.body || '{}');
-      return await handleEvaluate(actionId, body, organizationId);
+      return await handleEvaluate(actionId, body, organizationId, aiConfig);
     }
 
     // POST /api/learning/:actionId/verify
     if (httpMethod === 'POST' && segments.length === 2 && segments[1] === 'verify') {
       const actionId = segments[0];
       const body = JSON.parse(event.body || '{}');
-      return await handleVerify(actionId, body, organizationId);
+      return await handleVerify(actionId, body, organizationId, aiConfig);
     }
 
     return error('Not found', 404);
@@ -95,7 +105,7 @@ exports.handler = async (event) => {
  * Get or generate learning objectives for a user's gap axes on an action.
  * Requirements: 3.5.1, 3.5.2, 3.5.3, 3.5.4, 3.5.9, 5.1, 5.5
  */
-async function handleGetObjectives(actionId, userId, organizationId) {
+async function handleGetObjectives(actionId, userId, organizationId, aiConfig) {
   const db = await getDbClient();
   try {
     const actionIdSafe = escapeLiteral(actionId);
@@ -504,7 +514,7 @@ async function fetchCapabilityLevels(db, actionIdSafe, userIdSafe, orgIdSafe, sk
     allEvidence.sort((a, b) => b.relevance_score - a.relevance_score);
 
     // Call Bedrock for lightweight capability scoring
-    const capabilityResult = await callBedrockForCapabilityLevels(skillProfile, allEvidence);
+    const capabilityResult = await callBedrockForCapabilityLevels(skillProfile, allEvidence, aiConfig);
 
     for (const axisResult of capabilityResult.axes) {
       if (levels.hasOwnProperty(axisResult.key)) {
@@ -522,7 +532,11 @@ async function fetchCapabilityLevels(db, actionIdSafe, userIdSafe, orgIdSafe, sk
  * Call Bedrock to get lightweight capability level scores.
  * Similar to the capability Lambda's approach but returns only levels.
  */
-async function callBedrockForCapabilityLevels(skillProfile, evidence) {
+async function callBedrockForCapabilityLevels(skillProfile, evidence, aiConfig) {
+  if (!aiConfig) {
+    aiConfig = resolveAiConfig(null);
+  }
+
   const axesDescription = skillProfile.axes.map(a =>
     `- ${a.key} ("${a.label}"): required level ${a.required_level}`
   ).join('\n');
@@ -550,7 +564,7 @@ No markdown, no code fences, no explanation.`;
   const payload = {
     anthropic_version: 'bedrock-2023-05-31',
     max_tokens: 500,
-    temperature: 0.3,
+    temperature: aiConfig.quiz_temperature,
     messages: [{ role: 'user', content: prompt }]
   };
 
@@ -1677,7 +1691,7 @@ function validateQuizQuestions(questions, requestedObjectiveIds) {
  * but returns 202 to indicate the result will be available later via polling.
  * Requirements: 3.5, 3.6, 7.1, 7.2, 7.3, 7.4, 7.5
  */
-async function handleEvaluate(actionId, body, organizationId) {
+async function handleEvaluate(actionId, body, organizationId, aiConfig) {
   const { stateId, responseText, idealAnswer, questionType, objectiveText, questionText } = body;
 
   // Validate required fields
@@ -1739,7 +1753,7 @@ async function handleEvaluate(actionId, body, organizationId) {
     // Call Bedrock to evaluate the response
     let evaluation;
     try {
-      evaluation = await callBedrockForEvaluation(responseText, idealAnswer, questionType, objectiveText, questionText);
+      evaluation = await callBedrockForEvaluation(responseText, idealAnswer, questionType, objectiveText, questionText, aiConfig);
     } catch (bedrockErr) {
       console.error('Bedrock evaluation failed for state', stateId, ':', bedrockErr.message);
 
@@ -1877,7 +1891,11 @@ async function handleEvaluationStatus(actionId, userId, organizationId, queryPar
  * Call Bedrock to evaluate an open-form response against the ideal answer.
  * Returns { score, sufficient, reasoning } with score on a continuous Bloom's scale [0.0, 5.0].
  */
-async function callBedrockForEvaluation(responseText, idealAnswer, questionType, objectiveText, questionText) {
+async function callBedrockForEvaluation(responseText, idealAnswer, questionType, objectiveText, questionText, aiConfig) {
+  if (!aiConfig) {
+    aiConfig = resolveAiConfig(null);
+  }
+
   const bloomLevel = questionTypeToBloomLevel(questionType);
 
   const prompt = `You are an expert learning evaluator. Assess a learner's open-form response against an ideal answer, scoring on a continuous Bloom's taxonomy scale.
@@ -1921,7 +1939,7 @@ No markdown, no code fences, no explanation outside the JSON.`;
   const payload = {
     anthropic_version: 'bedrock-2023-05-31',
     max_tokens: 500,
-    temperature: 0.3,
+    temperature: aiConfig.quiz_temperature,
     messages: [{ role: 'user', content: prompt }]
   };
 
@@ -2027,7 +2045,7 @@ async function queueEvaluationEmbedding(stateId, stateText, organizationId, axis
  * Verify which learning objectives an observation demonstrates.
  * Requirements: 9.1, 9.2, 9.3, 9.4, 9.5
  */
-async function handleVerify(actionId, body, organizationId) {
+async function handleVerify(actionId, body, organizationId, aiConfig) {
   const { observationId, selfAssessedObjectiveIds, userId } = body;
 
   // Validate required fields
@@ -2118,7 +2136,8 @@ async function handleVerify(actionId, body, organizationId) {
     const aiEvaluatedIds = await evaluateObservationViaBedrock(
       observation,
       observationPhotos,
-      objectives
+      objectives,
+      aiConfig
     );
 
     // 5. Compare self-assessment vs AI evaluation
@@ -2173,7 +2192,11 @@ async function handleVerify(actionId, body, organizationId) {
  * Call Bedrock Sonnet to evaluate which learning objectives an observation demonstrates.
  * Returns an array of objective IDs that the AI determines are demonstrated.
  */
-async function evaluateObservationViaBedrock(observation, photos, objectives) {
+async function evaluateObservationViaBedrock(observation, photos, objectives, aiConfig) {
+  if (!aiConfig) {
+    aiConfig = resolveAiConfig(null);
+  }
+
   const objectivesList = objectives.map(obj =>
     `  - ID: ${obj.id}\n    Objective: ${obj.text}`
   ).join('\n');
@@ -2213,7 +2236,7 @@ No markdown, no code fences, no explanation.`;
   const payload = {
     anthropic_version: 'bedrock-2023-05-31',
     max_tokens: 1000,
-    temperature: 0.3,
+    temperature: aiConfig.quiz_temperature,
     messages: [{ role: 'user', content: prompt }]
   };
 

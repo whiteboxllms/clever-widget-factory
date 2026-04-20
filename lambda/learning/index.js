@@ -6,8 +6,10 @@ const { getDbClient } = require('/opt/nodejs/db');
 const { escapeLiteral } = require('/opt/nodejs/sqlUtils');
 const { composeStateEmbeddingSource } = require('/opt/nodejs/embedding-composition');
 const { fetchAiConfig, resolveAiConfig } = require('/opt/nodejs/aiConfigDefaults');
+const { resolveLensConfig, buildLensPool } = require('/opt/nodejs/lensDefaults');
 const { filterCompletedKnowledgeStates, extractBestMatch, extractTopKMatches } = require('./evidenceUtils');
 const { distributeMatchesToObjectives, composeAxisAwareEmbeddingSource } = require('./objectiveMatchUtils');
+const { selectLenses, applyGapBoost, buildValuesLenses, buildLensPromptBlock, buildAssetContextBlock } = require('./lensUtils');
 
 const bedrock = new BedrockRuntimeClient({ region: process.env.BEDROCK_REGION || 'us-west-2' });
 const sqs = new SQSClient({ region: 'us-west-2' });
@@ -1079,7 +1081,65 @@ async function handleQuizGenerate(actionId, body, organizationId) {
 
     console.log(`Progression for axis ${axisKey}: questionType=${questionType}, bloomLevel=${bloomLevel}, recognitionComplete=${recognitionComplete}`);
 
-    // 8. Generate questions based on the derived question type
+    // 8. Build lens pool and select lenses for question framing diversity
+    let lensBlock = '';
+    let assetBlock = '';
+
+    try {
+      // Fetch organization settings (strategic_attributes) and ai_config (lens_config)
+      const orgResult = await db.query(
+        `SELECT settings, ai_config FROM organizations WHERE id = '${orgIdSafe}'`
+      );
+      const orgRow = orgResult.rows?.[0];
+      const strategicAttributes = orgRow?.settings?.strategic_attributes || [];
+      const rawLensConfig = orgRow?.ai_config?.lens_config || null;
+
+      // Resolve lens config and build the full lens pool
+      const resolvedLensConfig = resolveLensConfig(rawLensConfig);
+      const lensPool = buildLensPool(resolvedLensConfig, strategicAttributes);
+
+      // Fetch capability gap for the target axis (fall back to null on error)
+      let capabilityGap = null;
+      try {
+        const cachedProfileResult = await db.query(
+          `SELECT s.state_text
+           FROM states s
+           INNER JOIN state_links sl ON sl.state_id = s.id
+           WHERE sl.entity_type = 'capability_profile'
+             AND sl.entity_id = '${actionIdSafe}'
+             AND s.captured_by = 'organization'
+             AND s.state_text LIKE '[capability_profile]%'
+             AND s.organization_id = '${orgIdSafe}'
+           LIMIT 1`
+        );
+
+        if (cachedProfileResult.rows?.length > 0) {
+          const stateText = cachedProfileResult.rows[0].state_text;
+          const pipeIndex = stateText.indexOf(' | ');
+          if (pipeIndex !== -1) {
+            const profileJson = JSON.parse(stateText.substring(pipeIndex + 3));
+            const axisData = profileJson.axes?.find(a => a.key === axisKey);
+            if (axisData && typeof axisData.level === 'number' && typeof targetAxis.required_level === 'number') {
+              capabilityGap = targetAxis.required_level - axisData.level;
+            }
+          }
+        }
+      } catch (gapErr) {
+        console.warn('Warning: Failed to fetch capability gap for lens boost, proceeding without gap boost:', gapErr.message);
+      }
+
+      // Select 2–3 lenses via weighted random sampling with optional gap boost
+      const selectedLenses = selectLenses(lensPool, capabilityGap, resolvedLensConfig.gap_boost_rules);
+      lensBlock = buildLensPromptBlock(selectedLenses);
+
+      // Fetch cross-domain asset context for enriched prompts
+      const assetDescriptions = await fetchAssetContext(db, actionId, axisKey, organizationId);
+      assetBlock = buildAssetContextBlock(assetDescriptions);
+    } catch (lensErr) {
+      console.warn('Warning: Failed to build lens/asset context, proceeding without:', lensErr.message);
+    }
+
+    // 9. Generate questions based on the derived question type
     let validatedQuestions;
 
     if (questionType === 'recognition') {
@@ -1091,7 +1151,9 @@ async function handleQuizGenerate(actionId, body, organizationId) {
         { observations: [], photoUrls: [] },
         [],
         knowledgeStatesForAxis,
-        previousAnswers || []
+        previousAnswers || [],
+        lensBlock,
+        assetBlock
       );
 
       validatedQuestions = validateQuizQuestions(questions, objectiveIds);
@@ -1112,7 +1174,9 @@ async function handleQuizGenerate(actionId, body, organizationId) {
         questionType,
         bloomLevel,
         openFormStates,
-        previousAnswers || []
+        previousAnswers || [],
+        lensBlock,
+        assetBlock
       );
 
       validatedQuestions = validateOpenFormQuestions(questions, objectiveIds, questionType, bloomLevel);
@@ -1272,6 +1336,66 @@ async function fetchToolInventory(db, orgIdSafe) {
 }
 
 /**
+ * Fetch cross-domain asset context via vector similarity search.
+ * Finds the top 10 most similar assets to the skill axis embedding,
+ * then randomly selects up to 3 for prompt enrichment.
+ *
+ * @param {object} db - Database client
+ * @param {string} actionId - Current action ID (excluded from results)
+ * @param {string} axisKey - Target skill axis key
+ * @param {string} organizationId - Organization ID for scoping
+ * @returns {Promise<Array<{entity_type: string, entity_id: string, description: string}>>} 0–3 asset descriptions
+ */
+async function fetchAssetContext(db, actionId, axisKey, organizationId) {
+  try {
+    const actionIdSafe = escapeLiteral(actionId);
+    const orgIdSafe = escapeLiteral(organizationId);
+    const skillAxisEntityId = escapeLiteral(`${actionId}:${axisKey}`);
+
+    // Vector similarity query: find top 10 assets similar to the skill axis embedding
+    const result = await db.query(
+      `SELECT ue.entity_type, ue.entity_id, ue.embedding_source,
+              (1 - (ue.embedding <=> (
+                SELECT embedding FROM unified_embeddings
+                WHERE entity_type = 'skill_axis'
+                  AND entity_id = '${skillAxisEntityId}'
+                LIMIT 1
+              ))) as similarity
+       FROM unified_embeddings ue
+       WHERE ue.entity_type IN ('action', 'part', 'tool', 'policy')
+         AND ue.organization_id = '${orgIdSafe}'
+         AND NOT (ue.entity_type = 'action' AND ue.entity_id = '${actionIdSafe}')
+       ORDER BY similarity DESC
+       LIMIT 10`
+    );
+
+    if (!result.rows || result.rows.length === 0) {
+      return [];
+    }
+
+    const topResults = result.rows;
+
+    // Randomly select up to 3 from the top 10 using Fisher-Yates partial shuffle
+    const count = Math.min(3, topResults.length);
+    for (let i = topResults.length - 1; i > topResults.length - 1 - count; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [topResults[i], topResults[j]] = [topResults[j], topResults[i]];
+    }
+
+    const selected = topResults.slice(topResults.length - count);
+
+    return selected.map(row => ({
+      entity_type: row.entity_type,
+      entity_id: row.entity_id,
+      description: row.embedding_source || '',
+    }));
+  } catch (err) {
+    console.warn('Warning: Failed to fetch asset context for quiz enrichment:', err.message);
+    return [];
+  }
+}
+
+/**
  * Fetch existing knowledge states for the given objective IDs.
  * Returns knowledge state texts grouped by objective ID.
  */
@@ -1309,7 +1433,7 @@ async function fetchKnowledgeStatesForObjectives(db, objectiveIds, orgIdSafe) {
  * Generate quiz questions via Bedrock Sonnet.
  * Builds a structured prompt with action context, evidence, tools, and previous answers.
  */
-async function generateQuizViaBedrock(action, targetAxis, objectives, evidenceData, toolInventory, knowledgeStates, previousAnswers) {
+async function generateQuizViaBedrock(action, targetAxis, objectives, evidenceData, toolInventory, knowledgeStates, previousAnswers, lensBlock, assetBlock) {
   // Build the objectives section
   const objectivesSection = objectives.map(obj => {
     const pastStates = knowledgeStates[obj.id] || [];
@@ -1384,7 +1508,7 @@ ${photoSection}
 TOOLS AND EQUIPMENT:
 ${toolSection}
 ${wrongAnswersSection}
-
+${lensBlock ? '\n' + lensBlock + '\n' : ''}${assetBlock ? '\n' + assetBlock + '\n' : ''}
 INSTRUCTIONS:
 1. Generate at least one question per learning objective listed above.
 2. Each question MUST have exactly 4 answer options with explanations for each option.
@@ -1460,7 +1584,7 @@ No markdown, no code fences, no explanation outside the JSON.`;
  *
  * Requirements: 3.1, 6.3, 6.4, 6.5, 6.7
  */
-async function generateOpenFormQuizViaBedrock(action, targetAxis, objectives, questionType, bloomLevel, previousOpenFormStates, previousAnswers) {
+async function generateOpenFormQuizViaBedrock(action, targetAxis, objectives, questionType, bloomLevel, previousOpenFormStates, previousAnswers, lensBlock, assetBlock) {
   // Build question type instructions based on the current progression level
   const questionTypeInstructions = {
     bridging: `Generate a BRIDGING question for the entire axis. This is a single open-ended question asking the learner to connect the concepts they've learned to their specific action context. Example framing: "Now that you've reviewed these concepts, what from this area do you see as worth adopting for this action, and why?"
@@ -1529,6 +1653,18 @@ LEARNING OBJECTIVES TO COVER:
 ${objectivesSection}
 ${previousResponsesSection}
 ${wrongAnswersSection}
+${lensBlock ? '\n' + lensBlock + '\n' : ''}${assetBlock ? '\n' + assetBlock + '\n' : ''}
+HIGH-CEILING QUESTION DESIGN:
+- Each question must ask ONE clear thing. No compound questions, no "and also consider..." tacked on.
+- Keep questions short — one or two sentences max. The depth comes from the learner's answer, not the question's complexity.
+- Craft questions that are open-ended enough for responses ranging from basic recall to expert-level synthesis.
+- Avoid questions with a single correct answer or a narrow expected response.
+- Avoid yes/no framings, list-based questions, and questions that cap the learner's expression at a specific knowledge level.
+- Favor questions that invite depth of reasoning, not breadth of coverage. One focused angle, explored deeply.
+
+IDEAL ANSWER REFERENCE:
+- Generate a level 4–5 reference answer that demonstrates expert-level reasoning.
+- The evaluator uses this to score across the full 0–5 continuum, so the reference must represent the ceiling, not the floor.
 
 INSTRUCTIONS:
 1. ${questionType === 'bridging' ? 'Generate ONE bridging question for the entire axis (not per objective). Pick the first objective ID as the objectiveId.' : 'Generate one question per learning objective.'}
@@ -2339,3 +2475,8 @@ async function queueDemonstrationEmbedding(stateId, stateText, organizationId, a
 exports.filterCompletedKnowledgeStates = filterCompletedKnowledgeStates;
 exports.extractBestMatch = extractBestMatch;
 exports.extractTopKMatches = extractTopKMatches;
+
+// Re-export lens functions for testing
+exports.selectLenses = selectLenses;
+exports.applyGapBoost = applyGapBoost;
+exports.buildValuesLenses = buildValuesLenses;

@@ -6,6 +6,7 @@ const { getDbClient } = require('/opt/nodejs/db');
 const { escapeLiteral, formatSqlValue, buildUpdateClauses } = require('/opt/nodejs/sqlUtils');
 const { broadcastInvalidation } = require('/opt/nodejs/broadcastInvalidation');
 const { fetchAiConfig, resolveAiConfig, isValidInt, isValidFloat } = require('/opt/nodejs/aiConfigDefaults');
+const { SYSTEM_LENSES, MAX_CUSTOM_LENSES, MAX_GAP_BOOST_RULES } = require('/opt/nodejs/lensDefaults');
 
 const sqs = new SQSClient({ region: 'us-west-2' });
 const EMBEDDINGS_QUEUE_URL = 'https://sqs.us-west-2.amazonaws.com/131745734428/cwf-embeddings-queue';
@@ -1483,7 +1484,7 @@ exports.handler = async (event) => {
         }
 
         const body = JSON.parse(event.body || '{}');
-        const { max_axes, min_axes, evidence_limit, quiz_temperature } = body;
+        const { max_axes, min_axes, evidence_limit, quiz_temperature, lens_config } = body;
 
         // Validate input fields
         const errors = [];
@@ -1500,6 +1501,110 @@ exports.handler = async (event) => {
           errors.push('quiz_temperature must be a number between 0.0 and 1.0');
         }
 
+        // Validate lens_config if present
+        if (lens_config !== undefined) {
+          if (typeof lens_config !== 'object' || lens_config === null || Array.isArray(lens_config)) {
+            errors.push('lens_config must be an object');
+          } else {
+            const validSystemKeys = new Set(SYSTEM_LENSES.map(l => l.key));
+
+            // Validate system_lens_weights
+            if (lens_config.system_lens_weights !== undefined) {
+              if (typeof lens_config.system_lens_weights !== 'object' || lens_config.system_lens_weights === null || Array.isArray(lens_config.system_lens_weights)) {
+                errors.push('lens_config.system_lens_weights must be an object');
+              } else {
+                for (const [key, entry] of Object.entries(lens_config.system_lens_weights)) {
+                  if (!validSystemKeys.has(key)) {
+                    errors.push(`lens_config.system_lens_weights: unknown system lens key "${key}"`);
+                    continue;
+                  }
+                  if (entry && typeof entry === 'object' && entry.weight !== undefined) {
+                    if (!isValidFloat(entry.weight, 0.0, 1.0)) {
+                      errors.push(`lens_config.system_lens_weights.${key}.weight must be between 0.0 and 1.0`);
+                    }
+                  }
+                }
+              }
+            }
+
+            // Validate custom_lenses
+            if (lens_config.custom_lenses !== undefined) {
+              if (!Array.isArray(lens_config.custom_lenses)) {
+                errors.push('lens_config.custom_lenses must be an array');
+              } else {
+                if (lens_config.custom_lenses.length > MAX_CUSTOM_LENSES) {
+                  errors.push(`lens_config.custom_lenses exceeds maximum of ${MAX_CUSTOM_LENSES}`);
+                }
+                const seenLabels = new Set();
+                for (let i = 0; i < lens_config.custom_lenses.length; i++) {
+                  const cl = lens_config.custom_lenses[i];
+                  if (!cl || typeof cl !== 'object') {
+                    errors.push(`lens_config.custom_lenses[${i}] must be an object`);
+                    continue;
+                  }
+                  if (typeof cl.label !== 'string' || cl.label.length < 1 || cl.label.length > 100) {
+                    errors.push(`lens_config.custom_lenses[${i}].label must be a string between 1 and 100 characters`);
+                  } else {
+                    const lowerLabel = cl.label.toLowerCase();
+                    if (seenLabels.has(lowerLabel)) {
+                      errors.push(`lens_config.custom_lenses[${i}].label "${cl.label}" is a duplicate`);
+                    }
+                    seenLabels.add(lowerLabel);
+                  }
+                  if (typeof cl.description !== 'string' || cl.description.length < 1 || cl.description.length > 500) {
+                    errors.push(`lens_config.custom_lenses[${i}].description must be a string between 1 and 500 characters`);
+                  }
+                  if (cl.weight !== undefined && !isValidFloat(cl.weight, 0.0, 1.0)) {
+                    errors.push(`lens_config.custom_lenses[${i}].weight must be between 0.0 and 1.0`);
+                  }
+                }
+              }
+            }
+
+            // Validate values_lens_weights
+            if (lens_config.values_lens_weights !== undefined) {
+              if (typeof lens_config.values_lens_weights !== 'object' || lens_config.values_lens_weights === null || Array.isArray(lens_config.values_lens_weights)) {
+                errors.push('lens_config.values_lens_weights must be an object');
+              } else {
+                for (const [key, entry] of Object.entries(lens_config.values_lens_weights)) {
+                  if (entry && typeof entry === 'object' && entry.weight !== undefined) {
+                    if (!isValidFloat(entry.weight, 0.0, 1.0)) {
+                      errors.push(`lens_config.values_lens_weights.${key}.weight must be between 0.0 and 1.0`);
+                    }
+                  }
+                }
+              }
+            }
+
+            // Validate gap_boost_rules
+            if (lens_config.gap_boost_rules !== undefined) {
+              if (!Array.isArray(lens_config.gap_boost_rules)) {
+                errors.push('lens_config.gap_boost_rules must be an array');
+              } else {
+                if (lens_config.gap_boost_rules.length > MAX_GAP_BOOST_RULES) {
+                  errors.push(`lens_config.gap_boost_rules exceeds maximum of ${MAX_GAP_BOOST_RULES}`);
+                }
+                for (let i = 0; i < lens_config.gap_boost_rules.length; i++) {
+                  const rule = lens_config.gap_boost_rules[i];
+                  if (!rule || typeof rule !== 'object') {
+                    errors.push(`lens_config.gap_boost_rules[${i}] must be an object`);
+                    continue;
+                  }
+                  if (rule.threshold === undefined || typeof rule.threshold !== 'number' || rule.threshold < 0.5) {
+                    errors.push(`lens_config.gap_boost_rules[${i}].threshold must be a number >= 0.5`);
+                  }
+                  if (rule.multiplier === undefined || !isValidFloat(rule.multiplier, 1.1, 3.0)) {
+                    errors.push(`lens_config.gap_boost_rules[${i}].multiplier must be a number between 1.1 and 3.0`);
+                  }
+                  if (!Array.isArray(rule.lens_keys) || rule.lens_keys.length === 0) {
+                    errors.push(`lens_config.gap_boost_rules[${i}].lens_keys must be a non-empty array`);
+                  }
+                }
+              }
+            }
+          }
+        }
+
         if (errors.length > 0) {
           return {
             statusCode: 400,
@@ -1514,6 +1619,7 @@ exports.handler = async (event) => {
         if (min_axes !== undefined) aiConfigInput.min_axes = min_axes;
         if (evidence_limit !== undefined) aiConfigInput.evidence_limit = evidence_limit;
         if (quiz_temperature !== undefined) aiConfigInput.quiz_temperature = quiz_temperature;
+        if (lens_config !== undefined) aiConfigInput.lens_config = lens_config;
 
         const client = await getDbClient();
         try {

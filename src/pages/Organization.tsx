@@ -20,6 +20,7 @@ import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { useProfile } from '@/hooks/useProfile';
 import { OrganizationValuesSection } from '@/components/OrganizationValuesSection';
 import { AiConfigCard } from '@/components/AiConfigCard';
+import { LensManagementCard } from '@/components/LensManagementCard';
 import { apiService, getApiData } from '@/lib/apiService';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { useOrganizationMembersByOrg } from '@/hooks/useOrganizationMembers';
@@ -404,6 +405,12 @@ const Organization = () => {
 
           {/* AI Configuration */}
           <AiConfigCard organizationId={targetOrganization.id} />
+
+          {/* Lens Management */}
+          <LensManagementCard
+            organizationId={targetOrganization.id}
+            strategicAttributes={targetOrganization.settings?.strategic_attributes || []}
+          />
         </>
       )}
 

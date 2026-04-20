@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronRight, Loader2, Lightbulb, CheckCircle2, ArrowRight } from 'lucide-react';
+import { ChevronRight, Loader2, CheckCircle2, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -127,21 +127,6 @@ export function OpenFormInput({
             'Submit'
           )}
         </Button>
-      )}
-
-      {/* Ideal answer panel (after submission) */}
-      {isSubmitted && (
-        <Card className="border-2 border-blue-200 bg-blue-50/50">
-          <CardContent className="p-4 space-y-2">
-            <div className="flex items-center gap-2 text-blue-700">
-              <Lightbulb className="h-4 w-4 shrink-0" />
-              <span className="text-sm font-semibold">Here's a strong example</span>
-            </div>
-            <p className="text-sm leading-relaxed text-blue-900/80">
-              {idealAnswer}
-            </p>
-          </CardContent>
-        </Card>
       )}
 
       {/* Evaluation result (shown inline when available) */}

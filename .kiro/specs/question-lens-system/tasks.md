@@ -6,8 +6,8 @@ This plan implements the Question Lens System — weighted random lens selection
 
 ## Tasks
 
-- [ ] 1. Create shared `lensDefaults.js` module in the Lambda layer
-  - [ ] 1.1 Create `lambda/shared/lensDefaults.js` with system lens constants and resolution utilities
+- [x] 1. Create shared `lensDefaults.js` module in the Lambda layer
+  - [x] 1.1 Create `lambda/shared/lensDefaults.js` with system lens constants and resolution utilities
     - Define `SYSTEM_LENSES` array with 6 lens objects: `failure_analysis`, `underlying_science`, `cross_asset_comparison`, `practical_tradeoffs`, `root_cause_reasoning`, `scenario_response` — each with `key`, `label`, `description`, and `defaultWeight: 0.5`
     - Define `LENS_CONFIG_DEFAULTS` object: `{ system_lens_weights: {}, custom_lenses: [], values_lens_weights: {}, gap_boost_rules: [] }`
     - Define constants: `VALUES_LENS_DEFAULT_WEIGHT = 0.3`, `MAX_CUSTOM_LENSES = 20`, `MAX_GAP_BOOST_RULES = 10`
@@ -28,8 +28,8 @@ This plan implements the Question Lens System — weighted random lens selection
     - Assert: exactly one lens per attribute, each lens `label` matches original attribute, each lens `key` is deterministic slug prefixed with `values_`, each lens `source` is `'values'`
     - **Validates: Requirements 2.1, 2.4**
 
-- [ ] 2. Implement lens selector, gap boost, and values lens builder in Learning Lambda
-  - [ ] 2.1 Implement `selectLenses()` function in `lambda/learning/index.js`
+- [x] 2. Implement lens selector, gap boost, and values lens builder in Learning Lambda
+  - [x] 2.1 Implement `selectLenses()` function in `lambda/learning/index.js`
     - Import `lensDefaults` from `/opt/nodejs/lensDefaults`
     - Implement weighted random sampling without replacement: filter pool to enabled lenses with weight > 0, determine count as `Math.min(pool.length, 2 + (Math.random() < 0.5 ? 1 : 0))`, pick from cumulative distribution, remove selected, repeat
     - If fewer than 2 enabled lenses, select all available (0 or 1)
@@ -37,7 +37,7 @@ This plan implements the Question Lens System — weighted random lens selection
     - Call `applyGapBoost()` before sampling when gap data is available
     - _Requirements: 4.1, 4.2, 4.3, 4.6_
 
-  - [ ] 2.2 Implement `applyGapBoost()` function in `lambda/learning/index.js`
+  - [x] 2.2 Implement `applyGapBoost()` function in `lambda/learning/index.js`
     - Sort rules by `threshold` descending
     - Find first rule where `capabilityGap >= rule.threshold` (highest matching threshold)
     - Multiply weights of lenses in `rule.lens_keys` by `rule.multiplier`
@@ -45,7 +45,7 @@ This plan implements the Question Lens System — weighted random lens selection
     - When no rules match or rules array is empty, return pool unchanged
     - _Requirements: 5.4, 5.5, 5.6_
 
-  - [ ] 2.3 Implement `buildValuesLenses()` function in `lambda/learning/index.js`
+  - [x] 2.3 Implement `buildValuesLenses()` function in `lambda/learning/index.js`
     - Accept `strategicAttributes` array and `valuesLensWeights` overrides
     - For each attribute: `key` = `values_` + slugified attribute, `label` = original string, `description` = `"How does this practice align with or reinforce the organization value: {attribute}?"`, `weight` = override or `VALUES_LENS_DEFAULT_WEIGHT` (0.3), `source` = `'values'`
     - Return empty array when `strategicAttributes` is null or empty
@@ -69,8 +69,8 @@ This plan implements the Question Lens System — weighted random lens selection
     - Run `selectLenses` 20 times, assert at least 2 distinct lens combinations
     - **Validates: Requirements 4.6**
 
-- [ ] 3. Implement asset context retriever in Learning Lambda
-  - [ ] 3.1 Implement `fetchAssetContext()` function in `lambda/learning/index.js`
+- [x] 3. Implement asset context retriever in Learning Lambda
+  - [x] 3.1 Implement `fetchAssetContext()` function in `lambda/learning/index.js`
     - Accept `db`, `actionId`, `axisKey`, `organizationId` parameters
     - Execute vector similarity query against `unified_embeddings`: search entity types `action`, `part`, `tool`, `policy`, filtered by `organization_id`, excluding current action's own embeddings, ordered by similarity DESC, LIMIT 10
     - From top 10 results, randomly select 3 (or fewer if < 3 available)
@@ -84,14 +84,14 @@ This plan implements the Question Lens System — weighted random lens selection
     - Assert: returns `min(3, N)` unique items, all members of original list
     - **Validates: Requirements 6.4, 6.6**
 
-- [ ] 4. Implement prompt builders and integrate lenses into quiz generation
-  - [ ] 4.1 Implement `buildLensPromptBlock()` and `buildAssetContextBlock()` in `lambda/learning/index.js`
+- [x] 4. Implement prompt builders and integrate lenses into quiz generation
+  - [x] 4.1 Implement `buildLensPromptBlock()` and `buildAssetContextBlock()` in `lambda/learning/index.js`
     - `buildLensPromptBlock(selectedLenses)`: builds `QUESTION FRAMING LENSES` text block with numbered lens descriptions and framing guidance note
     - `buildAssetContextBlock(assets)`: builds `RELATED ASSETS` text block with numbered asset descriptions including entity type
     - Both return empty string when given empty arrays
     - _Requirements: 4.4, 4.5, 6.5_
 
-  - [ ] 4.2 Integrate lens selection and asset context into `handleQuizGenerate`
+  - [x] 4.2 Integrate lens selection and asset context into `handleQuizGenerate`
     - Fetch organization's `settings` (for `strategic_attributes`) and `ai_config` (for `lens_config`)
     - Call `buildLensPool()` with resolved lens config and strategic attributes
     - Fetch capability gap for the target axis via `handleOrganizationCapability` (catch errors, fall back to null)
@@ -100,13 +100,13 @@ This plan implements the Question Lens System — weighted random lens selection
     - Pass lens block and asset block to both `generateQuizViaBedrock` and `generateOpenFormQuizViaBedrock` as additional prompt context
     - _Requirements: 4.1, 4.4, 5.3, 5.7, 6.1_
 
-  - [ ] 4.3 Update `generateQuizViaBedrock` to accept and append lens + asset prompt blocks
+  - [x] 4.3 Update `generateQuizViaBedrock` to accept and append lens + asset prompt blocks
     - Add `lensBlock` and `assetBlock` parameters
     - Append blocks after the existing prompt sections, before the JSON return instruction
     - Do not modify the core prompt template — blocks are additive
     - _Requirements: 4.4, 4.5, 6.5_
 
-  - [ ] 4.4 Update `generateOpenFormQuizViaBedrock` to accept and append lens + asset prompt blocks
+  - [x] 4.4 Update `generateOpenFormQuizViaBedrock` to accept and append lens + asset prompt blocks
     - Add `lensBlock` and `assetBlock` parameters
     - Append blocks after the existing prompt sections, before the JSON return instruction
     - _Requirements: 4.4, 4.5, 6.5_
@@ -117,11 +117,11 @@ This plan implements the Question Lens System — weighted random lens selection
     - Assert: constructed prompt blocks contain every selected lens's description text and every asset's `embedding_source` text as substrings
     - **Validates: Requirements 4.4, 6.5**
 
-- [ ] 5. Checkpoint — Verify shared module and Learning Lambda lens integration
+- [x] 5. Checkpoint — Verify shared module and Learning Lambda lens integration
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 6. Add high-ceiling open-form prompt tuning
-  - [ ] 6.1 Update `generateOpenFormQuizViaBedrock` with high-ceiling question instructions
+- [x] 6. Add high-ceiling open-form prompt tuning
+  - [x] 6.1 Update `generateOpenFormQuizViaBedrock` with high-ceiling question instructions
     - Add `HIGH-CEILING QUESTION DESIGN` block to the prompt: craft open-ended questions for responses ranging from basic recall to expert-level synthesis, avoid single-answer/narrow-response questions, avoid yes/no framings and list-based questions, favor layered reasoning and multiple valid perspectives
     - Add `IDEAL ANSWER REFERENCE` block: generate level 4–5 reference answer demonstrating expert-level reasoning, so evaluator can score across full 0–5 continuum
     - _Requirements: 8.1, 8.2, 8.3, 8.4_
@@ -132,8 +132,8 @@ This plan implements the Question Lens System — weighted random lens selection
     - Verify prompt prohibits yes/no framings and list-based questions
     - _Requirements: 8.1, 8.2, 8.3, 8.4_
 
-- [ ] 7. Extend Core Lambda `PUT /ai-config` to handle `lens_config`
-  - [ ] 7.1 Update `PUT /api/organizations/:id/ai-config` handler in `lambda/core/index.js`
+- [x] 7. Extend Core Lambda `PUT /ai-config` to handle `lens_config`
+  - [x] 7.1 Update `PUT /api/organizations/:id/ai-config` handler in `lambda/core/index.js`
     - Import `lensDefaults` from `/opt/nodejs/lensDefaults` for validation constants (`MAX_CUSTOM_LENSES`, `MAX_GAP_BOOST_RULES`)
     - Accept optional `lens_config` field in the request body
     - Validate `lens_config` if present: system lens weights in [0.0, 1.0], custom lens labels 1–100 chars, custom lens descriptions 1–500 chars, custom lens weights in [0.0, 1.0], no duplicate custom lens labels, max 20 custom lenses, gap boost rule thresholds ≥ 0.5, multipliers in [1.1, 3.0], max 10 gap boost rules
@@ -149,11 +149,11 @@ This plan implements the Question Lens System — weighted random lens selection
     - Test accepts valid lens_config and persists correctly
     - _Requirements: 3.1, 3.5, 3.6, 5.8_
 
-- [ ] 8. Checkpoint — Verify all backend changes
+- [x] 8. Checkpoint — Verify all backend changes
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 9. Remove ideal answer display from `OpenFormInput` component
-  - [ ] 9.1 Update `src/components/OpenFormInput.tsx` to remove ideal answer card
+- [x] 9. Remove ideal answer display from `OpenFormInput` component
+  - [x] 9.1 Update `src/components/OpenFormInput.tsx` to remove ideal answer card
     - Remove the blue-bordered `<Card>` with `<Lightbulb>` icon that displays `idealAnswer` after submission
     - Keep the `idealAnswer` prop in the component interface (still needed for AI evaluation)
     - Keep the evaluation result card (score badge + reasoning) unchanged
@@ -166,8 +166,8 @@ This plan implements the Question Lens System — weighted random lens selection
     - Test that `idealAnswer` prop is still accepted by the component
     - _Requirements: 7.1, 7.3, 7.4_
 
-- [ ] 10. Build `LensManagementCard` component
-  - [ ] 10.1 Create `src/components/LensManagementCard.tsx`
+- [x] 10. Build `LensManagementCard` component
+  - [x] 10.1 Create `src/components/LensManagementCard.tsx`
     - Follow the `AiConfigCard` pattern: React Hook Form + Zod validation, TanStack Query for fetching/mutations with optimistic updates
     - Accept `organizationId` and `strategicAttributes` props
     - Read `ai_config.lens_config` via existing `GET /api/organizations/:id/ai-config` endpoint
@@ -189,33 +189,33 @@ This plan implements the Question Lens System — weighted random lens selection
     - Test duplicate custom lens label shows validation error
     - _Requirements: 9.2, 9.3, 9.4, 9.7, 9.8, 9.10_
 
-- [ ] 11. Integrate `LensManagementCard` into Organization page
-  - [ ] 11.1 Add `<LensManagementCard>` to `src/pages/Organization.tsx`
+- [x] 11. Integrate `LensManagementCard` into Organization page
+  - [x] 11.1 Add `<LensManagementCard>` to `src/pages/Organization.tsx`
     - Import `LensManagementCard` from `@/components/LensManagementCard`
     - Render after the `<AiConfigCard>` inside the existing `isAdmin` gate
     - Pass `organizationId` and `strategicAttributes` (from `targetOrganization.settings?.strategic_attributes || []`) as props
     - _Requirements: 9.1, 9.9_
 
-- [ ] 12. Checkpoint — Verify frontend changes
+- [x] 12. Checkpoint — Verify frontend changes
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 13. Deploy all changes
-  - [ ] 13.1 Deploy updated cwf-common-nodejs Lambda layer with new `lensDefaults.js`
+- [x] 13. Deploy all changes
+  - [x] 13.1 Deploy updated cwf-common-nodejs Lambda layer with new `lensDefaults.js`
     - Add `lambda/shared/lensDefaults.js` to the layer package alongside existing `aiConfigDefaults.js`
     - Publish new layer version
     - _Requirements: 1.3_
 
-  - [ ] 13.2 Deploy modified Lambdas using `deploy-lambda-with-layer.sh`
+  - [x] 13.2 Deploy modified Lambdas using `deploy-lambda-with-layer.sh`
     - Deploy `lambda/learning` → `cwf-learning-lambda`
     - Deploy `lambda/core` → `cwf-core-lambda`
     - _Requirements: all_
 
-  - [ ] 13.3 Deploy API Gateway changes (if any new routes needed)
+  - [x] 13.3 Deploy API Gateway changes (if any new routes needed)
     - The existing `PUT /api/organizations/:id/ai-config` route is reused — no new API Gateway routes required
     - Deploy API Gateway to pick up any Lambda ARN updates
     - _Requirements: 9.6_
 
-- [ ] 14. Final checkpoint — Ensure all tests pass
+- [x] 14. Final checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

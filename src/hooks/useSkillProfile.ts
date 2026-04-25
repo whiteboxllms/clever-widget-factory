@@ -16,6 +16,8 @@ export interface SkillProfile {
   generated_at: string;
   approved_at?: string;
   approved_by?: string;
+  growth_intent?: string | null;
+  growth_intent_provided?: boolean;
 }
 
 export interface GenerateSkillProfileRequest {
@@ -28,12 +30,14 @@ export interface GenerateSkillProfileRequest {
     asset_name?: string;
     required_tools?: string[];
   };
+  growth_intent?: string;
 }
 
 export interface ApproveSkillProfileRequest {
   action_id: string;
   skill_profile: SkillProfile;
   approved_by: string;
+  growth_intent?: string;
 }
 
 /**

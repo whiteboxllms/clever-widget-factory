@@ -63,6 +63,8 @@ export interface QuizQuestion {
   }[] | null;
   correctIndex: number | null;
   idealAnswer: string | null;
+  conceptName?: string | null;
+  conceptAuthor?: string | null;
 }
 
 export interface QuizGenerationResponse {
@@ -98,6 +100,9 @@ export interface EvaluationStatusItem {
   score?: number;
   sufficient?: boolean;
   reasoning?: string;
+  demonstratedLevel?: number;
+  conceptDemonstrated?: string;
+  nextLevelHint?: string;
 }
 
 export interface EvaluationStatusResponse {

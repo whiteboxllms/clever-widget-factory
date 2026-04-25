@@ -5547,6 +5547,121 @@ exports.handler = async (event) => {
       };
     }
 
+    // Member settings endpoint
+    if (path.match(/\/members\/[^/]+\/settings$/)) {
+      const pathParts = path.split('/');
+      const userId = pathParts[pathParts.length - 2]; // e.g. /members/{userId}/settings
+
+      if (httpMethod === 'GET') {
+        if (!organizationId) {
+          return {
+            statusCode: 403,
+            headers,
+            body: JSON.stringify({ error: 'Organization context required' })
+          };
+        }
+
+        // Verify the user is a member of the organization
+        const memberSql = `
+          SELECT settings
+          FROM organization_members
+          WHERE cognito_user_id = '${escapeLiteral(userId)}'
+            AND organization_id = '${escapeLiteral(organizationId)}'
+          LIMIT 1
+        `;
+        const memberResult = await queryJSON(memberSql);
+
+        if (!memberResult || memberResult.length === 0) {
+          return {
+            statusCode: 404,
+            headers,
+            body: JSON.stringify({ error: 'Member not found in organization' })
+          };
+        }
+
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ data: memberResult[0].settings || {} })
+        };
+      }
+
+      else if (httpMethod === 'PUT') {
+        if (!organizationId) {
+          return {
+            statusCode: 403,
+            headers,
+            body: JSON.stringify({ error: 'Organization context required' })
+          };
+        }
+
+        // Users can only update their own settings
+        const requestingUserId = authContext.cognito_user_id;
+        if (!requestingUserId || requestingUserId !== userId) {
+          return {
+            statusCode: 403,
+            headers,
+            body: JSON.stringify({ error: 'You can only update your own settings' })
+          };
+        }
+
+        const body = JSON.parse(event.body || '{}');
+        const settings = body.settings;
+
+        if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'settings object is required' })
+          };
+        }
+
+        // Validate growth_intents if present
+        if (settings.growth_intents !== undefined) {
+          if (!Array.isArray(settings.growth_intents)) {
+            return {
+              statusCode: 400,
+              headers,
+              body: JSON.stringify({ error: 'growth_intents must be an array of strings' })
+            };
+          }
+          for (const intent of settings.growth_intents) {
+            if (typeof intent !== 'string') {
+              return {
+                statusCode: 400,
+                headers,
+                body: JSON.stringify({ error: 'growth_intents must be an array of strings' })
+              };
+            }
+          }
+        }
+
+        const settingsJson = JSON.stringify(settings);
+        const updateSql = `
+          UPDATE organization_members
+          SET settings = '${escapeLiteral(settingsJson)}'::jsonb
+          WHERE cognito_user_id = '${escapeLiteral(userId)}'
+            AND organization_id = '${escapeLiteral(organizationId)}'
+          RETURNING settings
+        `;
+        const updateResult = await queryJSON(updateSql);
+
+        if (!updateResult || updateResult.length === 0) {
+          return {
+            statusCode: 404,
+            headers,
+            body: JSON.stringify({ error: 'Member not found in organization' })
+          };
+        }
+
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ data: updateResult[0].settings || {} })
+        };
+      }
+    }
+
     // Default 404
     return {
       statusCode: 404,

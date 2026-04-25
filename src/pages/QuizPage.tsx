@@ -36,6 +36,7 @@ import {
   type LearningObjective,
 } from '@/hooks/useLearning';
 import { OpenFormInput } from '@/components/OpenFormInput';
+import type { EvaluationResultWithBloom } from '@/components/OpenFormInput';
 import { ObjectivesView } from '@/components/ObjectivesView';
 import { apiService } from '@/lib/apiService';
 import {
@@ -157,7 +158,7 @@ export default function QuizPage() {
   const [openFormSubmitted, setOpenFormSubmitted] = useState(false);
   const [openFormSaving, setOpenFormSaving] = useState(false);
   const [openFormEvaluationResult, setOpenFormEvaluationResult] = useState<
-    { score: number; sufficient: boolean; reasoning: string } | null
+    EvaluationResultWithBloom | null
   >(null);
   const [openFormStateIds, setOpenFormStateIds] = useState<string[]>([]);
   const [growthMilestone, setGrowthMilestone] = useState<string | null>(null);

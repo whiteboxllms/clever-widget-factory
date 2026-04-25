@@ -12,7 +12,7 @@
  * Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -21,6 +21,13 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Collapsible,
   CollapsibleContent,
@@ -32,6 +39,7 @@ import {
   useApproveSkillProfile,
   useDeleteSkillProfile,
 } from '@/hooks/useSkillProfile';
+import { useMemberSettings } from '@/hooks/useMemberSettings';
 import type { SkillProfile } from '@/hooks/useSkillProfile';
 import type { BaseAction } from '@/types/actions';
 import { apiService, getApiData } from '@/lib/apiService';
@@ -127,8 +135,15 @@ export function SkillProfilePanel({ action, userId, organizationId }: SkillProfi
   const minAxes = aiConfig?.min_axes ?? AI_CONFIG_DEFAULTS.min_axes;
   const maxAxes = aiConfig?.max_axes ?? AI_CONFIG_DEFAULTS.max_axes;
 
+  // Fetch member settings for profile intents — Requirements: 4.3, 4.4
+  const { data: memberSettings } = useMemberSettings(userId, organizationId ?? undefined);
+  const profileIntents = memberSettings?.growth_intents ?? [];
+
   const approvedProfile = action.skill_profile as SkillProfile | null | undefined;
   const hasContext = !!(action.title || action.description || action.expected_state);
+
+  // Extract existing per-action intent from stored skill profile — Requirements: 1.7, 4.5
+  const existingIntent = approvedProfile?.growth_intent ?? null;
 
   // Determine panel state
   const panelState: 'empty' | 'preview' | 'approved' = previewProfile
@@ -139,7 +154,7 @@ export function SkillProfilePanel({ action, userId, organizationId }: SkillProfi
 
   // --- Handlers ---
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (growthIntent?: string) => {
     try {
       const result = await generateMutation.mutateAsync({
         action_id: action.id,
@@ -151,6 +166,7 @@ export function SkillProfilePanel({ action, userId, organizationId }: SkillProfi
           asset_name: action.asset?.name || undefined,
           required_tools: action.required_tools || undefined,
         },
+        growth_intent: growthIntent || undefined,
       });
       setPreviewProfile(result);
     } catch {
@@ -202,6 +218,8 @@ export function SkillProfilePanel({ action, userId, organizationId }: SkillProfi
             hasContext={hasContext}
             isLoading={generateMutation.isPending}
             onGenerate={handleGenerate}
+            profileIntents={profileIntents}
+            existingIntent={existingIntent}
           />
         )}
 
@@ -222,6 +240,7 @@ export function SkillProfilePanel({ action, userId, organizationId }: SkillProfi
                     generated_at: previewProfile.generated_at,
                   },
                   approved_by: userId,
+                  growth_intent: previewProfile.growth_intent || undefined,
                 });
                 setPreviewProfile(null);
                 toast({ title: 'Skill profile approved' });
@@ -255,21 +274,106 @@ function EmptyState({
   hasContext,
   isLoading,
   onGenerate,
+  profileIntents,
+  existingIntent,
 }: {
   hasContext: boolean;
   isLoading: boolean;
-  onGenerate: () => void;
+  onGenerate: (growthIntent: string) => void;
+  profileIntents: string[];
+  existingIntent: string | null;
 }) {
+  const [growthIntent, setGrowthIntent] = useState('');
+  const [isAutoFilled, setIsAutoFilled] = useState(false);
+
+  // Auto-fill logic — Requirements: 1.7, 4.3, 4.4, 4.5, 4.6, 4.7
+  // Priority: existingIntent > single profile intent > leave blank (multiple shows dropdown)
+  useEffect(() => {
+    if (existingIntent) {
+      // Highest priority: stored per-action intent
+      setGrowthIntent(existingIntent);
+      setIsAutoFilled(true);
+    } else if (profileIntents.length === 1) {
+      // Single profile intent: auto-fill
+      setGrowthIntent(profileIntents[0]);
+      setIsAutoFilled(true);
+    }
+    // Multiple intents: leave blank, user picks from dropdown
+    // No intents: leave blank
+  }, [existingIntent, profileIntents]);
+
+  const handleSelectIntent = (value: string) => {
+    setGrowthIntent(value);
+    setIsAutoFilled(true);
+  };
+
+  const handleClear = () => {
+    setGrowthIntent('');
+    setIsAutoFilled(false);
+  };
+
   return (
-    <div className="flex flex-col items-center gap-2 py-4 text-center">
-      <p className="text-sm text-muted-foreground">
+    <div className="flex flex-col items-center gap-3 py-4">
+      {/* Growth intent textarea — Requirements: 1.1, 1.2, 1.3 */}
+      <div className="w-full space-y-1.5">
+        <Label
+          htmlFor="growth-intent"
+          className="text-sm font-medium text-foreground"
+        >
+          What do you want to get better at through this work?
+        </Label>
+
+        {/* Profile intents dropdown — shown when multiple intents exist — Requirements: 4.3 */}
+        {profileIntents.length > 1 && (
+          <Select onValueChange={handleSelectIntent}>
+            <SelectTrigger className="text-sm">
+              <SelectValue placeholder="Choose from your saved intents…" />
+            </SelectTrigger>
+            <SelectContent>
+              {profileIntents.map((intent, index) => (
+                <SelectItem key={index} value={intent}>
+                  {intent}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        <Textarea
+          id="growth-intent"
+          value={growthIntent}
+          onChange={(e) => {
+            setGrowthIntent(e.target.value);
+            setIsAutoFilled(false);
+          }}
+          rows={2}
+          className="text-sm border-amber-200 bg-amber-50/50 focus-visible:ring-amber-300 placeholder:text-amber-400/70 dark:border-amber-800 dark:bg-amber-950/20 dark:placeholder:text-amber-600/50"
+          placeholder="e.g. I want to improve my leadership and trust-building skills"
+        />
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            Optional — describe a skill or area you'd like to develop. The action becomes your practice context.
+          </p>
+          {isAutoFilled && growthIntent && (
+            <button
+              type="button"
+              onClick={handleClear}
+              className="text-xs text-muted-foreground hover:text-foreground underline ml-2 shrink-0"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+
+      <p className="text-sm text-muted-foreground text-center">
         No skill profile yet. Generate one from the action context.
       </p>
       <Button
         variant="outline"
         size="sm"
         disabled={!hasContext || isLoading}
-        onClick={onGenerate}
+        onClick={() => onGenerate(growthIntent)}
       >
         {isLoading ? (
           <Loader2 className="h-4 w-4 mr-2 animate-spin" />

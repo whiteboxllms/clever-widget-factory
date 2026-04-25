@@ -496,6 +496,9 @@ export interface ParsedOpenFormState {
   evaluationStatus: 'pending' | 'sufficient' | 'insufficient' | 'error';
   continuousScore: number | null;
   reasoning: string | null;
+  demonstratedLevel?: number | null;
+  conceptDemonstrated?: string | null;
+  nextLevelHint?: string | null;
 }
 
 // --- Open-Form State Text Functions ---
@@ -572,40 +575,72 @@ export function parseOpenFormStateText(
 
   // Match: sufficient (score: 2.4). Reasoning text.
   // or:   insufficient (score: 1.2). Reasoning text.
+  // Optionally followed by: [bloom: level=N, demonstrated=..., nextHint=...]
   const evalPattern =
-    /^(sufficient|insufficient) \(score: ([\d.]+)\)\. (.+)\.$/s;
+    /^(sufficient|insufficient) \(score: ([\d.]+)\)\. (.+?)\.(?:\s*\[bloom: level=(\d+), demonstrated=(.*?), nextHint=(.*?)\])?$/s;
   const evalMatch = evaluationPart.match(evalPattern);
   if (!evalMatch) {
     return null;
   }
 
-  return {
+  const continuousScore = parseFloat(evalMatch[2]);
+  const result: ParsedOpenFormState = {
     objectiveText,
     questionType,
     questionText,
     responseText,
     idealAnswer,
     evaluationStatus: evalMatch[1] as 'sufficient' | 'insufficient',
-    continuousScore: parseFloat(evalMatch[2]),
+    continuousScore,
     reasoning: evalMatch[3],
   };
+
+  // Extract structured Bloom feedback fields if present
+  if (evalMatch[4] != null) {
+    result.demonstratedLevel = parseInt(evalMatch[4], 10);
+    result.conceptDemonstrated = (evalMatch[5] || '').replace(/\\]/g, ']');
+    result.nextLevelHint = (evalMatch[6] || '').replace(/\\]/g, ']');
+  } else {
+    // Fallback: derive demonstratedLevel from score for older states
+    result.demonstratedLevel = continuousScore >= 4.0 ? 5 : continuousScore >= 3.0 ? 4 : continuousScore >= 2.0 ? 3 : continuousScore >= 1.0 ? 2 : 1;
+    result.conceptDemonstrated = null;
+    result.nextLevelHint = null;
+  }
+
+  return result;
 }
 
 /**
  * Update an open-form state text with evaluation results.
  *
  * Replaces "Evaluation: pending." with the evaluation outcome:
- *   Evaluation: sufficient (score: 2.4). Reasoning summary.
- *   Evaluation: insufficient (score: 1.2). Reasoning summary.
+ *   Evaluation: sufficient (score: 2.4). Reasoning summary. [bloom: level=3, demonstrated=..., nextHint=...]
+ *   Evaluation: insufficient (score: 1.2). Reasoning summary. [bloom: level=2, demonstrated=..., nextHint=...]
  */
 export function appendEvaluationToStateText(
   stateText: string,
-  evaluation: { score: number; sufficient: boolean; reasoning: string }
+  evaluation: {
+    score: number;
+    sufficient: boolean;
+    reasoning: string;
+    demonstratedLevel?: number;
+    conceptDemonstrated?: string;
+    nextLevelHint?: string;
+  }
 ): string {
   const sufficiency = evaluation.sufficient ? 'sufficient' : 'insufficient';
+  let replacement = `Evaluation: ${sufficiency} (score: ${evaluation.score}). ${evaluation.reasoning}.`;
+
+  // Append structured Bloom feedback if available
+  if (evaluation.demonstratedLevel != null) {
+    const demonstrated = (evaluation.conceptDemonstrated || '').replace(/]/g, '\\]');
+    const nextHint = (evaluation.nextLevelHint || '').replace(/]/g, '\\]');
+    replacement += ` [bloom: level=${evaluation.demonstratedLevel}, demonstrated=${demonstrated}, nextHint=${nextHint}]`;
+  }
+
   return stateText.replace(
     /Evaluation: pending\.$/,
-    `Evaluation: ${sufficiency} (score: ${evaluation.score}). ${evaluation.reasoning}.`
+    replacement
   );
 }
 

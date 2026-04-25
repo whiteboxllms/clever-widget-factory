@@ -10,6 +10,7 @@ const { resolveLensConfig, buildLensPool } = require('/opt/nodejs/lensDefaults')
 const { filterCompletedKnowledgeStates, extractBestMatch, extractTopKMatches } = require('./evidenceUtils');
 const { distributeMatchesToObjectives, composeAxisAwareEmbeddingSource } = require('./objectiveMatchUtils');
 const { selectLenses, applyGapBoost, buildValuesLenses, buildLensPromptBlock, buildAssetContextBlock } = require('./lensUtils');
+const { scoreToBloomLevel } = require('/opt/nodejs/bloomUtils');
 
 const bedrock = new BedrockRuntimeClient({ region: process.env.BEDROCK_REGION || 'us-west-2' });
 const sqs = new SQSClient({ region: 'us-west-2' });
@@ -825,16 +826,32 @@ function parseOpenFormStateText(stateText) {
     };
   }
 
-  const evalPattern = /^(sufficient|insufficient) \(score: ([\d.]+)\)\. (.+)\.$/s;
+  // Match evaluation with optional [bloom: ...] suffix
+  const evalPattern = /^(sufficient|insufficient) \(score: ([\d.]+)\)\. (.+?)\.(?:\s*\[bloom: level=(\d+), demonstrated=(.*?), nextHint=(.*?)\])?$/s;
   const evalMatch = evaluationPart.match(evalPattern);
   if (!evalMatch) return null;
 
-  return {
+  const continuousScore = parseFloat(evalMatch[2]);
+  const result = {
     objectiveText, questionType, questionText, responseText, idealAnswer,
     evaluationStatus: evalMatch[1],
-    continuousScore: parseFloat(evalMatch[2]),
+    continuousScore,
     reasoning: evalMatch[3],
   };
+
+  // Extract structured Bloom feedback fields if present
+  if (evalMatch[4] != null) {
+    result.demonstratedLevel = parseInt(evalMatch[4], 10);
+    result.conceptDemonstrated = (evalMatch[5] || '').replace(/\\]/g, ']');
+    result.nextLevelHint = (evalMatch[6] || '').replace(/\\]/g, ']');
+  } else {
+    // Fallback: derive demonstratedLevel from score for older states
+    result.demonstratedLevel = scoreToBloomLevel(continuousScore);
+    result.conceptDemonstrated = null;
+    result.nextLevelHint = null;
+  }
+
+  return result;
 }
 
 /**
@@ -991,6 +1008,9 @@ async function handleQuizGenerate(actionId, body, organizationId) {
     if (!skillProfile || !skillProfile.approved_at) {
       return error('No approved skill profile found for this action', 404);
     }
+
+    // Read growth_intent from the skill profile JSONB (stored at approve time)
+    const growthIntent = skillProfile.growth_intent || null;
 
     // Find the target axis from the skill profile
     const targetAxis = skillProfile.axes.find(a => a.key === axisKey);
@@ -1176,7 +1196,8 @@ async function handleQuizGenerate(actionId, body, organizationId) {
         openFormStates,
         previousAnswers || [],
         lensBlock,
-        assetBlock
+        assetBlock,
+        growthIntent
       );
 
       validatedQuestions = validateOpenFormQuestions(questions, objectiveIds, questionType, bloomLevel);
@@ -1584,7 +1605,7 @@ No markdown, no code fences, no explanation outside the JSON.`;
  *
  * Requirements: 3.1, 6.3, 6.4, 6.5, 6.7
  */
-async function generateOpenFormQuizViaBedrock(action, targetAxis, objectives, questionType, bloomLevel, previousOpenFormStates, previousAnswers, lensBlock, assetBlock) {
+async function generateOpenFormQuizViaBedrock(action, targetAxis, objectives, questionType, bloomLevel, previousOpenFormStates, previousAnswers, lensBlock, assetBlock, growthIntent = null) {
   // Build question type instructions based on the current progression level
   const questionTypeInstructions = {
     bridging: `Generate a BRIDGING question for the entire axis. This is a single open-ended question asking the learner to connect the concepts they've learned to their specific action context. Example framing: "Now that you've reviewed these concepts, what from this area do you see as worth adopting for this action, and why?"
@@ -1636,7 +1657,88 @@ Focus on creative construction and integration of knowledge.`,
     `  - ID: ${obj.id}\n    Objective: ${obj.text}`
   ).join('\n');
 
-  const prompt = `You are an expert learning assessment designer. Generate open-form quiz questions with ideal reference answers to assess a person's understanding at a specific Bloom's taxonomy level.
+  // Determine if we should use the teach-apply prompt path
+  const useTeachApply = growthIntent && typeof growthIntent === 'string' && growthIntent.trim().length > 0;
+
+  // Build the teach-apply instruction block when growth intent is present
+  const teachApplyBlock = useTeachApply
+    ? `
+GROWTH INTENT: ${growthIntent.trim().substring(0, 500)}
+
+TEACH-THEN-APPLY FORMAT:
+This learner has stated a growth direction. Each question MUST follow the teach-then-apply pattern:
+1. TEACH: Present a real concept, framework, or research finding relevant to the growth intent and the skill axis. Name the concept and its author/originator. This is a short teaching moment — 1-2 sentences introducing the idea.
+2. APPLY: Then ask the learner how they would apply this concept to their specific action context (described above). The action is the practice ground, not the learning subject.
+
+The ideal answer should demonstrate the taught concept applied to the action context.
+
+For each question, you MUST also generate:
+- "conceptName": the name of the concept/framework being taught (e.g., "Trust Equation", "Active Listening Model", "Situational Leadership")
+- "conceptAuthor": the author or originator of the concept (e.g., "Maister", "Rogers", "Hersey & Blanchard"). Use null if no specific author is attributable.
+
+Example teach-apply question: "The Trust Equation (Maister) defines trust as (Credibility + Reliability + Intimacy) / Self-Orientation. Considering your team coordination work, how would you reduce self-orientation in your next interaction with a stakeholder who has concerns about the project timeline?"
+`
+    : '';
+
+  const prompt = useTeachApply
+    ? `You are an expert learning designer who teaches concepts through real-world application. Generate open-form quiz questions that TEACH a concept first, then ask the learner to APPLY it to their work context.
+
+ACTION CONTEXT (the learner's practice ground — where they apply what they learn):
+- Title: ${action.title || 'Untitled'}
+- Description: ${action.description || 'No description'}
+- Expected Outcome (S'): ${action.expected_state || 'Not specified'}
+
+SKILL AXIS: ${targetAxis.label} (${targetAxis.key})
+${targetAxis.description ? `Axis Description: ${targetAxis.description}` : ''}
+
+QUESTION TYPE: ${questionType} (Bloom's Level ${bloomLevel})
+${typeInstruction}
+${teachApplyBlock}
+LEARNING OBJECTIVES TO COVER:
+${objectivesSection}
+${previousResponsesSection}
+${wrongAnswersSection}
+${lensBlock ? '\n' + lensBlock + '\n' : ''}${assetBlock ? '\n' + assetBlock + '\n' : ''}
+HIGH-CEILING QUESTION DESIGN:
+- Each question must ask ONE clear thing. No compound questions, no "and also consider..." tacked on.
+- Keep questions short — the teaching moment is 1-2 sentences, the application prompt is 1-2 sentences.
+- The depth comes from the learner's answer, not the question's complexity.
+- Craft questions that are open-ended enough for responses ranging from basic recall to expert-level synthesis.
+- Avoid questions with a single correct answer or a narrow expected response.
+- Favor questions that invite depth of reasoning, not breadth of coverage. One focused angle, explored deeply.
+
+IDEAL ANSWER REFERENCE:
+- Generate a level 4–5 reference answer that demonstrates the taught concept applied to the action context with expert-level reasoning.
+- The evaluator uses this to score across the full 0–5 continuum, so the reference must represent the ceiling, not the floor.
+
+INSTRUCTIONS:
+1. ${questionType === 'bridging' ? 'Generate ONE bridging question for the entire axis (not per objective). Pick the first objective ID as the objectiveId.' : 'Generate one question per learning objective.'}
+2. Each question MUST teach a real concept/framework first, then ask the learner to apply it.
+3. For each question, generate an IDEAL REFERENCE ANSWER based on the taught concept applied to the action context.
+4. The ideal answer should be thorough but concise (2-4 sentences for self_explanation, 3-5 sentences for application/analysis/synthesis).
+5. The ideal answer should model the kind of thinking expected at this Bloom's level:
+   - Self-Explanation: Clear "why" reasoning showing understanding of the taught concept
+   - Application: Specific transfer of the taught concept to the action context with reasoning
+   - Analysis: Explicit comparison of the taught concept with alternatives, evaluating tradeoffs
+   - Synthesis: Coherent design integrating the taught concept with other frameworks
+6. Questions should be growth-oriented — frame them as learning opportunities, not tests.
+7. If previous responses were insufficient, teach a different concept that approaches the same objective from a new angle.
+
+Return ONLY a JSON object with:
+{
+  "questions": [
+    {
+      "objectiveId": "<objective_id from the list above>",
+      "text": "<teach concept first, then ask to apply>",
+      "idealAnswer": "<ideal reference answer based on taught concept applied to action context>",
+      "conceptName": "<name of the concept/framework taught>",
+      "conceptAuthor": "<author/originator of the concept, or null>"
+    }
+  ]
+}
+
+No markdown, no code fences, no explanation outside the JSON.`
+    : `You are an expert learning assessment designer. Generate open-form quiz questions with ideal reference answers to assess a person's understanding at a specific Bloom's taxonomy level.
 
 ACTION CONTEXT:
 - Title: ${action.title || 'Untitled'}
@@ -1760,6 +1862,8 @@ function validateOpenFormQuestions(questions, requestedObjectiveIds, questionTyp
       options: null,
       correctIndex: null,
       idealAnswer: idealAnswer,
+      conceptName: (q.conceptName && typeof q.conceptName === 'string' && q.conceptName.trim()) ? q.conceptName.trim() : null,
+      conceptAuthor: (q.conceptAuthor && typeof q.conceptAuthor === 'string' && q.conceptAuthor.trim()) ? q.conceptAuthor.trim() : null,
     });
   }
 
@@ -1828,7 +1932,7 @@ function validateQuizQuestions(questions, requestedObjectiveIds) {
  * Requirements: 3.5, 3.6, 7.1, 7.2, 7.3, 7.4, 7.5
  */
 async function handleEvaluate(actionId, body, organizationId, aiConfig) {
-  const { stateId, responseText, idealAnswer, questionType, objectiveText, questionText } = body;
+  const { stateId, responseText, idealAnswer, questionType, objectiveText, questionText, growthIntent, conceptName, conceptAuthor } = body;
 
   // Validate required fields
   if (!stateId || !responseText || !idealAnswer || !questionType || !objectiveText || !questionText) {
@@ -1889,7 +1993,7 @@ async function handleEvaluate(actionId, body, organizationId, aiConfig) {
     // Call Bedrock to evaluate the response
     let evaluation;
     try {
-      evaluation = await callBedrockForEvaluation(responseText, idealAnswer, questionType, objectiveText, questionText, aiConfig);
+      evaluation = await callBedrockForEvaluation(responseText, idealAnswer, questionType, objectiveText, questionText, aiConfig, growthIntent || null, conceptName || null, conceptAuthor || null);
     } catch (bedrockErr) {
       console.error('Bedrock evaluation failed for state', stateId, ':', bedrockErr.message);
 
@@ -2005,13 +2109,26 @@ async function handleEvaluationStatus(actionId, userId, organizationId, queryPar
       }
 
       if (parsed.evaluationStatus === 'sufficient' || parsed.evaluationStatus === 'insufficient') {
-        return {
+        const evalResult = {
           stateId,
           status: 'evaluated',
           score: parsed.continuousScore,
           sufficient: parsed.evaluationStatus === 'sufficient',
           reasoning: parsed.reasoning,
         };
+
+        // Include structured Bloom feedback fields when available
+        if (parsed.demonstratedLevel != null) {
+          evalResult.demonstratedLevel = parsed.demonstratedLevel;
+        }
+        if (parsed.conceptDemonstrated != null) {
+          evalResult.conceptDemonstrated = parsed.conceptDemonstrated;
+        }
+        if (parsed.nextLevelHint != null) {
+          evalResult.nextLevelHint = parsed.nextLevelHint;
+        }
+
+        return evalResult;
       }
 
       return { stateId, status: 'unknown' };
@@ -2025,14 +2142,36 @@ async function handleEvaluationStatus(actionId, userId, organizationId, queryPar
 
 /**
  * Call Bedrock to evaluate an open-form response against the ideal answer.
- * Returns { score, sufficient, reasoning } with score on a continuous Bloom's scale [0.0, 5.0].
+ * Returns { score, sufficient, reasoning, demonstratedLevel, conceptDemonstrated, nextLevelHint }
+ * with score on a continuous Bloom's scale [0.0, 5.0].
+ *
+ * When growthIntent is present with conceptName/conceptAuthor, the evaluation prompt includes
+ * concept-aware context assessing how well the learner understood and applied the taught concept.
+ * When growthIntent is absent, existing evaluation behavior is preserved.
+ *
+ * For ALL evaluations, structured Bloom feedback fields are requested and returned.
+ * Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 6.6, 6.7, 6.8
  */
-async function callBedrockForEvaluation(responseText, idealAnswer, questionType, objectiveText, questionText, aiConfig) {
+async function callBedrockForEvaluation(responseText, idealAnswer, questionType, objectiveText, questionText, aiConfig, growthIntent = null, conceptName = null, conceptAuthor = null) {
   if (!aiConfig) {
     aiConfig = resolveAiConfig(null);
   }
 
   const bloomLevel = questionTypeToBloomLevel(questionType);
+
+  // Build concept-aware context block when growth intent is active
+  let conceptContextBlock = '';
+  if (growthIntent && conceptName) {
+    const authorRef = conceptAuthor ? ` (${conceptAuthor})` : '';
+    conceptContextBlock = `
+GROWTH INTENT: ${growthIntent}
+CONCEPT BEING ASSESSED: ${conceptName}${authorRef}
+
+CONCEPT-AWARE EVALUATION:
+- Assess how well the learner understood the taught concept "${conceptName}" and applied it to the action context.
+- The learner was taught this concept as part of their self-directed growth intent. Evaluate whether they grasped the core idea and could connect it to their work.
+`;
+  }
 
   const prompt = `You are an expert learning evaluator. Assess a learner's open-form response against an ideal answer, scoring on a continuous Bloom's taxonomy scale.
 
@@ -2040,7 +2179,7 @@ LEARNING OBJECTIVE: ${objectiveText}
 
 QUESTION TYPE: ${questionType} (Bloom's Level ${bloomLevel})
 QUESTION: ${questionText}
-
+${conceptContextBlock}
 LEARNER'S RESPONSE:
 ${responseText}
 
@@ -2063,18 +2202,26 @@ EVALUATION INSTRUCTIONS:
 
 4. Provide a brief reasoning summary (1-2 sentences) explaining what the response demonstrates and any gaps.
 
+5. Provide structured Bloom's feedback:
+   - "demonstratedLevel": integer 1-5 indicating the Bloom's taxonomy level the response reached (1=Remember, 2=Understand, 3=Apply, 4=Analyze, 5=Create).
+   - "conceptDemonstrated": a second-person summary of what the learner showed they understand or can do (e.g., "You showed you can apply the concept by..."). Keep it to 1-2 sentences.
+   - "nextLevelHint": when demonstratedLevel is below 5, describe what the next Bloom's level would look like for this topic (e.g., "To reach Analyze: compare this approach with an alternative and evaluate tradeoffs"). When demonstratedLevel is 5, return an empty string "".
+
 Return ONLY a JSON object with:
 {
   "score": <decimal 0.0-5.0>,
   "sufficient": <true|false>,
-  "reasoning": "<1-2 sentence explanation>"
+  "reasoning": "<1-2 sentence explanation>",
+  "demonstratedLevel": <integer 1-5>,
+  "conceptDemonstrated": "<what the learner showed>",
+  "nextLevelHint": "<hint for next level, or empty string if level 5>"
 }
 
 No markdown, no code fences, no explanation outside the JSON.`;
 
   const payload = {
     anthropic_version: 'bedrock-2023-05-31',
-    max_tokens: 500,
+    max_tokens: 800,
     temperature: aiConfig.quiz_temperature,
     messages: [{ role: 'user', content: prompt }]
   };
@@ -2119,16 +2266,55 @@ No markdown, no code fences, no explanation outside the JSON.`;
     ? parsed.reasoning.trim()
     : 'Evaluation completed';
 
-  return { score, sufficient, reasoning };
+  // Derive demonstratedLevel: use Bedrock's value if valid, otherwise fall back to scoreToBloomLevel
+  let demonstratedLevel = parseInt(parsed.demonstratedLevel, 10);
+  if (isNaN(demonstratedLevel) || demonstratedLevel < 1 || demonstratedLevel > 5) {
+    demonstratedLevel = scoreToBloomLevel(score);
+  }
+
+  // Derive conceptDemonstrated: use Bedrock's value if present, otherwise generate a generic fallback
+  const conceptDemonstrated = typeof parsed.conceptDemonstrated === 'string' && parsed.conceptDemonstrated.trim().length > 0
+    ? parsed.conceptDemonstrated.trim()
+    : `You demonstrated ${bloomLevelToLabel(demonstratedLevel)}-level thinking in your response.`;
+
+  // Derive nextLevelHint: use Bedrock's value if present, otherwise generate a generic fallback
+  let nextLevelHint;
+  if (demonstratedLevel >= 5) {
+    nextLevelHint = '';
+  } else if (typeof parsed.nextLevelHint === 'string' && parsed.nextLevelHint.trim().length > 0) {
+    nextLevelHint = parsed.nextLevelHint.trim();
+  } else {
+    const nextLabel = bloomLevelToLabel(demonstratedLevel + 1);
+    nextLevelHint = `To reach ${nextLabel}: deepen your response to show ${nextLabel.toLowerCase()}-level thinking.`;
+  }
+
+  return { score, sufficient, reasoning, demonstratedLevel, conceptDemonstrated, nextLevelHint };
+}
+/**
+ * Map a Bloom's level integer (1-5) to its human-readable label.
+ * Used as a local fallback for generating generic feedback text.
+ */
+function bloomLevelToLabel(level) {
+  const labels = { 1: 'Remember', 2: 'Understand', 3: 'Apply', 4: 'Analyze', 5: 'Create' };
+  return labels[level] || 'Unknown';
 }
 
 /**
  * Server-side equivalent of appendEvaluationToStateText.
  * Replaces "Evaluation: pending." with the evaluation result.
+ * Includes structured Bloom feedback fields when available.
  */
 function appendEvaluationToStateTextServer(stateText, evaluation) {
   const sufficiency = evaluation.sufficient ? 'sufficient' : 'insufficient';
-  const replacement = `Evaluation: ${sufficiency} (score: ${evaluation.score}). ${evaluation.reasoning}.`;
+  let replacement = `Evaluation: ${sufficiency} (score: ${evaluation.score}). ${evaluation.reasoning}.`;
+
+  // Append structured Bloom feedback if available
+  if (evaluation.demonstratedLevel != null) {
+    const demonstrated = (evaluation.conceptDemonstrated || '').replace(/]/g, '\\]');
+    const nextHint = (evaluation.nextLevelHint || '').replace(/]/g, '\\]');
+    replacement += ` [bloom: level=${evaluation.demonstratedLevel}, demonstrated=${demonstrated}, nextHint=${nextHint}]`;
+  }
+
   return stateText.replace('Evaluation: pending.', replacement);
 }
 
@@ -2480,3 +2666,10 @@ exports.extractTopKMatches = extractTopKMatches;
 exports.selectLenses = selectLenses;
 exports.applyGapBoost = applyGapBoost;
 exports.buildValuesLenses = buildValuesLenses;
+
+// Re-export quiz generation functions for testing
+exports.generateOpenFormQuizViaBedrock = generateOpenFormQuizViaBedrock;
+exports.validateOpenFormQuestions = validateOpenFormQuestions;
+
+// Re-export evaluation function for testing
+exports.callBedrockForEvaluation = callBedrockForEvaluation;

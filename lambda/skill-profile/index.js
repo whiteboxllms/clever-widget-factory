@@ -75,7 +75,7 @@ exports.handler = async (event) => {
  */
 async function handleGenerate(event, organizationId) {
   const body = JSON.parse(event.body || '{}');
-  const { action_id, action_context } = body;
+  const { action_id, action_context, growth_intent } = body;
 
   if (!action_id) {
     return error('action_id is required', 400);
@@ -91,6 +91,9 @@ async function handleGenerate(event, organizationId) {
     return error('Insufficient context to generate skill profile. Add a title, description, or expected state.', 400);
   }
 
+  // Extract optional growth intent (Requirement 1.4, 2.1)
+  const growthIntent = (typeof growth_intent === 'string' ? growth_intent.trim() : '') || null;
+
   // Fetch organization AI config (falls back to defaults on error or missing config)
   const db = await getDbClient();
   let aiConfig;
@@ -100,7 +103,7 @@ async function handleGenerate(event, organizationId) {
     db.release();
   }
 
-  const prompt = buildSkillProfilePrompt(ctx, false, aiConfig);
+  const prompt = buildSkillProfilePrompt(ctx, false, aiConfig, growthIntent);
 
   let profile;
   try {
@@ -113,7 +116,7 @@ async function handleGenerate(event, organizationId) {
   // Validate the AI response structure; retry once with a stricter prompt if malformed
   if (!isValidSkillProfile(profile, aiConfig)) {
     console.warn('First attempt returned malformed profile, retrying with stricter prompt');
-    const stricterPrompt = buildSkillProfilePrompt(ctx, true, aiConfig);
+    const stricterPrompt = buildSkillProfilePrompt(ctx, true, aiConfig, growthIntent);
     try {
       profile = await callBedrockForSkillProfile(stricterPrompt);
     } catch (err) {
@@ -133,12 +136,18 @@ async function handleGenerate(event, organizationId) {
 
 /**
  * Build the prompt for Bedrock Claude to generate a skill profile.
+ * When growthIntent is provided, switches to concept-axis generation where the action
+ * becomes a "practice ground" and axes are shaped by the learner's growth direction.
+ * When growthIntent is absent, uses the existing action-driven prompt unchanged.
+ *
  * @param {Object} ctx - Action context
  * @param {boolean} strict - Whether to use a stricter prompt (retry)
  * @param {Object|null} aiConfig - Resolved AI config (uses defaults if null)
+ * @param {string|null} growthIntent - Optional growth intent text from the learner
  * @returns {string}
+ * Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6
  */
-function buildSkillProfilePrompt(ctx, strict = false, aiConfig = null) {
+function buildSkillProfilePrompt(ctx, strict = false, aiConfig = null, growthIntent = null) {
   if (!aiConfig) {
     aiConfig = resolveAiConfig(null);
   }
@@ -158,7 +167,9 @@ function buildSkillProfilePrompt(ctx, strict = false, aiConfig = null) {
     ? `\nCRITICAL: You MUST return EXACTLY ${aiConfig.min_axes} to ${aiConfig.max_axes} axes. Each required_level MUST be an INTEGER between 0 and 5 inclusive. Do NOT return fewer than ${aiConfig.min_axes} or more than ${aiConfig.max_axes} axes. Do NOT return levels outside 0-5. Failure to comply will cause an error.`
     : '';
 
-  return `You are a skill assessment expert. Analyze the following action context and produce a JSON skill requirements profile.
+  // Requirement 2.6: When no growth intent, use existing action-driven prompt unchanged
+  if (!growthIntent || !growthIntent.trim()) {
+    return `You are a skill assessment expert. Analyze the following action context and produce a JSON skill requirements profile.
 
 Action Context:
 ${actionContext}
@@ -182,6 +193,43 @@ Produce a JSON object with these fields:
 3. "generated_at": The current UTC timestamp in ISO 8601 format.
 
 The axes should be specific to THIS action — different actions should surface different skill dimensions.
+${strictClause}
+Respond with ONLY the JSON object, no markdown formatting, no code fences, no explanation.`;
+  }
+
+  // Requirements 2.1, 2.2, 2.3, 2.4, 2.5: Growth intent present — concept-axis generation prompt
+  return `You are a learning design expert. A learner has stated a growth direction and is about to work on a specific action. Your job is to generate a concept-driven skill profile that uses the action as a practice ground for the learner's growth intent.
+
+Growth Intent (what the learner wants to get better at):
+${growthIntent.trim()}
+
+Action Context (the practice ground — a concrete situation to apply learning to):
+${actionContext}
+
+INSTRUCTIONS:
+- The action is NOT the learning subject. It is the practice ground where the learner will apply concepts from their growth intent.
+- Generate ${aiConfig.min_axes} to ${aiConfig.max_axes} concept axes shaped by the growth intent. Each axis should represent a distinct concept area the learner can explore.
+- Ground each axis in real frameworks, research, or established concepts relevant to the growth intent (e.g., for "trust building": Trust Equation by Maister, Psychological Safety by Edmondson, Active Listening by Rogers).
+- Each axis should be a distinct concept area — do not overlap or repeat the same idea under different names.
+- The narrative should explain how the growth intent connects to the action context and what the learner will explore across the axes.
+
+SKILL LEVEL SCALE (Bloom's Taxonomy — use integers 0-5):
+  0 = No exposure needed
+  1 = Remember — can recall facts and follow documented procedures
+  2 = Understand — can explain why the procedure works, not just how
+  3 = Apply — can use knowledge in new situations without step-by-step guidance
+  4 = Analyze — can break down problems, evaluate tradeoffs between approaches
+  5 = Create — can innovate new approaches, teach others, set standards
+
+Most concept axes for growth-intent profiles should be level 2-3 (understanding and applying concepts). Use level 4-5 only for advanced synthesis or leadership concepts.
+
+Produce a JSON object with these fields:
+1. "narrative": A 2-4 sentence description of how the growth intent connects to the action context and what the learner will explore. Frame the action as a practice ground for applying the concepts.
+2. "axes": An array of ${aiConfig.min_axes} to ${aiConfig.max_axes} concept axes, each with:
+   - "key": A snake_case identifier (e.g., "trust_building_frameworks")
+   - "label": A human-readable label (e.g., "Trust Building Frameworks")
+   - "required_level": An INTEGER from 0 to 5 using the Bloom's scale above. Be realistic — most axes should be 2-3.
+3. "generated_at": The current UTC timestamp in ISO 8601 format.
 ${strictClause}
 Respond with ONLY the JSON object, no markdown formatting, no code fences, no explanation.`;
 }
@@ -260,7 +308,7 @@ function isValidSkillProfile(profile, aiConfig = null) {
  */
 async function handleApprove(event, organizationId) {
   const body = JSON.parse(event.body || '{}');
-  const { action_id, skill_profile, approved_by } = body;
+  const { action_id, skill_profile, approved_by, growth_intent } = body;
 
   if (!action_id) {
     return error('action_id is required', 400);
@@ -286,9 +334,11 @@ async function handleApprove(event, organizationId) {
     return error(`Invalid skill profile structure: requires non-empty narrative, generated_at, and ${aiConfig.min_axes}-${aiConfig.max_axes} axes each with non-empty key, label, and required_level in [0, 5]`, 400);
   }
 
-  // Add approval metadata to the profile
+  // Add approval metadata and growth intent to the profile (Requirements 1.5, 1.6)
   const approvedProfile = {
     ...skill_profile,
+    growth_intent: growth_intent && typeof growth_intent === 'string' && growth_intent.trim() ? growth_intent.trim() : null,
+    growth_intent_provided: !!(growth_intent && typeof growth_intent === 'string' && growth_intent.trim()),
     approved_at: new Date().toISOString(),
     approved_by
   };
@@ -476,3 +526,4 @@ async function handleDelete(actionId, organizationId) {
 exports.composeAxisEmbeddingSource = composeAxisEmbeddingSource;
 exports.composeAxisEntityId = composeAxisEntityId;
 exports.parseAxisEntityId = parseAxisEntityId;
+exports.buildSkillProfilePrompt = buildSkillProfilePrompt;

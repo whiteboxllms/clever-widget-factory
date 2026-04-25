@@ -1105,59 +1105,52 @@ async function handleQuizGenerate(actionId, body, organizationId) {
     let lensBlock = '';
     let assetBlock = '';
 
-    try {
-      // Fetch organization settings (strategic_attributes) and ai_config (lens_config)
-      const orgResult = await db.query(
-        `SELECT settings, ai_config FROM organizations WHERE id = '${orgIdSafe}'`
-      );
-      const orgRow = orgResult.rows?.[0];
-      const strategicAttributes = orgRow?.settings?.strategic_attributes || [];
-      const rawLensConfig = orgRow?.ai_config?.lens_config || null;
+    // Fetch organization settings (strategic_attributes) and ai_config (lens_config)
+    const orgResult = await db.query(
+      `SELECT settings, ai_config FROM organizations WHERE id = '${orgIdSafe}'`
+    );
+    const orgRow = orgResult.rows?.[0];
+    const strategicAttributes = orgRow?.settings?.strategic_attributes || [];
+    const rawLensConfig = orgRow?.ai_config?.lens_config || null;
 
-      // Resolve lens config and build the full lens pool
-      const resolvedLensConfig = resolveLensConfig(rawLensConfig);
-      const lensPool = buildLensPool(resolvedLensConfig, strategicAttributes);
+    // Resolve lens config and build the full lens pool
+    const resolvedLensConfig = resolveLensConfig(rawLensConfig);
+    const lensPool = buildLensPool(resolvedLensConfig, strategicAttributes);
 
-      // Fetch capability gap for the target axis (fall back to null on error)
-      let capabilityGap = null;
-      try {
-        const cachedProfileResult = await db.query(
-          `SELECT s.state_text
-           FROM states s
-           INNER JOIN state_links sl ON sl.state_id = s.id
-           WHERE sl.entity_type = 'capability_profile'
-             AND sl.entity_id = '${actionIdSafe}'
-             AND s.captured_by = 'organization'
-             AND s.state_text LIKE '[capability_profile]%'
-             AND s.organization_id = '${orgIdSafe}'
-           LIMIT 1`
-        );
+    // Fetch capability gap for the target axis from the current user's profile
+    let capabilityGap = null;
+    const cachedProfileResult = await db.query(
+      `SELECT s.state_text
+       FROM states s
+       INNER JOIN state_links sl ON sl.state_id = s.id
+       WHERE sl.entity_type = 'capability_profile'
+         AND sl.entity_id = '${actionIdSafe}'
+         AND s.captured_by = '${userIdSafe}'
+         AND s.state_text LIKE '[capability_profile]%'
+         AND s.organization_id = '${orgIdSafe}'
+       ORDER BY s.captured_at DESC
+       LIMIT 1`
+    );
 
-        if (cachedProfileResult.rows?.length > 0) {
-          const stateText = cachedProfileResult.rows[0].state_text;
-          const pipeIndex = stateText.indexOf(' | ');
-          if (pipeIndex !== -1) {
-            const profileJson = JSON.parse(stateText.substring(pipeIndex + 3));
-            const axisData = profileJson.axes?.find(a => a.key === axisKey);
-            if (axisData && typeof axisData.level === 'number' && typeof targetAxis.required_level === 'number') {
-              capabilityGap = targetAxis.required_level - axisData.level;
-            }
-          }
+    if (cachedProfileResult.rows?.length > 0) {
+      const stateText = cachedProfileResult.rows[0].state_text;
+      const pipeIndex = stateText.indexOf(' | ');
+      if (pipeIndex !== -1) {
+        const profileJson = JSON.parse(stateText.substring(pipeIndex + 3));
+        const axisData = profileJson.axes?.find(a => a.key === axisKey);
+        if (axisData && typeof axisData.level === 'number' && typeof targetAxis.required_level === 'number') {
+          capabilityGap = targetAxis.required_level - axisData.level;
         }
-      } catch (gapErr) {
-        console.warn('Warning: Failed to fetch capability gap for lens boost, proceeding without gap boost:', gapErr.message);
       }
-
-      // Select 2–3 lenses via weighted random sampling with optional gap boost
-      const selectedLenses = selectLenses(lensPool, capabilityGap, resolvedLensConfig.gap_boost_rules);
-      lensBlock = buildLensPromptBlock(selectedLenses);
-
-      // Fetch cross-domain asset context for enriched prompts
-      const assetDescriptions = await fetchAssetContext(db, actionId, axisKey, organizationId);
-      assetBlock = buildAssetContextBlock(assetDescriptions);
-    } catch (lensErr) {
-      console.warn('Warning: Failed to build lens/asset context, proceeding without:', lensErr.message);
     }
+
+    // Select 2–3 lenses via weighted random sampling with optional gap boost
+    const selectedLenses = selectLenses(lensPool, capabilityGap, resolvedLensConfig.gap_boost_rules);
+    lensBlock = buildLensPromptBlock(selectedLenses);
+
+    // Fetch cross-domain asset context for enriched prompts
+    const assetDescriptions = await fetchAssetContext(db, actionId, axisKey, organizationId);
+    assetBlock = buildAssetContextBlock(assetDescriptions);
 
     // 9. Generate questions based on the derived question type
     let validatedQuestions;

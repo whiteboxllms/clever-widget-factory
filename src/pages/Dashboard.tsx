@@ -12,9 +12,10 @@ import { useOrganization } from '@/hooks/useOrganization';
 import { OrganizationSwitcher } from '@/components/OrganizationSwitcher';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useQueryClient } from '@tanstack/react-query';
-import { actionsQueryKey, toolsQueryKey } from '@/lib/queryKeys';
+import { actionsQueryKey } from '@/lib/queryKeys';
 import { apiService } from '@/lib/apiService';
 import { offlineQueryConfig } from '@/lib/queryConfig';
+import { toolsQueryConfig, partsQueryConfig } from '@/lib/assetQueryConfigs';
 import { useEffect } from 'react';
 
 export default function Dashboard() {
@@ -41,20 +42,12 @@ export default function Dashboard() {
     });
     // Tools
     queryClient.prefetchQuery({
-      queryKey: toolsQueryKey(),
-      queryFn: async () => {
-        const result = await apiService.get('/tools?limit=2000');
-        return result.data || [];
-      },
+      ...toolsQueryConfig,
       ...offlineQueryConfig,
     });
     // Parts
     queryClient.prefetchQuery({
-      queryKey: ['parts'],
-      queryFn: async () => {
-        const result = await apiService.get('/parts?limit=2000');
-        return result.data || [];
-      },
+      ...partsQueryConfig,
       ...offlineQueryConfig,
     });
   }, [queryClient, user]);

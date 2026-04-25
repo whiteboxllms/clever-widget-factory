@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Search, Plus, X, Package } from "lucide-react";
+import { partsQueryConfig } from '@/lib/assetQueryConfigs';
 
 import { useToast } from "@/hooks/use-toast";
 
@@ -37,7 +38,7 @@ export function StockSelector({ selectedStock, onStockChange, onStockClick }: St
   // Subscribe to parts cache (populated by useCombinedAssets) without triggering a fetch.
   // enabled:false prevents any network request; we only read what's already cached.
   const { data: allParts = [] } = useQuery<any[]>({
-    queryKey: ['parts'],
+    ...partsQueryConfig,
     enabled: false,
   });
   const loading = false;

@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useWebSocket } from './useWebSocket';
 import {
   toolsQueryKey,
+  partsQueryKey,
   actionsQueryKey,
   completedActionsQueryKey,
   allActionsQueryKey,
@@ -41,7 +42,7 @@ export function useCacheInvalidation() {
           break;
 
         case 'part':
-          queryClient.invalidateQueries({ queryKey: ['parts'] });
+          queryClient.invalidateQueries({ queryKey: partsQueryKey() });
           break;
 
         case 'action':

@@ -10,6 +10,7 @@ export const explorationQueryKey = (explorationId: number) => ['exploration', ex
 export const explorationByActionIdQueryKey = (actionId: string) => ['exploration_by_action', actionId];
 
 export const toolsQueryKey = () => ['tools'];
+export const partsQueryKey = () => ['parts'];
 
 export const checkoutsQueryKey = (isReturned?: boolean) => [
   'checkouts',

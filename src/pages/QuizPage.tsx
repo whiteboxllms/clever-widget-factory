@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Textarea } from '@/components/ui/textarea';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +28,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/useCognitoAuth';
+import { useToast } from '@/hooks/use-toast';
 import {
   useLearningObjectives,
   useQuizGeneration,
@@ -37,11 +39,12 @@ import {
 } from '@/hooks/useLearning';
 import { OpenFormInput } from '@/components/OpenFormInput';
 import type { EvaluationResultWithBloom } from '@/components/OpenFormInput';
-import { ObjectivesView } from '@/components/ObjectivesView';
 import { apiService } from '@/lib/apiService';
 import {
   composeKnowledgeStateText,
   composeOpenFormStateText,
+  composeLearningTakeawayStateText,
+  appendTakeawayToPolicy,
   isQuizComplete,
   getIncompleteObjectives,
   computeQuizSummary,
@@ -58,7 +61,6 @@ import type { BaseAction } from '@/types/actions';
 // --- Types ---
 
 type QuizState =
-  | 'objectives_selection'
   | 'generating'
   | 'quiz_in_progress'
   | 'round_complete'
@@ -134,7 +136,7 @@ export default function QuizPage() {
   }, [learningData, axisKey]);
 
   // --- Quiz state ---
-  const [quizState, setQuizState] = useState<QuizState>('objectives_selection');
+  const [quizState, setQuizState] = useState<QuizState>('generating');
   const [selectedObjectiveIds, setSelectedObjectiveIds] = useState<string[]>(
     []
   );
@@ -164,6 +166,12 @@ export default function QuizPage() {
   const [growthMilestone, setGrowthMilestone] = useState<string | null>(null);
   const previousQuestionTypeRef = useRef<QuestionType | null>(null);
 
+  // --- Takeaway capture state ---
+  const [takeawayText, setTakeawayText] = useState('');
+  const [isSavingTakeaway, setIsSavingTakeaway] = useState(false);
+  const [takeawaySaved, setTakeawaySaved] = useState(false);
+  const { toast } = useToast();
+
   // --- Quiz generation mutation ---
   const quizGeneration = useQuizGeneration();
 
@@ -189,6 +197,12 @@ export default function QuizPage() {
     if (!currentQuestion || currentQuestion.correctIndex === null) return false;
     const selection = currentSelections.get(currentQuestion.correctIndex);
     return selection?.wasFirstAttempt === true;
+  }, [currentQuestion, currentSelections]);
+
+  // Has the correct answer been found (any attempt)?
+  const hasFoundCorrect = useMemo(() => {
+    if (!currentQuestion || currentQuestion.correctIndex === null) return false;
+    return currentSelections.has(currentQuestion.correctIndex);
   }, [currentQuestion, currentSelections]);
 
   // Has any selection been made on the current question?
@@ -340,6 +354,17 @@ export default function QuizPage() {
     },
     [generateQuiz]
   );
+
+  // --- Auto-start quiz when objectives load (skip selection screen) ---
+  const hasAutoStarted = useRef(false);
+  useEffect(() => {
+    if (hasAutoStarted.current) return;
+    if (isLoadingObjectives || axisObjectives.length === 0) return;
+
+    hasAutoStarted.current = true;
+    const allIds = axisObjectives.map((o) => o.id);
+    handleStartQuiz(allIds);
+  }, [isLoadingObjectives, axisObjectives, handleStartQuiz]);
 
   // --- Answer selection (Recognition questions) ---
   const handleSelectOption = useCallback(
@@ -628,6 +653,56 @@ export default function QuizPage() {
     [allAnswers]
   );
 
+  // --- Takeaway save handler ---
+  const handleSaveTakeaway = useCallback(async () => {
+    if (!actionId || !axisKey || !userId || !takeawayText.trim()) return;
+
+    setIsSavingTakeaway(true);
+    try {
+      // 1. Create state with [learning_takeaway] prefix
+      await apiService.post('/states', {
+        state_text: composeLearningTakeawayStateText(axisKey, actionId, userId, takeawayText.trim()),
+        links: [{ entity_type: 'action', entity_id: actionId }],
+      });
+
+      // 2. Read current action policy from TanStack Query cache
+      const unresolved = queryClient.getQueryData<BaseAction[]>(actionsQueryKey()) ?? [];
+      const completed = queryClient.getQueryData<BaseAction[]>(completedActionsQueryKey()) ?? [];
+      const cachedAction = unresolved.find((a) => a.id === actionId)
+        ?? completed.find((a) => a.id === actionId)
+        ?? null;
+      const currentPolicy = cachedAction?.policy ?? null;
+
+      // 3. Build updated policy
+      const updatedPolicy = appendTakeawayToPolicy(currentPolicy, takeawayText.trim());
+
+      // 4. Persist updated policy via PUT
+      await apiService.put(`/actions/${actionId}`, { policy: updatedPolicy });
+
+      // 5. Optimistically update the action in the TanStack Query cache
+      const updateActionInList = (old: BaseAction[] | undefined) =>
+        old?.map((a) =>
+          a.id === actionId ? { ...a, policy: updatedPolicy } : a
+        );
+      queryClient.setQueryData<BaseAction[]>(actionsQueryKey(), updateActionInList);
+      queryClient.setQueryData<BaseAction[]>(completedActionsQueryKey(), updateActionInList);
+
+      // 6. Clear textarea and show success feedback
+      setTakeawayText('');
+      setTakeawaySaved(true);
+      setTimeout(() => setTakeawaySaved(false), 2000);
+    } catch (err) {
+      console.error('Failed to save takeaway:', err);
+      toast({
+        title: 'Failed to save takeaway',
+        description: 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingTakeaway(false);
+    }
+  }, [actionId, axisKey, userId, takeawayText, queryClient, toast]);
+
   // --- Render ---
 
   if (!actionId || !axisKey) {
@@ -667,35 +742,17 @@ export default function QuizPage() {
       </header>
 
       <main className="max-w-2xl mx-auto p-4 space-y-4">
-        {/* Objectives Selection */}
-        {quizState === 'objectives_selection' && (
-          <>
-            {isLoadingObjectives ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  Loading objectives…
-                </p>
-              </div>
-            ) : axisObjectives.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-3">
-                <AlertCircle className="h-8 w-8 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  No learning objectives found for this axis.
-                </p>
-                <Button variant="outline" onClick={handleBack}>
-                  Back to action
-                </Button>
-              </div>
-            ) : (
-              <ObjectivesView
-                objectives={axisObjectives}
-                axisLabel={axisLabel}
-                onStartQuiz={handleStartQuiz}
-                isLoading={quizGeneration.isPending}
-              />
-            )}
-          </>
+        {/* No objectives found */}
+        {!isLoadingObjectives && axisObjectives.length === 0 && quizState === 'generating' && (
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
+            <AlertCircle className="h-8 w-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              No learning objectives found for this axis.
+            </p>
+            <Button variant="outline" onClick={handleBack}>
+              Back to action
+            </Button>
+          </div>
         )}
 
         {/* Generating */}
@@ -771,6 +828,7 @@ export default function QuizPage() {
                 question={currentQuestion}
                 selections={currentSelections}
                 hasCorrectFirstAttempt={hasCorrectFirstAttempt}
+                hasFoundCorrect={hasFoundCorrect}
                 hasAnySelection={hasAnySelection}
                 isSaving={isSavingAnswer}
                 onSelectOption={handleSelectOption}
@@ -811,6 +869,43 @@ export default function QuizPage() {
                 questions correctly on the first attempt.
               </p>
             </div>
+
+            {/* Takeaway Capture Section */}
+            <div className="w-full max-w-md space-y-3 text-left">
+              <h3 className="text-sm font-semibold">Takeaways</h3>
+              <p className="text-sm text-muted-foreground">
+                Did you come up with anything you want to incorporate into the action plan?
+              </p>
+              <Textarea
+                value={takeawayText}
+                onChange={(e) => setTakeawayText(e.target.value)}
+                placeholder="Write your takeaway here…"
+                className="min-h-[80px]"
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleSaveTakeaway}
+                  disabled={!takeawayText.trim() || isSavingTakeaway}
+                >
+                  {isSavingTakeaway ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                      Saving…
+                    </>
+                  ) : (
+                    'Save'
+                  )}
+                </Button>
+                {takeawaySaved && (
+                  <span className="text-sm text-green-600 flex items-center gap-1">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Saved!
+                  </span>
+                )}
+              </div>
+            </div>
+
             <Button asChild>
               <Link to={`/actions/${actionId}`}>
                 <ArrowLeft className="h-4 w-4 mr-2" />
@@ -850,6 +945,7 @@ interface QuestionViewProps {
   question: QuizQuestion;
   selections: Map<number, AnswerSelection>;
   hasCorrectFirstAttempt: boolean;
+  hasFoundCorrect: boolean;
   hasAnySelection: boolean;
   isSaving: boolean;
   onSelectOption: (index: number) => void;
@@ -860,6 +956,7 @@ function QuestionView({
   question,
   selections,
   hasCorrectFirstAttempt,
+  hasFoundCorrect,
   hasAnySelection,
   isSaving,
   onSelectOption,
@@ -970,8 +1067,8 @@ function QuestionView({
         </Card>
       )}
 
-      {/* Next button — shown after correct answer (first attempt or explored) */}
-      {hasCorrectFirstAttempt && (
+      {/* Next button — shown after correct answer is found */}
+      {hasFoundCorrect && (
         <Button
           onClick={onNext}
           disabled={isSaving}

@@ -69,6 +69,24 @@ export function useCacheInvalidation() {
           queryClient.invalidateQueries({ queryKey: [experiencesQueryKey()[0]] });
           break;
 
+        case 'checkout':
+        case 'checkin':
+          // Checkouts/checkins change tool status (is_checked_out, checked_out_to, etc.)
+          // so we need to invalidate both the tools cache and the checkouts cache.
+          queryClient.invalidateQueries({ queryKey: toolsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: ['checkouts'] });
+          break;
+
+        case 'state':
+          // States (observations) — invalidate any key starting with 'states'
+          queryClient.invalidateQueries({ queryKey: [statesQueryKey()[0]] });
+          break;
+
+        case 'policy':
+          // Policies are managed within explorations — invalidate explorations cache
+          queryClient.invalidateQueries({ queryKey: explorationsQueryKey() });
+          break;
+
         default:
           console.warn(`[useCacheInvalidation] Unknown entityType: "${entityType}", skipping invalidation`);
           break;

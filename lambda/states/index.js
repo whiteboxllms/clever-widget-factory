@@ -88,7 +88,7 @@ async function resolveAndQueueEmbedding(stateId, organizationId) {
 const headers = {
   'Content-Type': 'application/json',
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id',
+  'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id,X-Connection-Id',
   'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
 };
 
@@ -183,8 +183,8 @@ async function listStates(event, authContext, headers) {
       LEFT JOIN organization_members om ON s.captured_by = om.user_id
       LEFT JOIN state_links sl ON s.id = sl.state_id
       WHERE ${whereClause}${entityFilter}
-        AND s.state_text NOT LIKE '[learning_objective]%'
-        AND s.state_text NOT LIKE '[capability_profile]%'
+        AND (s.state_text IS NULL OR s.state_text NOT LIKE '[learning_objective]%')
+        AND (s.state_text IS NULL OR s.state_text NOT LIKE '[capability_profile]%')
       GROUP BY s.id, s.organization_id, s.state_text, s.captured_by, s.captured_at, s.created_at, s.updated_at, om.full_name
       ORDER BY s.captured_at DESC
     `;

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, AlertCircle, RefreshCw, BarChart3, AlertTriangle, CircleMinus, CheckCircle2, CircleDot, BookOpen, GraduationCap, ChevronDown } from 'lucide-react';
+import { Loader2, AlertCircle, RefreshCw, AlertTriangle, CircleMinus, CheckCircle2, CircleDot, BookOpen, GraduationCap, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -488,15 +488,9 @@ export function CapabilityAssessment({ action }: CapabilityAssessmentProps) {
   }, [involvedUserIds, action.id, queryClient, refetchLearning]);
 
   // --- Empty state: no approved skill profile ---
+  // Don't render anything — SkillProfilePanel already handles the empty/generate flow.
   if (!hasApprovedSkillProfile || !skillProfile) {
-    return (
-      <div className="flex flex-col items-center justify-center py-8 text-center">
-        <BarChart3 className="h-10 w-10 text-muted-foreground/50 mb-3" />
-        <p className="text-sm text-muted-foreground">
-          No skill profile available. Generate and approve a skill profile to see target growth areas.
-        </p>
-      </div>
-    );
+    return null;
   }
 
   // --- Loading state ---

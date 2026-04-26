@@ -400,6 +400,13 @@ export interface ParsedLearningObjectiveStateText {
   objectiveText: string;
 }
 
+export interface ParsedLearningTakeaway {
+  axisKey: string;
+  actionId: string;
+  userId: string;
+  takeawayText: string;
+}
+
 export interface ParsedKnowledgeStateText {
   objectiveText: string;
   questionText: string;
@@ -447,6 +454,131 @@ export function parseLearningObjectiveStateText(
     objectiveText: match[4],
   };
 }
+
+/**
+ * Compose a learning takeaway state_text in the canonical format:
+ *   [learning_takeaway] axis=<key> action=<id> user=<id> | <text>
+ *
+ * The [learning_takeaway] prefix and metadata allow querying takeaways by type.
+ * The human-readable text after the pipe separator is the actual takeaway.
+ */
+export function composeLearningTakeawayStateText(
+  axisKey: string,
+  actionId: string,
+  userId: string,
+  takeawayText: string
+): string {
+  return `[learning_takeaway] axis=${axisKey} action=${actionId} user=${userId} | ${takeawayText}`;
+}
+
+/**
+ * Parse a learning takeaway state_text, extracting the axis key, action ID,
+ * user ID, and takeaway text from the canonical format.
+ *
+ * Returns null if the format doesn't match (does not throw).
+ */
+export function parseLearningTakeawayStateText(
+  stateText: string
+): ParsedLearningTakeaway | null {
+  const match = stateText.match(
+    /^\[learning_takeaway\] axis=(\S+) action=(\S+) user=(\S+) \| (.+)$/
+  );
+  if (!match) {
+    return null;
+  }
+  return {
+    axisKey: match[1],
+    actionId: match[2],
+    userId: match[3],
+    takeawayText: match[4],
+  };
+}
+
+// --- Policy Append Helpers ---
+
+/**
+ * Escape HTML special characters in a string to prevent XSS
+ * when embedding user-provided text into HTML content.
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/**
+ * Append a takeaway to an action's policy HTML.
+ *
+ * If the policy is empty/blank (null, undefined, empty string, or TipTap
+ * empty-editor placeholders), sets the takeaway as the initial content.
+ * Adds a 📝 prefix to visually distinguish appended takeaways.
+ *
+ * The takeaway text is HTML-escaped before embedding in the paragraph tag.
+ */
+export function appendTakeawayToPolicy(
+  currentPolicy: string | null | undefined,
+  takeawayText: string
+): string {
+  const takeawayHtml = `<p>📝 ${escapeHtml(takeawayText)}</p>`;
+  const trimmed = (currentPolicy || '').trim();
+  const isEmpty = !trimmed
+    || trimmed === '<p></p>'
+    || trimmed === '<p><br></p>'
+    || trimmed === '<p>&nbsp;</p>';
+
+  if (isEmpty) {
+    return takeawayHtml;
+  }
+  return `${trimmed}${takeawayHtml}`;
+}
+
+// --- Copy Context Helpers ---
+
+/**
+ * Strip HTML tags from a string, returning plain text.
+ * Uses DOMParser for safe, accurate HTML-to-text conversion.
+ */
+export function stripHtmlToPlainText(html: string): string {
+  if (!html) return '';
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return doc.body.textContent || '';
+}
+
+/**
+ * Build a formatted plain text block for clipboard copy.
+ * Includes action context fields and learning takeaways.
+ * Only includes sections for non-empty fields.
+ * Omits "Takeaways:" section entirely when takeaways array is empty.
+ */
+export function buildCopyContextText(
+  action: {
+    title?: string;
+    description?: string;
+    expected_state?: string;
+    policy?: string;
+  },
+  takeaways: string[]
+): string {
+  const sections: string[] = [];
+
+  if (action.title) sections.push(`Title: ${action.title}`);
+  if (action.description) sections.push(`Description: ${action.description}`);
+  if (action.expected_state) sections.push(`Expected State: ${action.expected_state}`);
+
+  const policyText = stripHtmlToPlainText(action.policy || '');
+  if (policyText.trim()) sections.push(`Current Policy:\n${policyText}`);
+
+  if (takeaways.length > 0) {
+    sections.push(`Takeaways:\n${takeaways.map(t => `- ${t}`).join('\n')}`);
+  }
+
+  return sections.join('\n\n');
+}
+
+// --- Knowledge State Format Functions ---
 
 /**
  * Compose a knowledge state state_text in the canonical format:

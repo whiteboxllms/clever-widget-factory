@@ -51,7 +51,14 @@ import {
   RefreshCw,
   Loader2,
   Brain,
+  Info,
 } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 // --- AI Config types and defaults (match AiConfigCard / backend) ---
 
@@ -313,15 +320,27 @@ function EmptyState({
   };
 
   return (
-    <div className="flex flex-col items-center gap-3 py-4">
+    <div className="flex flex-col items-center gap-3 py-2">
       {/* Growth intent textarea — Requirements: 1.1, 1.2, 1.3 */}
       <div className="w-full space-y-1.5">
-        <Label
-          htmlFor="growth-intent"
-          className="text-sm font-medium text-foreground"
-        >
-          What do you want to get better at through this work?
-        </Label>
+        <div className="flex items-center gap-1.5">
+          <Label
+            htmlFor="growth-intent"
+            className="text-sm font-medium text-foreground"
+          >
+            What do you want to get better at?
+          </Label>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-[260px]">
+                <p>Optional — describe a skill or area you'd like to develop. The action becomes your practice context.</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
 
         {/* Profile intents dropdown — shown when multiple intents exist — Requirements: 4.3 */}
         {profileIntents.length > 1 && (
@@ -339,26 +358,23 @@ function EmptyState({
           </Select>
         )}
 
-        <Textarea
-          id="growth-intent"
-          value={growthIntent}
-          onChange={(e) => {
-            setGrowthIntent(e.target.value);
-            setIsAutoFilled(false);
-          }}
-          rows={2}
-          className="text-sm border-amber-200 bg-amber-50/50 focus-visible:ring-amber-300 placeholder:text-amber-400/70 dark:border-amber-800 dark:bg-amber-950/20 dark:placeholder:text-amber-600/50"
-          placeholder="e.g. I want to improve my leadership and trust-building skills"
-        />
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">
-            Optional — describe a skill or area you'd like to develop. The action becomes your practice context.
-          </p>
+        <div className="flex items-center gap-1.5">
+          <Textarea
+            id="growth-intent"
+            value={growthIntent}
+            onChange={(e) => {
+              setGrowthIntent(e.target.value);
+              setIsAutoFilled(false);
+            }}
+            rows={2}
+            className="text-sm border-amber-200 bg-amber-50/50 focus-visible:ring-amber-300 placeholder:text-amber-400/70 dark:border-amber-800 dark:bg-amber-950/20 dark:placeholder:text-amber-600/50"
+            placeholder="e.g. I want to improve my leadership and trust-building skills"
+          />
           {isAutoFilled && growthIntent && (
             <button
               type="button"
               onClick={handleClear}
-              className="text-xs text-muted-foreground hover:text-foreground underline ml-2 shrink-0"
+              className="text-xs text-muted-foreground hover:text-foreground underline shrink-0"
             >
               Clear
             </button>
@@ -366,9 +382,6 @@ function EmptyState({
         </div>
       </div>
 
-      <p className="text-sm text-muted-foreground text-center">
-        No skill profile yet. Generate one from the action context.
-      </p>
       <Button
         variant="outline"
         size="sm"

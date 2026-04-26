@@ -16,7 +16,23 @@ const bedrock = new BedrockRuntimeClient({ region: process.env.BEDROCK_REGION ||
 const sqs = new SQSClient({ region: 'us-west-2' });
 const EMBEDDINGS_QUEUE_URL = 'https://sqs.us-west-2.amazonaws.com/131745734428/cwf-embeddings-queue';
 
-const OBJECTIVE_MODEL_ID = 'us.anthropic.claude-sonnet-4-20250514-v1:0';
+// --- Model Configuration ---
+// Switch models by setting env vars MODEL_REASONING / MODEL_FAST on the Lambda.
+//
+// Available models (us-west-2 cross-region inference):
+//   Haiku 4.5  — us.anthropic.claude-haiku-4-5-20251001-v1:0   ($1/$5 per MTok,  fastest)
+//   Haiku 3.5  — us.anthropic.claude-3-5-haiku-20241022-v1:0   ($0.80/$4 per MTok, fast)
+//   Sonnet 4.6 — us.anthropic.claude-sonnet-4-6                ($3/$15 per MTok,  fast)
+//   Sonnet 4   — us.anthropic.claude-sonnet-4-20250514-v1:0    ($3/$15 per MTok,  moderate)
+//
+// Reasoning model: evaluation, capability scoring, objective generation (nuanced judgment)
+const MODEL_REASONING = process.env.MODEL_REASONING || 'us.anthropic.claude-sonnet-4-20250514-v1:0';
+//
+// Fast model: quiz question generation (structured JSON, speed > depth)
+const MODEL_FAST = process.env.MODEL_FAST || 'anthropic.claude-3-5-haiku-20241022-v1:0';
+
+// Legacy alias — points to reasoning model for backward compatibility
+const OBJECTIVE_MODEL_ID = MODEL_REASONING;
 
 const success = (data) => successResponse({ data });
 const error = (message, statusCode = 500) => errorResponse(statusCode, message);
@@ -979,6 +995,7 @@ function computeRecencyWeight(capturedAt) {
  */
 async function handleQuizGenerate(actionId, body, organizationId) {
   const { userId, axisKey, objectiveIds, previousAnswers } = body;
+  const t0 = Date.now();
 
   // Validate required fields
   if (!userId || !axisKey || !objectiveIds || !Array.isArray(objectiveIds) || objectiveIds.length === 0) {
@@ -1148,9 +1165,15 @@ async function handleQuizGenerate(actionId, body, organizationId) {
     const selectedLenses = selectLenses(lensPool, capabilityGap, resolvedLensConfig.gap_boost_rules);
     lensBlock = buildLensPromptBlock(selectedLenses);
 
+    const tDbDone = Date.now();
+    console.log(`[TIMING] DB queries + lens selection: ${tDbDone - t0}ms`);
+
     // Fetch cross-domain asset context for enriched prompts
     const assetDescriptions = await fetchAssetContext(db, actionId, axisKey, organizationId);
     assetBlock = buildAssetContextBlock(assetDescriptions);
+
+    const tAssetDone = Date.now();
+    console.log(`[TIMING] fetchAssetContext (vector search): ${tAssetDone - tDbDone}ms`);
 
     // 9. Generate questions based on the derived question type
     let validatedQuestions;
@@ -1195,6 +1218,10 @@ async function handleQuizGenerate(actionId, body, organizationId) {
 
       validatedQuestions = validateOpenFormQuestions(questions, objectiveIds, questionType, bloomLevel);
     }
+
+    const tBedrockDone = Date.now();
+    console.log(`[TIMING] Bedrock quiz generation (${MODEL_FAST}): ${tBedrockDone - tAssetDone}ms`);
+    console.log(`[TIMING] Total handleQuizGenerate: ${tBedrockDone - t0}ms (db=${tDbDone - t0}ms, asset=${tAssetDone - tDbDone}ms, bedrock=${tBedrockDone - tAssetDone}ms)`);
 
     return success({ questions: validatedQuestions });
   } finally {
@@ -1560,13 +1587,14 @@ No markdown, no code fences, no explanation outside the JSON.`;
 
   const payload = {
     anthropic_version: 'bedrock-2023-05-31',
-    max_tokens: 4000,
+    max_tokens: 2000,
     temperature: 0.7,
     messages: [{ role: 'user', content: prompt }]
   };
 
+  console.log(`[MODEL] generateQuizViaBedrock using: ${MODEL_FAST}, prompt=${prompt.length} chars`);
   const command = new InvokeModelCommand({
-    modelId: OBJECTIVE_MODEL_ID,
+    modelId: MODEL_FAST,
     body: JSON.stringify(payload),
     contentType: 'application/json',
     accept: 'application/json'
@@ -1793,8 +1821,9 @@ No markdown, no code fences, no explanation outside the JSON.`;
     messages: [{ role: 'user', content: prompt }]
   };
 
+  console.log(`[MODEL] generateOpenFormQuizViaBedrock using: ${MODEL_FAST}`);
   const command = new InvokeModelCommand({
-    modelId: OBJECTIVE_MODEL_ID,
+    modelId: MODEL_FAST,
     body: JSON.stringify(payload),
     contentType: 'application/json',
     accept: 'application/json'
@@ -2007,7 +2036,7 @@ async function handleEvaluate(actionId, body, organizationId, aiConfig) {
         headers: {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+          'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id,X-Connection-Id',
           'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
         },
         body: JSON.stringify({ message: 'Evaluation queued' })
@@ -2032,7 +2061,7 @@ async function handleEvaluate(actionId, body, organizationId, aiConfig) {
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id,X-Connection-Id',
         'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
       },
       body: JSON.stringify({ message: 'Evaluation queued' })

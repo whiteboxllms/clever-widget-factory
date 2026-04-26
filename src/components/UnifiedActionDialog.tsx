@@ -58,6 +58,8 @@ import { cn, sanitizeRichText, getActionBorderStyle } from "@/lib/utils";
 import { BaseAction, Profile, ActionCreationContext } from "@/types/actions";
 import { autoCheckinToolsForAction, activatePlannedCheckoutsIfNeeded } from '@/lib/autoToolCheckout';
 import { generateActionUrl, copyToClipboard } from "@/lib/urlUtils";
+import { useStates } from "@/hooks/useStates";
+import { parseLearningTakeawayStateText, buildCopyContextText } from "@/lib/learningUtils";
 import { aiContentService } from "@/services/aiContentService";
 import { useActionObservationCount } from "@/hooks/useActionObservationCount";
 import { PrismIcon } from "@/components/icons/PrismIcon";
@@ -272,6 +274,9 @@ export function UnifiedActionDialog({
 
   // Derive observation count from TanStack cache (preferred over database count)
   const derivedObservationCount = useActionObservationCount(action?.id || '');
+
+  // Fetch states for the action to extract learning takeaways for Copy Context
+  const { data: actionStates } = useStates({ entity_type: 'action', entity_id: action?.id });
 
   const preferName = (value?: string | null) => {
     if (!value) return null;
@@ -617,6 +622,43 @@ export function UnifiedActionDialog({
       toast({
         title: "Could not copy automatically",
         description: actionUrl,
+        duration: 10000,
+      });
+    }
+  };
+
+  // Copy action context and learning takeaways to clipboard for external AI tools
+  const handleCopyContext = async () => {
+    const actionFields = {
+      title: formData.title as string | undefined,
+      description: formData.description as string | undefined,
+      expected_state: formData.expected_state as string | undefined,
+      policy: formData.policy as string | undefined,
+    };
+
+    // Filter fetched states for [learning_takeaway] prefix and extract takeaway texts
+    const takeawayTexts: string[] = [];
+    if (actionStates && Array.isArray(actionStates)) {
+      for (const state of actionStates) {
+        const parsed = parseLearningTakeawayStateText(state.state_text || '');
+        if (parsed) {
+          takeawayTexts.push(parsed.takeawayText);
+        }
+      }
+    }
+
+    const text = buildCopyContextText(actionFields, takeawayTexts);
+    const success = await copyToClipboard(text);
+
+    if (success) {
+      toast({
+        title: "Context copied!",
+        description: "Action context and takeaways copied to clipboard",
+      });
+    } else {
+      toast({
+        title: "Could not copy automatically",
+        description: text,
         duration: 10000,
       });
     }
@@ -1089,15 +1131,15 @@ export function UnifiedActionDialog({
             </div>
           </div>
           {isCreating && (
-            <DialogDescription>Create a new action with details and assignments</DialogDescription>
+            <DialogDescription className="sr-only">Create a new action</DialogDescription>
           )}
         </DialogHeader>
         
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Issue Reference Display */}
           {showIssueReference() && (
-            <div className="bg-muted p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
+            <div className="bg-muted p-3 rounded-lg">
+              <div className="flex items-center gap-2 mb-1">
                 <AlertCircle className="h-4 w-4" />
                 <h4 className="font-semibold text-sm">Linked Issue Reference</h4>
               </div>
@@ -1109,8 +1151,8 @@ export function UnifiedActionDialog({
 
           {/* Mission Context Display */}
           {missionData && (
-            <div className="bg-primary/5 border border-primary/20 p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
+            <div className="bg-primary/5 border border-primary/20 p-3 rounded-lg">
+              <div className="flex items-center gap-2 mb-1">
                 <Flag className="h-4 w-4 text-primary" />
                 <h4 className="font-semibold text-sm">Project Context</h4>
               </div>
@@ -1121,7 +1163,7 @@ export function UnifiedActionDialog({
                 <p className="text-sm text-muted-foreground">
                   {missionData.problem_statement}
                 </p>
-                <div className="flex items-center gap-2 mt-2">
+                <div className="flex items-center gap-2 mt-1">
                   <Badge variant="secondary" className="text-xs">
                     {missionData.status}
                   </Badge>
@@ -1207,7 +1249,7 @@ export function UnifiedActionDialog({
 
           {/* Assigned To, Participants, and Estimated Completion Date */}
           {/* Assigned To and Participants Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
               <Label htmlFor="assignedTo" className="text-sm font-medium break-words">
                 Assigned To
@@ -1267,7 +1309,7 @@ export function UnifiedActionDialog({
 
           {/* Plan Commitment Toggle - Only show when assigned and user is leadership */}
           {formData.assigned_to && formData.assigned_to !== 'unassigned' && isLeadership && (
-            <div className="pt-2 border-t border-border">
+            <div className="pt-1 border-t border-border">
                 <div className="flex items-start space-x-3">
                   <Switch
                     id="plan-commitment"
@@ -1371,7 +1413,7 @@ export function UnifiedActionDialog({
             )}
 
           {/* Assets and Stock Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
             {/* Assets */}
             <div className="space-y-2">
               <Label className="flex items-center gap-1 break-words">
@@ -1410,21 +1452,33 @@ export function UnifiedActionDialog({
               <div>
                 <div className="flex items-center justify-between">
                   <Label className="text-foreground">Action Policy</Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={generateAISummaryPolicy}
-                    disabled={isGeneratingAI || (!formData.description && !formData.policy)}
-                    className="h-7 px-2 text-xs"
-                  >
-                    {isGeneratingAI ? (
-                      <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent mr-1" />
-                    ) : (
-                      <Sparkles className="h-3 w-3 mr-1" />
-                    )}
-                    AI Assist
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCopyContext}
+                      className="h-7 px-2 text-xs"
+                    >
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copy Context
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={generateAISummaryPolicy}
+                      disabled={isGeneratingAI || (!formData.description && !formData.policy)}
+                      className="h-7 px-2 text-xs"
+                    >
+                      {isGeneratingAI ? (
+                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent mr-1" />
+                      ) : (
+                        <Sparkles className="h-3 w-3 mr-1" />
+                      )}
+                      AI Assist
+                    </Button>
+                  </div>
                 </div>
                 <div className="mt-2 border rounded-lg">
                  <TiptapEditor

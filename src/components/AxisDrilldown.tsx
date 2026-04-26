@@ -91,9 +91,11 @@ function EvidenceCard({ evidence }: { evidence: ObservationEvidence }) {
           <ExternalLink className="h-3 w-3 flex-shrink-0" />
           <span className="truncate">{evidence.action_title}</span>
         </a>
-        <Badge variant={relevanceVariant(evidence.relevance_score)} className="flex-shrink-0 text-xs">
-          {relevanceLabel(evidence.relevance_score)} ({formatLevel(evidence.relevance_score)})
-        </Badge>
+        {evidence.relevance_score != null && !isNaN(evidence.relevance_score) && (
+          <Badge variant={relevanceVariant(evidence.relevance_score)} className="flex-shrink-0 text-xs">
+            {relevanceLabel(evidence.relevance_score)} ({formatLevel(evidence.relevance_score)})
+          </Badge>
+        )}
       </div>
 
       {/* Text excerpt */}
@@ -104,7 +106,7 @@ function EvidenceCard({ evidence }: { evidence: ObservationEvidence }) {
       )}
 
       {/* Thumbnail photos */}
-      {evidence.photo_urls.length > 0 && (
+      {evidence.photo_urls && evidence.photo_urls.length > 0 && (
         <div className="flex gap-2 overflow-x-auto">
           {evidence.photo_urls.map((url, idx) => {
             const thumbSrc = getThumbnailUrl(url) || getImageUrl(url) || url;

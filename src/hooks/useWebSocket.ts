@@ -245,6 +245,14 @@ async function connectWebSocket(forceTokenRefresh = false) {
 
 // --- Hook ---
 
+/**
+ * Returns the current WebSocket connection ID (if connected).
+ * Can be called outside of React components (e.g. from apiService).
+ */
+export function getWebSocketConnectionId(): string | null {
+  return singletonConnectionId;
+}
+
 export function useWebSocket(): UseWebSocketReturn {
   const [status, setLocalStatus] = useState<ConnectionStatus>(singletonStatus);
   const [connectionId, setLocalConnectionId] = useState<string | null>(singletonConnectionId);

@@ -38,6 +38,16 @@ export interface BaseAction {
   participants?: string[];
   has_implementation_updates?: boolean; // Boolean flag from Lambda indicating if states exist
   
+  // Observation-based training fields
+  expected_state?: string | null; // Expected outcome (S') - where we want to get to
+  skill_profile?: {
+    narrative: string;
+    axes: { key: string; label: string; required_level: number }[];
+    generated_at: string;
+    approved_at?: string;
+    approved_by?: string;
+  } | null;
+  
   // Related objects (populated by joins)
   assignee?: {
     id: string;
@@ -89,6 +99,7 @@ export const createMissionAction = (missionId: string): Partial<BaseAction> => (
   status: 'not_started',
   title: '',
   description: '',
+  expected_state: '',
   state_text: '', // Logical field mapping
   policy: '',
   policy_text: '', // Logical field mapping
@@ -109,6 +120,7 @@ export const createIssueAction = (
   status: 'not_started',
   title: '',
   description: issueDescription || '',
+  expected_state: '',
   state_text: issueDescription || '', // Logical field mapping
   policy: '',
   policy_text: '', // Logical field mapping
@@ -126,6 +138,7 @@ export const createAssetAction = (assetId: string): Partial<BaseAction> => ({
   status: 'not_started',
   title: '',
   description: '',
+  expected_state: '',
   state_text: '', // Logical field mapping
   policy: '',
   policy_text: '', // Logical field mapping
@@ -141,6 +154,7 @@ export const createExplorationAction = (): Partial<BaseAction> => ({
   status: 'not_started',
   title: '',
   description: '',
+  expected_state: '',
   state_text: '', // What situation/problem/context are you exploring?
   policy: '',
   policy_text: '', // What policy/best practice are you following?

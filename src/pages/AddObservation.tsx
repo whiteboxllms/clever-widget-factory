@@ -135,15 +135,17 @@ export default function AddObservation() {
           p.file && !p.photo_url ? { ...p, isUploading: true } : p
         ));
 
-        const files = pendingPhotos.map(p => p.file!);
-        const results = await uploadFiles(files, { bucket: 'mission-attachments' });
-        const resultsArray = Array.isArray(results) ? results : [results];
-
-        pendingPhotos.forEach((photo, index) => {
-          if (resultsArray[index]) {
-            uploadedUrls.set(photo.id!, resultsArray[index].url);
+        // Upload pending photos one at a time to avoid mobile memory issues
+        for (const photo of pendingPhotos) {
+          try {
+            const result = await uploadFiles(photo.file!, { bucket: 'mission-attachments' });
+            const r = Array.isArray(result) ? result[0] : result;
+            uploadedUrls.set(photo.id!, r.url);
+          } catch (err) {
+            console.error('Failed to upload pending photo:', photo.file?.name, err);
+            // Continue with other photos
           }
-        });
+        }
 
         setPhotos(prev => prev.map(p => {
           const url = p.id ? uploadedUrls.get(p.id) : undefined;

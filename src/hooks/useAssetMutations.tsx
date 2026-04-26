@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/lib/apiService';
 import { offlineMutationConfig } from '@/lib/queryConfig';
-import { toolsQueryKey } from '@/lib/queryKeys';
+import { toolsQueryKey, partsQueryKey } from '@/lib/queryKeys';
 
 export function useAssetMutations() {
   const queryClient = useQueryClient();
@@ -48,12 +48,12 @@ export function useAssetMutations() {
       return result.data;
     },
     onMutate: async (newPart) => {
-      await queryClient.cancelQueries({ queryKey: ['parts'] });
-      const previousParts = queryClient.getQueryData(['parts']);
+      await queryClient.cancelQueries({ queryKey: partsQueryKey() });
+      const previousParts = queryClient.getQueryData(partsQueryKey());
       
       // Optimistically add the new part to cache
       const tempId = 'temp-' + Date.now();
-      queryClient.setQueryData(['parts'], (old: any[]) => 
+      queryClient.setQueryData(partsQueryKey(), (old: any[]) => 
         old ? [...old, { ...newPart, id: tempId, created_at: new Date().toISOString() }] : [{ ...newPart, id: tempId }]
       );
       
@@ -64,7 +64,7 @@ export function useAssetMutations() {
     },
     onError: (err, variables, context) => {
       if (context?.previousParts) {
-        queryClient.setQueryData(['parts'], context.previousParts);
+        queryClient.setQueryData(partsQueryKey(), context.previousParts);
       }
     },
     ...offlineMutationConfig,
@@ -76,20 +76,20 @@ export function useAssetMutations() {
       return result.data;
     },
     onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey: ['parts'] });
-      const previousParts = queryClient.getQueryData(['parts']);
-      queryClient.setQueryData(['parts'], (old: any[]) => 
+      await queryClient.cancelQueries({ queryKey: partsQueryKey() });
+      const previousParts = queryClient.getQueryData(partsQueryKey());
+      queryClient.setQueryData(partsQueryKey(), (old: any[]) => 
         old?.map(part => part.id === variables.id ? { ...part, ...variables.data } : part)
       );
       return { previousParts };
     },
     onError: (err, variables, context) => {
       if (context?.previousParts) {
-        queryClient.setQueryData(['parts'], context.previousParts);
+        queryClient.setQueryData(partsQueryKey(), context.previousParts);
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['parts'] });
+      queryClient.invalidateQueries({ queryKey: partsQueryKey() });
     },
     ...offlineMutationConfig,
   });
@@ -149,20 +149,20 @@ export function useAssetMutations() {
       return result.data;
     },
     onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: ['parts'] });
-      const previousParts = queryClient.getQueryData(['parts']);
-      queryClient.setQueryData(['parts'], (old: any[]) => 
+      await queryClient.cancelQueries({ queryKey: partsQueryKey() });
+      const previousParts = queryClient.getQueryData(partsQueryKey());
+      queryClient.setQueryData(partsQueryKey(), (old: any[]) => 
         old?.filter(part => part.id !== id)
       );
       return { previousParts };
     },
     onError: (err, id, context) => {
       if (context?.previousParts) {
-        queryClient.setQueryData(['parts'], context.previousParts);
+        queryClient.setQueryData(partsQueryKey(), context.previousParts);
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['parts'] });
+      queryClient.invalidateQueries({ queryKey: partsQueryKey() });
     },
     ...offlineMutationConfig,
   });

@@ -9,6 +9,7 @@
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { QueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
+import { getWebSocketConnectionId } from '@/hooks/useWebSocket';
 import { 
   toolsQueryKey, 
   actionsQueryKey,
@@ -217,6 +218,13 @@ async function apiRequest<T = any>(
     console.log('[apiService] Adding X-Organization-Id:', activeOrganizationId, url);
   } else if (activeOrganizationId && (options as any)?.skipOrgHeader) {
     console.log('[apiService] Skipping X-Organization-Id for:', url);
+  }
+
+  // Add X-Connection-Id header so the backend can exclude this client
+  // from WebSocket cache invalidation broadcasts (avoids redundant refetch)
+  const connectionId = getWebSocketConnectionId();
+  if (connectionId) {
+    (headers as Record<string, string>)['X-Connection-Id'] = connectionId;
   }
 
   // Make the request

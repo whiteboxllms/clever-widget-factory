@@ -29,6 +29,17 @@ export interface ExplorationSuggestionRequest {
   existing_metrics?: string;
 }
 
+export interface ExpectedStateRequest {
+  title: string;
+  description?: string;
+  asset_name?: string;
+  mission_title?: string;
+}
+
+export interface ExpectedStateResponse {
+  expected_state: string;
+}
+
 export interface PolicyDraftRequest {
   exploration_data: {
     exploration_code: string;
@@ -124,6 +135,55 @@ export class AIContentService {
         return this.generateFallbackSummaryPolicy(request);
       }
       
+      return null;
+    }
+  }
+
+  /**
+   * Generate expected state (S') text from action context
+   * Requirements: 1.4
+   */
+  async generateExpectedState(
+    request: ExpectedStateRequest
+  ): Promise<AIContentResponse<ExpectedStateResponse> | null> {
+    try {
+      const prompt = this.buildExpectedStatePrompt(request);
+
+      const response = await apiService.post(`${this.baseUrl}/generate-summary-policy`, {
+        prompt,
+        model: this.defaultModel,
+        max_tokens: 300,
+        temperature: 0.3,
+        context: {
+          type: 'expected_state_generation',
+          title: request.title,
+          description: request.description,
+          asset_name: request.asset_name,
+          mission_title: request.mission_title
+        }
+      });
+
+      if (!response.data || !response.data.content) {
+        if (this.fallbackEnabled) {
+          return this.generateFallbackExpectedState(request);
+        }
+        return null;
+      }
+
+      return {
+        content: this.parseExpectedStateResponse(response.data.content),
+        confidence: response.data.confidence || 0.8,
+        model_used: response.data.model || this.defaultModel,
+        generated_at: new Date().toISOString(),
+        context_used: ['title', 'description', 'asset_name', 'mission_title']
+      };
+    } catch (error) {
+      console.error('Failed to generate expected state:', error);
+
+      if (this.fallbackEnabled) {
+        return this.generateFallbackExpectedState(request);
+      }
+
       return null;
     }
   }
@@ -351,6 +411,29 @@ Format the response as JSON with the following structure:
 }`;
   }
 
+  private buildExpectedStatePrompt(request: ExpectedStateRequest): string {
+    const contextParts = [];
+    if (request.title) contextParts.push(`Action Title: ${request.title}`);
+    if (request.description) contextParts.push(`Current State/Description: ${request.description}`);
+    if (request.asset_name) contextParts.push(`Asset: ${request.asset_name}`);
+    if (request.mission_title) contextParts.push(`Project: ${request.mission_title}`);
+
+    return `Based on the following action context, describe the expected outcome — where we want to get to when this action is complete. Be specific, measurable, and concise (2-3 sentences).
+
+${contextParts.join('\n')}
+
+Requirements:
+- Describe the desired end state, not the process
+- Be specific about what "done" looks like
+- Include measurable or observable criteria when possible
+- Keep it concise and actionable
+
+Format the response as JSON:
+{
+  "expected_state": "Description of the expected outcome"
+}`;
+  }
+
   private parseSummaryPolicyResponse(content: string): SummaryPolicyResponse {
     try {
       const parsed = JSON.parse(content);
@@ -413,6 +496,19 @@ Format the response as JSON with the following structure:
     }
   }
 
+  private parseExpectedStateResponse(content: string): ExpectedStateResponse {
+    try {
+      const parsed = JSON.parse(content);
+      return {
+        expected_state: parsed.expected_state || ''
+      };
+    } catch (error) {
+      return {
+        expected_state: content.substring(0, 500)
+      };
+    }
+  }
+
   // Fallback methods for when AI service is unavailable
 
   private generateFallbackSummaryPolicy(request: SummaryPolicyRequest): AIContentResponse<SummaryPolicyResponse> {
@@ -460,6 +556,21 @@ Format the response as JSON with the following structure:
         safety_requirements: ['Use appropriate PPE', 'Follow safety guidelines'],
         documentation_requirements: ['Record all activities', 'Take photos when appropriate', 'Submit reports'],
         effective_conditions: ['When similar conditions exist', 'With proper training', 'With adequate resources']
+      },
+      confidence: 0.3,
+      model_used: 'fallback',
+      generated_at: new Date().toISOString(),
+      context_used: ['fallback_generation']
+    };
+  }
+
+  private generateFallbackExpectedState(request: ExpectedStateRequest): AIContentResponse<ExpectedStateResponse> {
+    const titlePart = request.title ? `"${request.title}"` : 'this action';
+    const fallbackText = `${titlePart} is completed successfully with all requirements met and results documented.`;
+
+    return {
+      content: {
+        expected_state: fallbackText
       },
       confidence: 0.3,
       model_used: 'fallback',

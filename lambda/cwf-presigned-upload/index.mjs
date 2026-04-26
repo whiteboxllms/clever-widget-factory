@@ -5,10 +5,15 @@ const USE_TRANSFER_ACCELERATION = false; // Temporarily disabled - CORS issue wi
 const BUCKET = 'cwf-dev-assets';
 const USE_ORG_SCOPED_KEYS = process.env.USE_ORG_SCOPED_KEYS === 'true';
 
-// Configure S3 client with Transfer Acceleration
+// Configure S3 client
+// requestChecksumCalculation: "WHEN_REQUIRED" prevents the SDK from adding
+// x-amz-checksum-crc32 to presigned URLs. Browser fetch() can't send that
+// header, so S3 rejects the upload with SignatureDoesNotMatch.
 const s3Client = new S3Client({ 
   region: 'us-west-2',
-  useAccelerateEndpoint: USE_TRANSFER_ACCELERATION
+  useAccelerateEndpoint: USE_TRANSFER_ACCELERATION,
+  requestChecksumCalculation: "WHEN_REQUIRED",
+  responseChecksumValidation: "WHEN_REQUIRED",
 });
 
 export const handler = async (event) => {

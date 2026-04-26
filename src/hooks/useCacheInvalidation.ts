@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useWebSocket } from './useWebSocket';
 import {
   toolsQueryKey,
+  partsQueryKey,
   actionsQueryKey,
   completedActionsQueryKey,
   allActionsQueryKey,
@@ -41,7 +42,7 @@ export function useCacheInvalidation() {
           break;
 
         case 'part':
-          queryClient.invalidateQueries({ queryKey: ['parts'] });
+          queryClient.invalidateQueries({ queryKey: partsQueryKey() });
           break;
 
         case 'action':
@@ -66,6 +67,24 @@ export function useCacheInvalidation() {
         case 'experience':
           // experiencesQueryKey() produces ['experiences', ...filters] — invalidate any key starting with 'experiences'
           queryClient.invalidateQueries({ queryKey: [experiencesQueryKey()[0]] });
+          break;
+
+        case 'checkout':
+        case 'checkin':
+          // Checkouts/checkins change tool status (is_checked_out, checked_out_to, etc.)
+          // so we need to invalidate both the tools cache and the checkouts cache.
+          queryClient.invalidateQueries({ queryKey: toolsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: ['checkouts'] });
+          break;
+
+        case 'state':
+          // States (observations) — invalidate any key starting with 'states'
+          queryClient.invalidateQueries({ queryKey: [statesQueryKey()[0]] });
+          break;
+
+        case 'policy':
+          // Policies are managed within explorations — invalidate explorations cache
+          queryClient.invalidateQueries({ queryKey: explorationsQueryKey() });
           break;
 
         default:

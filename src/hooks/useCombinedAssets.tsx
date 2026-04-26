@@ -1,11 +1,12 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useUserNames } from '@/hooks/useUserNames';
 import { useAssetMutations } from '@/hooks/useAssetMutations';
 import { offlineQueryConfig } from '@/lib/queryConfig';
 import { apiService, getApiData } from '@/lib/apiService';
-import { toolsQueryKey } from '@/lib/queryKeys';
+import { toolsQueryKey, partsQueryKey } from '@/lib/queryKeys';
+import { toolsQueryConfig, partsQueryConfig } from '@/lib/assetQueryConfigs';
 
 export interface CombinedAsset {
   id: string;
@@ -51,26 +52,6 @@ type AssetsQueryOptions = {
   skipPagination?: boolean;
 };
 
-const fetchTools = async () => {
-  const result = await apiService.get('/tools?limit=2000');
-  return result.data || [];
-};
-
-const fetchParts = async () => {
-  const result = await apiService.get('/parts?limit=2000');
-  return result.data || [];
-};
-
-const fetchActions = async () => {
-  const result = await apiService.get('/actions?limit=2000');
-  return result.data || [];
-};
-
-const fetchOrganizationMembers = async () => {
-  const result = await apiService.get('/organization_members');
-  return result.data || [];
-};
-
 export const useCombinedAssets = (showRemovedItems: boolean = false, options?: AssetsQueryOptions) => {
   const [currentPage, setCurrentPage] = useState(0);
   const { toast } = useToast();
@@ -78,14 +59,12 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
   const { createTool, createPart } = useAssetMutations();
   
   const { data: toolsData = [], isLoading: toolsLoading } = useQuery({
-    queryKey: toolsQueryKey(),
-    queryFn: fetchTools,
+    ...toolsQueryConfig,
     ...offlineQueryConfig,
   });
   
   const { data: partsData = [], isLoading: partsLoading } = useQuery({
-    queryKey: ['parts'],
-    queryFn: fetchParts,
+    ...partsQueryConfig,
     ...offlineQueryConfig,
   });
 
@@ -274,8 +253,8 @@ export const useCombinedAssets = (showRemovedItems: boolean = false, options?: A
     refetch: async () => {
       // Invalidate and refetch both tools and parts queries
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['tools'] }),
-        queryClient.invalidateQueries({ queryKey: ['parts'] })
+        queryClient.invalidateQueries({ queryKey: toolsQueryKey() }),
+        queryClient.invalidateQueries({ queryKey: partsQueryKey() })
       ]);
       // Reset to first page
       setCurrentPage(0);

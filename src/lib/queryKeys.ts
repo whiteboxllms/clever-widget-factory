@@ -10,6 +10,7 @@ export const explorationQueryKey = (explorationId: number) => ['exploration', ex
 export const explorationByActionIdQueryKey = (actionId: string) => ['exploration_by_action', actionId];
 
 export const toolsQueryKey = () => ['tools'];
+export const partsQueryKey = () => ['parts'];
 
 export const checkoutsQueryKey = (isReturned?: boolean) => [
   'checkouts',
@@ -68,10 +69,25 @@ export const experiencesQueryKey = (filters?: { entity_type?: string; entity_id?
   filters ? ['experiences', filters.entity_type ?? 'all', filters.entity_id ?? 'all'] : ['experiences'];
 export const experienceQueryKey = (experienceId: string) => ['experience', experienceId];
 
+// Capability query keys
+export const capabilityProfileQueryKey = (actionId: string, userId: string) => ['capability', actionId, userId];
+export const organizationCapabilityQueryKey = (actionId: string) => ['capability', actionId, 'organization'];
+
 // State space model query keys
 export const stateSpaceModelsQueryKey = () => ['state_space_models'];
 export const stateSpaceModelQueryKey = (id: string) => ['state_space_model', id];
 export const stateSpaceModelsByEntityQueryKey = (entityType: string, entityId: string) =>
   ['state_space_models_by_entity', entityType, entityId];
+
+// Learning query keys
+export const learningObjectivesQueryKey = (actionId: string, userId: string) =>
+  ['learning_objectives', actionId, userId];
+
+export const evaluationStatusQueryKey = (actionId: string, userId: string, stateIds: string[]) =>
+  ['evaluation_status', actionId, userId, ...stateIds.sort()];
+
+// Member settings query keys
+export const memberSettingsQueryKey = (userId: string, organizationId?: string) =>
+  ['member-settings', userId, organizationId ?? 'default'];
 
 

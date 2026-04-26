@@ -116,24 +116,25 @@ describe('composeActionEmbeddingSource', () => {
   test('should compose with all fields populated', () => {
     const action = {
       description: 'Applied compost to banana plants',
-      state_text: 'Completed',
-      summary_policy_text: 'Organic matter improves soil structure',
-      observations: 'Plants showed improved vigor after 2 weeks'
+      evidence_description: 'Spread 2 inches of compost around base',
+      policy: 'Organic matter improves soil structure',
+      observations: 'Plants showed improved vigor after 2 weeks',
+      expected_state: 'Healthy banana plants with improved soil nutrients'
     };
 
     const result = composeActionEmbeddingSource(action);
 
     assert.strictEqual(
       result,
-      'Applied compost to banana plants. Completed. Organic matter improves soil structure. Plants showed improved vigor after 2 weeks'
+      'Applied compost to banana plants. Spread 2 inches of compost around base. Organic matter improves soil structure. Plants showed improved vigor after 2 weeks. Healthy banana plants with improved soil nutrients'
     );
   });
 
   test('should handle missing optional fields', () => {
     const action = {
       description: 'Applied compost to banana plants',
-      state_text: 'Completed'
-      // summary_policy_text and observations are missing
+      evidence_description: 'Completed'
+      // policy, observations, and expected_state are missing
     };
 
     const result = composeActionEmbeddingSource(action);
@@ -154,14 +155,36 @@ describe('composeActionEmbeddingSource', () => {
   test('should filter out null and undefined values', () => {
     const action = {
       description: 'Applied compost',
-      state_text: null,
-      summary_policy_text: undefined,
-      observations: 'Good results'
+      evidence_description: null,
+      policy: undefined,
+      observations: 'Good results',
+      expected_state: null
     };
 
     const result = composeActionEmbeddingSource(action);
 
     assert.strictEqual(result, 'Applied compost. Good results');
+  });
+
+  test('should include expected_state in embedding source', () => {
+    const action = {
+      description: 'Pour concrete foundation',
+      expected_state: 'Level, crack-free foundation cured for 7 days'
+    };
+
+    const result = composeActionEmbeddingSource(action);
+
+    assert.strictEqual(result, 'Pour concrete foundation. Level, crack-free foundation cured for 7 days');
+  });
+
+  test('should handle only expected_state', () => {
+    const action = {
+      expected_state: 'Healthy banana plants with improved soil nutrients'
+    };
+
+    const result = composeActionEmbeddingSource(action);
+
+    assert.strictEqual(result, 'Healthy banana plants with improved soil nutrients');
   });
 });
 

@@ -60,7 +60,7 @@ exports.handler = async (event) => {
     const headers = {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id,X-Connection-Id',
       'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
     };
 
@@ -70,7 +70,7 @@ exports.handler = async (event) => {
         statusCode: 200,
         headers: {
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id',
+          'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id,X-Connection-Id',
           'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
         },
         body: ''
@@ -251,7 +251,7 @@ exports.handler = async (event) => {
       // Fire-and-forget pattern to avoid blocking the response
       if (result && result.length > 0) {
         const updatedAction = result[0];
-        const embeddingRelevantFields = ['description', 'state_text', 'summary_policy_text', 'observations'];
+        const embeddingRelevantFields = ['description', 'state_text', 'summary_policy_text', 'observations', 'expected_state'];
         const hasEmbeddingUpdate = embeddingRelevantFields.some(field => actionData[field] !== undefined);
         
         if (hasEmbeddingUpdate) {

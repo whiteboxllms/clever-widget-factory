@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { toolsQueryKey } from '@/lib/queryKeys';
+import { toolsQueryConfig } from '@/lib/assetQueryConfigs';
 
 export interface Tool {
   id: string;
@@ -41,7 +42,7 @@ export const useToolsData = (showRemovedItems: boolean = false) => {
   // Subscribe to tools cache (populated by useCombinedAssets) without triggering a fetch.
   // enabled:false prevents any network request; we only read what's already cached.
   const { data: toolsData = [] } = useQuery<Tool[]>({
-    queryKey: toolsQueryKey(),
+    ...toolsQueryConfig,
     enabled: false,
   });
 

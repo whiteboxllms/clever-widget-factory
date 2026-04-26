@@ -58,12 +58,16 @@ import { cn, sanitizeRichText, getActionBorderStyle } from "@/lib/utils";
 import { BaseAction, Profile, ActionCreationContext } from "@/types/actions";
 import { autoCheckinToolsForAction, activatePlannedCheckoutsIfNeeded } from '@/lib/autoToolCheckout';
 import { generateActionUrl, copyToClipboard } from "@/lib/urlUtils";
+import { useStates } from "@/hooks/useStates";
+import { parseLearningTakeawayStateText, buildCopyContextText } from "@/lib/learningUtils";
 import { aiContentService } from "@/services/aiContentService";
 import { useActionObservationCount } from "@/hooks/useActionObservationCount";
 import { PrismIcon } from "@/components/icons/PrismIcon";
 import { MaxwellInlinePanel } from "@/components/MaxwellInlinePanel";
 import { EntityContext } from "@/hooks/useEntityContext";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { SkillProfilePanel } from "@/components/SkillProfilePanel";
+import { CapabilityAssessment } from "@/components/CapabilityAssessment";
 
 interface UnifiedActionDialogProps {
   open: boolean;
@@ -93,9 +97,28 @@ export function UnifiedActionDialog({
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   
-  // Look up action from cache using ID
-  const cachedActions = queryClient.getQueryData(['actions']) as BaseAction[] | undefined;
-  const action = actionId && cachedActions ? cachedActions.find(a => a.id === actionId) : undefined;
+  // Look up action reactively from cache — checks unresolved, completed, and single-action caches.
+  // Using useQuery with select ensures the component re-renders when the cache is populated
+  // (getQueryData is a non-reactive snapshot that misses async cache updates on page refresh).
+  const { data: unresolvedMatch } = useQuery<BaseAction[], Error, BaseAction | undefined>({
+    queryKey: ['actions'],
+    queryFn: () => { throw new Error('cache-only'); },
+    enabled: false,
+    select: (actions) => actionId ? actions.find(a => a.id === actionId) : undefined,
+  });
+  const { data: completedMatch } = useQuery<BaseAction[], Error, BaseAction | undefined>({
+    queryKey: ['actions_completed'],
+    queryFn: () => { throw new Error('cache-only'); },
+    enabled: false,
+    select: (actions) => actionId ? actions.find(a => a.id === actionId) : undefined,
+  });
+  const { data: singleMatch } = useQuery<BaseAction, Error, BaseAction | undefined>({
+    queryKey: ['action', actionId || ''],
+    queryFn: () => { throw new Error('cache-only'); },
+    enabled: false,
+    select: (a) => a,
+  });
+  const action = unresolvedMatch || completedMatch || singleMatch;
   const { toast } = useToast();
   const { isLeadership, user } = useAuth();
   const organizationId = useOrganizationId();
@@ -245,11 +268,15 @@ export function UnifiedActionDialog({
   const isAutoSavingFromUploadRef = useRef<boolean>(false);
   const [attachmentFiles, setAttachmentFiles] = useState<Map<string, File>>(new Map());
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [isGeneratingExpectedState, setIsGeneratingExpectedState] = useState(false);
   const [isTitleEditing, setIsTitleEditing] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
 
   // Derive observation count from TanStack cache (preferred over database count)
   const derivedObservationCount = useActionObservationCount(action?.id || '');
+
+  // Fetch states for the action to extract learning takeaways for Copy Context
+  const { data: actionStates } = useStates({ entity_type: 'action', entity_id: action?.id });
 
   const preferName = (value?: string | null) => {
     if (!value) return null;
@@ -513,6 +540,7 @@ export function UnifiedActionDialog({
         id: action.id,
         title: formData.title,
         description: formData.description,
+        expected_state: formData.expected_state,
         policy: formData.policy,
         assigned_to: formData.assigned_to,
         required_stock: formData.required_stock,
@@ -599,6 +627,43 @@ export function UnifiedActionDialog({
     }
   };
 
+  // Copy action context and learning takeaways to clipboard for external AI tools
+  const handleCopyContext = async () => {
+    const actionFields = {
+      title: formData.title as string | undefined,
+      description: formData.description as string | undefined,
+      expected_state: formData.expected_state as string | undefined,
+      policy: formData.policy as string | undefined,
+    };
+
+    // Filter fetched states for [learning_takeaway] prefix and extract takeaway texts
+    const takeawayTexts: string[] = [];
+    if (actionStates && Array.isArray(actionStates)) {
+      for (const state of actionStates) {
+        const parsed = parseLearningTakeawayStateText(state.state_text || '');
+        if (parsed) {
+          takeawayTexts.push(parsed.takeawayText);
+        }
+      }
+    }
+
+    const text = buildCopyContextText(actionFields, takeawayTexts);
+    const success = await copyToClipboard(text);
+
+    if (success) {
+      toast({
+        title: "Context copied!",
+        description: "Action context and takeaways copied to clipboard",
+      });
+    } else {
+      toast({
+        title: "Could not copy automatically",
+        description: text,
+        duration: 10000,
+      });
+    }
+  };
+
   // Generate AI summary policy text
   const generateAISummaryPolicy = async () => {
     if (!formData.description && !formData.policy) {
@@ -648,6 +713,54 @@ export function UnifiedActionDialog({
       });
     } finally {
       setIsGeneratingAI(false);
+    }
+  };
+
+  // Generate AI expected state (S') text
+  const generateAIExpectedState = async () => {
+    if (!formData.title && !formData.description) {
+      toast({
+        title: "Missing Information",
+        description: "Please add a title or description first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsGeneratingExpectedState(true);
+    try {
+      const response = await aiContentService.generateExpectedState({
+        title: formData.title || '',
+        description: formData.description || '',
+        asset_name: formData.asset?.name,
+        mission_title: missionData?.title
+      });
+
+      if (response?.content?.expected_state) {
+        setFormData(prev => ({
+          ...prev,
+          expected_state: response.content.expected_state
+        }));
+        toast({
+          title: "AI Suggestion Generated",
+          description: "Expected state has been updated with AI-generated content. You can edit it as needed.",
+        });
+      } else {
+        toast({
+          title: "AI Unavailable",
+          description: "AI service is currently unavailable. Please enter the expected state manually.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error generating AI expected state:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate AI expected state",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingExpectedState(false);
     }
   };
 
@@ -860,6 +973,7 @@ export function UnifiedActionDialog({
       const actionData: any = {
         title: formData.title.trim(),
         description: formData.description || null,
+        expected_state: formData.expected_state || null,
         policy: normalizedPolicy,
         assigned_to: formData.assigned_to === 'unassigned' ? null : formData.assigned_to || null,
         participants: formData.participants || [],
@@ -1001,19 +1115,7 @@ export function UnifiedActionDialog({
               >
                 <Flag className="h-4 w-4" />
               </Button>
-              {!isCreating && action?.id && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={() => navigate(`/actions/${action.id}/state-space`)}
-                      className="h-7 w-7 flex items-center justify-center rounded hover:opacity-80 transition-opacity"
-                    >
-                      <img src="/dormant_gundam_state.png" alt="State Space" className="h-7 w-7 rounded" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>State Space</TooltipContent>
-                </Tooltip>
-              )}
+
               {!isCreating && action?.id && (
                 <Button
                   variant="ghost"
@@ -1029,15 +1131,15 @@ export function UnifiedActionDialog({
             </div>
           </div>
           {isCreating && (
-            <DialogDescription>Create a new action with details and assignments</DialogDescription>
+            <DialogDescription className="sr-only">Create a new action</DialogDescription>
           )}
         </DialogHeader>
         
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Issue Reference Display */}
           {showIssueReference() && (
-            <div className="bg-muted p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
+            <div className="bg-muted p-3 rounded-lg">
+              <div className="flex items-center gap-2 mb-1">
                 <AlertCircle className="h-4 w-4" />
                 <h4 className="font-semibold text-sm">Linked Issue Reference</h4>
               </div>
@@ -1049,8 +1151,8 @@ export function UnifiedActionDialog({
 
           {/* Mission Context Display */}
           {missionData && (
-            <div className="bg-primary/5 border border-primary/20 p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
+            <div className="bg-primary/5 border border-primary/20 p-3 rounded-lg">
+              <div className="flex items-center gap-2 mb-1">
                 <Flag className="h-4 w-4 text-primary" />
                 <h4 className="font-semibold text-sm">Project Context</h4>
               </div>
@@ -1061,7 +1163,7 @@ export function UnifiedActionDialog({
                 <p className="text-sm text-muted-foreground">
                   {missionData.problem_statement}
                 </p>
-                <div className="flex items-center gap-2 mt-2">
+                <div className="flex items-center gap-2 mt-1">
                   <Badge variant="secondary" className="text-xs">
                     {missionData.status}
                   </Badge>
@@ -1115,9 +1217,39 @@ export function UnifiedActionDialog({
             />
           </div>
 
+          {/* Expected State (S') */}
+          <div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="expectedState">Where we want to get to</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={generateAIExpectedState}
+                disabled={isGeneratingExpectedState || (!formData.title && !formData.description)}
+                className="h-7 px-2 text-xs"
+              >
+                {isGeneratingExpectedState ? (
+                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent mr-1" />
+                ) : (
+                  <Sparkles className="h-3 w-3 mr-1" />
+                )}
+                AI Assist
+              </Button>
+            </div>
+            <Textarea
+              id="expectedState"
+              value={formData.expected_state || ''}
+              onChange={(e) => setFormData(prev => ({ ...prev, expected_state: e.target.value }))}
+              placeholder="Describe the desired outcome — what does 'done' look like?"
+              className="mt-1"
+              rows={2}
+            />
+          </div>
+
           {/* Assigned To, Participants, and Estimated Completion Date */}
           {/* Assigned To and Participants Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
               <Label htmlFor="assignedTo" className="text-sm font-medium break-words">
                 Assigned To
@@ -1161,9 +1293,23 @@ export function UnifiedActionDialog({
           {/* NOTE: Estimated Completion Date field removed in migration 005 */}
           {/* Duration tracking now uses objective data like image metadata */}
 
+          {/* Skill Profile Panel — only for existing actions */}
+          {!isCreating && action?.id && (
+            <SkillProfilePanel action={action} userId={user?.id || ''} organizationId={organizationId} />
+          )}
+
+          {/* Growth Checklist Radar Chart — only for existing actions */}
+          {!isCreating && action?.id && (
+            <CapabilityAssessment action={{
+              ...action,
+              assigned_to: formData.assigned_to || action.assigned_to,
+              participants: formData.participants || action.participants,
+            }} />
+          )}
+
           {/* Plan Commitment Toggle - Only show when assigned and user is leadership */}
           {formData.assigned_to && formData.assigned_to !== 'unassigned' && isLeadership && (
-            <div className="pt-2 border-t border-border">
+            <div className="pt-1 border-t border-border">
                 <div className="flex items-start space-x-3">
                   <Switch
                     id="plan-commitment"
@@ -1267,7 +1413,7 @@ export function UnifiedActionDialog({
             )}
 
           {/* Assets and Stock Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
             {/* Assets */}
             <div className="space-y-2">
               <Label className="flex items-center gap-1 break-words">
@@ -1306,21 +1452,33 @@ export function UnifiedActionDialog({
               <div>
                 <div className="flex items-center justify-between">
                   <Label className="text-foreground">Action Policy</Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={generateAISummaryPolicy}
-                    disabled={isGeneratingAI || (!formData.description && !formData.policy)}
-                    className="h-7 px-2 text-xs"
-                  >
-                    {isGeneratingAI ? (
-                      <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent mr-1" />
-                    ) : (
-                      <Sparkles className="h-3 w-3 mr-1" />
-                    )}
-                    AI Assist
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCopyContext}
+                      className="h-7 px-2 text-xs"
+                    >
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copy Context
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={generateAISummaryPolicy}
+                      disabled={isGeneratingAI || (!formData.description && !formData.policy)}
+                      className="h-7 px-2 text-xs"
+                    >
+                      {isGeneratingAI ? (
+                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent mr-1" />
+                      ) : (
+                        <Sparkles className="h-3 w-3 mr-1" />
+                      )}
+                      AI Assist
+                    </Button>
+                  </div>
                 </div>
                 <div className="mt-2 border rounded-lg">
                  <TiptapEditor

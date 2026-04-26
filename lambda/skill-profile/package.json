@@ -1,0 +1,19 @@
+{
+  "name": "cwf-skill-profile-lambda",
+  "version": "1.0.0",
+  "description": "Lambda function for skill profile generation, approval, and management",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest",
+    "test:run": "vitest --run",
+    "test:coverage": "vitest --coverage"
+  },
+  "dependencies": {
+    "@aws-sdk/client-sqs": "^3.0.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.0.0"
+  },
+  "devDependencies": {
+    "fast-check": "^3.15.0",
+    "vitest": "^1.0.0"
+  }
+}

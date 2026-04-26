@@ -19,6 +19,9 @@ import { useToast } from '@/hooks/use-toast';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { useProfile } from '@/hooks/useProfile';
 import { OrganizationValuesSection } from '@/components/OrganizationValuesSection';
+import { ProfileIntentsSection } from '@/components/ProfileIntentsSection';
+import { AiConfigCard } from '@/components/AiConfigCard';
+import { LensManagementCard } from '@/components/LensManagementCard';
 import { apiService, getApiData } from '@/lib/apiService';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { useOrganizationMembersByOrg } from '@/hooks/useOrganizationMembers';
@@ -380,25 +383,41 @@ const Organization = () => {
       {/* Organization Values */}
       <OrganizationValuesSection canEdit={isAdmin} organization={targetOrganization} />
 
+      {/* Growth Intents (user-specific) */}
+      {user?.userId && targetOrganization?.id && (
+        <ProfileIntentsSection userId={user.userId} organizationId={targetOrganization.id} />
+      )}
+
       {/* Scoring Prompts */}
       {isAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MessageSquare className="w-5 h-5" />
-              AI Scoring Prompts
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              Manage AI prompts used for automated action scoring and accountability assessments.
-            </p>
-            <Button onClick={() => navigate('/prompts')} variant="outline">
-              <MessageSquare className="w-4 h-4 mr-2" />
-              Manage Scoring Prompts
-            </Button>
-          </CardContent>
-        </Card>
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5" />
+                AI Scoring Prompts
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                Manage AI prompts used for automated action scoring and accountability assessments.
+              </p>
+              <Button onClick={() => navigate('/prompts')} variant="outline">
+                <MessageSquare className="w-4 h-4 mr-2" />
+                Manage Scoring Prompts
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* AI Configuration */}
+          <AiConfigCard organizationId={targetOrganization.id} />
+
+          {/* Lens Management */}
+          <LensManagementCard
+            organizationId={targetOrganization.id}
+            strategicAttributes={targetOrganization.settings?.strategic_attributes || []}
+          />
+        </>
       )}
 
       {/* Roles & Permissions */}

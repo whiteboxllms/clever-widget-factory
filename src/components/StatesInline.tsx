@@ -2,11 +2,16 @@ import { useState, useCallback } from 'react';
 import { useStates, useStateMutations } from '@/hooks/useStates';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useCognitoAuth';
+import { useLearningObjectives, useObservationVerification } from '@/hooks/useLearning';
+import type { VerificationResponse, LearningObjective } from '@/hooks/useLearning';
 import { getImageUrl, getThumbnailUrl } from '@/lib/imageUtils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,7 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Edit2, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Loader2, CheckCircle2, XCircle, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import type { CreateObservationData, Observation } from '@/types/observations';
 import { PhotoUploadPanel, type PhotoItem } from '@/components/shared/PhotoUploadPanel';
@@ -30,6 +35,7 @@ interface StatesInlineProps {
 export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
   const { toast } = useToast();
   const { uploadFiles } = useFileUpload();
+  const { user } = useAuth();
   
   const handleEagerUpload = useCallback(async (file: File) => {
     const result = await uploadFiles(file, { bucket: 'mission-attachments' });
@@ -39,6 +45,15 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
   
   // Fetch states for this entity
   const { data: states, isLoading, error } = useStates({ entity_type, entity_id });
+  
+  // Fetch learning objectives when entity is an action
+  const { data: learningData } = useLearningObjectives(
+    entity_type === 'action' ? entity_id : undefined,
+    entity_type === 'action' ? user?.userId : undefined
+  );
+  
+  // Observation verification mutation
+  const verificationMutation = useObservationVerification();
   
   // Mutations
   const { createState, updateState, deleteState, isCreating, isUpdating, isDeleting } = 
@@ -54,6 +69,30 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
   // Form state
   const [stateText, setStateText] = useState('');
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
+  
+  // Demonstration checklist state
+  const [selectedObjectiveIds, setSelectedObjectiveIds] = useState<Set<string>>(new Set());
+  const [verificationResults, setVerificationResults] = useState<VerificationResponse | null>(null);
+  
+  // Derive incomplete learning objectives from all axes
+  const incompleteObjectives: LearningObjective[] = learningData?.axes
+    ?.flatMap(axis => axis.objectives.filter(obj => obj.status !== 'completed'))
+    ?? [];
+  
+  // Show demonstration checklist only for actions with incomplete objectives (not when editing)
+  const showDemonstrationChecklist = entity_type === 'action' && incompleteObjectives.length > 0 && !editingStateId;
+  
+  const toggleObjective = (objectiveId: string) => {
+    setSelectedObjectiveIds(prev => {
+      const next = new Set(prev);
+      if (next.has(objectiveId)) {
+        next.delete(objectiveId);
+      } else {
+        next.add(objectiveId);
+      }
+      return next;
+    });
+  };
 
   // States are automatically cached by TanStack Query
   // Components can derive counts using useActionObservationCount hook
@@ -70,6 +109,8 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
     setPhotos([]);
     setEditingStateId(null);
     setShowAddForm(false);
+    setSelectedObjectiveIds(new Set());
+    setVerificationResults(null);
   };
 
   const handleSubmit = async () => {
@@ -110,15 +151,20 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
           
           setUploadProgress(`Uploading photo ${i + 1} of ${newPhotos.length}...`);
           
-          const uploadResults = await uploadFiles([photo.file], { bucket: 'mission-attachments' });
-          const resultsArray = Array.isArray(uploadResults) ? uploadResults : [uploadResults];
-          const photoUrl = resultsArray[0].url;
-          
-          uploadedPhotos.push({
-            photo_url: photoUrl,
-            photo_description: photo.photo_description || '',
-            photo_order: uploadedPhotos.length
-          });
+          try {
+            const uploadResults = await uploadFiles([photo.file], { bucket: 'mission-attachments' });
+            const resultsArray = Array.isArray(uploadResults) ? uploadResults : [uploadResults];
+            const photoUrl = resultsArray[0].url;
+            
+            uploadedPhotos.push({
+              photo_url: photoUrl,
+              photo_description: photo.photo_description || '',
+              photo_order: uploadedPhotos.length
+            });
+          } catch (uploadErr) {
+            console.error('Failed to upload photo on save:', photo.file.name, uploadErr);
+            // Continue with other photos instead of failing the whole save
+          }
         }
         
         // Add all photos that already have URLs (existing + eagerly uploaded)
@@ -158,12 +204,42 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
           }]
         };
 
-        await createState(data);
+        const savedObservation = await createState(data);
         
         toast({
           title: 'Observation saved',
           description: 'Your observation has been saved successfully.'
         });
+        
+        // Trigger verification if objectives were selected
+        if (selectedObjectiveIds.size > 0 && savedObservation?.id && user?.userId) {
+          try {
+            const results = await verificationMutation.mutateAsync({
+              actionId: entity_id,
+              observationId: savedObservation.id,
+              selfAssessedObjectiveIds: Array.from(selectedObjectiveIds),
+              userId: user.userId,
+            });
+            setVerificationResults(results);
+            // Don't reset form yet — show verification results
+            photosSnapshot.forEach(p => {
+              if (!p.isExisting && p.previewUrl && p.previewUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(p.previewUrl);
+              }
+            });
+            setStateText('');
+            setPhotos([]);
+            setEditingStateId(null);
+            // Keep showAddForm true to display results
+            return;
+          } catch (verifyError) {
+            console.error('Failed to verify observation:', verifyError);
+            toast({
+              title: 'Verification unavailable',
+              description: 'Observation saved, but skill verification could not be completed. You can try again later.',
+            });
+          }
+        }
       }
 
       // Reset form and clean up preview URLs (only for new photos with blob URLs)
@@ -295,6 +371,99 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
               />
             </div>
 
+            {/* Demonstration Checklist — shown below observation form for actions with incomplete objectives */}
+            {showDemonstrationChecklist && showAddForm && !verificationResults && (
+              <div className="border rounded-lg p-4 bg-muted/30">
+                <Label className="text-sm font-medium">Demonstrate Skills</Label>
+                <p className="text-xs text-muted-foreground mt-1 mb-3">
+                  Check off objectives this observation demonstrates
+                </p>
+                <div className="space-y-2">
+                  {incompleteObjectives.map((objective) => (
+                    <label
+                      key={objective.id}
+                      className="flex items-start gap-2 cursor-pointer"
+                    >
+                      <Checkbox
+                        checked={selectedObjectiveIds.has(objective.id)}
+                        onCheckedChange={() => toggleObjective(objective.id)}
+                        disabled={isCreating || uploadingPhotos}
+                        className="mt-0.5"
+                      />
+                      <span className="text-sm leading-tight">{objective.text}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Verification Results */}
+            {verificationResults && (
+              <Card className="border-2 border-muted">
+                <CardContent className="pt-4 space-y-3">
+                  <Label className="text-sm font-medium">Verification Results</Label>
+                  
+                  {verificationResults.confirmed.length > 0 && (
+                    <div className="space-y-1">
+                      {verificationResults.confirmed.map((id) => {
+                        const obj = incompleteObjectives.find(o => o.id === id);
+                        return (
+                          <div key={id} className="flex items-start gap-2">
+                            <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                            <span className="text-sm">{obj?.text ?? id}</span>
+                            <Badge className="bg-green-100 text-green-800 border-green-200 ml-auto shrink-0">Confirmed ✓</Badge>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  
+                  {verificationResults.unconfirmed.length > 0 && (
+                    <div className="space-y-1">
+                      {verificationResults.unconfirmed.map((id) => {
+                        const obj = incompleteObjectives.find(o => o.id === id);
+                        return (
+                          <div key={id} className="flex items-start gap-2">
+                            <XCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                            <span className="text-sm">{obj?.text ?? id}</span>
+                            <Badge variant="destructive" className="ml-auto shrink-0">Unconfirmed ✗</Badge>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  
+                  {verificationResults.aiDetected.length > 0 && (
+                    <div className="space-y-1">
+                      {verificationResults.aiDetected.map((id) => {
+                        const obj = learningData?.axes
+                          ?.flatMap(a => a.objectives)
+                          .find(o => o.id === id);
+                        return (
+                          <div key={id} className="flex items-start gap-2">
+                            <Search className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                            <span className="text-sm">{obj?.text ?? id}</span>
+                            <Badge className="bg-blue-100 text-blue-800 border-blue-200 ml-auto shrink-0">AI-detected 🔍</Badge>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={resetForm}
+                    className="w-full mt-2"
+                  >
+                    Done
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Form buttons — hidden when showing verification results */}
+            {!verificationResults && (
             <div className="flex gap-2 justify-end">
               <Button
                 variant="outline"
@@ -305,12 +474,17 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={isCreating || isUpdating || uploadingPhotos || (stateText.trim().length === 0 && photos.length === 0)}
+                disabled={isCreating || isUpdating || uploadingPhotos || verificationMutation.isPending || (stateText.trim().length === 0 && photos.length === 0)}
               >
                 {uploadingPhotos ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     {uploadProgress}
+                  </>
+                ) : verificationMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Verifying skills...
                   </>
                 ) : isCreating || isUpdating ? (
                   <>
@@ -322,6 +496,7 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
                 )}
               </Button>
             </div>
+            )}
           </CardContent>
         </Card>
       ) : (

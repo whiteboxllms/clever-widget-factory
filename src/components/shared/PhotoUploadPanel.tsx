@@ -13,6 +13,7 @@ import {
 import { X, GripVertical, Loader2, AlertCircle, Camera } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getImageUrl, getThumbnailUrl } from '@/lib/imageUtils';
+import { pushDiag } from './UploadDiagnosticOverlay';
 
 export interface PhotoItem {
   id?: string;
@@ -25,6 +26,7 @@ export interface PhotoItem {
   isUploading?: boolean;
   isExisting?: boolean;
   uploadFailed?: boolean;
+  uploadComplete?: boolean;
 }
 
 export interface PhotoUploadPanelProps {
@@ -103,6 +105,50 @@ export function PhotoUploadPanel({
 
   // ── File selection ──────────────────────────────────────────────────
 
+  // Generate a lightweight preview from a File without decoding the full image.
+  //
+  // Strategy (in order of preference):
+  // 1. EXIF thumbnail: JPEG files embed a ~10-20KB thumbnail in the first 50KB.
+  //    Reading file.slice(0,64000) and extracting it uses almost no memory.
+  //    Works for 93% of uploads (all Android/iPhone camera JPEGs).
+  // 2. Placeholder: for PNGs and other formats, show a generic image icon.
+  //    The actual image loads from S3 after upload + compression.
+  const createThumbnailUrl = useCallback(async (file: File): Promise<string> => {
+    // ── Try EXIF thumbnail (JPEG only, ~10-20KB, no decode) ──────────
+    if (file.type === 'image/jpeg' || file.type === 'image/jpg' || file.name.match(/\.jpe?g$/i)) {
+      try {
+        const header = file.slice(0, 64000); // EXIF is in the first ~64KB
+        const buffer = await header.arrayBuffer();
+        const array = new Uint8Array(buffer);
+        let start = 0, end = 0;
+        // Find the second 0xFF 0xD8 (first is the main JPEG SOI)
+        for (let i = 2; i < array.length; i++) {
+          if (array[i] === 0xFF) {
+            if (!start) {
+              if (array[i + 1] === 0xD8) start = i;
+            } else {
+              if (array[i + 1] === 0xD9) { end = i + 2; break; }
+            }
+          }
+        }
+        if (start && end) {
+          const thumbBlob = new Blob([array.subarray(start, end)], { type: 'image/jpeg' });
+          const thumbUrl = URL.createObjectURL(thumbBlob);
+          createdBlobUrls.current.add(thumbUrl);
+          return thumbUrl;
+        }
+      } catch {
+        // Fall through
+      }
+    }
+
+    // ── Fallback: blob URL for non-JPEGs (PNGs, etc.) ──────────────
+    // These are typically from desktop where memory isn't constrained.
+    const blobUrl = URL.createObjectURL(file);
+    createdBlobUrls.current.add(blobUrl);
+    return blobUrl;
+  }, []);
+
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
@@ -113,19 +159,16 @@ export function PhotoUploadPanel({
         maxPhotos != null ? maxPhotos - photos.length : Infinity;
       const filesToAdd = fileArray.slice(0, slotsAvailable);
 
+      // Create items immediately with no preview (shows spinner)
       const newItems: PhotoItem[] = filesToAdd.map((file, index) => {
-        const blobUrl = URL.createObjectURL(file);
-        createdBlobUrls.current.add(blobUrl);
-
         const defaultType = photoTypes?.[0];
-
         return {
           id: `photo-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           file,
           photo_type: defaultType,
           photo_description: '',
           photo_order: photos.length + index,
-          previewUrl: blobUrl,
+          previewUrl: '', // thumbnail generated async below
           isUploading: !!onEagerUpload,
           isExisting: false,
         };
@@ -134,31 +177,83 @@ export function PhotoUploadPanel({
       const updatedPhotos = [...photos, ...newItems];
       onPhotosChange(updatedPhotos);
 
+      // Generate lightweight thumbnails asynchronously (one at a time to limit memory)
+      // After generating each thumbnail, clear the File from state to free memory.
+      // The upload loop holds its own reference to the File via newItems.
+      (async () => {
+        for (const item of newItems) {
+          if (!item.file || !item.id) continue;
+          const thumbUrl = await createThumbnailUrl(item.file);
+          const latest = photosRef.current.map((p) =>
+            p.id === item.id ? { ...p, previewUrl: thumbUrl, file: undefined } : p
+          );
+          onPhotosChange(latest);
+        }
+      })();
+
       // Eager upload: start uploading each new file immediately
       // Uploads are serialized to avoid mobile browser memory pressure
       // when multiple large photos are uploaded concurrently.
       if (onEagerUpload) {
         const uploadSequentially = async () => {
-          for (const item of newItems) {
+          console.log(`[UPLOAD-DIAG] EAGER_QUEUE_START`, {
+            fileCount: newItems.length,
+            files: newItems.map(item => ({
+              name: item.file?.name,
+              sizeMB: item.file ? (item.file.size / 1024 / 1024).toFixed(2) : 'N/A',
+            })),
+          });
+          pushDiag('info', `QUEUE ${newItems.length} photos: ${newItems.map(i => `${i.file?.name}(${i.file ? (i.file.size/1024/1024).toFixed(1) : '?'}MB)`).join(', ')}`);
+
+          for (let idx = 0; idx < newItems.length; idx++) {
+            const item = newItems[idx];
             if (!item.file || !item.id) continue;
             const itemId = item.id;
+            const t0 = performance.now();
+            console.log(`[UPLOAD-DIAG] EAGER_ITEM_START ${idx + 1}/${newItems.length}`, {
+              name: item.file.name,
+              sizeMB: (item.file.size / 1024 / 1024).toFixed(2),
+            });
             try {
+              // Wait between uploads to let the browser's connection pool reset.
+              // Without this, Android Chrome fails subsequent uploads with status=0
+              // after a large file completes (connection teardown race condition).
+              if (idx > 0) {
+                pushDiag('info', `Waiting 3s before next upload...`);
+                await new Promise(r => setTimeout(r, 3000));
+              }
               const { url } = await onEagerUpload(item.file);
-              const latest = photosRef.current.map((p) =>
-                p.id === itemId
-                  ? { ...p, photo_url: url, isUploading: false, file: undefined }
-                  : p
-              );
+              console.log(`[UPLOAD-DIAG] EAGER_ITEM_OK ${idx + 1}/${newItems.length}`, {
+                name: item.file?.name,
+                durationMs: Math.round(performance.now() - t0),
+              });
+              const latest = photosRef.current.map((p) => {
+                if (p.id !== itemId) return p;
+                // Keep the blob preview URL for display — it will be revoked
+                // when the component unmounts (cleanup effect).
+                // Release the File object to free the raw file data (~3-5MB).
+                return { ...p, photo_url: url, isUploading: false, file: undefined };
+              });
               onPhotosChange(latest);
             } catch (err) {
-              console.error('Eager upload failed for', item.file?.name, err);
+              console.error(`[UPLOAD-DIAG] EAGER_ITEM_FAIL ${idx + 1}/${newItems.length}`, {
+                name: item.file?.name,
+                durationMs: Math.round(performance.now() - t0),
+                error: err instanceof Error ? { type: err.constructor.name, message: err.message } : String(err),
+                onLine: navigator.onLine,
+              });
               // Mark as failed so user sees it needs attention
+              // Release the File object to free memory, but keep blob preview
               const latest = photosRef.current.map((p) =>
-                p.id === itemId ? { ...p, isUploading: false, uploadFailed: true } : p
+                p.id === itemId ? { ...p, isUploading: false, uploadFailed: true, file: undefined } : p
               );
               onPhotosChange(latest);
             }
           }
+
+          console.log(`[UPLOAD-DIAG] EAGER_QUEUE_DONE`, {
+            totalFiles: newItems.length,
+          });
         };
         uploadSequentially();
       }

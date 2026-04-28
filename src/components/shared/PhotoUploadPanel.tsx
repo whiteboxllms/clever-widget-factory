@@ -159,6 +159,12 @@ export function PhotoUploadPanel({
       // After thumbnail is generated, the File is cleared from state to free memory.
       // The upload loop holds its own reference via newItems.
       (async () => {
+        // Yield so React can process the state update above and refresh
+        // photosRef.current. Without this, synchronous paths (e.g. PNG
+        // blob URL creation) would read stale state and overwrite the
+        // newly added photo items.
+        await new Promise(r => setTimeout(r, 0));
+
         for (const item of newItems) {
           if (!item.file || !item.id) continue;
           const isJpeg = item.file.type === 'image/jpeg' || item.file.type === 'image/jpg'
@@ -176,7 +182,7 @@ export function PhotoUploadPanel({
               createdBlobUrls.current.add(thumbUrl);
             }
           } else {
-            // Non-JPEG (PNG, etc.) — full blob URL, typically from desktop
+            // Non-JPEG (PNG, etc.) — full blob URL
             thumbUrl = URL.createObjectURL(item.file);
             createdBlobUrls.current.add(thumbUrl);
           }

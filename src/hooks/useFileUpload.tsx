@@ -23,15 +23,71 @@ export interface FileUploadResult {
 const IMAGE_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
 const PDF_MIME_TYPE = 'application/pdf';
 
-// Legacy export name for backwards compatibility
-export const useFileUpload = () => {
-  return useImageUploadImpl();
-};
+/**
+ * Upload a file to S3 using a presigned POST with FormData.
+ *
+ * The backend returns a POST URL and policy fields. The browser sends a
+ * multipart/form-data POST which is a "simple" CORS request — no preflight
+ * OPTIONS request is needed. This avoids intermittent CORS preflight failures
+ * on mobile networks and budget routers.
+ */
+function uploadToS3(
+  postUrl: string,
+  postFields: Record<string, string>,
+  file: File,
+  onProgress?: (pct: number) => void,
+): Promise<{ ok: boolean; status: number; statusText: string }> {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    // All policy fields must come before the file
+    Object.entries(postFields).forEach(([key, value]) => {
+      formData.append(key, value);
+    });
+    // File must be the last field
+    formData.append('file', file);
 
-// Primary export - handles both images and PDFs
-export const useImageUpload = () => {
-  return useImageUploadImpl();
-};
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable) {
+        onProgress?.(Math.round((event.loaded / event.total) * 100));
+      }
+    });
+
+    xhr.addEventListener('load', () => {
+      // S3 POST returns 204 on success
+      resolve({
+        ok: xhr.status >= 200 && xhr.status < 300,
+        status: xhr.status,
+        statusText: xhr.statusText,
+      });
+    });
+
+    xhr.addEventListener('error', () => {
+      reject(new TypeError(`S3 upload network error (status=${xhr.status})`));
+    });
+
+    xhr.addEventListener('abort', () => {
+      reject(new DOMException('Upload aborted', 'AbortError'));
+    });
+
+    xhr.addEventListener('timeout', () => {
+      reject(new TypeError('S3 upload timed out'));
+    });
+
+    xhr.open('POST', postUrl);
+    // Do NOT set Content-Type — browser sets it with the correct multipart boundary
+    xhr.timeout = 300000; // 5 minutes
+    xhr.send(formData);
+  });
+}
+
+// ── Hook ──────────────────────────────────────────────────────────────
+
+/** @deprecated Use useImageUpload instead */
+export const useFileUpload = () => useImageUploadImpl();
+
+export const useImageUpload = () => useImageUploadImpl();
 
 const useImageUploadImpl = () => {
   const [isUploading, setIsUploading] = useState(false);
@@ -47,47 +103,34 @@ const useImageUploadImpl = () => {
     file: File,
     options: FileUploadOptions
   ): Promise<FileUploadResult> => {
-    const { validateFile } = options;
-
-    // Validate file if validator provided
-    if (validateFile) {
-      validateFile(file);
-    }
+    if (options.validateFile) options.validateFile(file);
 
     const fileType = getFileType(file.type);
-
-    // Default file validation
-    const maxSize = 50 * 1024 * 1024; // 50MB
-    if (file.size > maxSize) {
-      throw new Error(`File too large: ${(file.size / 1024 / 1024).toFixed(2)}MB. Maximum size is 50MB.`);
+    if (file.size > 50 * 1024 * 1024) {
+      throw new Error(`File too large: ${(file.size / 1024 / 1024).toFixed(1)}MB. Maximum is 50MB.`);
     }
-
     if (fileType === 'other') {
       throw new Error(`Invalid file type: ${file.type}. Only images and PDFs are allowed.`);
     }
 
     try {
-      const originalSize = file.size;
-
-      // Get presigned URL from backend
+      // Step 1: Get presigned POST credentials from backend
       const presignedResponse = await apiService.post('/upload/presigned-url', {
         filename: file.name,
-        contentType: file.type
-      });
-      
-      const { presignedUrl, publicUrl } = presignedResponse;
-
-      // Upload to S3 using presigned URL
-      const uploadResponse = await fetch(presignedUrl, {
-        method: 'PUT',
-        body: file,
-        headers: {
-          'Content-Type': file.type,
-        },
+        contentType: file.type,
       });
 
-      if (!uploadResponse.ok) {
-        throw new Error(`S3 upload failed: ${uploadResponse.statusText}`);
+      const { publicUrl, postUrl, postFields } = presignedResponse;
+
+      if (!postUrl || !postFields) {
+        throw new Error('Backend did not return presigned POST credentials');
+      }
+
+      // Step 2: Upload to S3
+      const result = await uploadToS3(postUrl, postFields, file);
+
+      if (!result.ok) {
+        throw new Error(`S3 upload failed: ${result.status} ${result.statusText}`);
       }
 
       enhancedToast.showUploadSuccess(file.name, publicUrl);
@@ -95,16 +138,15 @@ const useImageUploadImpl = () => {
       return {
         url: publicUrl,
         fileName: file.name,
-        originalSize,
+        originalSize: file.size,
         compressedSize: file.size,
         compressionRatio: 0,
-        fileType
+        fileType,
       };
     } catch (error) {
-      console.error('File upload failed:', error);
       enhancedToast.showUploadError(
         error instanceof Error ? error.message : 'Upload failed',
-        file.name
+        file.name,
       );
       throw error;
     }
@@ -116,40 +158,29 @@ const useImageUploadImpl = () => {
   ): Promise<FileUploadResult[]> => {
     const results: FileUploadResult[] = [];
     const errors: string[] = [];
-    
+
     for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      
       try {
         const fileOptions = {
           ...options,
-          generateFileName: options.generateFileName 
+          generateFileName: options.generateFileName
             ? (f: File) => options.generateFileName!(f, i + 1)
-            : undefined
+            : undefined,
         };
-        
-        const result = await uploadSingleFile(file, fileOptions);
-        results.push(result);
-        
+        results.push(await uploadSingleFile(files[i], fileOptions));
+
         // Small delay between uploads to prevent mobile browser memory issues
         if (i < files.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
-      } catch (error) {
-        console.error(`Failed to upload file ${i + 1}/${files.length}:`, file.name, error);
-        errors.push(file.name);
-        // Continue with next file instead of failing completely
+      } catch {
+        errors.push(files[i].name);
       }
     }
-    
+
     if (errors.length > 0 && results.length === 0) {
       throw new Error(`All uploads failed: ${errors.join(', ')}`);
     }
-    
-    if (errors.length > 0) {
-      console.warn(`Partial upload success: ${results.length} succeeded, ${errors.length} failed`);
-    }
-    
     return results;
   };
 
@@ -158,13 +189,10 @@ const useImageUploadImpl = () => {
     options: FileUploadOptions
   ): Promise<FileUploadResult | FileUploadResult[]> => {
     setIsUploading(true);
-    
     try {
-      if (Array.isArray(files)) {
-        return await uploadMultipleFiles(files, options);
-      } else {
-        return await uploadSingleFile(files, options);
-      }
+      return Array.isArray(files)
+        ? await uploadMultipleFiles(files, options)
+        : await uploadSingleFile(files, options);
     } finally {
       setIsUploading(false);
     }
@@ -172,7 +200,7 @@ const useImageUploadImpl = () => {
 
   return {
     uploadImages,
-    uploadFiles: uploadImages, // Legacy alias
-    isUploading
+    uploadFiles: uploadImages,
+    isUploading,
   };
 };

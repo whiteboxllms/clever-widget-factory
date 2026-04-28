@@ -58,14 +58,44 @@ export function getMissingRequiredTypes(
 }
 
 /**
+ * Extract the EXIF thumbnail from a JPEG file's header (~10-20KB).
+ * Only reads the first 64KB of the file — never decodes the full image.
+ * Returns a blob URL to the thumbnail, or null if not found.
+ */
+async function extractExifThumbnail(file: File): Promise<string | null> {
+  try {
+    const header = file.slice(0, 64000);
+    const buffer = await header.arrayBuffer();
+    const array = new Uint8Array(buffer);
+    let start = 0, end = 0;
+    // Find the second 0xFF 0xD8 (first is the main JPEG SOI)
+    for (let i = 2; i < array.length; i++) {
+      if (array[i] === 0xFF) {
+        if (!start) {
+          if (array[i + 1] === 0xD8) start = i;
+        } else {
+          if (array[i + 1] === 0xD9) { end = i + 2; break; }
+        }
+      }
+    }
+    if (start && end) {
+      const thumbBlob = new Blob([array.subarray(start, end)], { type: 'image/jpeg' });
+      return URL.createObjectURL(thumbBlob);
+    }
+  } catch {
+    // EXIF extraction failed
+  }
+  return null;
+}
+
+const isMobileDevice = () => /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+/**
  * Shared, reusable photo upload panel.
  *
- * Handles file selection (with mobile camera capture), blob URL previews,
- * photo type tagging, per-photo descriptions, remove/reorder, upload progress
- * indicators, and validation feedback for required photo types.
- *
- * Does NOT handle S3 upload — the parent component calls
- * `useFileUpload().uploadFiles()` on save and maps returned URLs back.
+ * Handles file selection (with mobile camera capture), lightweight previews
+ * (EXIF thumbnails for JPEGs), photo type tagging, per-photo descriptions,
+ * remove/reorder, upload progress indicators, and validation feedback.
  */
 export function PhotoUploadPanel({
   photos,
@@ -83,14 +113,11 @@ export function PhotoUploadPanel({
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  // Track latest photos via ref for async callbacks
   const photosRef = useRef(photos);
   photosRef.current = photos;
 
-  // Track blob URLs we've created so we can revoke them on unmount
   const createdBlobUrls = useRef<Set<string>>(new Set());
 
-  // Cleanup blob URLs on unmount
   useEffect(() => {
     return () => {
       createdBlobUrls.current.forEach((url) => URL.revokeObjectURL(url));
@@ -113,37 +140,78 @@ export function PhotoUploadPanel({
         maxPhotos != null ? maxPhotos - photos.length : Infinity;
       const filesToAdd = fileArray.slice(0, slotsAvailable);
 
-      const newItems: PhotoItem[] = filesToAdd.map((file, index) => {
-        const blobUrl = URL.createObjectURL(file);
-        createdBlobUrls.current.add(blobUrl);
+      const newItems: PhotoItem[] = filesToAdd.map((file, index) => ({
+        id: `photo-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        file,
+        photo_type: photoTypes?.[0],
+        photo_description: '',
+        photo_order: photos.length + index,
+        previewUrl: '', // thumbnail generated async below
+        isUploading: !!onEagerUpload,
+        isExisting: false,
+      }));
 
-        const defaultType = photoTypes?.[0];
+      onPhotosChange([...photos, ...newItems]);
 
-        return {
-          id: `photo-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          file,
-          photo_type: defaultType,
-          photo_description: '',
-          photo_order: photos.length + index,
-          previewUrl: blobUrl,
-          isUploading: !!onEagerUpload,
-          isExisting: false,
-        };
-      });
+      // Generate lightweight EXIF thumbnails (sequential, one at a time).
+      // For JPEGs: extracts the ~10-20KB embedded thumbnail from the first 64KB.
+      // For PNGs: uses a full blob URL (desktop only, memory not constrained).
+      // After thumbnail is generated, the File is cleared from state to free memory.
+      // The upload loop holds its own reference via newItems.
+      (async () => {
+        // Yield so React can process the state update above and refresh
+        // photosRef.current. Without this, synchronous paths (e.g. PNG
+        // blob URL creation) would read stale state and overwrite the
+        // newly added photo items.
+        await new Promise(r => setTimeout(r, 0));
 
-      const updatedPhotos = [...photos, ...newItems];
-      onPhotosChange(updatedPhotos);
+        for (const item of newItems) {
+          if (!item.file || !item.id) continue;
+          const isJpeg = item.file.type === 'image/jpeg' || item.file.type === 'image/jpg'
+            || /\.jpe?g$/i.test(item.file.name);
 
-      // Eager upload: start uploading each new file immediately
-      // Uploads are serialized to avoid mobile browser memory pressure
-      // when multiple large photos are uploaded concurrently.
+          let thumbUrl: string;
+          if (isJpeg) {
+            const exifThumb = await extractExifThumbnail(item.file);
+            if (exifThumb) {
+              createdBlobUrls.current.add(exifThumb);
+              thumbUrl = exifThumb;
+            } else {
+              // JPEG without EXIF thumbnail — use blob URL as fallback
+              thumbUrl = URL.createObjectURL(item.file);
+              createdBlobUrls.current.add(thumbUrl);
+            }
+          } else {
+            // Non-JPEG (PNG, etc.) — full blob URL
+            thumbUrl = URL.createObjectURL(item.file);
+            createdBlobUrls.current.add(thumbUrl);
+          }
+
+          const latest = photosRef.current.map((p) =>
+            p.id === item.id ? { ...p, previewUrl: thumbUrl, file: undefined } : p
+          );
+          onPhotosChange(latest);
+        }
+      })();
+
+      // Eager upload: upload each file sequentially
       if (onEagerUpload) {
         const uploadSequentially = async () => {
-          for (const item of newItems) {
+          for (let idx = 0; idx < newItems.length; idx++) {
+            const item = newItems[idx];
             if (!item.file || !item.id) continue;
             const itemId = item.id;
+
             try {
+              // On mobile, pause between uploads to let the router CPU recover.
+              // Budget routers (e.g. TP-Link Archer A6) hit 100% CPU during
+              // large uploads and drop subsequent connections without this delay.
+              if (idx > 0 && isMobileDevice()) {
+                await new Promise(r => setTimeout(r, 3000));
+              }
+
               const { url } = await onEagerUpload(item.file);
+
               const latest = photosRef.current.map((p) =>
                 p.id === itemId
                   ? { ...p, photo_url: url, isUploading: false, file: undefined }
@@ -151,10 +219,11 @@ export function PhotoUploadPanel({
               );
               onPhotosChange(latest);
             } catch (err) {
-              console.error('Eager upload failed for', item.file?.name, err);
-              // Mark as failed so user sees it needs attention
+              console.error('Upload failed:', item.file?.name, err);
               const latest = photosRef.current.map((p) =>
-                p.id === itemId ? { ...p, isUploading: false, uploadFailed: true } : p
+                p.id === itemId
+                  ? { ...p, isUploading: false, uploadFailed: true, file: undefined }
+                  : p
               );
               onPhotosChange(latest);
             }
@@ -163,7 +232,6 @@ export function PhotoUploadPanel({
         uploadSequentially();
       }
 
-      // Reset input so the same file can be re-selected
       e.target.value = '';
     },
     [photos, onPhotosChange, photoTypes, maxPhotos, onEagerUpload]
@@ -174,12 +242,7 @@ export function PhotoUploadPanel({
   const handleRemove = useCallback(
     (index: number) => {
       const photo = photos[index];
-      // Revoke blob URL if we created it
-      if (
-        photo.previewUrl &&
-        photo.previewUrl.startsWith('blob:') &&
-        !photo.isExisting
-      ) {
+      if (photo.previewUrl && photo.previewUrl.startsWith('blob:') && !photo.isExisting) {
         URL.revokeObjectURL(photo.previewUrl);
         createdBlobUrls.current.delete(photo.previewUrl);
       }
@@ -193,29 +256,21 @@ export function PhotoUploadPanel({
 
   const handleTypeChange = useCallback(
     (index: number, type: string) => {
-      const updated = photos.map((p, i) =>
-        i === index ? { ...p, photo_type: type } : p
-      );
-      onPhotosChange(updated);
+      onPhotosChange(photos.map((p, i) => i === index ? { ...p, photo_type: type } : p));
     },
     [photos, onPhotosChange]
   );
 
   const handleDescriptionChange = useCallback(
     (index: number, description: string) => {
-      const updated = photos.map((p, i) =>
-        i === index ? { ...p, photo_description: description } : p
-      );
-      onPhotosChange(updated);
+      onPhotosChange(photos.map((p, i) => i === index ? { ...p, photo_description: description } : p));
     },
     [photos, onPhotosChange]
   );
 
   // ── Drag-and-drop reorder ───────────────────────────────────────────
 
-  const handleDragStart = (index: number) => {
-    setDragIndex(index);
-  };
+  const handleDragStart = (index: number) => setDragIndex(index);
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
@@ -229,13 +284,10 @@ export function PhotoUploadPanel({
       setDragOverIndex(null);
       return;
     }
-
     const reordered = [...photos];
     const [moved] = reordered.splice(dragIndex, 1);
     reordered.splice(dropIndex, 0, moved);
-    const updated = reordered.map((p, i) => ({ ...p, photo_order: i }));
-    onPhotosChange(updated);
-
+    onPhotosChange(reordered.map((p, i) => ({ ...p, photo_order: i })));
     setDragIndex(null);
     setDragOverIndex(null);
   };
@@ -249,7 +301,6 @@ export function PhotoUploadPanel({
 
   const getPreviewSrc = (photo: PhotoItem): string => {
     if (photo.previewUrl) {
-      // For existing photos, resolve through imageUtils
       if (photo.isExisting && !photo.previewUrl.startsWith('blob:')) {
         return getThumbnailUrl(photo.previewUrl) || getImageUrl(photo.previewUrl) || photo.previewUrl;
       }
@@ -265,7 +316,6 @@ export function PhotoUploadPanel({
 
   return (
     <div className={cn('space-y-3', className)}>
-      {/* Upload button */}
       <div>
         <input
           id={inputId}
@@ -287,29 +337,23 @@ export function PhotoUploadPanel({
           )}
         >
           <Camera className="h-4 w-4 mr-2" />
-          {atMaxPhotos
-            ? `Maximum ${maxPhotos} photos reached`
-            : 'Add Photos'}
+          {atMaxPhotos ? `Maximum ${maxPhotos} photos reached` : 'Add Photos'}
         </label>
       </div>
 
-      {/* Validation feedback for required types */}
       {hasValidationError && photos.length > 0 && (
         <div className="flex items-center gap-2 text-sm text-destructive">
           <AlertCircle className="h-4 w-4 flex-shrink-0" />
           <span>
             Required:{' '}
             {missingTypes.map((t) => (
-              <Badge key={t} variant="destructive" className="mr-1 capitalize">
-                {t}
-              </Badge>
+              <Badge key={t} variant="destructive" className="mr-1 capitalize">{t}</Badge>
             ))}
             photo{missingTypes.length > 1 ? 's' : ''} missing
           </span>
         </div>
       )}
 
-      {/* Photo list */}
       {photos.length > 0 && (
         <div className="space-y-2">
           {photos.map((photo, index) => (
@@ -326,29 +370,32 @@ export function PhotoUploadPanel({
                 dragIndex === index && 'opacity-50'
               )}
             >
-              {/* Drag handle */}
               <div className="flex items-center cursor-grab active:cursor-grabbing">
                 <GripVertical className="h-4 w-4 text-muted-foreground" />
               </div>
 
-              {/* Photo preview */}
               <div className="flex-shrink-0 w-24 relative">
-                <img
-                  src={getPreviewSrc(photo)}
-                  alt={`Photo ${index + 1}`}
-                  className="w-full aspect-square object-cover rounded"
-                  onError={(e) => {
-                    // Fallback: try original URL if thumbnail fails
-                    if (photo.photo_url) {
-                      const original = getImageUrl(photo.photo_url);
-                      if (original && e.currentTarget.src !== original) {
-                        e.currentTarget.src = original;
-                        return;
+                {getPreviewSrc(photo) ? (
+                  <img
+                    src={getPreviewSrc(photo)}
+                    alt={`Photo ${index + 1}`}
+                    className="w-full aspect-square object-cover rounded"
+                    onError={(e) => {
+                      if (photo.photo_url) {
+                        const original = getImageUrl(photo.photo_url);
+                        if (original && e.currentTarget.src !== original) {
+                          e.currentTarget.src = original;
+                          return;
+                        }
                       }
-                    }
-                    e.currentTarget.style.display = 'none';
-                  }}
-                />
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div className="w-full aspect-square rounded bg-muted flex items-center justify-center">
+                    <Camera className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                )}
                 {photo.isUploading && (
                   <div className="absolute inset-0 flex items-center justify-center bg-background/70 rounded">
                     <Loader2 className="h-5 w-5 animate-spin text-primary" />
@@ -361,9 +408,7 @@ export function PhotoUploadPanel({
                 )}
               </div>
 
-              {/* Photo metadata */}
               <div className="flex-1 flex flex-col gap-1.5 min-w-0">
-                {/* Photo type selector */}
                 {photoTypes && photoTypes.length > 0 && (
                   <Select
                     value={photo.photo_type || ''}
@@ -375,29 +420,22 @@ export function PhotoUploadPanel({
                     </SelectTrigger>
                     <SelectContent>
                       {photoTypes.map((type) => (
-                        <SelectItem key={type} value={type} className="capitalize">
-                          {type}
-                        </SelectItem>
+                        <SelectItem key={type} value={type} className="capitalize">{type}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 )}
-
-                {/* Description field */}
                 {showDescriptions && (
                   <Textarea
                     placeholder={`Description for photo ${index + 1}`}
                     value={photo.photo_description || ''}
-                    onChange={(e) =>
-                      handleDescriptionChange(index, e.target.value)
-                    }
+                    onChange={(e) => handleDescriptionChange(index, e.target.value)}
                     className="flex-1 resize-none text-sm min-h-[60px]"
                     disabled={disabled}
                   />
                 )}
               </div>
 
-              {/* Remove button */}
               <Button
                 variant="ghost"
                 size="icon"
@@ -412,7 +450,6 @@ export function PhotoUploadPanel({
         </div>
       )}
 
-      {/* Summary info */}
       {photos.length > 0 && (
         <p className="text-xs text-muted-foreground">
           {photos.length} photo{photos.length !== 1 ? 's' : ''}

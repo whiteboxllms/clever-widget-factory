@@ -105,18 +105,21 @@ export function UnifiedActionDialog({
     queryFn: () => { throw new Error('cache-only'); },
     enabled: false,
     select: (actions) => actionId ? actions.find(a => a.id === actionId) : undefined,
+    placeholderData: (prev) => prev, // Keep previous data during refetch to prevent unmount flicker
   });
   const { data: completedMatch } = useQuery<BaseAction[], Error, BaseAction | undefined>({
     queryKey: ['actions_completed'],
     queryFn: () => { throw new Error('cache-only'); },
     enabled: false,
     select: (actions) => actionId ? actions.find(a => a.id === actionId) : undefined,
+    placeholderData: (prev) => prev,
   });
   const { data: singleMatch } = useQuery<BaseAction, Error, BaseAction | undefined>({
     queryKey: ['action', actionId || ''],
     queryFn: () => { throw new Error('cache-only'); },
     enabled: false,
     select: (a) => a,
+    placeholderData: (prev) => prev,
   });
   const action = unresolvedMatch || completedMatch || singleMatch;
   const { toast } = useToast();

@@ -1,106 +1,91 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { S3Client } from '@aws-sdk/client-s3';
+import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 
-const USE_TRANSFER_ACCELERATION = false; // Temporarily disabled - CORS issue with accelerated endpoint
 const BUCKET = 'cwf-dev-assets';
 const USE_ORG_SCOPED_KEYS = process.env.USE_ORG_SCOPED_KEYS === 'true';
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
-// Configure S3 client
-// requestChecksumCalculation: "WHEN_REQUIRED" prevents the SDK from adding
-// x-amz-checksum-crc32 to presigned URLs. Browser fetch() can't send that
-// header, so S3 rejects the upload with SignatureDoesNotMatch.
-const s3Client = new S3Client({ 
+const s3Client = new S3Client({
   region: 'us-west-2',
-  useAccelerateEndpoint: USE_TRANSFER_ACCELERATION,
   requestChecksumCalculation: "WHEN_REQUIRED",
   responseChecksumValidation: "WHEN_REQUIRED",
 });
 
 export const handler = async (event) => {
   console.log('Presigned URL request:', JSON.stringify(event, null, 2));
-  
+
   try {
     const body = JSON.parse(event.body);
     const { filename, contentType } = body;
-    
+
     if (!filename || !contentType) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'filename and contentType required' })
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        body: JSON.stringify({ error: 'filename and contentType required' }),
       };
     }
-    
+
     let key, finalKey;
-    
+
     if (USE_ORG_SCOPED_KEYS) {
-      // Extract organization_id from authorizer context (set by cwf-api-authorizer)
       const organizationId = event.requestContext?.authorizer?.organization_id;
-      
+
       if (!organizationId) {
         console.error('Missing organization_id in authorizer context');
-        console.error('Request context:', JSON.stringify(event.requestContext, null, 2));
         return {
           statusCode: 400,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-          body: JSON.stringify({ error: 'organization_id required for organization-scoped uploads' })
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+          body: JSON.stringify({ error: 'organization_id required for organization-scoped uploads' }),
         };
       }
-      
-      // Use original filename (phone camera filenames are already unique: PXL_20260223_230751854.jpg)
-      // Organization-scoped path: organizations/{org_id}/images/uploads/{filename}
+
       key = `organizations/${organizationId}/images/uploads/${filename}`;
-      // Final path after compression: organizations/{org_id}/images/{filename}
       finalKey = key.replace('/uploads/', '/');
-      
       console.log('Organization-scoped upload:', { organizationId, filename, key, finalKey });
     } else {
-      // Legacy mission-attachments path (backward compatible)
-      // Generate unique key with random string at front
-      // Format: abc123-filename.jpg
       const random = Math.random().toString(36).substring(2, 11);
       key = `mission-attachments/uploads/${random}-${filename}`;
-      // Final path after compression: mission-attachments/abc123-filename.jpg
       finalKey = key.replace('/uploads/', '/');
-      
       console.log('Mission-attachments upload:', { random, key, finalKey });
     }
-    
-    // Generate presigned URL for PUT
-    const command = new PutObjectCommand({
+
+    // Generate presigned POST — browser uploads via multipart/form-data
+    // which is a "simple" CORS request (no preflight OPTIONS needed).
+    const { url: postUrl, fields: postFields } = await createPresignedPost(s3Client, {
       Bucket: BUCKET,
       Key: key,
-      ContentType: contentType,
+      Conditions: [
+        ['content-length-range', 0, MAX_FILE_SIZE],
+        ['starts-with', '$Content-Type', contentType.split('/')[0] + '/'],
+      ],
+      Fields: {
+        'Content-Type': contentType,
+      },
+      Expires: 3600, // 1 hour
     });
-    
-    const presignedUrl = await getSignedUrl(s3Client, command, {
-      expiresIn: 3600, // 1 hour
-    });
-    
-    // Public URL is the final location after compression (without /uploads/)
+
     const publicUrl = `https://${BUCKET}.s3.us-west-2.amazonaws.com/${finalKey}`;
-    
-    console.log('Generated presigned URL:', { uploadKey: key, finalKey, publicUrl });
-    
+
+    console.log('Generated presigned POST:', { uploadKey: key, finalKey, publicUrl, postUrl });
+
     return {
       statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       body: JSON.stringify({
-        presignedUrl,
+        uploadMethod: 'post',
+        postUrl,
+        postFields,
         publicUrl,
         key,
-      })
+      }),
     };
   } catch (error) {
     console.error('Error generating presigned URL:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'Failed to generate presigned URL' })
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({ error: 'Failed to generate presigned URL' }),
     };
   }
 };

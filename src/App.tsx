@@ -21,7 +21,6 @@ import LeadershipRoute from "@/components/LeadershipRoute";
 import SuperAdminRoute from "@/components/SuperAdminRoute";
 import { GlobalMaxwellFAB } from "@/components/GlobalMaxwellFAB";
 import { MaxwellRecordHighlightProvider } from "@/contexts/MaxwellRecordHighlightContext";
-import { UploadDiagnosticOverlay } from "@/components/shared/UploadDiagnosticOverlay";
 
 
 import Index from "./pages/Index";
@@ -382,7 +381,6 @@ const App = () => (
           <TooltipProvider>
             <Toaster />
             <Sonner />
-            <UploadDiagnosticOverlay />
             <BrowserRouter basename={import.meta.env.VITE_BASE_PATH || "/"}>
               <AppContent />
             </BrowserRouter>

@@ -46,6 +46,49 @@ export function getImageKey(urlOrKey: string | null | undefined): string | null 
 }
 
 /**
+ * Derives the original (high-res, EXIF-preserved) image URL from a compressed image URL.
+ * 
+ * The image compressor Lambda leaves the original in the /uploads/ subfolder and writes
+ * the compressed version to the final path. This function reverses that transformation:
+ *   - mission-attachments/abc123-file.jpg → mission-attachments/uploads/abc123-file.jpg
+ *   - organizations/{org}/images/file.jpg → organizations/{org}/images/uploads/file.jpg
+ * 
+ * @param urlOrKey - Either a full URL or an S3 key pointing to the compressed image
+ * @returns Full S3 URL to the original high-res image, or null if not applicable
+ */
+export function getOriginalUrl(urlOrKey: string | null | undefined): string | null {
+  if (!urlOrKey) return null;
+
+  const key = getImageKey(urlOrKey);
+  if (!key) return null;
+
+  // Skip if already an uploads path (already pointing to original)
+  if (key.includes('/uploads/')) {
+    return getImageUrl(urlOrKey);
+  }
+
+  // Skip thumbnails — they don't have originals at a predictable path
+  if (key.includes('/thumb/')) {
+    return null;
+  }
+
+  // Organization-scoped: organizations/{org}/images/file.jpg → organizations/{org}/images/uploads/file.jpg
+  if (key.startsWith('organizations/') && key.includes('/images/')) {
+    const originalKey = key.replace(/\/images\//, '/images/uploads/');
+    return `${S3_BUCKET_URL}/${originalKey}`;
+  }
+
+  // Legacy: mission-attachments/abc123-file.jpg → mission-attachments/uploads/abc123-file.jpg
+  if (key.startsWith('mission-attachments/')) {
+    const originalKey = key.replace(/^mission-attachments\//, 'mission-attachments/uploads/');
+    return `${S3_BUCKET_URL}/${originalKey}`;
+  }
+
+  // Unknown pattern — can't derive original
+  return null;
+}
+
+/**
  * Converts an image URL/key to its thumbnail version
  * Thumbnails are stored in thumb/ subfolder as WebP
  * @param urlOrKey - Either a full URL or an S3 key

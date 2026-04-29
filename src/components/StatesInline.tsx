@@ -5,7 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useCognitoAuth';
 import { useLearningObjectives, useObservationVerification } from '@/hooks/useLearning';
 import type { VerificationResponse, LearningObjective } from '@/hooks/useLearning';
-import { getImageUrl, getThumbnailUrl } from '@/lib/imageUtils';
+import { getImageUrl, getThumbnailUrl, getOriginalUrl } from '@/lib/imageUtils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -26,6 +26,7 @@ import { Plus, Edit2, Trash2, Loader2, CheckCircle2, XCircle, Search } from 'luc
 import { format } from 'date-fns';
 import type { CreateObservationData, Observation } from '@/types/observations';
 import { PhotoUploadPanel, type PhotoItem } from '@/components/shared/PhotoUploadPanel';
+import { PhotoGalleryDialog } from '@/components/shared/PhotoGalleryDialog';
 
 interface StatesInlineProps {
   entity_type: 'action' | 'part' | 'tool' | 'issue' | 'policy';
@@ -73,6 +74,32 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
   // Demonstration checklist state
   const [selectedObjectiveIds, setSelectedObjectiveIds] = useState<Set<string>>(new Set());
   const [verificationResults, setVerificationResults] = useState<VerificationResponse | null>(null);
+  
+  // Photo gallery state
+  const [galleryPhotos, setGalleryPhotos] = useState<Array<{ photo_url: string; photo_description?: string | null }>>([]);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  
+  // Expanded photos state — tracks which observation cards show all photos
+  const [expandedPhotoStates, setExpandedPhotoStates] = useState<Set<string>>(new Set());
+  
+  const toggleExpandedPhotos = (stateId: string) => {
+    setExpandedPhotoStates(prev => {
+      const next = new Set(prev);
+      if (next.has(stateId)) {
+        next.delete(stateId);
+      } else {
+        next.add(stateId);
+      }
+      return next;
+    });
+  };
+
+  const openGallery = (photos: Array<{ photo_url: string; photo_description?: string | null }>, index: number) => {
+    setGalleryPhotos(photos);
+    setGalleryIndex(index);
+    setGalleryOpen(true);
+  };
   
   // Derive incomplete learning objectives from all axes
   const incompleteObjectives: LearningObjective[] = learningData?.axes
@@ -544,32 +571,32 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
 
                 {/* Content: Photo on left, text on right */}
                 <div className="flex gap-3">
-                  {/* First photo thumbnail */}
-                  {state.photos && state.photos.length > 0 && (
+                  {/* Photos — compact (first only) or expanded (all) */}
+                  {state.photos && state.photos.length > 0 && !expandedPhotoStates.has(state.id) && (
                     <div className="flex-shrink-0 w-1/3">
                       <img
                         src={getThumbnailUrl(state.photos[0].photo_url) || ''}
                         alt={state.photos[0].photo_description || 'Photo'}
-                        className="w-full aspect-square object-cover rounded cursor-pointer"
-                        onClick={() => window.open(getImageUrl(state.photos[0].photo_url) || '', '_blank')}
-                        title={state.photos.length > 1 ? `${state.photos.length} photos` : undefined}
+                        className="w-full aspect-square object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => state.photos.length > 1 ? toggleExpandedPhotos(state.id) : openGallery(state.photos, 0)}
+                        title={state.photos.length > 1 ? 'Tap to see all photos' : 'Tap to view full size'}
                         onError={(e) => {
-                          // If thumbnail fails to load, try original image
                           const originalUrl = getImageUrl(state.photos[0].photo_url);
                           if (e.currentTarget.src !== originalUrl && originalUrl) {
-                            console.warn('[StatesInline] Thumbnail failed, trying original:', state.photos[0].photo_url);
                             e.currentTarget.src = originalUrl;
                           } else {
-                            // If original also fails (CORS/ORB error), hide it gracefully
-                            console.warn('[StatesInline] Failed to load observation image:', state.photos[0].photo_url);
                             e.currentTarget.style.display = 'none';
                           }
                         }}
                       />
                       {state.photos.length > 1 && (
-                        <p className="text-xs text-muted-foreground text-center mt-1">
+                        <button
+                          type="button"
+                          className="text-xs text-primary hover:underline text-center mt-1 w-full"
+                          onClick={() => toggleExpandedPhotos(state.id)}
+                        >
                           +{state.photos.length - 1} more
-                        </p>
+                        </button>
                       )}
                     </div>
                   )}
@@ -582,8 +609,8 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
                       </p>
                     )}
                     
-                    {/* Photo descriptions if any */}
-                    {state.photos && state.photos.some(p => p.photo_description) && (
+                    {/* Photo descriptions (compact view only — expanded view shows them inline) */}
+                    {!expandedPhotoStates.has(state.id) && state.photos && state.photos.some(p => p.photo_description) && (
                       <div className="mt-2 space-y-1">
                         {state.photos.map((photo, idx) => 
                           photo.photo_description ? (
@@ -596,6 +623,46 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
                     )}
                   </div>
                 </div>
+
+                {/* Expanded photo list — edit-view style, thumbnails clickable for high-res */}
+                {expandedPhotoStates.has(state.id) && state.photos && state.photos.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {state.photos.map((photo, idx) => (
+                      <div key={photo.id} className="flex gap-2 items-stretch border rounded p-2">
+                        <div className="flex-shrink-0 w-24 relative">
+                          <img
+                            src={getThumbnailUrl(photo.photo_url) || getImageUrl(photo.photo_url) || ''}
+                            alt={photo.photo_description || `Photo ${idx + 1}`}
+                            className="w-full aspect-square object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={() => openGallery(state.photos, idx)}
+                            onError={(e) => {
+                              const fullUrl = getImageUrl(photo.photo_url);
+                              if (fullUrl && e.currentTarget.src !== fullUrl) {
+                                e.currentTarget.src = fullUrl;
+                              } else {
+                                e.currentTarget.style.display = 'none';
+                              }
+                            }}
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0 flex items-center">
+                          {photo.photo_description ? (
+                            <p className="text-sm text-muted-foreground">{photo.photo_description}</p>
+                          ) : (
+                            <p className="text-xs text-muted-foreground italic">No description</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      className="text-xs text-primary hover:underline w-full text-center"
+                      onClick={() => toggleExpandedPhotos(state.id)}
+                    >
+                      Show less
+                    </button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -628,6 +695,14 @@ export function StatesInline({ entity_type, entity_id }: StatesInlineProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Photo Gallery Dialog */}
+      <PhotoGalleryDialog
+        photos={galleryPhotos}
+        initialIndex={galleryIndex}
+        open={galleryOpen}
+        onOpenChange={setGalleryOpen}
+      />
     </div>
   );
 }

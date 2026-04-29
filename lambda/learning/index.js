@@ -11,6 +11,7 @@ const { filterCompletedKnowledgeStates, extractBestMatch, extractTopKMatches } =
 const { distributeMatchesToObjectives, composeAxisAwareEmbeddingSource } = require('./objectiveMatchUtils');
 const { selectLenses, applyGapBoost, buildValuesLenses, buildLensPromptBlock, buildAssetContextBlock } = require('./lensUtils');
 const { scoreToBloomLevel } = require('/opt/nodejs/bloomUtils');
+const { computeBloomLevel, computeTaperingDecision } = require('./progressionModel');
 
 const bedrock = new BedrockRuntimeClient({ region: process.env.BEDROCK_REGION || 'us-west-2' });
 const sqs = new SQSClient({ region: 'us-west-2' });
@@ -1175,6 +1176,27 @@ async function handleQuizGenerate(actionId, body, organizationId) {
     const tAssetDone = Date.now();
     console.log(`[TIMING] fetchAssetContext (vector search): ${tAssetDone - tDbDone}ms`);
 
+    // 8b. Fetch active profile skills and build Profile_Skill_Lens context block
+    let profileSkillBlock = '';
+    try {
+      const profileSkills = await fetchActiveProfileSkills(db, userIdSafe, orgIdSafe);
+      if (profileSkills.length > 0) {
+        // Filter: include skill if at least one axis is not fully tapered
+        const activeProfileSkills = profileSkills.filter(skill => {
+          return skill.axes.some(axis => {
+            const { shouldTaper, reinforcementProbability } = computeTaperingDecision(
+              axis.progression_history, axis.bloom_level
+            );
+            return !shouldTaper || Math.random() < reinforcementProbability;
+          });
+        });
+
+        profileSkillBlock = buildProfileSkillPromptBlock(activeProfileSkills);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch profile skills for quiz generation, proceeding without:', err.message);
+    }
+
     // 9. Generate questions based on the derived question type
     let validatedQuestions;
 
@@ -1189,7 +1211,8 @@ async function handleQuizGenerate(actionId, body, organizationId) {
         knowledgeStatesForAxis,
         previousAnswers || [],
         lensBlock,
-        assetBlock
+        assetBlock,
+        profileSkillBlock
       );
 
       validatedQuestions = validateQuizQuestions(questions, objectiveIds);
@@ -1213,7 +1236,8 @@ async function handleQuizGenerate(actionId, body, organizationId) {
         previousAnswers || [],
         lensBlock,
         assetBlock,
-        growthIntent
+        growthIntent,
+        profileSkillBlock
       );
 
       validatedQuestions = validateOpenFormQuestions(questions, objectiveIds, questionType, bloomLevel);
@@ -1474,7 +1498,7 @@ async function fetchKnowledgeStatesForObjectives(db, objectiveIds, orgIdSafe) {
  * Generate quiz questions via Bedrock Sonnet.
  * Builds a structured prompt with action context, evidence, tools, and previous answers.
  */
-async function generateQuizViaBedrock(action, targetAxis, objectives, evidenceData, toolInventory, knowledgeStates, previousAnswers, lensBlock, assetBlock) {
+async function generateQuizViaBedrock(action, targetAxis, objectives, evidenceData, toolInventory, knowledgeStates, previousAnswers, lensBlock, assetBlock, profileSkillBlock = '') {
   // Build the objectives section
   const objectivesSection = objectives.map(obj => {
     const pastStates = knowledgeStates[obj.id] || [];
@@ -1549,7 +1573,7 @@ ${photoSection}
 TOOLS AND EQUIPMENT:
 ${toolSection}
 ${wrongAnswersSection}
-${lensBlock ? '\n' + lensBlock + '\n' : ''}${assetBlock ? '\n' + assetBlock + '\n' : ''}
+${lensBlock ? '\n' + lensBlock + '\n' : ''}${profileSkillBlock ? '\n' + profileSkillBlock + '\n' : ''}${assetBlock ? '\n' + assetBlock + '\n' : ''}
 INSTRUCTIONS:
 1. Generate at least one question per learning objective listed above.
 2. Each question MUST have exactly 4 answer options with explanations for each option.
@@ -1626,7 +1650,7 @@ No markdown, no code fences, no explanation outside the JSON.`;
  *
  * Requirements: 3.1, 6.3, 6.4, 6.5, 6.7
  */
-async function generateOpenFormQuizViaBedrock(action, targetAxis, objectives, questionType, bloomLevel, previousOpenFormStates, previousAnswers, lensBlock, assetBlock, growthIntent = null) {
+async function generateOpenFormQuizViaBedrock(action, targetAxis, objectives, questionType, bloomLevel, previousOpenFormStates, previousAnswers, lensBlock, assetBlock, growthIntent = null, profileSkillBlock = '') {
   // Build question type instructions based on the current progression level
   const questionTypeInstructions = {
     bridging: `Generate a BRIDGING question for the entire axis. This is a single open-ended question asking the learner to connect the concepts they've learned to their specific action context. Example framing: "Now that you've reviewed these concepts, what from this area do you see as worth adopting for this action, and why?"
@@ -1719,7 +1743,7 @@ LEARNING OBJECTIVES TO COVER:
 ${objectivesSection}
 ${previousResponsesSection}
 ${wrongAnswersSection}
-${lensBlock ? '\n' + lensBlock + '\n' : ''}${assetBlock ? '\n' + assetBlock + '\n' : ''}
+${lensBlock ? '\n' + lensBlock + '\n' : ''}${profileSkillBlock ? '\n' + profileSkillBlock + '\n' : ''}${assetBlock ? '\n' + assetBlock + '\n' : ''}
 HIGH-CEILING QUESTION DESIGN:
 - Each question must ask ONE clear thing. No compound questions, no "and also consider..." tacked on.
 - Keep questions short — the teaching moment is 1-2 sentences, the application prompt is 1-2 sentences.
@@ -1776,7 +1800,7 @@ LEARNING OBJECTIVES TO COVER:
 ${objectivesSection}
 ${previousResponsesSection}
 ${wrongAnswersSection}
-${lensBlock ? '\n' + lensBlock + '\n' : ''}${assetBlock ? '\n' + assetBlock + '\n' : ''}
+${lensBlock ? '\n' + lensBlock + '\n' : ''}${profileSkillBlock ? '\n' + profileSkillBlock + '\n' : ''}${assetBlock ? '\n' + assetBlock + '\n' : ''}
 HIGH-CEILING QUESTION DESIGN:
 - Each question must ask ONE clear thing. No compound questions, no "and also consider..." tacked on.
 - Keep questions short — one or two sentences max. The depth comes from the learner's answer, not the question's complexity.
@@ -1971,7 +1995,7 @@ async function handleEvaluate(actionId, body, organizationId, aiConfig) {
 
     // Verify the state exists and belongs to this organization
     const stateResult = await db.query(
-      `SELECT id, state_text FROM states
+      `SELECT id, state_text, captured_by FROM states
        WHERE id = '${stateIdSafe}' AND organization_id = '${orgIdSafe}'`
     );
 
@@ -1980,9 +2004,12 @@ async function handleEvaluate(actionId, body, organizationId, aiConfig) {
     }
 
     const currentStateText = stateResult.rows[0].state_text;
+    const stateCapturedBy = stateResult.rows[0].captured_by;
 
     // Look up the axis label for this knowledge state via its linked learning objective
+    // Also extract userId from the linked objective for profile skill progression
     let axisLabel = null;
+    let linkedObjectiveUserId = null;
     try {
       const objectiveLinkResult = await db.query(
         `SELECT s.state_text
@@ -1994,16 +2021,19 @@ async function handleEvaluate(actionId, body, organizationId, aiConfig) {
       );
       if (objectiveLinkResult.rows.length > 0) {
         const parsedObj = parseLearningObjectiveStateText(objectiveLinkResult.rows[0].state_text);
-        if (parsedObj && parsedObj.axisKey) {
-          // Look up axis label from the action's skill profile
-          const actionResult = await db.query(
-            `SELECT skill_profile FROM actions
-             WHERE id = '${escapeLiteral(actionId)}' AND organization_id = '${orgIdSafe}'`
-          );
-          if (actionResult.rows.length > 0 && actionResult.rows[0].skill_profile) {
-            const axis = actionResult.rows[0].skill_profile.axes?.find(a => a.key === parsedObj.axisKey);
-            if (axis) {
-              axisLabel = axis.label;
+        if (parsedObj) {
+          linkedObjectiveUserId = parsedObj.userId || null;
+          if (parsedObj.axisKey) {
+            // Look up axis label from the action's skill profile
+            const actionResult = await db.query(
+              `SELECT skill_profile FROM actions
+               WHERE id = '${escapeLiteral(actionId)}' AND organization_id = '${orgIdSafe}'`
+            );
+            if (actionResult.rows.length > 0 && actionResult.rows[0].skill_profile) {
+              const axis = actionResult.rows[0].skill_profile.axes?.find(a => a.key === parsedObj.axisKey);
+              if (axis) {
+                axisLabel = axis.label;
+              }
             }
           }
         }
@@ -2055,6 +2085,20 @@ async function handleEvaluate(actionId, body, organizationId, aiConfig) {
       .catch(err => console.error('Failed to queue embedding after evaluation:', err));
 
     console.log(`Evaluation complete for state ${stateId}: score=${evaluation.score}, sufficient=${evaluation.sufficient}`);
+
+    // Update profile skill progression after successful evaluation
+    // Use demonstratedLevel from evaluation, fall back to scoreToBloomLevel
+    const userId = linkedObjectiveUserId || stateCapturedBy;
+    if (userId) {
+      try {
+        const demonstratedLevel = evaluation.demonstratedLevel != null
+          ? evaluation.demonstratedLevel
+          : scoreToBloomLevel(evaluation.score);
+        await updateProfileSkillProgression(db, userId, organizationId, actionId, stateId, demonstratedLevel);
+      } catch (progressionErr) {
+        console.error('Failed to update profile skill progression for state', stateId, ':', progressionErr.message);
+      }
+    }
 
     return {
       statusCode: 202,
@@ -2679,6 +2723,162 @@ async function queueDemonstrationEmbedding(stateId, stateText, organizationId, a
   console.log('Queued embedding for demonstration state', stateId);
 }
 
+// --- Profile Skill Helpers ---
+
+/**
+ * Fetch active profile skills for a user.
+ * Queries states joined with state_links to find profile skills owned by the user,
+ * parses each state_text, and filters for active ones.
+ *
+ * @param {object} db - Database client (already acquired, caller manages release)
+ * @param {string} userId - Escaped user ID
+ * @param {string} organizationId - Escaped organization ID
+ * @returns {Promise<Array>} Array of parsed active profile skill objects, each including the state `id`
+ */
+async function fetchActiveProfileSkills(db, userId, organizationId) {
+  const result = await db.query(
+    `SELECT s.id, s.state_text
+     FROM states s
+     INNER JOIN state_links sl ON sl.state_id = s.id
+     WHERE sl.entity_type = 'profile_skill_owner'
+       AND sl.entity_id = '${userId}'
+       AND s.organization_id = '${organizationId}'
+       AND s.state_text LIKE '[profile_skill]%'`
+  );
+
+  const activeSkills = [];
+  for (const row of result.rows) {
+    const match = row.state_text.match(/^\[profile_skill\] \| (.+)$/);
+    if (!match) continue;
+    try {
+      const parsed = JSON.parse(match[1]);
+      if (parsed.active === true) {
+        activeSkills.push({ id: row.id, ...parsed });
+      }
+    } catch (e) {
+      console.warn('Failed to parse profile skill state_text for state', row.id, ':', e.message);
+    }
+  }
+
+  return activeSkills;
+}
+
+/**
+ * Build the Profile_Skill_Lens context block for the quiz generation prompt.
+ * Structured as a separate section distinct from org-level lenses.
+ *
+ * @param {Array} profileSkills - Active profile skills with axes and bloom levels
+ * @returns {string} Prompt text block
+ */
+function buildProfileSkillPromptBlock(profileSkills) {
+  if (!profileSkills || profileSkills.length === 0) return '';
+
+  const skillBlocks = profileSkills.map((skill, i) => {
+    const axesDescription = skill.axes.map(axis =>
+      `    - ${axis.label} (current Bloom's level: ${axis.bloom_level}/5): ${axis.description}`
+    ).join('\n');
+
+    return `  Skill ${i + 1}: ${skill.ai_interpretation?.concept_label || 'Personal Growth Skill'}
+    Narrative: ${skill.original_narrative.substring(0, 300)}
+    Source: ${skill.ai_interpretation?.source_attribution || 'Personal insight'}
+    Direction: ${skill.ai_interpretation?.learning_direction || 'General growth'}
+    Concept Axes:
+${axesDescription}`;
+  }).join('\n\n');
+
+  return `LEARNER PROFILE SKILLS (personal growth lenses — weave these concepts into questions where relevant):
+${skillBlocks}
+
+For each profile skill axis, frame questions at a depth appropriate to the learner's current Bloom's level for that axis. Lower levels (0-2) should introduce and explain the concept; higher levels (3-5) should ask for application, analysis, or synthesis of the concept in the action context.`;
+}
+
+/**
+ * Parse a profile skill state_text, extracting the profile skill JSON data.
+ * Returns null if the format doesn't match.
+ *
+ * @param {string} stateText - The raw state_text from the states table
+ * @returns {object|null} Parsed profile skill object, or null
+ */
+function parseProfileSkillStateText(stateText) {
+  const match = stateText.match(/^\[profile_skill\] \| (.+)$/);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[1]);
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Compose a profile skill state_text from the profile skill data.
+ * User ownership is tracked via captured_by and state_links, not in state_text.
+ *
+ * @param {object} profileSkillData - The profile skill data object
+ * @returns {string} Composed state_text in the format: [profile_skill] | {json}
+ */
+function composeProfileSkillStateText(profileSkillData) {
+  return `[profile_skill] | ${JSON.stringify(profileSkillData)}`;
+}
+
+/**
+ * Update progression for all active profile skills after a quiz evaluation.
+ *
+ * For each active profile skill, appends a progression event to every axis's
+ * progression_history, recomputes bloom_level via the Progression_Model, and
+ * persists the updated state record.
+ *
+ * @param {object} db - Database client (already acquired, caller manages release)
+ * @param {string} userId - Raw (unescaped) user ID
+ * @param {string} organizationId - Raw (unescaped) organization ID
+ * @param {string} actionId - The action the quiz was for
+ * @param {string} knowledgeStateId - The quiz knowledge state ID
+ * @param {number} demonstratedLevel - Bloom's level from evaluation (1-5)
+ */
+async function updateProfileSkillProgression(db, userId, organizationId, actionId, knowledgeStateId, demonstratedLevel) {
+  const orgIdSafe = escapeLiteral(organizationId);
+  const userIdSafe = escapeLiteral(userId);
+
+  // Fetch active profile skills for this user
+  const profileSkillsResult = await db.query(
+    `SELECT s.id, s.state_text
+     FROM states s
+     INNER JOIN state_links sl ON sl.state_id = s.id
+     WHERE sl.entity_type = 'profile_skill_owner'
+       AND sl.entity_id = '${userIdSafe}'
+       AND s.organization_id = '${orgIdSafe}'
+       AND s.state_text LIKE '[profile_skill]%'`
+  );
+
+  for (const row of profileSkillsResult.rows) {
+    const parsed = parseProfileSkillStateText(row.state_text);
+    if (!parsed || !parsed.active) continue;
+
+    // Create progression event
+    const event = {
+      demonstrated_level: demonstratedLevel,
+      action_id: actionId,
+      state_id: knowledgeStateId,
+      timestamp: new Date().toISOString()
+    };
+
+    // Append to each axis's progression_history
+    let updated = false;
+    for (const axis of parsed.axes) {
+      axis.progression_history.push(event);
+      axis.bloom_level = computeBloomLevel(axis.progression_history);
+      updated = true;
+    }
+
+    if (updated) {
+      const updatedStateText = composeProfileSkillStateText(parsed);
+      await db.query(
+        `UPDATE states SET state_text = '${escapeLiteral(updatedStateText)}'
+         WHERE id = '${escapeLiteral(row.id)}' AND organization_id = '${orgIdSafe}'`
+      );
+    }
+  }
+}
+
 // Re-export pure functions from evidenceUtils for testing
 exports.filterCompletedKnowledgeStates = filterCompletedKnowledgeStates;
 exports.extractBestMatch = extractBestMatch;
@@ -2695,3 +2895,10 @@ exports.validateOpenFormQuestions = validateOpenFormQuestions;
 
 // Re-export evaluation function for testing
 exports.callBedrockForEvaluation = callBedrockForEvaluation;
+
+// Re-export profile skill helpers for testing and integration
+exports.fetchActiveProfileSkills = fetchActiveProfileSkills;
+exports.buildProfileSkillPromptBlock = buildProfileSkillPromptBlock;
+exports.updateProfileSkillProgression = updateProfileSkillProgression;
+exports.parseProfileSkillStateText = parseProfileSkillStateText;
+exports.composeProfileSkillStateText = composeProfileSkillStateText;

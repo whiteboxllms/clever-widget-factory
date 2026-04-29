@@ -19,7 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { useProfile } from '@/hooks/useProfile';
 import { OrganizationValuesSection } from '@/components/OrganizationValuesSection';
-import { ProfileIntentsSection } from '@/components/ProfileIntentsSection';
+import { ProfileSkillsSection } from '@/components/ProfileSkillsSection';
 import { AiConfigCard } from '@/components/AiConfigCard';
 import { LensManagementCard } from '@/components/LensManagementCard';
 import { apiService, getApiData } from '@/lib/apiService';
@@ -383,9 +383,9 @@ const Organization = () => {
       {/* Organization Values */}
       <OrganizationValuesSection canEdit={isAdmin} organization={targetOrganization} />
 
-      {/* Growth Intents (user-specific) */}
+      {/* Profile Skills (user-specific) */}
       {user?.userId && targetOrganization?.id && (
-        <ProfileIntentsSection userId={user.userId} organizationId={targetOrganization.id} />
+        <ProfileSkillsSection userId={user.userId} organizationId={targetOrganization.id} />
       )}
 
       {/* Scoring Prompts */}

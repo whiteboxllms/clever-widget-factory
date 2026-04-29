@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/select';
 import { X, GripVertical, Loader2, AlertCircle, Camera } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getImageUrl, getThumbnailUrl } from '@/lib/imageUtils';
+import { getImageUrl, getThumbnailUrl, getOriginalUrl } from '@/lib/imageUtils';
 
 export interface PhotoItem {
   id?: string;
@@ -312,6 +312,27 @@ export function PhotoUploadPanel({
     return '';
   };
 
+  /** Best available URL for viewing a photo at full size. */
+  const getViewUrl = (photo: PhotoItem): string | null => {
+    // Uploaded photo — use original high-res if available, else compressed
+    if (photo.photo_url) {
+      return getOriginalUrl(photo.photo_url) || getImageUrl(photo.photo_url) || photo.photo_url;
+    }
+    // Local-only photo — blob preview is the best we have
+    if (photo.previewUrl) {
+      return photo.previewUrl;
+    }
+    return null;
+  };
+
+  const handlePhotoClick = (photo: PhotoItem) => {
+    if (photo.isUploading) return;
+    const url = getViewUrl(photo);
+    if (url) {
+      window.open(url, '_blank');
+    }
+  };
+
   // ── Render ──────────────────────────────────────────────────────────
 
   return (
@@ -379,7 +400,11 @@ export function PhotoUploadPanel({
                   <img
                     src={getPreviewSrc(photo)}
                     alt={`Photo ${index + 1}`}
-                    className="w-full aspect-square object-cover rounded"
+                    className={cn(
+                      'w-full aspect-square object-cover rounded',
+                      !photo.isUploading && 'cursor-pointer hover:opacity-80 transition-opacity'
+                    )}
+                    onClick={() => handlePhotoClick(photo)}
                     onError={(e) => {
                       if (photo.photo_url) {
                         const original = getImageUrl(photo.photo_url);

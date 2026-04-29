@@ -37,7 +37,7 @@ import {
   PhotoUploadPanel,
   type PhotoItem,
 } from '@/components/shared/PhotoUploadPanel';
-import { getImageUrl, getThumbnailUrl } from '@/lib/imageUtils';
+import { getImageUrl, getThumbnailUrl, getOriginalUrl } from '@/lib/imageUtils';
 import type { FinancialRecordEdit } from '@/types/financialRecords';
 
 export default function FinancialRecordDetail() {
@@ -318,7 +318,7 @@ export default function FinancialRecordDetail() {
                           src={getThumbnailUrl(photo.photo_url) || getImageUrl(photo.photo_url) || photo.photo_url}
                           alt={photo.photo_description || `photo ${index + 1}`}
                           className="w-full aspect-square object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
-                          onClick={() => window.open(getImageUrl(photo.photo_url) || photo.photo_url, '_blank')}
+                          onClick={() => window.open(getOriginalUrl(photo.photo_url) || getImageUrl(photo.photo_url) || photo.photo_url, '_blank')}
                           onError={(e) => {
                             const originalUrl = getImageUrl(photo.photo_url);
                             if (originalUrl && e.currentTarget.src !== originalUrl) {

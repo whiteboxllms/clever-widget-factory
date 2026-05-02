@@ -86,6 +86,10 @@ export const learningObjectivesQueryKey = (actionId: string, userId: string) =>
 export const evaluationStatusQueryKey = (actionId: string, userId: string, stateIds: string[]) =>
   ['evaluation_status', actionId, userId, ...stateIds.sort()];
 
+// Profile skills query keys
+export const profileSkillsQueryKey = (userId?: string) =>
+  userId ? ['profile_skills', userId] : ['profile_skills'];
+
 // Member settings query keys
 export const memberSettingsQueryKey = (userId: string, organizationId?: string) =>
   ['member-settings', userId, organizationId ?? 'default'];

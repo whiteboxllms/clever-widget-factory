@@ -47,7 +47,19 @@ Search `src/` and `lambda/` for debug logging:
 
 Report: ✅ Clean or ⚠️ list files with debug logs.
 
-## Step 5: Check for Database Changes
+## Step 5: RDS Backup
+
+Always run the backup script before any PR:
+
+```bash
+bash scripts/cron/backup-rds-daily.sh
+```
+
+Wait for the "Snapshot created successfully" confirmation before proceeding. If it fails, stop and report the error.
+
+Report: ✅ Snapshot `cwf-manual-{DATE}` created or ❌ Backup failed.
+
+## Step 6: Check for Database Changes
 
 Check if any migration files were added or modified in this branch:
 
@@ -57,17 +69,7 @@ git diff main --name-only -- 'migrations/'
 
 If migrations were detected:
 
-### 5a: Create RDS Backup
-
-Run the backup script before any PR with DB changes:
-
-```bash
-bash scripts/cron/backup-rds-daily.sh
-```
-
-Wait for confirmation that the snapshot was created.
-
-### 5b: Update Schema Diagram
+### 6a: Update Schema Diagram
 
 ```bash
 python3 scripts/generate-db-diagram.py > docs/DATABASE_SCHEMA.md
@@ -77,7 +79,7 @@ Verify the file was generated and report what tables/relationships changed.
 
 If no migrations detected, skip this step and report: ✅ No DB changes.
 
-## Step 6: Build Check
+## Step 7: Build Check
 
 ```bash
 npm run build
@@ -87,7 +89,7 @@ If the build fails, report the errors and stop. Do not proceed until the user ac
 
 Report: ✅ Build succeeded or ❌ Build failed with errors.
 
-## Step 7: Summary
+## Step 8: Summary
 
 Provide a final checklist:
 
@@ -99,7 +101,7 @@ Build:          ✅ / ❌
 Security:       ✅ / ⚠️
 Temp Files:     ✅ / ⚠️
 Console Logs:   ✅ / ⚠️
-DB Backup:      ✅ / ⏭️ (skipped - no migrations)
+DB Backup:      ✅ / ❌
 Schema Diagram: ✅ / ⏭️ (skipped - no migrations)
 ```
 

@@ -2,13 +2,14 @@ import { useAuth } from "@/hooks/useCognitoAuth";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, BarChart3, Building2, Settings, Bot, RefreshCw, DollarSign, Search } from 'lucide-react';
+import { LogOut, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, BarChart3, Building2, Settings, Bot, RefreshCw, DollarSign, Search, User } from 'lucide-react';
 import { PrismIcon } from '@/components/icons/PrismIcon';
 import { useToast } from '@/hooks/use-toast';
 import { DebugModeToggle } from '@/components/DebugModeToggle';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { EditableDisplayName } from '@/components/EditableDisplayName';
 import { useOrganization } from '@/hooks/useOrganization';
+import { useProfile } from '@/hooks/useProfile';
 import { OrganizationSwitcher } from '@/components/OrganizationSwitcher';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useQueryClient } from '@tanstack/react-query';
@@ -16,12 +17,14 @@ import { actionsQueryKey } from '@/lib/queryKeys';
 import { apiService } from '@/lib/apiService';
 import { offlineQueryConfig } from '@/lib/queryConfig';
 import { toolsQueryConfig, partsQueryConfig } from '@/lib/assetQueryConfigs';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 export default function Dashboard() {
   const { user, signOut, isAdmin, isLeadership } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
   const { organization, loading: orgLoading } = useOrganization();
+  const { fullName } = useProfile();
+  const firstName = fullName ? fullName.split(' ')[0] : '';
 
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -69,6 +72,20 @@ export default function Dashboard() {
         title: "Signed out successfully",
         description: "You have been signed out.",
       });
+    }
+  };
+
+  // Long-press handler for sign out — prevents accidental taps on mobile
+  const signOutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleSignOutPointerDown = () => {
+    signOutTimerRef.current = setTimeout(() => {
+      handleSignOut();
+    }, 500);
+  };
+  const handleSignOutPointerUp = () => {
+    if (signOutTimerRef.current) {
+      clearTimeout(signOutTimerRef.current);
+      signOutTimerRef.current = null;
     }
   };
 
@@ -138,6 +155,13 @@ export default function Dashboard() {
       color: "bg-indigo-500"
     },
     {
+      title: firstName || "My Profile",
+      description: "View and manage your areas of focus",
+      icon: User,
+      path: `/user/${user?.userId}`,
+      color: "bg-purple-500"
+    },
+    {
       title: "Organization Settings",
       description: "Manage organization members and settings",
       icon: Settings,
@@ -157,15 +181,9 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b bg-card">
-        <div className="flex items-center justify-between p-4">
-          <div>
-            <h1 className="text-2xl font-bold">{appTitle}</h1>
-            <div className="flex items-center gap-2 mt-1">
-              <EditableDisplayName />
-              <OrganizationSwitcher />
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between gap-2 px-4 pt-4 pb-2">
+          <h1 className="text-2xl font-bold truncate">{appTitle}</h1>
+          <div className="flex items-center gap-2 flex-shrink-0">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button onClick={() => window.dispatchEvent(new Event('open-maxwell'))} variant="outline" size="sm" className="gap-2">
@@ -198,11 +216,31 @@ export default function Dashboard() {
               </TooltipContent>
             </Tooltip>
             <DebugModeToggle />
-            <Button onClick={handleSignOut} variant="outline" size="sm">
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onPointerDown={handleSignOutPointerDown}
+                  onPointerUp={handleSignOutPointerUp}
+                  onPointerLeave={handleSignOutPointerUp}
+                  onClick={(e) => e.preventDefault()}
+                  variant="outline"
+                  size="sm"
+                  className="p-2"
+                  aria-label="Sign out"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Hold to sign out</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
+        </div>
+        {/* Second row: name + org switcher — full width on mobile */}
+        <div className="flex items-center gap-2 px-4 pb-3">
+          <EditableDisplayName />
+          <OrganizationSwitcher />
         </div>
       </header>
 

@@ -10,7 +10,7 @@ const sqs = new SQSClient({ region: 'us-west-2' });
 const bedrock = new BedrockRuntimeClient({ region: process.env.BEDROCK_REGION || 'us-west-2' });
 const EMBEDDINGS_QUEUE_URL = 'https://sqs.us-west-2.amazonaws.com/131745734428/cwf-embeddings-queue';
 
-const { composeAxisEmbeddingSource, composeAxisEntityId, parseAxisEntityId } = require('/opt/nodejs/axisUtils');
+const { composeAxisEmbeddingSource } = require('/opt/nodejs/axisUtils');
 
 const success = (data) => successResponse({ data });
 const error = (message, statusCode = 500) => errorResponse(statusCode, message);
@@ -41,6 +41,35 @@ exports.handler = async (event) => {
   }
 
   try {
+    // --- Profile Skills routes (must come BEFORE /api/skill-profiles/* to avoid conflicts) ---
+
+    // GET /api/profile-skills — Fetch all profile skills for the authenticated user
+    if (httpMethod === 'GET' && path === '/api/profile-skills') {
+      return await handleGetProfileSkills(event, organizationId);
+    }
+
+    // POST /api/profile-skills/generate — Generate AI interpretation + axes from narrative (preview)
+    if (httpMethod === 'POST' && path === '/api/profile-skills/generate') {
+      return await handleGenerateProfileSkill(event, organizationId);
+    }
+
+    // POST /api/profile-skills/approve — Approve and store a profile skill as a state record
+    if (httpMethod === 'POST' && path === '/api/profile-skills/approve') {
+      return await handleApproveProfileSkill(event, organizationId);
+    }
+
+    // PUT /api/profile-skills/:id/toggle — Toggle active/inactive status
+    if (httpMethod === 'PUT' && path.startsWith('/api/profile-skills/') && path.endsWith('/toggle')) {
+      return await handleToggleProfileSkill(event, organizationId);
+    }
+
+    // DELETE /api/profile-skills/:id — Delete a profile skill permanently
+    if (httpMethod === 'DELETE' && path.startsWith('/api/profile-skills/')) {
+      return await handleDeleteProfileSkill(event, organizationId);
+    }
+
+    // --- Existing Skill Profiles routes ---
+
     // POST /api/skill-profiles/generate — Generate a skill profile preview (not stored)
     if (httpMethod === 'POST' && path === '/api/skill-profiles/generate') {
       return await handleGenerate(event, organizationId);
@@ -67,6 +96,51 @@ exports.handler = async (event) => {
     return error(err.message, 500);
   }
 };
+
+/**
+ * GET /api/profile-skills
+ * Fetch all profile skills for the authenticated user.
+ * Requirements: 1.1, 1.7, 4.1, 4.4
+ */
+async function handleGetProfileSkills(event, organizationId) {
+  const userId = getAuthorizerContext(event)?.user_id;
+  if (!userId) {
+    return error('User ID not found in authorizer context', 401);
+  }
+
+  const db = await getDbClient();
+  try {
+    const userIdSafe = escapeLiteral(userId);
+    const orgIdSafe = escapeLiteral(organizationId);
+
+    const result = await db.query(
+      `SELECT s.id, s.state_text, s.captured_at
+       FROM states s
+       INNER JOIN state_links sl ON sl.state_id = s.id
+       WHERE sl.entity_type = 'profile_skill_owner'
+         AND sl.entity_id = '${userIdSafe}'
+         AND s.organization_id = '${orgIdSafe}'
+         AND s.state_text LIKE '[profile_skill]%'
+       ORDER BY s.captured_at DESC`
+    );
+
+    const profileSkills = result.rows
+      .map(row => {
+        const parsed = parseProfileSkillStateText(row.state_text);
+        if (!parsed) return null;
+        return {
+          id: row.id,
+          captured_at: row.captured_at,
+          ...parsed
+        };
+      })
+      .filter(Boolean);
+
+    return success(profileSkills);
+  } finally {
+    db.release();
+  }
+}
 
 /**
  * POST /api/skill-profiles/generate
@@ -405,9 +479,9 @@ async function handleApprove(event, organizationId) {
   // Delete existing skill_axis embeddings for this action before generating new ones
   const deleteDb = await getDbClient();
   try {
-    const actionIdPattern = escapeLiteral(updatedAction.id + ':%');
     await deleteDb.query(
-      `DELETE FROM unified_embeddings WHERE entity_type = 'skill_axis' AND entity_id LIKE '${actionIdPattern}'`
+      `DELETE FROM unified_embeddings WHERE entity_type = 'skill_axis' AND action_id = $1`,
+      [updatedAction.id]
     );
     console.log('Deleted existing skill_axis embeddings for action', updatedAction.id);
   } catch (err) {
@@ -418,21 +492,21 @@ async function handleApprove(event, organizationId) {
 
   // Generate per-axis embedding SQS messages — await all sends
   const axisEmbeddingPromises = approvedProfile.axes.map(axis => {
-    const entityId = composeAxisEntityId(updatedAction.id, axis.key);
     const embeddingSource = composeAxisEmbeddingSource(axis, approvedProfile.narrative);
 
     return sqs.send(new SendMessageCommand({
       QueueUrl: EMBEDDINGS_QUEUE_URL,
       MessageBody: JSON.stringify({
         entity_type: 'skill_axis',
-        entity_id: entityId,
+        action_id: updatedAction.id,
+        axis_key: axis.key,
         embedding_source: embeddingSource,
         organization_id: updatedAction.organization_id
       })
     })).then(() => {
-      console.log('Queued skill_axis embedding:', entityId);
+      console.log('Queued skill_axis embedding for action', updatedAction.id, 'axis', axis.key);
     }).catch(err => {
-      console.error('Failed to queue skill_axis embedding:', entityId, err);
+      console.error('Failed to queue skill_axis embedding for action', updatedAction.id, 'axis', axis.key, err);
     });
   });
 
@@ -522,8 +596,410 @@ async function handleDelete(actionId, organizationId) {
   }
 }
 
+/**
+ * POST /api/profile-skills/generate
+ * Generate AI interpretation and concept axes from a learner's narrative (preview, not stored).
+ * Requirements: 1.3, 1.4, 1.5
+ */
+async function handleGenerateProfileSkill(event, organizationId) {
+  const body = JSON.parse(event.body || '{}');
+  const { narrative } = body;
+
+  if (!narrative || typeof narrative !== 'string' || !narrative.trim()) {
+    return error('narrative is required and must be a non-empty string', 400);
+  }
+
+  const prompt = buildProfileSkillGenerationPrompt(narrative.trim(), false);
+
+  let result;
+  try {
+    result = await callBedrockForSkillProfile(prompt);
+  } catch (err) {
+    console.error('Bedrock call failed for profile skill generation:', err);
+    return error('AI service temporarily unavailable. Please try again.', 503);
+  }
+
+  // Validate the AI response structure; retry once with a stricter prompt if malformed
+  if (!isValidProfileSkillGeneration(result)) {
+    console.warn('First attempt returned malformed profile skill generation, retrying with stricter prompt');
+    const stricterPrompt = buildProfileSkillGenerationPrompt(narrative.trim(), true);
+    try {
+      result = await callBedrockForSkillProfile(stricterPrompt);
+    } catch (err) {
+      console.error('Bedrock retry failed for profile skill generation:', err);
+      return error('AI service temporarily unavailable. Please try again.', 503);
+    }
+
+    if (!isValidProfileSkillGeneration(result)) {
+      console.error('Second attempt also returned malformed profile skill generation:', JSON.stringify(result));
+      return error('Failed to generate valid profile skill.', 500);
+    }
+  }
+
+  // Return preview — nothing persisted
+  return success({
+    ai_interpretation: result.ai_interpretation,
+    axes: result.axes
+  });
+}
+
+/**
+ * Build the Bedrock prompt for profile skill generation from a learner's narrative.
+ * Extracts concept_label, source_attribution, learning_direction, and 3-5 concept axes.
+ *
+ * @param {string} narrative - The learner's original narrative text
+ * @param {boolean} strict - Whether to use a stricter prompt (retry)
+ * @returns {string}
+ * Requirements: 1.3, 1.4, 1.5
+ */
+function buildProfileSkillGenerationPrompt(narrative, strict = false) {
+  const strictClause = strict
+    ? `\nCRITICAL: You MUST return EXACTLY 3 to 5 axes. Each axis MUST have a non-empty "key" (snake_case), "label", and "description". The ai_interpretation MUST have non-empty "concept_label", "source_attribution", and "learning_direction". Do NOT return fewer than 3 or more than 5 axes. Failure to comply will cause an error.`
+    : '';
+
+  return `You are a learning design expert. A learner has described a personal growth direction.
+Your job is to extract the core concept and generate concept axes for structured learning.
+
+LEARNER'S NARRATIVE:
+${narrative}
+
+INSTRUCTIONS:
+1. Extract an AI interpretation with:
+   - concept_label: A short name for the core concept (e.g., "Extreme Ownership")
+   - source_attribution: Any referenced source, person, or origin (e.g., "Jocko Willink, Diary of a CEO"). Use "Personal insight" if no source is referenced.
+   - learning_direction: 1-2 sentence summary of the growth direction
+
+2. Generate 3-5 concept axes, each representing a distinct concept area grounded in real
+   frameworks, research, or established concepts relevant to the narrative.
+   Each axis has:
+   - key: snake_case identifier
+   - label: Human-readable label
+   - description: 1-2 sentence description of the concept area
+${strictClause}
+Return ONLY a JSON object:
+{
+  "ai_interpretation": { "concept_label": "...", "source_attribution": "...", "learning_direction": "..." },
+  "axes": [{ "key": "...", "label": "...", "description": "..." }]
+}`;
+}
+
+/**
+ * Validate that a profile skill generation response has the correct structure.
+ * - ai_interpretation: object with non-empty concept_label, source_attribution, learning_direction
+ * - axes: array of 3-5 items, each with non-empty key, label, description
+ * @param {Object} result
+ * @returns {boolean}
+ */
+function isValidProfileSkillGeneration(result) {
+  if (!result || typeof result !== 'object') return false;
+
+  // Validate ai_interpretation
+  const ai = result.ai_interpretation;
+  if (!ai || typeof ai !== 'object') return false;
+  if (typeof ai.concept_label !== 'string' || !ai.concept_label.trim()) return false;
+  if (typeof ai.source_attribution !== 'string' || !ai.source_attribution.trim()) return false;
+  if (typeof ai.learning_direction !== 'string' || !ai.learning_direction.trim()) return false;
+
+  // Validate axes
+  if (!Array.isArray(result.axes)) return false;
+  if (result.axes.length < 3 || result.axes.length > 5) return false;
+
+  for (const axis of result.axes) {
+    if (!axis || typeof axis !== 'object') return false;
+    if (typeof axis.key !== 'string' || !axis.key.trim()) return false;
+    if (typeof axis.label !== 'string' || !axis.label.trim()) return false;
+    if (typeof axis.description !== 'string' || !axis.description.trim()) return false;
+  }
+
+  return true;
+}
+
+/**
+ * POST /api/profile-skills/approve
+ * Approve and store a profile skill as a state record, link to user, and queue embedding.
+ * Requirements: 1.2, 1.3, 1.6, 1.8, 5.2
+ */
+async function handleApproveProfileSkill(event, organizationId) {
+  const userId = getAuthorizerContext(event)?.user_id;
+  if (!userId) {
+    return error('User ID not found in authorizer context', 401);
+  }
+
+  const body = JSON.parse(event.body || '{}');
+  const { narrative, ai_interpretation, axes } = body;
+
+  if (!narrative || typeof narrative !== 'string' || !narrative.trim()) {
+    return error('narrative is required and must be a non-empty string', 400);
+  }
+
+  // Build profile skill JSON (Req 1.2: preserve original narrative, Req 1.8: ai_interpretation can be null)
+  const profileSkill = {
+    original_narrative: narrative,
+    ai_interpretation: ai_interpretation || null,
+    axes: (axes || []).map(axis => ({
+      ...axis,
+      bloom_level: 0,
+      progression_history: []
+    })),
+    active: true, // Req 5.2: default to active
+    created_at: new Date().toISOString()
+  };
+
+  // Compose state_text using canonical format
+  const stateText = composeProfileSkillStateText(profileSkill);
+
+  const db = await getDbClient();
+  let stateId;
+  try {
+    const userIdSafe = escapeLiteral(userId);
+    const orgIdSafe = escapeLiteral(organizationId);
+    const stateTextSafe = escapeLiteral(stateText);
+
+    // INSERT into states table (Req 1.6)
+    const insertResult = await db.query(
+      `INSERT INTO states (organization_id, state_text, captured_by, captured_at)
+       VALUES ('${orgIdSafe}', '${stateTextSafe}', '${userIdSafe}', NOW())
+       RETURNING id`
+    );
+
+    stateId = insertResult.rows[0].id;
+    const stateIdSafe = escapeLiteral(stateId);
+
+    // INSERT into state_links with profile_skill_owner → userId
+    await db.query(
+      `INSERT INTO state_links (state_id, entity_type, entity_id)
+       VALUES ('${stateIdSafe}', 'profile_skill_owner', '${userIdSafe}')`
+    );
+  } finally {
+    db.release();
+  }
+
+  // Queue embedding via SQS — compose embedding_source from narrative + concept label + axis labels
+  const conceptLabel = ai_interpretation?.concept_label || '';
+  const axisLabels = (axes || []).map(a => a.label).filter(Boolean).join(', ');
+  const embeddingParts = [narrative, conceptLabel, axisLabels].filter(Boolean);
+  const embeddingSource = embeddingParts.join(' ');
+
+  try {
+    await sqs.send(new SendMessageCommand({
+      QueueUrl: EMBEDDINGS_QUEUE_URL,
+      MessageBody: JSON.stringify({
+        entity_type: 'state',
+        entity_id: stateId,
+        embedding_source: embeddingSource,
+        organization_id: organizationId
+      })
+    }));
+    console.log('Queued profile skill embedding for state', stateId);
+  } catch (err) {
+    // Log warning but don't fail — embedding can be regenerated later
+    console.error('Failed to queue profile skill embedding:', err);
+  }
+
+  // Return created profile skill with state ID (201 Created)
+  return {
+    statusCode: 201,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Organization-Id,X-Connection-Id',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+    },
+    body: JSON.stringify({
+      data: {
+        id: stateId,
+        ...profileSkill
+      }
+    })
+  };
+}
+
+/**
+ * PUT /api/profile-skills/:id/toggle
+ * Toggle the active/inactive status of a profile skill.
+ * Requirements: 5.1, 5.3, 5.4
+ */
+async function handleToggleProfileSkill(event, organizationId) {
+  const userId = getAuthorizerContext(event)?.user_id;
+  if (!userId) {
+    return error('User ID not found in authorizer context', 401);
+  }
+
+  // Extract state ID from path: /api/profile-skills/{id}/toggle
+  const pathParts = event.path.split('/');
+  const toggleIndex = pathParts.indexOf('toggle');
+  const stateId = toggleIndex > 0 ? pathParts[toggleIndex - 1] : null;
+  if (!stateId) {
+    return error('Profile skill ID is required', 400);
+  }
+
+  const db = await getDbClient();
+  try {
+    const stateIdSafe = escapeLiteral(stateId);
+    const userIdSafe = escapeLiteral(userId);
+    const orgIdSafe = escapeLiteral(organizationId);
+
+    // Fetch the state record
+    const stateResult = await db.query(
+      `SELECT s.id, s.state_text, s.captured_at
+       FROM states s
+       WHERE s.id = '${stateIdSafe}'
+         AND s.organization_id = '${orgIdSafe}'
+         AND s.state_text LIKE '[profile_skill]%'`
+    );
+
+    if (!stateResult.rows || stateResult.rows.length === 0) {
+      return error('Profile skill not found', 404);
+    }
+
+    // Verify ownership via state_links (profile_skill_owner → userId)
+    const ownerResult = await db.query(
+      `SELECT 1 FROM state_links
+       WHERE state_id = '${stateIdSafe}'
+         AND entity_type = 'profile_skill_owner'
+         AND entity_id = '${userIdSafe}'`
+    );
+
+    if (!ownerResult.rows || ownerResult.rows.length === 0) {
+      return error('Not authorized to modify this profile skill', 403);
+    }
+
+    const row = stateResult.rows[0];
+
+    // Parse state_text to get the profile skill data
+    const parsed = parseProfileSkillStateText(row.state_text);
+    if (!parsed) {
+      return error('Failed to parse profile skill data', 500);
+    }
+
+    // Toggle the active flag (Req 5.1, 5.3, 5.4)
+    parsed.active = !parsed.active;
+
+    // Recompose state_text with the toggled value
+    const updatedStateText = composeProfileSkillStateText(parsed);
+    const updatedStateTextSafe = escapeLiteral(updatedStateText);
+
+    // Update the states table
+    await db.query(
+      `UPDATE states SET state_text = '${updatedStateTextSafe}'
+       WHERE id = '${stateIdSafe}' AND organization_id = '${orgIdSafe}'`
+    );
+
+    // Return updated profile skill with state ID
+    return success({
+      id: row.id,
+      captured_at: row.captured_at,
+      ...parsed
+    });
+  } finally {
+    db.release();
+  }
+}
+
+/**
+ * DELETE /api/profile-skills/:id
+ * Delete a profile skill permanently.
+ * Requirements: 6.2
+ */
+async function handleDeleteProfileSkill(event, organizationId) {
+  const userId = getAuthorizerContext(event)?.user_id;
+  if (!userId) {
+    return error('User ID not found in authorizer context', 401);
+  }
+
+  // Extract state ID from path: /api/profile-skills/{id}
+  const pathParts = event.path.split('/');
+  const stateId = pathParts[pathParts.length - 1];
+  if (!stateId) {
+    return error('Profile skill ID is required', 400);
+  }
+
+  const db = await getDbClient();
+  try {
+    const stateIdSafe = escapeLiteral(stateId);
+    const userIdSafe = escapeLiteral(userId);
+    const orgIdSafe = escapeLiteral(organizationId);
+
+    // Fetch the state record to verify it exists
+    const stateResult = await db.query(
+      `SELECT s.id FROM states s
+       WHERE s.id = '${stateIdSafe}'
+         AND s.organization_id = '${orgIdSafe}'
+         AND s.state_text LIKE '[profile_skill]%'`
+    );
+
+    if (!stateResult.rows || stateResult.rows.length === 0) {
+      return error('Profile skill not found', 404);
+    }
+
+    // Verify ownership via state_links (profile_skill_owner → userId)
+    const ownerResult = await db.query(
+      `SELECT 1 FROM state_links
+       WHERE state_id = '${stateIdSafe}'
+         AND entity_type = 'profile_skill_owner'
+         AND entity_id = '${userIdSafe}'`
+    );
+
+    if (!ownerResult.rows || ownerResult.rows.length === 0) {
+      return error('Not authorized to delete this profile skill', 403);
+    }
+
+    // DELETE from states (CASCADE handles state_links deletion)
+    await db.query(
+      `DELETE FROM states WHERE id = '${stateIdSafe}' AND organization_id = '${orgIdSafe}'`
+    );
+
+    // DELETE from unified_embeddings where entity_type = 'state' and entity_id = stateId
+    await db.query(
+      `DELETE FROM unified_embeddings
+       WHERE entity_type = 'state'
+         AND entity_id = '${stateIdSafe}'
+         AND organization_id = '${orgIdSafe}'`
+    );
+
+    return success({ deleted: true });
+  } finally {
+    db.release();
+  }
+}
+
+/**
+ * Compose a profile skill state_text in the canonical format.
+ * Format: [profile_skill] | {serialized JSON}
+ *
+ * User ownership is tracked via captured_by on the states table and
+ * state_links with entity_type='profile_skill_owner' — not in state_text.
+ *
+ * @param {Object} profileSkillData - The profile skill data object
+ * @returns {string} The composed state_text
+ */
+function composeProfileSkillStateText(profileSkillData) {
+  return `[profile_skill] | ${JSON.stringify(profileSkillData)}`;
+}
+
+/**
+ * Parse a profile skill state_text, extracting the profile skill data object.
+ * Returns null if format doesn't match.
+ *
+ * @param {string} stateText - The state_text to parse
+ * @returns {object|null} Parsed profile skill data, or null
+ */
+function parseProfileSkillStateText(stateText) {
+  const match = stateText.match(
+    /^\[profile_skill\] \| (.+)$/
+  );
+  if (!match) return null;
+  try {
+    return JSON.parse(match[1]);
+  } catch (e) {
+    return null;
+  }
+}
+
 // Export utility functions for testing
 exports.composeAxisEmbeddingSource = composeAxisEmbeddingSource;
-exports.composeAxisEntityId = composeAxisEntityId;
-exports.parseAxisEntityId = parseAxisEntityId;
 exports.buildSkillProfilePrompt = buildSkillProfilePrompt;
+exports.composeProfileSkillStateText = composeProfileSkillStateText;
+exports.parseProfileSkillStateText = parseProfileSkillStateText;
+exports.buildProfileSkillGenerationPrompt = buildProfileSkillGenerationPrompt;
+exports.isValidProfileSkillGeneration = isValidProfileSkillGeneration;

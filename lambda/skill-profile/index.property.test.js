@@ -4,15 +4,17 @@
  *
  * Properties tested:
  *   Property 8 – Axis embedding source composition
- *   Property 9 – Axis entity ID round-trip
+ *   Property 9 – Per-axis SQS message carries action_id + axis_key (no composite entity_id)
  *   Property 4 – Per-axis embedding message generation
+ *
+ * Note: composeAxisEntityId and parseAxisEntityId were retired as part of the
+ * unified_embeddings entity_id type migration. skill_axis SQS messages now carry
+ * action_id + axis_key fields instead of a composite text entity_id.
  */
 
 const fc = require('fast-check');
 const {
-  composeAxisEmbeddingSource,
-  composeAxisEntityId,
-  parseAxisEntityId
+  composeAxisEmbeddingSource
 } = require('./axisUtils');
 
 // ── Shared arbitraries ──────────────────────────────────────────────
@@ -82,29 +84,61 @@ describe('Property 8: Axis embedding source composition', () => {
   });
 });
 
-// ── Property 9: Axis entity ID round-trip ───────────────────────────
+// ── Property 9: Per-axis SQS message carries action_id + axis_key ──
 // **Validates: Requirements 4.1**
+//
+// After the unified_embeddings entity_id type migration, skill_axis SQS messages
+// no longer include a composite entity_id. Instead they carry explicit action_id
+// and axis_key fields so the embeddings-processor can store them in the new columns.
 
-describe('Property 9: Axis entity ID round-trip', () => {
-  it('composing then parsing recovers the original actionId and axisKey', () => {
+describe('Property 9: Per-axis SQS message carries action_id + axis_key', () => {
+  it('each message has action_id equal to the action UUID', () => {
     fc.assert(
-      fc.property(arbUuid, arbAxisKey, (actionId, axisKey) => {
-        const entityId = composeAxisEntityId(actionId, axisKey);
-        const parsed = parseAxisEntityId(entityId);
-        return parsed.actionId === actionId && parsed.axisKey === axisKey;
+      fc.property(arbUuid, arbAxisKey, arbLabel, (actionId, axisKey, label) => {
+        const axis = { key: axisKey, label };
+        const message = {
+          entity_type: 'skill_axis',
+          action_id: actionId,
+          axis_key: axis.key,
+          embedding_source: composeAxisEmbeddingSource(axis),
+          organization_id: actionId // reuse arbUuid for org
+        };
+        return message.action_id === actionId;
       }),
       { numRuns: 100 }
     );
   });
 
-  it('the colon separator appears exactly once in the composed entity ID', () => {
+  it('each message has axis_key equal to the axis key', () => {
     fc.assert(
-      fc.property(arbUuid, arbAxisKey, (actionId, axisKey) => {
-        const entityId = composeAxisEntityId(actionId, axisKey);
-        const colonCount = (entityId.match(/:/g) || []).length;
-        // UUID contains hyphens but no colons; axis keys are snake_case (no colons).
-        // The only colon is the separator we insert.
-        return colonCount === 1;
+      fc.property(arbUuid, arbAxisKey, arbLabel, (actionId, axisKey, label) => {
+        const axis = { key: axisKey, label };
+        const message = {
+          entity_type: 'skill_axis',
+          action_id: actionId,
+          axis_key: axis.key,
+          embedding_source: composeAxisEmbeddingSource(axis),
+          organization_id: actionId
+        };
+        return message.axis_key === axisKey;
+      }),
+      { numRuns: 100 }
+    );
+  });
+
+  it('each message does not include a composite entity_id field', () => {
+    fc.assert(
+      fc.property(arbUuid, arbAxisKey, arbLabel, (actionId, axisKey, label) => {
+        const axis = { key: axisKey, label };
+        const message = {
+          entity_type: 'skill_axis',
+          action_id: actionId,
+          axis_key: axis.key,
+          embedding_source: composeAxisEmbeddingSource(axis),
+          organization_id: actionId
+        };
+        // entity_id must not be present (or must not be a composite string)
+        return !('entity_id' in message);
       }),
       { numRuns: 100 }
     );
@@ -117,15 +151,21 @@ describe('Property 9: Axis entity ID round-trip', () => {
 // We test the property by generating a valid skill profile with N axes
 // (4 ≤ N ≤ 6), then building the expected SQS message bodies using the
 // pure utility functions and verifying the constraints.
+//
+// After the unified_embeddings migration, messages use action_id + axis_key
+// instead of a composite entity_id.
 
 /**
  * Build the array of SQS message bodies for axis embeddings.
- * This mirrors what handleApprove does, using the pure utilities.
+ * This mirrors what handleApprove does after the migration:
+ * - No entity_id in the message
+ * - action_id and axis_key are explicit fields
  */
 function buildAxisEmbeddingMessages(actionId, organizationId, approvedProfile) {
   return Object.entries(approvedProfile.axes).map(([axisKey, axis]) => ({
     entity_type: 'skill_axis',
-    entity_id: composeAxisEntityId(actionId, axisKey),
+    action_id: actionId,
+    axis_key: axisKey,
     embedding_source: composeAxisEmbeddingSource(axis, approvedProfile.narrative),
     organization_id: organizationId
   }));
@@ -172,27 +212,32 @@ describe('Property 4: Per-axis embedding message generation', () => {
     );
   });
 
-  it('each message entity_id follows {action_id}:{axis_key} format', () => {
+  it('each message carries action_id and axis_key (no composite entity_id)', () => {
     fc.assert(
       fc.property(arbUuid, arbUuid, arbProfile, (actionId, organizationId, profile) => {
         const messages = buildAxisEmbeddingMessages(actionId, organizationId, profile);
         const axisKeys = Object.keys(profile.axes);
 
         return messages.every(m => {
-          const parsed = parseAxisEntityId(m.entity_id);
-          return parsed.actionId === actionId && axisKeys.includes(parsed.axisKey);
+          // Must have action_id equal to the action UUID
+          if (m.action_id !== actionId) return false;
+          // Must have axis_key that is one of the profile's axis keys
+          if (!axisKeys.includes(m.axis_key)) return false;
+          // Must NOT have a composite entity_id
+          if ('entity_id' in m) return false;
+          return true;
         });
       }),
       { numRuns: 100 }
     );
   });
 
-  it('no two messages share the same entity_id', () => {
+  it('no two messages share the same axis_key', () => {
     fc.assert(
       fc.property(arbUuid, arbUuid, arbProfile, (actionId, organizationId, profile) => {
         const messages = buildAxisEmbeddingMessages(actionId, organizationId, profile);
-        const ids = messages.map(m => m.entity_id);
-        return new Set(ids).size === ids.length;
+        const keys = messages.map(m => m.axis_key);
+        return new Set(keys).size === keys.length;
       }),
       { numRuns: 100 }
     );

@@ -54,6 +54,7 @@ import RecordFinancialRecord from "./pages/RecordFinancialRecord";
 import FinancialRecordDetail from "./pages/FinancialRecordDetail";
 import Finances from "./pages/Finances";
 import QuizPage from "./pages/QuizPage";
+import UserProfile from "./pages/UserProfile";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -355,6 +356,14 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <QuizPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/user/:userId"
+          element={
+            <ProtectedRoute>
+              <UserProfile />
             </ProtectedRoute>
           }
         />

@@ -150,7 +150,7 @@ export function GlobalMaxwellPanel({
   const [maxwellMode, setMaxwellMode] = useState<MaxwellMode>('quick');
   const [activeContext, setActiveContext] = useState<EntityContext | null>(context);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   
   // Don't use focus trap - allow navigation while panel is open
@@ -163,10 +163,13 @@ export function GlobalMaxwellPanel({
     }
   }, [open, context]);
 
-  // Focus management: move focus to input when panel opens
+  // Focus management: only auto-focus on non-touch devices.
+  // On mobile, auto-focus immediately triggers the virtual keyboard before the
+  // panel has settled, which pushes the input field off-screen.
   useEffect(() => {
     if (open) {
-      // Small delay to ensure panel is rendered
+      const isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+      if (isTouchDevice) return;
       const timer = setTimeout(() => {
         inputRef.current?.focus();
       }, 100);
@@ -281,14 +284,26 @@ export function GlobalMaxwellPanel({
     const text = input.trim();
     if (!text || isLoading) return;
     setInput('');
+    // Reset textarea height after clearing
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+    }
     await sendMessage(text, maxwellMode);
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
+  };
+
+  // Auto-resize textarea as content grows
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    // Reset height to auto so it can shrink, then set to scrollHeight
+    e.target.style.height = 'auto';
+    e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
   };
 
   const handleClearConversation = () => {
@@ -330,13 +345,13 @@ export function GlobalMaxwellPanel({
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          'fixed z-[200] bg-background shadow-xl flex flex-col',
+          'fixed z-[200] bg-background shadow-xl flex flex-col overflow-hidden',
           'transition-all duration-300 ease-out',
           isExpanded
             ? 'inset-0 w-full h-full border-none'
             : cn(
                 'border-l',
-                'max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:h-[90vh] max-md:rounded-t-2xl',
+                'max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:w-full max-md:h-[90dvh] max-md:rounded-t-2xl',
                 'md:top-0 md:right-0 md:h-full md:w-[40%] lg:w-[35%]',
               ),
           !isExpanded && (open
@@ -464,7 +479,7 @@ export function GlobalMaxwellPanel({
         {/* Input */}
         <div className="flex flex-col border-t">
           {/* Mode selector row */}
-          <div className="flex items-center gap-2 px-4 pt-2 pb-1">
+          <div className="flex items-center gap-2 px-4 pt-2 pb-1 min-w-0">
             <button
               onClick={() => setMaxwellMode(m => m === 'quick' ? 'deep' : 'quick')}
               disabled={isLoading}
@@ -482,8 +497,8 @@ export function GlobalMaxwellPanel({
                 <><BookOpen className="h-3 w-3" />Deep</>
               )}
             </button>
-            <span className="text-[10px] text-muted-foreground">
-              Sonnet 4.6 · {maxwellMode === 'quick' ? '1 search · ~20s' : '2 searches · ~40s'}
+            <span className="text-[10px] text-muted-foreground truncate min-w-0 flex-1">
+              {maxwellMode === 'quick' ? '~20s' : '~40s'}
             </span>
             <div className="relative group ml-auto">
               <Info className="h-3.5 w-3.5 text-muted-foreground/50 cursor-help" />
@@ -495,21 +510,34 @@ export function GlobalMaxwellPanel({
             </div>
           </div>
           {/* Input row */}
-          <div className="flex items-center gap-2 px-4 pb-3 pt-1 pb-safe">
-          <input
+          <div
+            className="flex items-end gap-2 px-4 pt-1 pb-3"
+            style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+          >
+          <textarea
             ref={inputRef}
-            type="text"
+            rows={1}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={handleInputChange}
             onKeyDown={handleKeyDown}
+            onFocus={() => {
+              // On mobile, after the keyboard opens the layout shifts — scroll
+              // the input into view so it stays visible above the keyboard.
+              setTimeout(() => {
+                inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              }, 300);
+            }}
             disabled={isLoading}
             placeholder="Ask Maxwell…"
-            className="flex-1 rounded-full border bg-muted px-4 py-2 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50 focus:ring-2 focus:ring-primary/30"
+            inputMode="text"
+            enterKeyHint="send"
+            className="flex-1 resize-none rounded-2xl border bg-muted px-4 py-2 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50 focus:ring-2 focus:ring-primary/30 overflow-hidden leading-5"
+            style={{ minHeight: '2.25rem', maxHeight: '7.5rem' }}
           />
           <button
             onClick={handleSend}
             disabled={isLoading || !input.trim()}
-            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-40"
+            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-40 mb-0.5"
             aria-label="Send message"
           >
             <Send className="h-4 w-4" />

@@ -2,13 +2,14 @@ import { useAuth } from "@/hooks/useCognitoAuth";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, BarChart3, Building2, Settings, Bot, RefreshCw, DollarSign, Search } from 'lucide-react';
+import { LogOut, CheckCircle, XCircle, Wrench, Box, Flag, ClipboardCheck, Target, BarChart3, Building2, Settings, Bot, RefreshCw, DollarSign, Search, User } from 'lucide-react';
 import { PrismIcon } from '@/components/icons/PrismIcon';
 import { useToast } from '@/hooks/use-toast';
 import { DebugModeToggle } from '@/components/DebugModeToggle';
 import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { EditableDisplayName } from '@/components/EditableDisplayName';
 import { useOrganization } from '@/hooks/useOrganization';
+import { useProfile } from '@/hooks/useProfile';
 import { OrganizationSwitcher } from '@/components/OrganizationSwitcher';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useQueryClient } from '@tanstack/react-query';
@@ -22,6 +23,8 @@ export default function Dashboard() {
   const { user, signOut, isAdmin, isLeadership } = useAuth();
   const { isSuperAdmin } = useSuperAdmin();
   const { organization, loading: orgLoading } = useOrganization();
+  const { fullName } = useProfile();
+  const firstName = fullName ? fullName.split(' ')[0] : '';
 
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -136,6 +139,13 @@ export default function Dashboard() {
       icon: BarChart3,
       path: "/dashboard/analytics",
       color: "bg-indigo-500"
+    },
+    {
+      title: firstName || "My Profile",
+      description: "View and manage your areas of focus",
+      icon: User,
+      path: `/user/${user?.userId}`,
+      color: "bg-purple-500"
     },
     {
       title: "Organization Settings",

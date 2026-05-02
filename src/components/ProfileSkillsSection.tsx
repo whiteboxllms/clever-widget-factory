@@ -269,7 +269,7 @@ function ProfileSkillCard({
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete profile skill?</AlertDialogTitle>
+            <AlertDialogTitle>Delete area of focus?</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently remove this skill and all its progression history.
               This action cannot be undone.
@@ -385,8 +385,8 @@ function CreateProfileSkillDialog({ open, onOpenChange }: CreateProfileSkillDial
         axes: preview?.axes ?? [],
       });
       toast({
-        title: 'Profile skill created',
-        description: 'Your new growth skill has been saved.',
+        title: 'Area of focus created',
+        description: 'Your new area of focus has been saved.',
       });
       handleClose(false);
     } catch (error) {
@@ -394,7 +394,7 @@ function CreateProfileSkillDialog({ open, onOpenChange }: CreateProfileSkillDial
       toast({
         variant: 'destructive',
         title: 'Error saving skill',
-        description: 'Could not save the profile skill. Please try again.',
+        description: 'Could not save the area of focus. Please try again.',
       });
     }
   };
@@ -407,7 +407,7 @@ function CreateProfileSkillDialog({ open, onOpenChange }: CreateProfileSkillDial
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {step === 'input' ? 'Create Profile Skill' : 'Preview & Approve'}
+            {step === 'input' ? 'Create Area of Focus' : 'Preview & Approve'}
           </DialogTitle>
           <DialogDescription>
             {step === 'input'
@@ -425,9 +425,7 @@ function CreateProfileSkillDialog({ open, onOpenChange }: CreateProfileSkillDial
               rows={5}
               className="resize-none"
             />
-            <p className="text-xs text-muted-foreground">
-              Your exact words will be preserved. The AI will extract concepts and create learning axes from your narrative.
-            </p>
+
           </div>
         )}
 
@@ -584,7 +582,7 @@ export function ProfileSkillsSection({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <BookOpen className="w-5 h-5" />
-          Profile Skills
+          Areas of Focus
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="ghost" size="sm" className="h-auto p-1">
@@ -593,9 +591,9 @@ export function ProfileSkillsSection({
             </PopoverTrigger>
             <PopoverContent className="w-80">
               <div className="space-y-2">
-                <p className="font-medium">Profile Skills</p>
+                <p className="font-medium">Areas of Focus</p>
                 <p className="text-sm text-muted-foreground">
-                  Profile skills are personal growth lenses carried across all your actions.
+                  Areas of focus are self-directed learning lenses carried across all your actions.
                   They preserve your original narrative and generate concept axes that
                   integrate into quiz generation, tracking your Bloom's progression over time.
                 </p>
@@ -609,7 +607,7 @@ export function ProfileSkillsSection({
         {isLoading && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
             <Loader2 className="w-4 h-4 animate-spin" />
-            Loading profile skills…
+            Loading areas of focus…
           </div>
         )}
 
@@ -618,7 +616,7 @@ export function ProfileSkillsSection({
           <div className="flex flex-col items-center gap-3 py-6 text-center">
             <AlertCircle className="w-8 h-8 text-destructive" />
             <p className="text-sm text-muted-foreground">
-              Could not load profile skills.
+              Could not load areas of focus.
             </p>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               <RefreshCw className="w-4 h-4 mr-1" />
@@ -632,7 +630,7 @@ export function ProfileSkillsSection({
           <div className="text-center py-6 space-y-2">
             <Sparkles className="w-8 h-8 mx-auto text-muted-foreground/50" />
             <p className="text-sm text-muted-foreground">
-              No profile skills yet. Create your first one to start tracking
+              No areas of focus yet. Create your first one to start tracking
               your growth across all actions.
             </p>
           </div>
@@ -662,7 +660,7 @@ export function ProfileSkillsSection({
             className="w-full"
           >
             <Plus className="w-4 h-4 mr-2" />
-            Create Profile Skill
+            Create Area of Focus
           </Button>
         )}
 

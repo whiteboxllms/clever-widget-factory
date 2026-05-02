@@ -2778,7 +2778,7 @@ function buildProfileSkillPromptBlock(profileSkills) {
       `    - ${axis.label} (current Bloom's level: ${axis.bloom_level}/5): ${axis.description}`
     ).join('\n');
 
-    return `  Skill ${i + 1}: ${skill.ai_interpretation?.concept_label || 'Personal Growth Skill'}
+    return `  Area of Focus ${i + 1}: ${skill.ai_interpretation?.concept_label || 'Personal Growth Area'}
     Narrative: ${skill.original_narrative.substring(0, 300)}
     Source: ${skill.ai_interpretation?.source_attribution || 'Personal insight'}
     Direction: ${skill.ai_interpretation?.learning_direction || 'General growth'}
@@ -2786,10 +2786,10 @@ function buildProfileSkillPromptBlock(profileSkills) {
 ${axesDescription}`;
   }).join('\n\n');
 
-  return `LEARNER PROFILE SKILLS (personal growth lenses — weave these concepts into questions where relevant):
+  return `LEARNER AREAS OF FOCUS (self-directed learning lenses — weave these concepts into questions where relevant):
 ${skillBlocks}
 
-For each profile skill axis, frame questions at a depth appropriate to the learner's current Bloom's level for that axis. Lower levels (0-2) should introduce and explain the concept; higher levels (3-5) should ask for application, analysis, or synthesis of the concept in the action context.`;
+For each area of focus axis, frame questions at a depth appropriate to the learner's current Bloom's level for that axis. Lower levels (0-2) should introduce and explain the concept; higher levels (3-5) should ask for application, analysis, or synthesis of the concept in the action context.`;
 }
 
 /**

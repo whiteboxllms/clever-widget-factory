@@ -1,10 +1,10 @@
-# Design Document: Profile-Level Skills
+# Design Document: Areas of Focus
 
 ## Overview
 
-Profile-Level Skills replaces the flat `growth_intents[]` string array in `organization_members.settings` with rich, structured skill objects stored as state records. Each Profile_Skill preserves the learner's original narrative verbatim, generates AI concept axes once at creation time, and integrates into the quiz generation layer as a Profile_Skill_Lens — a learner-specific context block injected alongside org-level lenses.
+Areas of Focus replaces the flat `growth_intents[]` string array in `organization_members.settings` with rich, structured skill objects stored as state records. Each area of focus preserves the learner's original narrative verbatim, generates AI concept axes once at creation time, and integrates into the quiz generation layer as a Profile_Skill_Lens — a learner-specific context block injected alongside org-level lenses.
 
-Profile skills are completely independent from growth intents and per-action skill profiles. Growth intents remain action-scoped (driving per-action axis generation on the SkillProfilePanel). Profile skills are profile-scoped meta-skills that live in the quiz generation layer as additional context, layering in concept-framed questions alongside the action's normal learning content.
+Areas of focus are completely independent from growth intents and per-action skill profiles. Growth intents remain action-scoped (driving per-action axis generation on the SkillProfilePanel). Areas of focus are profile-scoped meta-skills that live in the quiz generation layer as additional context, layering in concept-framed questions alongside the action's normal learning content.
 
 The Progression_Model — the algorithm that computes a Profile_Axis's current `bloom_level` from its `progression_history` — is designed as a separate, configurable module. It factors in recency, consistency, and frequency of demonstrated levels, informed by learning science principles (spaced repetition, forgetting curve, habit formation research). The model is evolvable: the algorithm can be replaced or tuned without changing the data model.
 

@@ -1,8 +1,8 @@
-# Implementation Plan: Profile-Level Skills
+# Implementation Plan: Areas of Focus
 
 ## Overview
 
-This plan implements profile-level skills — structured learning skills stored as state records that preserve the learner's original narrative, generate AI concept axes once at creation, track Bloom's progression across actions, and integrate into quiz generation as Profile_Skill_Lens context. Tasks are ordered: pure utility functions (Progression_Model + state text helpers) → backend API endpoints (skill-profile lambda) → quiz integration (learning lambda) → frontend components → page integration, to enable incremental testing at each layer.
+This plan implements areas of focus — structured learning skills stored as state records that preserve the learner's original narrative, generate AI concept axes once at creation, track Bloom's progression across actions, and integrate into quiz generation as Profile_Skill_Lens context. Tasks are ordered: pure utility functions (Progression_Model + state text helpers) → backend API endpoints (skill-profile lambda) → quiz integration (learning lambda) → frontend components → page integration, to enable incremental testing at each layer.
 
 ## Tasks
 

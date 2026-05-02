@@ -51,7 +51,7 @@ function buildSubquery(entityType, embeddingVector, safeOrgId, perTypeLimit) {
   1 - (ue.embedding <=> ${embeddingVector}) AS similarity`;
 
   const baseWhere = `ue.entity_type = '${escapeLiteral(entityType)}'
-    AND ue.organization_id = '${safeOrgId}'`;
+    AND ue.organization_id = '${safeOrgId}'::uuid`;
 
   const orderLimit = `ORDER BY similarity DESC
   LIMIT ${perTypeLimit}`;
@@ -70,7 +70,7 @@ function buildSubquery(entityType, embeddingVector, safeOrgId, perTypeLimit) {
     'sellable', p.sellable
   ) AS details
 FROM unified_embeddings ue
-JOIN parts p ON ue.entity_id = p.id AND p.organization_id = '${safeOrgId}'
+JOIN parts p ON ue.entity_id::uuid = p.id AND p.organization_id = '${safeOrgId}'::uuid
 WHERE ${baseWhere}
 ${orderLimit})`;
 
@@ -84,7 +84,7 @@ ${orderLimit})`;
     'status', t.status
   ) AS details
 FROM unified_embeddings ue
-JOIN tools t ON ue.entity_id = t.id AND t.organization_id = '${safeOrgId}'
+JOIN tools t ON ue.entity_id::uuid = t.id AND t.organization_id = '${safeOrgId}'::uuid
 WHERE ${baseWhere}
 ${orderLimit})`;
 
@@ -98,7 +98,7 @@ ${orderLimit})`;
     'completed_at', a.completed_at
   ) AS details
 FROM unified_embeddings ue
-JOIN actions a ON ue.entity_id = a.id AND a.organization_id = '${safeOrgId}'
+JOIN actions a ON ue.entity_id::uuid = a.id AND a.organization_id = '${safeOrgId}'::uuid
 WHERE ${baseWhere}
 ${orderLimit})`;
 
@@ -111,7 +111,7 @@ ${orderLimit})`;
     'resolution_notes', i.resolution_notes
   ) AS details
 FROM unified_embeddings ue
-JOIN issues i ON ue.entity_id = i.id AND i.organization_id = '${safeOrgId}'
+JOIN issues i ON ue.entity_id::uuid = i.id AND i.organization_id = '${safeOrgId}'::uuid
 WHERE ${baseWhere}
 ${orderLimit})`;
 
@@ -124,7 +124,7 @@ ${orderLimit})`;
     'effective_from', po.effective_from
   ) AS details
 FROM unified_embeddings ue
-JOIN policy po ON ue.entity_id = po.id
+JOIN policy po ON ue.entity_id::uuid = po.id
 WHERE ${baseWhere}
 ${orderLimit})`;
 
@@ -138,7 +138,7 @@ ${orderLimit})`;
     'created_by_name', COALESCE(om.full_name, 'Unknown')
   ) AS details
 FROM unified_embeddings ue
-JOIN financial_records fr ON ue.entity_id = fr.id AND fr.organization_id = '${safeOrgId}'
+JOIN financial_records fr ON ue.entity_id::uuid = fr.id AND fr.organization_id = '${safeOrgId}'::uuid
 JOIN state_links sl ON sl.entity_id = fr.id AND sl.entity_type = 'financial_record'
 JOIN states s ON s.id = sl.state_id
 LEFT JOIN organization_members om ON fr.created_by::text = om.cognito_user_id::text AND om.organization_id = fr.organization_id

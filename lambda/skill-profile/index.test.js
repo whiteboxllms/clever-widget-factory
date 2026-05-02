@@ -1,17 +1,19 @@
 /**
  * Unit tests for skill-profile Lambda utility functions
- * Tests composeAxisEmbeddingSource, composeAxisEntityId, parseAxisEntityId,
- * composeProfileSkillStateText, and parseProfileSkillStateText
- * 
+ * Tests composeAxisEmbeddingSource, composeProfileSkillStateText,
+ * and parseProfileSkillStateText.
+ *
  * Axis utility pure functions are extracted to axisUtils.js for testability
  * (no Lambda layer dependencies).
  * Profile skill state text functions are in index.js but exported for testing.
+ *
+ * Note: composeAxisEntityId and parseAxisEntityId were retired as part of the
+ * unified_embeddings entity_id type migration (skill_axis rows now use
+ * action_id + axis_key columns instead of a composite text entity_id).
  */
 
 const {
-  composeAxisEmbeddingSource,
-  composeAxisEntityId,
-  parseAxisEntityId
+  composeAxisEmbeddingSource
 } = require('./axisUtils');
 
 // Profile skill state text functions — import via a helper that avoids Lambda layer deps
@@ -80,56 +82,6 @@ describe('composeAxisEmbeddingSource', () => {
   });
 });
 
-describe('composeAxisEntityId', () => {
-  it('composes entity ID from action ID and axis key', () => {
-    expect(composeAxisEntityId('a1b2c3d4', 'water_chemistry')).toBe('a1b2c3d4:water_chemistry');
-  });
-
-  it('handles UUID-format action IDs', () => {
-    const actionId = '550e8400-e29b-41d4-a716-446655440000';
-    expect(composeAxisEntityId(actionId, 'safety_protocols')).toBe(
-      '550e8400-e29b-41d4-a716-446655440000:safety_protocols'
-    );
-  });
-
-  it('handles axis keys with underscores', () => {
-    expect(composeAxisEntityId('abc123', 'water_quality_testing_methodology')).toBe(
-      'abc123:water_quality_testing_methodology'
-    );
-  });
-});
-
-describe('parseAxisEntityId', () => {
-  it('parses entity ID back into action ID and axis key', () => {
-    const result = parseAxisEntityId('a1b2c3d4:water_chemistry');
-    expect(result).toEqual({ actionId: 'a1b2c3d4', axisKey: 'water_chemistry' });
-  });
-
-  it('handles UUID-format action IDs', () => {
-    const result = parseAxisEntityId('550e8400-e29b-41d4-a716-446655440000:safety_protocols');
-    expect(result).toEqual({
-      actionId: '550e8400-e29b-41d4-a716-446655440000',
-      axisKey: 'safety_protocols'
-    });
-  });
-
-  it('handles axis keys with underscores', () => {
-    const result = parseAxisEntityId('abc123:water_quality_testing_methodology');
-    expect(result).toEqual({
-      actionId: 'abc123',
-      axisKey: 'water_quality_testing_methodology'
-    });
-  });
-
-  it('round-trips with composeAxisEntityId', () => {
-    const actionId = '550e8400-e29b-41d4-a716-446655440000';
-    const axisKey = 'regulatory_navigation';
-    const entityId = composeAxisEntityId(actionId, axisKey);
-    const parsed = parseAxisEntityId(entityId);
-    expect(parsed.actionId).toBe(actionId);
-    expect(parsed.axisKey).toBe(axisKey);
-  });
-});
 
 
 describe('composeProfileSkillStateText', () => {

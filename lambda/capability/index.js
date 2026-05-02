@@ -7,7 +7,7 @@ const { escapeLiteral } = require('/opt/nodejs/sqlUtils');
 const { fetchAiConfig, resolveAiConfig } = require('/opt/nodejs/aiConfigDefaults');
 const { determineEvidenceTypeEnriched } = require('./capabilityUtils');
 const { composeCapabilityProfileStateText, parseCapabilityProfileStateText, computeEvidenceHash, determineCacheAction } = require('./cacheUtils');
-const { composeAxisEmbeddingSource, composeAxisEntityId } = require('/opt/nodejs/axisUtils');
+const { composeAxisEmbeddingSource } = require('/opt/nodejs/axisUtils');
 
 const bedrock = new BedrockRuntimeClient({ region: process.env.BEDROCK_REGION || 'us-west-2' });
 const sqs = new SQSClient({ region: 'us-west-2' });
@@ -172,7 +172,7 @@ async function handleIndividualCapability(actionId, userId, organizationId, forc
  * Ensure skill_axis embeddings exist for an action. If missing, generate them
  * on-the-fly via SQS and wait for them to appear in unified_embeddings.
  *
- * Reuses composeAxisEmbeddingSource and composeAxisEntityId from skill-profile/axisUtils.js.
+ * Reuses composeAxisEmbeddingSource from axisUtils.js.
  *
  * @param {object} db - database client
  * @param {string} actionId
@@ -181,15 +181,13 @@ async function handleIndividualCapability(actionId, userId, organizationId, forc
  * @returns {Promise<void>}
  */
 async function ensurePerAxisEmbeddings(db, actionId, organizationId, skillProfile) {
-  const actionIdSafe = escapeLiteral(actionId);
-  const orgIdSafe = escapeLiteral(organizationId);
-
   // Check if skill_axis embeddings already exist
   const existingResult = await db.query(
     `SELECT entity_id FROM unified_embeddings
      WHERE entity_type = 'skill_axis'
-       AND entity_id LIKE '${actionIdSafe}:%'
-       AND organization_id = '${orgIdSafe}'`
+       AND action_id = $1
+       AND organization_id = $2`,
+    [actionId, organizationId]
   );
 
   if (existingResult.rows && existingResult.rows.length > 0) {
@@ -200,21 +198,21 @@ async function ensurePerAxisEmbeddings(db, actionId, organizationId, skillProfil
 
   // Queue SQS messages for each axis
   const axisEmbeddingPromises = skillProfile.axes.map(axis => {
-    const entityId = composeAxisEntityId(actionId, axis.key);
     const embeddingSource = composeAxisEmbeddingSource(axis, skillProfile.narrative);
 
     return sqs.send(new SendMessageCommand({
       QueueUrl: EMBEDDINGS_QUEUE_URL,
       MessageBody: JSON.stringify({
         entity_type: 'skill_axis',
-        entity_id: entityId,
+        action_id: actionId,
+        axis_key: axis.key,
         embedding_source: embeddingSource,
         organization_id: organizationId
       })
     })).then(() => {
-      console.log('Queued skill_axis embedding:', entityId);
+      console.log('Queued skill_axis embedding for action:', actionId, 'axis:', axis.key);
     }).catch(err => {
-      console.error('Failed to queue skill_axis embedding:', entityId, err);
+      console.error('Failed to queue skill_axis embedding for action:', actionId, 'axis:', axis.key, err);
     });
   });
 
@@ -230,8 +228,9 @@ async function ensurePerAxisEmbeddings(db, actionId, organizationId, skillProfil
     const checkResult = await db.query(
       `SELECT COUNT(*) as cnt FROM unified_embeddings
        WHERE entity_type = 'skill_axis'
-         AND entity_id LIKE '${actionIdSafe}:%'
-         AND organization_id = '${orgIdSafe}'`
+         AND action_id = $1
+         AND organization_id = $2`,
+      [actionId, organizationId]
     );
 
     const count = parseInt(checkResult.rows[0].cnt, 10);
@@ -263,15 +262,12 @@ async function handlePerAxisCapability(db, actionId, userId, organizationId, ski
   let totalEvidenceCount = 0;
 
   for (const axis of skillProfile.axes) {
-    const axisEntityId = `${actionId}:${axis.key}`;
-    const axisEntityIdSafe = escapeLiteral(axisEntityId);
-
     try {
       // Per-axis vector search: find top evidence_limit states most similar to this axis embedding
       // INNER JOIN state_links restricts to learning-objective-linked states only (Req 3.1, 3.5)
       const axisSearchResult = await db.query(
         `SELECT ue.entity_id, ue.embedding_source, s.state_text,
-                (1 - (ue.embedding <=> (SELECT embedding FROM unified_embeddings WHERE entity_type = 'skill_axis' AND entity_id = '${axisEntityIdSafe}' LIMIT 1))) as similarity
+                (1 - (ue.embedding <=> (SELECT embedding FROM unified_embeddings WHERE entity_type = 'skill_axis' AND action_id = $1 AND axis_key = $2 LIMIT 1))) as similarity
          FROM unified_embeddings ue
          INNER JOIN states s ON s.id::text = ue.entity_id
          INNER JOIN state_links sl ON sl.state_id = s.id AND sl.entity_type = 'learning_objective'
@@ -279,7 +275,8 @@ async function handlePerAxisCapability(db, actionId, userId, organizationId, ski
            AND ue.organization_id = '${orgIdSafe}'
            AND s.captured_by = '${userIdSafe}'
          ORDER BY similarity DESC
-         LIMIT ${aiConfig.evidence_limit}`
+         LIMIT ${aiConfig.evidence_limit}`,
+        [actionId, axis.key]
       );
 
       const matches = (axisSearchResult.rows || []).map(row => {
@@ -624,22 +621,20 @@ async function handleOrganizationCapability(actionId, organizationId, forceResco
     let totalEvidenceCount = 0;
 
     for (const axis of skillProfile.axes) {
-      const axisEntityId = `${actionId}:${axis.key}`;
-      const axisEntityIdSafe = escapeLiteral(axisEntityId);
-
       try {
         // Per-axis vector search: find top evidence_limit states most similar to this axis embedding (org-wide, no user filter)
         // INNER JOIN state_links restricts to learning-objective-linked states only (Req 3.2, 3.4)
         const axisSearchResult = await db.query(
           `SELECT ue.entity_id, ue.embedding_source, s.state_text,
-                  (1 - (ue.embedding <=> (SELECT embedding FROM unified_embeddings WHERE entity_type = 'skill_axis' AND entity_id = '${axisEntityIdSafe}' LIMIT 1))) as similarity
+                  (1 - (ue.embedding <=> (SELECT embedding FROM unified_embeddings WHERE entity_type = 'skill_axis' AND action_id = $1 AND axis_key = $2 LIMIT 1))) as similarity
            FROM unified_embeddings ue
            INNER JOIN states s ON s.id::text = ue.entity_id
            INNER JOIN state_links sl ON sl.state_id = s.id AND sl.entity_type = 'learning_objective'
            WHERE ue.entity_type = 'state'
              AND ue.organization_id = '${orgIdSafe}'
            ORDER BY similarity DESC
-           LIMIT ${aiConfig.evidence_limit}`
+           LIMIT ${aiConfig.evidence_limit}`,
+          [actionId, axis.key]
         );
 
         const matches = (axisSearchResult.rows || []).map(row => {

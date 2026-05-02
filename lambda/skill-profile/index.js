@@ -10,7 +10,7 @@ const sqs = new SQSClient({ region: 'us-west-2' });
 const bedrock = new BedrockRuntimeClient({ region: process.env.BEDROCK_REGION || 'us-west-2' });
 const EMBEDDINGS_QUEUE_URL = 'https://sqs.us-west-2.amazonaws.com/131745734428/cwf-embeddings-queue';
 
-const { composeAxisEmbeddingSource, composeAxisEntityId, parseAxisEntityId } = require('/opt/nodejs/axisUtils');
+const { composeAxisEmbeddingSource } = require('/opt/nodejs/axisUtils');
 
 const success = (data) => successResponse({ data });
 const error = (message, statusCode = 500) => errorResponse(statusCode, message);
@@ -479,9 +479,9 @@ async function handleApprove(event, organizationId) {
   // Delete existing skill_axis embeddings for this action before generating new ones
   const deleteDb = await getDbClient();
   try {
-    const actionIdPattern = escapeLiteral(updatedAction.id + ':%');
     await deleteDb.query(
-      `DELETE FROM unified_embeddings WHERE entity_type = 'skill_axis' AND entity_id LIKE '${actionIdPattern}'`
+      `DELETE FROM unified_embeddings WHERE entity_type = 'skill_axis' AND action_id = $1`,
+      [updatedAction.id]
     );
     console.log('Deleted existing skill_axis embeddings for action', updatedAction.id);
   } catch (err) {
@@ -492,21 +492,21 @@ async function handleApprove(event, organizationId) {
 
   // Generate per-axis embedding SQS messages — await all sends
   const axisEmbeddingPromises = approvedProfile.axes.map(axis => {
-    const entityId = composeAxisEntityId(updatedAction.id, axis.key);
     const embeddingSource = composeAxisEmbeddingSource(axis, approvedProfile.narrative);
 
     return sqs.send(new SendMessageCommand({
       QueueUrl: EMBEDDINGS_QUEUE_URL,
       MessageBody: JSON.stringify({
         entity_type: 'skill_axis',
-        entity_id: entityId,
+        action_id: updatedAction.id,
+        axis_key: axis.key,
         embedding_source: embeddingSource,
         organization_id: updatedAction.organization_id
       })
     })).then(() => {
-      console.log('Queued skill_axis embedding:', entityId);
+      console.log('Queued skill_axis embedding for action', updatedAction.id, 'axis', axis.key);
     }).catch(err => {
-      console.error('Failed to queue skill_axis embedding:', entityId, err);
+      console.error('Failed to queue skill_axis embedding for action', updatedAction.id, 'axis', axis.key, err);
     });
   });
 
@@ -998,8 +998,6 @@ function parseProfileSkillStateText(stateText) {
 
 // Export utility functions for testing
 exports.composeAxisEmbeddingSource = composeAxisEmbeddingSource;
-exports.composeAxisEntityId = composeAxisEntityId;
-exports.parseAxisEntityId = parseAxisEntityId;
 exports.buildSkillProfilePrompt = buildSkillProfilePrompt;
 exports.composeProfileSkillStateText = composeProfileSkillStateText;
 exports.parseProfileSkillStateText = parseProfileSkillStateText;

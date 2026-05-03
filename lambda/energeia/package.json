@@ -1,0 +1,14 @@
+{
+  "name": "cwf-energeia-lambda",
+  "version": "1.0.0",
+  "description": "Lambda function for Energeia Schema orchestration — k-means clustering, t-SNE, Claude labeling, and cache management",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-lambda": "3.540.0",
+    "@aws-sdk/client-bedrock-runtime": "3.540.0",
+    "pg": "8.11.3"
+  },
+  "devDependencies": {
+    "fast-check": "3.15.0"
+  }
+}

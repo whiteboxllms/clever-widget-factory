@@ -29,8 +29,15 @@ fi
 echo "📦 Installing dependencies..."
 npm install --production
 
-echo "📦 Packaging Lambda (index.* + local files + node_modules/)..."
-zip -r function.zip index.* node_modules/ package.json shared/ prompts/ *.js *.mjs -x "*.test.js" "deploy.sh" "wire-api-gateway.sh"
+echo "📦 Packaging Lambda (all files + node_modules/)..."
+zip -r function.zip . \
+  --exclude "*.test.js" \
+  --exclude "*.test.ts" \
+  --exclude "deploy.sh" \
+  --exclude "wire-api-gateway.sh" \
+  --exclude "function.zip" \
+  --exclude ".git/*" \
+  --exclude "node_modules/.cache/*"
 
 echo "🚀 Deploying to AWS Lambda ($FUNCTION_NAME)..."
 if aws lambda get-function --function-name "$FUNCTION_NAME" --region "$REGION" &>/dev/null; then
@@ -73,6 +80,7 @@ $([ -n "$MAXWELL_AGENT_ALIAS_ID" ] && echo "overlay['MAXWELL_AGENT_ALIAS_ID'] = 
 $([ -n "$BEDROCK_REGION" ] && echo "overlay['BEDROCK_REGION'] = '$BEDROCK_REGION'")
 $([ -n "$SARI_SARI_AGENT_ID" ] && echo "overlay['SARI_SARI_AGENT_ID'] = '$SARI_SARI_AGENT_ID'")
 $([ -n "$SARI_SARI_AGENT_ALIAS_ID" ] && echo "overlay['SARI_SARI_AGENT_ALIAS_ID'] = '$SARI_SARI_AGENT_ALIAS_ID'")
+$([ -n "$ML_LAMBDA_NAME" ] && echo "overlay['ML_LAMBDA_NAME'] = '$ML_LAMBDA_NAME'")
 existing.update(overlay)
 # Output as KEY=VALUE format for AWS CLI
 print('{' + ','.join(f'{k}={v}' for k,v in existing.items()) + '}')
@@ -118,6 +126,7 @@ else
   [ -n "$BEDROCK_REGION" ] && ENV_VARS="${ENV_VARS}BEDROCK_REGION=$BEDROCK_REGION,"
   [ -n "$SARI_SARI_AGENT_ID" ] && ENV_VARS="${ENV_VARS}SARI_SARI_AGENT_ID=$SARI_SARI_AGENT_ID,"
   [ -n "$SARI_SARI_AGENT_ALIAS_ID" ] && ENV_VARS="${ENV_VARS}SARI_SARI_AGENT_ALIAS_ID=$SARI_SARI_AGENT_ALIAS_ID,"
+  [ -n "$ML_LAMBDA_NAME" ] && ENV_VARS="${ENV_VARS}ML_LAMBDA_NAME=$ML_LAMBDA_NAME,"
   # Remove trailing comma and close JSON
   ENV_VARS="${ENV_VARS%,}}"
   

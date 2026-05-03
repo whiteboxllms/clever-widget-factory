@@ -16,14 +16,6 @@ export function OrganizationSwitcher() {
     canSwitchOrganization,
   } = useOrganization();
 
-  // Debug logging - remove after confirming switcher works
-  console.log('[OrgSwitcher]', {
-    canSwitchOrganization,
-    accessibleOrganizations: accessibleOrganizations.length,
-    orgNames: accessibleOrganizations.map(o => o.name),
-    currentOrg: organization?.name
-  });
-
   if (!canSwitchOrganization || accessibleOrganizations.length <= 1) {
     return null;
   }

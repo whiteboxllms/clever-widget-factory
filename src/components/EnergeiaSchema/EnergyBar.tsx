@@ -1,4 +1,4 @@
-import type { ActionPoint, EnergyType } from '@/types/energeia';
+import type { ActionPoint, EnergyType, EnergyWeights } from '@/types/energeia';
 
 interface EnergyBarProps {
   points: ActionPoint[];
@@ -44,7 +44,9 @@ export function computeEnergyProportions(
     techne:    0,
   };
 
-  const LEGACY_MAP: Record<string, EnergyType> = {
+  // Legacy map: convert old discrete energy_type strings to degenerate weight vectors
+  // for backward compatibility with old cache data that lacks energy_weights (Req 5.3, 5.4)
+  const LEGACY_ENERGY_MAP: Record<string, EnergyType> = {
     growth:              'dynamis',
     maintenance:         'oikonomia',
     hexis:               'oikonomia',
@@ -52,12 +54,21 @@ export function computeEnergyProportions(
   };
 
   for (const point of points) {
-    const w = Math.max(1, point.observation_count);
-    const resolved: EnergyType =
-      point.energy_type in weights
-        ? point.energy_type
-        : (LEGACY_MAP[point.energy_type as string] ?? 'oikonomia');
-    weights[resolved] += w;
+    const obs = Math.max(1, point.observation_count);
+
+    if (point.energy_weights) {
+      // New cache data: use weight vector — each point contributes fractionally to all types
+      weights.dynamis   += point.energy_weights.dynamis   * obs;
+      weights.oikonomia += point.energy_weights.oikonomia * obs;
+      weights.techne    += point.energy_weights.techne    * obs;
+    } else {
+      // Legacy cache data: convert discrete energy_type to degenerate weight vector
+      const resolved: EnergyType =
+        point.energy_type in weights
+          ? point.energy_type
+          : (LEGACY_ENERGY_MAP[point.energy_type as string] ?? 'oikonomia');
+      weights[resolved] += obs;
+    }
   }
 
   const total = weights.dynamis + weights.oikonomia + weights.techne;

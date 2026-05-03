@@ -2,9 +2,9 @@
 
 ## Introduction
 
-The Energeia Membrane extends the existing Energeia Schema visualization with three interconnected capabilities: energy classification of actions and clusters, spatial separation of internal vs. external organizational activity, a rendered amoeba-shaped membrane that visually encloses internal work, and an energy allocation bar showing how organizational effort is distributed across growth, maintenance, and process improvement.
+The Energeia Membrane extends the existing Energeia Schema visualization with four interconnected capabilities: energy classification of actions and clusters, spatial separation of internal vs. external organizational activity, a rendered amoeba-shaped membrane that visually encloses internal work, an energy allocation bar showing how organizational effort is distributed across the three energy types, and barycentric color blending that renders each action node as a chromatic mix of its energy weights.
 
-The feature builds directly on the existing pipeline: the same Claude labeling call that already generates cluster titles is extended to also classify every action by energy type and every cluster by boundary type. Post-processing of PCA coordinates then separates internal and external clusters spatially, and the Three.js scene gains a metaball membrane surface and a 2D energy bar overlay.
+The feature builds directly on the existing pipeline: the same Claude labeling call that already generates cluster titles is extended to also classify every action by energy weights (a probability distribution across `dynamis`, `oikonomia`, and `techne`) and every cluster by boundary type. Post-processing of PCA coordinates then separates internal and external clusters spatially, and the Three.js scene gains a metaball membrane surface, a 2D energy bar overlay, and a ternary triangle legend showing the global energy average.
 
 ## Glossary
 
@@ -13,10 +13,13 @@ The feature builds directly on the existing pipeline: the same Claude labeling c
 - **Action_Point**: A single rendered point representing one action-person relationship, as defined in the existing system.
 - **Cluster**: A group of Action_Points with similar embedding vectors, as defined in the existing system.
 - **Cluster_Centroid**: The mean 3D position of a Cluster's Action_Points after PCA reduction and normalization, as defined in the existing system.
-- **Energy_Type**: The per-action classification assigned by Claude — one of `dynamis`, `hexis`, or `techne`.
-  - `dynamis` — activities that expand capability, revenue, or reach (Aristotle's concept of potential).
-  - `hexis` — activities that sustain existing operations (Aristotle's concept of stable disposition).
-  - `techne` — activities that improve how work is done (Aristotle's concept of craft and skilled making).
+- **Energy_Type**: The dominant energy classification of an action — one of `dynamis`, `oikonomia`, or `techne`. Derived as the argmax of the action's Energy_Weights vector. Used for filtering and the energy bar.
+  - `dynamis` — activities that expand capability, revenue, or reach (Aristotle's concept of potential / RL exploration).
+  - `oikonomia` — activities that sustain existing operations (household management and stable order / RL exploitation).
+  - `techne` — activities that improve how work is done (practical wisdom and skilled governance / RL meta-policy).
+- **Energy_Weights**: The per-action probability distribution assigned by Claude — a vector `{ dynamis: number, oikonomia: number, techne: number }` where all three values are non-negative and sum to 1.0. Captures the degree to which an action participates in each energy type. Used for barycentric color blending.
+- **Barycentric_Color**: The RGB color of an action node computed as a weighted blend of the three energy-type corner colors, using the action's Energy_Weights as barycentric coordinates. A pure-oikonomia action is deep indigo; a pure-dynamis action is electric cyan; a mixed action is a chromatic blend.
+- **Energy_Triangle**: A ternary diagram UI element showing the three energy-type colors at the corners, a smooth gradient interior, and a crosshair at the global energy average position. Serves as the legend for the barycentric color mode.
 - **Boundary_Type**: The per-cluster classification assigned by Claude — one of `internal` or `external`.
   - `internal` — clusters representing core operations of the organization (e.g. Poultry Care, Agriculture, Food Production).
   - `external` — clusters representing interactions with outside entities (e.g. Compliance, Government, Vendors, Purchases).
@@ -35,19 +38,21 @@ The feature builds directly on the existing pipeline: the same Claude labeling c
 
 ## Requirements
 
-### Requirement 1: Per-Action Energy Classification
+### Requirement 1: Per-Action Energy Weights
 
-**User Story:** As an analytics user, I want every action classified as growth, maintenance, or process improvement, so that I can understand the energy profile of the organization's work.
+**User Story:** As an analytics user, I want every action assigned a probability distribution across the three energy types, so that I can see how actions blend growth, maintenance, and process improvement rather than being forced into a single category.
 
 #### Acceptance Criteria
 
-1. WHEN a Refresh is triggered, THE Labeling_Pipeline SHALL classify every action in the dataset with an Energy_Type of `dynamis`, `hexis`, or `techne`.
-2. THE Labeling_Pipeline SHALL perform per-action Energy_Type classification within the same Claude invocation that generates the cluster title and description, passing all action titles in the cluster to Claude in a single request.
-3. THE Labeling_Pipeline SHALL instruct Claude to return one Energy_Type per action title, keyed by action title, alongside the cluster-level title and description in the same JSON response.
-4. THE Labeling_Pipeline SHALL store the Energy_Type on each Action_Point in the Energeia_Cache payload.
-5. IF Claude does not return an Energy_Type for a specific action, THEN THE Labeling_Pipeline SHALL assign that action a default Energy_Type of `hexis` and continue without failing.
-6. IF Claude returns an Energy_Type value that is not one of `dynamis`, `hexis`, or `techne`, THEN THE Labeling_Pipeline SHALL assign that action a default Energy_Type of `hexis`.
-7. THE Labeling_Pipeline SHALL NOT make a separate Claude invocation solely for Energy_Type classification — it SHALL be part of the existing cluster labeling call.
+1. WHEN a Refresh is triggered, THE Labeling_Pipeline SHALL classify every action in the dataset with an Energy_Weights vector `{ dynamis, oikonomia, techne }` where all three values are non-negative and sum to 1.0.
+2. THE Labeling_Pipeline SHALL perform per-action Energy_Weights classification within the same Claude invocation that generates the cluster title and description, passing all action titles in the cluster to Claude in a single request.
+3. THE Labeling_Pipeline SHALL instruct Claude to return one Energy_Weights object per action title, keyed by action title, alongside the cluster-level title and description in the same JSON response.
+4. THE Labeling_Pipeline SHALL store the Energy_Weights vector on each Action_Point in the Energeia_Cache payload.
+5. THE Labeling_Pipeline SHALL derive and store the dominant Energy_Type (argmax of Energy_Weights) on each Action_Point alongside the weights, for use by the filter system and energy bar.
+6. IF Claude does not return Energy_Weights for a specific action, THEN THE Labeling_Pipeline SHALL assign that action default weights of `{ dynamis: 0, oikonomia: 1, techne: 0 }` and continue without failing.
+7. IF Claude returns Energy_Weights that do not sum to approximately 1.0 (within ±0.05 tolerance), THEN THE Labeling_Pipeline SHALL normalize the weights by dividing each by their sum before storing.
+8. IF Claude returns any negative weight value, THEN THE Labeling_Pipeline SHALL clamp it to 0 before normalizing.
+9. THE Labeling_Pipeline SHALL NOT make a separate Claude invocation solely for Energy_Weights classification — it SHALL be part of the existing cluster labeling call.
 
 ---
 
@@ -110,12 +115,12 @@ The feature builds directly on the existing pipeline: the same Claude labeling c
 #### Acceptance Criteria
 
 1. THE Energeia_Schema SHALL display an Energy_Bar as a horizontal bar positioned above the Energeia_Map canvas.
-2. THE Energy_Bar SHALL contain three segments: Dynamis (electric cyan), Hexis (indigo), and Techne (violet/magenta).
-3. THE Energy_Bar SHALL compute each segment's proportion by summing the Observation_Count of all Action_Points classified with that Energy_Type, then dividing by the total Observation_Count across all Action_Points.
-4. WHEN an Action_Point has an Observation_Count of zero, THE Energy_Bar SHALL count that Action_Point as contributing a weight of 1 to its Energy_Type segment, so that actions with no observations are not invisible in the allocation.
+2. THE Energy_Bar SHALL contain three segments: Dynamis (electric cyan), Oikonomia (indigo), and Techne (violet/magenta).
+3. THE Energy_Bar SHALL compute each segment's proportion by summing `energy_weights[type] * max(1, observation_count)` across all Action_Points for that type, then dividing by the total weighted sum across all Action_Points and all types.
+4. WHEN an Action_Point has an Observation_Count of zero, THE Energy_Bar SHALL use a weight of 1 as the observation multiplier, so that actions with no observations are not invisible in the allocation.
 5. THE Energy_Bar SHALL display the percentage for each segment as a label within or adjacent to that segment (e.g. "Dynamis 45%").
 6. THE Energy_Bar SHALL display no absolute units — proportions only.
-7. WHEN a Refresh completes and new cache data is loaded, THE Energy_Bar SHALL update to reflect the new Energy_Type distribution.
+7. WHEN a Refresh completes and new cache data is loaded, THE Energy_Bar SHALL update to reflect the new Energy_Weights distribution.
 8. WHEN no Energeia_Cache exists, THE Energy_Bar SHALL NOT be rendered.
 9. THE Energy_Bar SHALL use the same Action_Points that are currently stored in the Energeia_Cache — it SHALL NOT apply the active UI filters (person, relationship type, status) to the energy proportions, so that the bar always reflects the full organizational picture.
 
@@ -127,12 +132,13 @@ The feature builds directly on the existing pipeline: the same Claude labeling c
 
 #### Acceptance Criteria
 
-1. THE Energeia_Cache payload SHALL include an `energy_type` field on every Action_Point, containing one of `growth`, `maintenance`, or `process_improvement`.
-2. THE Energeia_Cache payload SHALL include a `boundary_type` field on every ClusterInfo record, containing one of `internal` or `external`.
-3. THE Energeia_Cache payload SHALL remain backward-compatible — existing fields (`id`, `action_id`, `person_id`, `cluster_id`, `x`, `y`, `z`, `bloom_level`, `action_title`, `status`, `observation_count`) SHALL be preserved unchanged.
-4. THE Energeia_Cache payload SHALL include a `center_of_mass` object at the top level containing `x`, `y`, `z` coordinates of the Center_of_Mass, so that the frontend can use it for membrane positioning without recomputing it.
-5. THE Energeia_Cache payload SHALL include a `membrane_boundary_distance` number at the top level, so that the frontend can use it to size the metaball spheres without recomputing it.
-6. WHEN the Energeia_Cache is read by the `GET /api/energeia/schema` endpoint, THE response SHALL include all new fields defined in this requirement.
+1. THE Energeia_Cache payload SHALL include an `energy_weights` object on every Action_Point, containing `{ dynamis: number, oikonomia: number, techne: number }` where all three values are non-negative and sum to 1.0.
+2. THE Energeia_Cache payload SHALL include an `energy_type` field on every Action_Point containing the dominant energy type (argmax of `energy_weights`), for use by the filter system.
+3. THE Energeia_Cache payload SHALL include a `boundary_type` field on every ClusterInfo record, containing one of `internal` or `external`.
+4. THE Energeia_Cache payload SHALL remain backward-compatible — existing fields (`id`, `action_id`, `person_id`, `cluster_id`, `x`, `y`, `z`, `bloom_level`, `action_title`, `status`, `observation_count`) SHALL be preserved unchanged.
+5. THE Energeia_Cache payload SHALL include a `center_of_mass` object at the top level containing `x`, `y`, `z` coordinates of the Center_of_Mass, so that the frontend can use it for membrane positioning without recomputing it.
+6. THE Energeia_Cache payload SHALL include a `membrane_boundary_distance` number at the top level, so that the frontend can use it to size the metaball spheres without recomputing it.
+7. WHEN the Energeia_Cache is read by the `GET /api/energeia/schema` endpoint, THE response SHALL include all new fields defined in this requirement.
 
 ---
 
@@ -142,11 +148,47 @@ The feature builds directly on the existing pipeline: the same Claude labeling c
 
 #### Acceptance Criteria
 
-1. THE `ActionPoint` TypeScript interface SHALL include an `energy_type` field typed as `'dynamis' | 'hexis' | 'techne'`.
-2. THE `ClusterInfo` TypeScript interface SHALL include a `boundary_type` field typed as `'internal' | 'external'`.
-3. THE `EnergeiaSchemaData` TypeScript interface SHALL include a `center_of_mass` field typed as `{ x: number; y: number; z: number }`.
-4. THE `EnergeiaSchemaData` TypeScript interface SHALL include a `membrane_boundary_distance` field typed as `number`.
-5. THE Energeia_Schema frontend components SHALL use the updated TypeScript interfaces — no `any` casts SHALL be introduced to work around missing type fields.
+1. THE `ActionPoint` TypeScript interface SHALL include an `energy_weights` field typed as `{ dynamis: number; oikonomia: number; techne: number }`.
+2. THE `ActionPoint` TypeScript interface SHALL retain the `energy_type` field typed as `EnergyType`, representing the dominant type derived from `energy_weights`.
+3. THE `ClusterInfo` TypeScript interface SHALL include a `boundary_type` field typed as `'internal' | 'external'`.
+4. THE `EnergeiaSchemaData` TypeScript interface SHALL include a `center_of_mass` field typed as `{ x: number; y: number; z: number }`.
+5. THE `EnergeiaSchemaData` TypeScript interface SHALL include a `membrane_boundary_distance` field typed as `number`.
+6. THE Energeia_Schema frontend components SHALL use the updated TypeScript interfaces — no `any` casts SHALL be introduced to work around missing type fields.
+
+---
+
+### Requirement 9: Barycentric Color Blending
+
+**User Story:** As an analytics user, I want each action node's color to reflect its blend of energy types, so that I can see at a glance whether an action is purely one type or a mix — and perceive the chromatic texture of the organization's work.
+
+#### Acceptance Criteria
+
+1. WHEN `colorMode` is `energy_type`, THE ActionPointCloud SHALL compute each node's color as a barycentric blend of the three energy-type corner colors, using the node's `energy_weights` as barycentric coordinates.
+2. THE three corner colors SHALL be: Dynamis = `#00e5ff` (electric cyan), Oikonomia = `#4f46e5` (deep indigo), Techne = `#a855f7` (vibrant violet).
+3. A node with `energy_weights = { dynamis: 1, oikonomia: 0, techne: 0 }` SHALL render as pure `#00e5ff`.
+4. A node with `energy_weights = { dynamis: 0, oikonomia: 1, techne: 0 }` SHALL render as pure `#4f46e5`.
+5. A node with `energy_weights = { dynamis: 0, oikonomia: 0, techne: 1 }` SHALL render as pure `#a855f7`.
+6. A node with equal weights `{ dynamis: 1/3, oikonomia: 1/3, techne: 1/3 }` SHALL render as the centroid blend of all three colors.
+7. THE barycentric blend SHALL be computed in linear RGB space (not sRGB/hex) to avoid muddy midpoints, then converted back to hex for the material color.
+8. WHEN `colorMode` is NOT `energy_type`, THE existing color logic (cluster, person, status) SHALL be unchanged.
+9. THE emissive color of each node SHALL match its blended color, so the glow reflects the energy mix.
+
+---
+
+### Requirement 10: Energy Triangle Legend
+
+**User Story:** As an analytics user, I want a ternary triangle legend showing the three energy types at the corners and a crosshair at the global average, so that I can interpret the barycentric colors at a glance.
+
+#### Acceptance Criteria
+
+1. THE Energeia_Schema SHALL display an Energy_Triangle component when `colorMode` is `energy_type`.
+2. THE Energy_Triangle SHALL be an equilateral triangle with Dynamis at the top vertex, Oikonomia at the bottom-left vertex, and Techne at the bottom-right vertex.
+3. THE interior of the Energy_Triangle SHALL display a smooth ternary gradient matching the barycentric color blend used for node coloring.
+4. THE Energy_Triangle SHALL display a white crosshair or dot at the position corresponding to the global average of all Action_Point `energy_weights`, weighted by `max(1, observation_count)`.
+5. THE Energy_Triangle SHALL label each vertex with the energy type name and its corner color.
+6. THE Energy_Triangle SHALL be positioned as a compact overlay (e.g. bottom-right corner of the canvas or below the energy bar) and SHALL NOT obscure the main point cloud.
+7. WHEN `colorMode` is NOT `energy_type`, THE Energy_Triangle SHALL NOT be rendered.
+8. WHEN no Energeia_Cache exists, THE Energy_Triangle SHALL NOT be rendered.
 
 ---
 
@@ -156,9 +198,10 @@ The feature builds directly on the existing pipeline: the same Claude labeling c
 
 #### Acceptance Criteria
 
-1. THE Energeia_Membrane feature SHALL NOT include a UI mechanism for users to override Claude's Energy_Type or Boundary_Type classifications.
+1. THE Energeia_Membrane feature SHALL NOT include a UI mechanism for users to override Claude's Energy_Weights or Boundary_Type classifications.
 2. THE Energeia_Membrane feature SHALL NOT introduce a separate Claude invocation for classification — all classification SHALL occur within the existing cluster labeling call.
 3. THE Energeia_Membrane feature SHALL NOT add `energy_exporter` or `energy_consumer` classification types — these are explicitly out of scope.
 4. THE Energeia_Membrane feature SHALL NOT constrain or modify the PCA computation — spatial separation is post-processing only.
 5. THE Energeia_Membrane feature SHALL NOT render multiple separate membrane bubbles — the metaball approach guarantees a single merged surface.
 6. THE Energy_Bar SHALL NOT display absolute observation counts or action counts — proportions only.
+7. THE barycentric color blending SHALL NOT be applied in colorModes other than `energy_type` — cluster, person, and status modes retain their existing discrete color logic.

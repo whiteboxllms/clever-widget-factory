@@ -72,7 +72,7 @@ EnergeiaSchema.tsx
 The prompt is extended to request three additional fields per cluster response:
 
 1. `boundary_type` — `"internal"` or `"external"` for the cluster as a whole.
-2. `action_energy_map` — an object mapping each action title to its energy type.
+2. `action_energy_map` — an object mapping each action title to an **energy weights object** `{ dynamis, oikonomia, techne }` where all three values are non-negative and sum to 1.0.
 
 **New prompt template (replacing `buildClaudePrompt`):**
 
@@ -90,10 +90,14 @@ Also classify the cluster as:
 - "internal" if it represents core operations of the organization (e.g. Poultry Care, Agriculture, Food Production, Equipment Maintenance)
 - "external" if it represents interactions with outside entities (e.g. Compliance, Government, Vendors, Purchases, Reporting)
 
-Also classify each action by energy type:
-- "dynamis" — activities that expand capability, revenue, or reach (Aristotle's concept of potential)
-- "hexis" — activities that sustain existing operations (Aristotle's concept of stable disposition)
-- "techne" — activities that improve how work is done (Aristotle's concept of craft and skilled making)
+Also assign each action an energy weight distribution across three Aristotelian types:
+- "dynamis"   — Exploration. Activities that expand capability, revenue, or reach. The Spark.
+- "oikonomia" — Exploitation. Activities that sustain existing operations. The Hearth.
+- "techne"    — Meta-Policy. Activities that improve how work is done. The Tool.
+
+For each action, return a weight object { "dynamis": 0.0–1.0, "oikonomia": 0.0–1.0, "techne": 0.0–1.0 }
+where the three values sum to 1.0. Most actions will have one dominant type but may have meaningful
+secondary components (e.g. a training activity might be 0.6 techne, 0.3 dynamis, 0.1 oikonomia).
 
 Respond with ONLY a JSON object (no markdown, no explanation) in this exact format:
 {
@@ -101,8 +105,8 @@ Respond with ONLY a JSON object (no markdown, no explanation) in this exact form
   "description": "<one sentence describing what this cluster does>",
   "boundary_type": "internal" | "external",
   "action_energy_map": {
-    "<action title 1>": "dynamis" | "hexis" | "techne",
-    "<action title 2>": "dynamis" | "hexis" | "techne"
+    "<action title 1>": { "dynamis": 0.2, "oikonomia": 0.7, "techne": 0.1 },
+    "<action title 2>": { "dynamis": 0.6, "oikonomia": 0.1, "techne": 0.3 }
   }
 }
 ```
@@ -112,7 +116,7 @@ Respond with ONLY a JSON object (no markdown, no explanation) in this exact form
 ```javascript
 // After parsing Claude's JSON response:
 const VALID_BOUNDARY_TYPES = new Set(['internal', 'external']);
-const VALID_ENERGY_TYPES = new Set(['dynamis', 'hexis', 'techne']);
+const DEFAULT_WEIGHTS = { dynamis: 0, oikonomia: 1, techne: 0 };
 
 const boundaryType = VALID_BOUNDARY_TYPES.has(label.boundary_type)
   ? label.boundary_type
@@ -121,7 +125,29 @@ const boundaryType = VALID_BOUNDARY_TYPES.has(label.boundary_type)
 const actionEnergyMap = {};
 for (const title of cluster.actionTitles) {
   const raw = label.action_energy_map?.[title];
-  actionEnergyMap[title] = VALID_ENERGY_TYPES.has(raw) ? raw : 'hexis';  // Req 1.5, 1.6
+  actionEnergyMap[title] = validateAndNormalizeWeights(raw);  // Req 1.6, 1.7, 1.8
+}
+
+/**
+ * Validate and normalize an energy weights object from Claude.
+ * Returns DEFAULT_WEIGHTS if input is missing or malformed.
+ * Clamps negatives to 0, normalizes to sum=1.
+ */
+function validateAndNormalizeWeights(raw) {
+  if (!raw || typeof raw !== 'object') return { ...DEFAULT_WEIGHTS };
+
+  const d = Math.max(0, Number(raw.dynamis)   || 0);
+  const o = Math.max(0, Number(raw.oikonomia) || 0);
+  const t = Math.max(0, Number(raw.techne)    || 0);
+  const sum = d + o + t;
+
+  if (sum < 0.01) return { ...DEFAULT_WEIGHTS };  // all zeros — use default
+
+  return {
+    dynamis:   d / sum,
+    oikonomia: o / sum,
+    techne:    t / sum,
+  };
 }
 
 results.push({
@@ -129,7 +155,7 @@ results.push({
   title: label.title || `Cluster ${cluster.id}`,
   description: label.description || 'A group of related actions.',
   boundary_type: boundaryType,
-  action_energy_map: actionEnergyMap,
+  action_energy_map: actionEnergyMap,  // Record<string, { dynamis, oikonomia, techne }>
 });
 ```
 
@@ -140,7 +166,7 @@ results.push({
 //   title: string,
 //   description: string,
 //   boundary_type: 'internal' | 'external',
-//   action_energy_map: Record<string, 'dynamis' | 'hexis' | 'techne'>
+//   action_energy_map: Record<string, { dynamis: number, oikonomia: number, techne: number }>
 // }>
 ```
 
@@ -148,17 +174,25 @@ results.push({
 
 ### `lambda/energeia/handlers/refresh.js` — Extended
 
-#### Step 8 (label map) — energy_type lookup
+#### Step 8 (label map) — energy_weights lookup
 
-After `labelClusters()` returns, build a title-keyed energy map for O(1) lookup when assembling `ActionPoint[]`:
+After `labelClusters()` returns, build a title-keyed energy weights map for O(1) lookup when assembling `ActionPoint[]`:
 
 ```javascript
-// Build a flat title → energy_type map across all clusters
-const titleEnergyMap = new Map(); // actionTitle → energy_type
+// Build a flat title → energy_weights map across all clusters
+const titleEnergyMap = new Map(); // actionTitle → { dynamis, oikonomia, techne }
 for (const label of clusterLabels) {
-  for (const [title, energyType] of Object.entries(label.action_energy_map)) {
-    titleEnergyMap.set(title, energyType);
+  for (const [title, weights] of Object.entries(label.action_energy_map)) {
+    titleEnergyMap.set(title, weights);
   }
+}
+
+// Helper: derive dominant energy type (argmax) from weights
+function dominantEnergyType(weights) {
+  const { dynamis, oikonomia, techne } = weights;
+  if (dynamis >= oikonomia && dynamis >= techne) return 'dynamis';
+  if (techne >= oikonomia) return 'techne';
+  return 'oikonomia';
 }
 ```
 
@@ -264,9 +298,12 @@ if (membraneBoundaryDistance > 0) {
 #### Updated ActionPoint assembly
 
 ```javascript
+const DEFAULT_WEIGHTS = { dynamis: 0, oikonomia: 1, techne: 0 };
+
 const points = actionPoints.map((ap, i) => {
   const [x, y, z] = separatedCoords[i];  // use separated coords
-  const energyType = titleEnergyMap.get(ap.actionTitle) ?? 'hexis';
+  const energyWeights = titleEnergyMap.get(ap.actionTitle) ?? DEFAULT_WEIGHTS;
+  const energyType = dominantEnergyType(energyWeights);  // argmax for filter system
   return {
     id: `${ap.actionId}::${ap.personId}`,
     action_id: ap.actionId,
@@ -279,7 +316,8 @@ const points = actionPoints.map((ap, i) => {
     action_title: ap.actionTitle,
     status: ap.status,
     observation_count: ap.observationCount,
-    energy_type: energyType,  // NEW
+    energy_weights: energyWeights,  // NEW — { dynamis, oikonomia, techne } summing to 1
+    energy_type: energyType,        // NEW — dominant type for filter system
   };
 });
 ```
@@ -490,50 +528,193 @@ export default EnergyBar;
 
 Changes:
 1. Import and render `<EnergyBar>` above the `<Canvas>` (outside R3F context).
-2. Import and render `<MembraneShell>` inside `<Canvas>`, before `<ActionPointCloud>` so depth ordering is correct.
-3. Pass `membraneBoundaryDistance` and cluster `boundary_type` data through.
-4. Apply desaturation to external action points (Req 4.6) — pass `clusters` to `ActionPointCloud` so it can determine boundary type per point.
+2. Import and render `<EnergyTriangle points={points} />` below the `EnergyBar`, only when `colorMode === 'energy_type'`.
+3. Import and render `<MembraneShell>` inside `<Canvas>`, before `<ActionPointCloud>` so depth ordering is correct.
+4. Pass `membraneBoundaryDistance` and cluster `boundary_type` data through.
+5. Apply desaturation to external action points (Req 4.6) and barycentric blending in energy_type mode (Req 9) — pass `clusters` to `ActionPointCloud`.
 
 ```tsx
 // EnergeiaMap.tsx — updated props and render structure (sketch)
 
 interface EnergeiaMapProps {
   points: ActionPoint[];
-  clusters: ClusterInfo[];           // ClusterInfo now has boundary_type
-  colorMode: 'cluster' | 'person' | 'accountable';
+  clusters: ClusterInfo[];
+  colorMode: 'cluster' | 'person' | 'accountable' | 'status' | 'energy_type';
   filters: EnergeiaFilters;
+  activeEnergyFilter: EnergyType | null;
+  onActiveEnergyFilterChange: (type: EnergyType | null) => void;
   onPointClick: (actionId: string) => void;
-  membraneBoundaryDistance: number;  // NEW — from cache payload
+  membraneBoundaryDistance: number;
 }
 
 // Inside render:
-// <EnergyBar points={data.points} />   ← above Canvas, uses full unfiltered points
+// <EnergyBar points={points} ... />
+// {colorMode === 'energy_type' && <EnergyTriangle points={points} />}
 // Inside Canvas:
 // <MembraneShell clusters={clusters} membraneBoundaryDistance={membraneBoundaryDistance} />
-// <ActionPointCloud ... clusters={clusters} />   ← clusters passed for boundary_type lookup
+// <ActionPointCloud ... clusters={clusters} />
 ```
 
 ---
 
 ### `src/components/EnergeiaSchema/ActionPointCloud.tsx` — Extended
 
-Add desaturation for external action points (Req 4.6). The `clusters` prop is added so each point can look up its cluster's `boundary_type`:
+Add desaturation for external action points (Req 4.6) and barycentric color blending in `energy_type` mode (Req 9). The `clusters` prop is added so each point can look up its cluster's `boundary_type`:
 
 ```tsx
+// Barycentric color blend — linear RGB interpolation across three corner colors
+// Corner colors in linear RGB (gamma-decoded from hex):
+const ENERGY_CORNERS = {
+  dynamis:   { r: 0.000, g: 0.898, b: 1.000 },  // #00e5ff
+  oikonomia: { r: 0.310, g: 0.275, b: 0.898 },  // #4f46e5
+  techne:    { r: 0.659, g: 0.333, b: 0.969 },  // #a855f7
+};
+
+function barycentricColor(weights: EnergyWeights): string {
+  const { dynamis, oikonomia, techne } = weights;
+  const r = dynamis * ENERGY_CORNERS.dynamis.r + oikonomia * ENERGY_CORNERS.oikonomia.r + techne * ENERGY_CORNERS.techne.r;
+  const g = dynamis * ENERGY_CORNERS.dynamis.g + oikonomia * ENERGY_CORNERS.oikonomia.g + techne * ENERGY_CORNERS.techne.g;
+  const b = dynamis * ENERGY_CORNERS.dynamis.b + oikonomia * ENERGY_CORNERS.oikonomia.b + techne * ENERGY_CORNERS.techne.b;
+  // Convert back to hex (clamp to [0,1])
+  const toHex = (v: number) => Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
 // In the color computation block:
 const clusterBoundaryType = clusters.find(c => c.id === point.cluster_id)?.boundary_type ?? 'internal';
 const isExternal = clusterBoundaryType === 'external';
 
-// For external points: desaturate by converting to grayscale-ish
-const colorStr = isExternal
-  ? '#6b7280'  // neutral gray — same for all external points regardless of colorMode
-  : (colorMode === 'cluster'
-      ? CLUSTER_COLORS[point.cluster_id % CLUSTER_COLORS.length]
-      : hashColor(point.person_id));
+let colorStr: string;
+if (isExternal && colorMode !== 'energy_type') {
+  colorStr = '#6b7280';  // gray for external in non-energy modes
+} else if (colorMode === 'energy_type') {
+  // Barycentric blend — always applied in energy_type mode, even for external points
+  colorStr = barycentricColor(point.energy_weights);
+} else if (colorMode === 'cluster') {
+  colorStr = CLUSTER_COLORS[point.cluster_id % CLUSTER_COLORS.length];
+} else if (colorMode === 'status') {
+  colorStr = STATUS_COLORS[point.status] ?? '#6b7280';
+} else {
+  colorStr = hashColor(point.person_id);
+}
 
-// Reduce emissive intensity for external points
-const emissiveIntensity = isExternal ? 0.1 : 0.6;
+// Emissive matches the blended color so the glow reflects the energy mix (Req 9.9)
+const emissiveIntensity = isDimmedByFilter ? 0.02 : (isExternal ? 0.3 : 0.6);
 ```
+
+---
+
+### `src/components/EnergeiaSchema/EnergyTriangle.tsx` — New Component
+
+A DOM-level ternary diagram rendered as a compact overlay when `colorMode === 'energy_type'`. Shows the three energy types at the triangle corners with a smooth gradient interior, and a crosshair at the global energy average.
+
+```tsx
+// EnergyTriangle.tsx — component signature and key logic sketch
+
+import type { ActionPoint, EnergyWeights } from '@/types/energeia';
+
+interface EnergyTriangleProps {
+  points: ActionPoint[];  // full unfiltered points for global average
+}
+
+// Corner positions in equilateral triangle (normalized 0–1 space):
+// Dynamis at top, Oikonomia at bottom-left, Techne at bottom-right
+// Barycentric → Cartesian: P = w_d * V_d + w_o * V_o + w_t * V_t
+const VERTICES = {
+  dynamis:   { x: 0.5,   y: 0.0   },  // top
+  oikonomia: { x: 0.0,   y: 1.0   },  // bottom-left
+  techne:    { x: 1.0,   y: 1.0   },  // bottom-right
+};
+
+function weightsToXY(w: EnergyWeights): { x: number; y: number } {
+  return {
+    x: w.dynamis * VERTICES.dynamis.x + w.oikonomia * VERTICES.oikonomia.x + w.techne * VERTICES.techne.x,
+    y: w.dynamis * VERTICES.dynamis.y + w.oikonomia * VERTICES.oikonomia.y + w.techne * VERTICES.techne.y,
+  };
+}
+
+export function EnergyTriangle({ points }: EnergyTriangleProps) {
+  if (points.length === 0) return null;
+
+  // Compute global average weights (observation-count weighted)
+  const totalW = { dynamis: 0, oikonomia: 0, techne: 0 };
+  let totalObs = 0;
+  for (const p of points) {
+    const obs = Math.max(1, p.observation_count);
+    totalW.dynamis   += p.energy_weights.dynamis   * obs;
+    totalW.oikonomia += p.energy_weights.oikonomia * obs;
+    totalW.techne    += p.energy_weights.techne    * obs;
+    totalObs += obs;
+  }
+  const avgWeights: EnergyWeights = {
+    dynamis:   totalW.dynamis   / totalObs,
+    oikonomia: totalW.oikonomia / totalObs,
+    techne:    totalW.techne    / totalObs,
+  };
+  const crosshair = weightsToXY(avgWeights);
+
+  // Rendered as an SVG with a CSS conic/mesh gradient approximation for the interior.
+  // The triangle is 120×104px (equilateral at this scale).
+  // Interior gradient: three radial gradients from each corner, blended with mix-blend-mode.
+  return (
+    <div className="relative" style={{ width: 120, height: 104 }} aria-label="Energy triangle legend">
+      <svg width="120" height="104" viewBox="0 0 120 104">
+        {/* Gradient defs — one radial per corner */}
+        <defs>
+          <radialGradient id="grad-dynamis"   cx="50%" cy="0%"   r="100%">
+            <stop offset="0%" stopColor="#00e5ff" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#00e5ff" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="grad-oikonomia" cx="0%"  cy="100%" r="100%">
+            <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#4f46e5" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="grad-techne"    cx="100%" cy="100%" r="100%">
+            <stop offset="0%" stopColor="#a855f7" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#a855f7" stopOpacity="0" />
+          </radialGradient>
+          <clipPath id="triangle-clip">
+            <polygon points="60,2 2,102 118,102" />
+          </clipPath>
+        </defs>
+
+        {/* Dark base fill */}
+        <polygon points="60,2 2,102 118,102" fill="#0f172a" />
+
+        {/* Layered radial gradients — screen blend for additive color mixing */}
+        <g clipPath="url(#triangle-clip)" style={{ mixBlendMode: 'screen' }}>
+          <rect width="120" height="104" fill="url(#grad-dynamis)" />
+          <rect width="120" height="104" fill="url(#grad-oikonomia)" />
+          <rect width="120" height="104" fill="url(#grad-techne)" />
+        </g>
+
+        {/* Triangle border */}
+        <polygon points="60,2 2,102 118,102" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
+
+        {/* Crosshair at global average */}
+        <circle
+          cx={crosshair.x * 116 + 2}
+          cy={crosshair.y * 100 + 2}
+          r="4"
+          fill="white"
+          opacity="0.9"
+        />
+        <line x1={crosshair.x * 116 + 2 - 7} y1={crosshair.y * 100 + 2} x2={crosshair.x * 116 + 2 + 7} y2={crosshair.y * 100 + 2} stroke="white" strokeWidth="1" opacity="0.7" />
+        <line x1={crosshair.x * 116 + 2} y1={crosshair.y * 100 + 2 - 7} x2={crosshair.x * 116 + 2} y2={crosshair.y * 100 + 2 + 7} stroke="white" strokeWidth="1" opacity="0.7" />
+
+        {/* Vertex labels */}
+        <text x="60" y="0" textAnchor="middle" fill="#00e5ff" fontSize="9" fontWeight="600">Dynamis</text>
+        <text x="2"  y="104" textAnchor="start"  fill="#4f46e5" fontSize="9" fontWeight="600">Oikonomia</text>
+        <text x="118" y="104" textAnchor="end"   fill="#a855f7" fontSize="9" fontWeight="600">Techne</text>
+      </svg>
+    </div>
+  );
+}
+
+export default EnergyTriangle;
+```
+
+**Placement:** Rendered below the `EnergyBar` in `EnergeiaMap.tsx`, only when `colorMode === 'energy_type'`.
 
 ---
 
@@ -587,8 +768,9 @@ The JSONB payload stored in `energeia_cache.payload` gains four new fields. All 
       "status": "completed",
       "observation_count": 5,
 
-      // NEW field
-      "energy_type": "hexis"
+      // NEW fields
+      "energy_weights": { "dynamis": 0.1, "oikonomia": 0.8, "techne": 0.1 },
+      "energy_type": "oikonomia"  // argmax of energy_weights — for filter system
     }
   ],
 
@@ -612,8 +794,15 @@ The JSONB payload stored in `energeia_cache.payload` gains four new fields. All 
 ### Updated TypeScript Types (`src/types/energeia.ts`)
 
 ```typescript
-export type EnergyType = 'dynamis' | 'hexis' | 'techne';
+export type EnergyType = 'dynamis' | 'oikonomia' | 'techne';
 export type BoundaryType = 'internal' | 'external';
+
+export interface EnergyWeights {
+  dynamis:   number;  // 0.0–1.0
+  oikonomia: number;  // 0.0–1.0
+  techne:    number;  // 0.0–1.0
+  // invariant: dynamis + oikonomia + techne ≈ 1.0
+}
 
 export interface ActionPoint {
   id: string;
@@ -629,7 +818,8 @@ export interface ActionPoint {
   action_title: string;
   status: ActionStatus;
   observation_count: number;
-  energy_type: EnergyType;           // NEW — dynamis | hexis | techne
+  energy_weights: EnergyWeights;  // NEW — probability distribution across energy types
+  energy_type: EnergyType;        // NEW — dominant type (argmax of energy_weights)
 }
 
 export interface ClusterInfo {
@@ -639,7 +829,7 @@ export interface ClusterInfo {
   centroid_x: number;
   centroid_y: number;
   centroid_z: number;
-  boundary_type: BoundaryType;       // NEW
+  boundary_type: BoundaryType;  // NEW
 }
 
 export interface EnergeiaSchemaData {
@@ -670,17 +860,17 @@ export interface EnergeiaSchemaData {
 
 ### Property 2: All classification values are valid after labeling
 
-*For any* set of clusters with any action titles, after `labelClusters()` completes (including when Claude returns missing, null, or invalid values), every returned cluster record SHALL have a `boundary_type` that is one of `['internal', 'external']`, and every value in `action_energy_map` SHALL be one of `['growth', 'maintenance', 'process_improvement']`.
+*For any* set of clusters with any action titles, after `labelClusters()` completes (including when Claude returns missing, null, or invalid values), every returned cluster record SHALL have a `boundary_type` that is one of `['internal', 'external']`, and every value in `action_energy_map` SHALL be an object `{ dynamis, oikonomia, techne }` where all three values are non-negative and sum to 1.0 (within ±0.001 floating-point tolerance).
 
-**Validates: Requirements 1.1, 1.5, 1.6, 2.1, 2.5, 2.6**
+**Validates: Requirements 1.1, 1.6, 1.7, 1.8, 2.1, 2.5, 2.6**
 
 ---
 
 ### Property 3: Cache payload preserves all classification fields
 
-*For any* valid refresh pipeline execution (with mocked ML Lambda and Bedrock), every `ActionPoint` in the resulting cache payload SHALL have an `energy_type` field with a valid value, every `ClusterInfo` SHALL have a `boundary_type` field with a valid value, and all pre-existing fields (`id`, `action_id`, `person_id`, `cluster_id`, `x`, `y`, `z`, `bloom_level`, `action_title`, `status`, `observation_count`) SHALL be present and unchanged.
+*For any* valid refresh pipeline execution (with mocked ML Lambda and Bedrock), every `ActionPoint` in the resulting cache payload SHALL have an `energy_weights` field with non-negative values summing to 1.0, an `energy_type` field equal to the argmax of `energy_weights`, every `ClusterInfo` SHALL have a `boundary_type` field with a valid value, and all pre-existing fields (`id`, `action_id`, `person_id`, `cluster_id`, `x`, `y`, `z`, `bloom_level`, `action_title`, `status`, `observation_count`) SHALL be present and unchanged.
 
-**Validates: Requirements 1.4, 2.4, 6.1, 6.2, 6.3**
+**Validates: Requirements 1.4, 1.5, 2.4, 6.1, 6.2, 6.3, 6.4**
 
 ---
 
@@ -718,9 +908,25 @@ export interface EnergeiaSchemaData {
 
 ### Property 8: Energy bar proportions are observation-count weighted and sum to 1
 
-*For any* non-empty list of action points with arbitrary `energy_type` values and `observation_count` values (including zero), the `EnergyBar` component SHALL compute proportions such that: (a) each proportion equals the sum of `max(1, observation_count)` for that energy type divided by the total weight across all points, and (b) the three proportions sum to 1.0 (within floating-point tolerance). Action points with `observation_count` of zero SHALL contribute a weight of 1 to their energy type segment.
+*For any* non-empty list of action points with arbitrary `energy_weights` values and `observation_count` values (including zero), the `EnergyBar` component SHALL compute proportions such that: (a) each proportion equals `sum(energy_weights[type] * max(1, observation_count))` for that energy type divided by the total weighted sum across all points and all types, and (b) the three proportions sum to 1.0 (within floating-point tolerance).
 
 **Validates: Requirements 5.3, 5.4**
+
+---
+
+### Property 9: Barycentric color is a valid convex combination of corner colors
+
+*For any* `EnergyWeights` vector where all values are non-negative and sum to 1.0, `barycentricColor(weights)` SHALL return an RGB color that lies within the convex hull of the three corner colors in linear RGB space. Specifically, each channel of the result SHALL equal `w_d * corner_d[channel] + w_o * corner_o[channel] + w_t * corner_t[channel]`.
+
+**Validates: Requirements 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7**
+
+---
+
+### Property 10: Energy triangle crosshair position is the observation-weighted mean of all point positions
+
+*For any* non-empty list of action points, the crosshair position in the `EnergyTriangle` component SHALL equal the barycentric coordinates computed as `sum(energy_weights[i] * max(1, obs_count[i])) / total_obs` for each energy type, which maps to a Cartesian position via the same `weightsToXY` transform used for individual points.
+
+**Validates: Requirements 10.4**
 
 ---
 
@@ -732,9 +938,11 @@ export interface EnergeiaSchemaData {
 |---|---|
 | Claude returns malformed JSON | Existing try/catch in `labelClusters` catches `JSON.parse` error; fallback label returned with `boundary_type: 'internal'` and empty `action_energy_map` |
 | Claude omits `boundary_type` | Validated post-parse; defaults to `'internal'` |
-| Claude omits action title from `action_energy_map` | Validated per-title; defaults to `'maintenance'` |
+| Claude omits action title from `action_energy_map` | Validated per-title; defaults to `{ dynamis: 0, oikonomia: 1, techne: 0 }` |
 | Claude returns invalid `boundary_type` value | Set membership check; defaults to `'internal'` |
-| Claude returns invalid `energy_type` value | Set membership check; defaults to `'maintenance'` |
+| Claude returns weights that don't sum to 1.0 | Normalized by dividing each by their sum |
+| Claude returns negative weight values | Clamped to 0 before normalization |
+| Claude returns all-zero weights | Sum < 0.01 guard; defaults to `{ dynamis: 0, oikonomia: 1, techne: 0 }` |
 | Bedrock network error | Existing per-cluster try/catch; fallback label used, pipeline continues |
 
 ### Lambda (refresh.js — spatial separation)
@@ -789,22 +997,26 @@ Each property test runs a minimum of 100 iterations.
 | Property | Test file | Generator |
 |---|---|---|
 | P1: Invocation count | `bedrockClient.property.test.ts` | `fc.array(fc.record({ id: fc.nat(), actionTitles: fc.array(fc.string()) }), { minLength: 1, maxLength: 10 })` |
-| P2: Valid classification values | `bedrockClient.property.test.ts` | Random clusters + mocked Bedrock returning arbitrary/invalid strings |
+| P2: Valid classification values | `bedrockClient.property.test.ts` | Random clusters + mocked Bedrock returning arbitrary/invalid weight objects |
 | P3: Cache payload integrity | `refresh.property.test.ts` | Random action sets with mocked ML Lambda + Bedrock |
 | P4: Center of mass | `spatialSeparation.property.test.ts` | `fc.array(fc.record({ x: fc.float(), y: fc.float(), z: fc.float() }), { minLength: 1 })` |
 | P5: Membrane boundary distance | `spatialSeparation.property.test.ts` | Same generator as P4 |
 | P6: External centroids at boundary | `spatialSeparation.property.test.ts` | Random mixed internal/external cluster configs |
 | P7: Uniform cluster displacement | `spatialSeparation.property.test.ts` | Random external cluster with multiple points |
-| P8: Energy bar proportions | `EnergyBar.property.test.ts` | `fc.array(fc.record({ energy_type: fc.constantFrom('dynamis','hexis','techne'), observation_count: fc.nat() }), { minLength: 1 })` |
+| P8: Energy bar proportions | `EnergyBar.property.test.ts` | `fc.array(fc.record({ energy_weights: fc.record({ dynamis: fc.float({min:0,max:1}), oikonomia: fc.float({min:0,max:1}), techne: fc.float({min:0,max:1}) }), observation_count: fc.nat() }), { minLength: 1 })` |
+| P9: Barycentric color convex hull | `ActionPointCloud.property.test.ts` | `fc.record({ dynamis: fc.float({min:0,max:1}), oikonomia: fc.float({min:0,max:1}), techne: fc.float({min:0,max:1}) })` (normalized) |
+| P10: Triangle crosshair position | `EnergyTriangle.property.test.ts` | Same generator as P8 |
 
 ### Integration Tests
 
-- Full `refresh()` handler with real PostgreSQL (test DB) and mocked Bedrock/ML Lambda — verify cache payload shape end-to-end
-- `GET /api/energeia/schema` — verify response includes `center_of_mass`, `membrane_boundary_distance`, `energy_type` on points, `boundary_type` on clusters
+- Full `refresh()` handler with real PostgreSQL (test DB) and mocked Bedrock/ML Lambda — verify cache payload shape end-to-end, including `energy_weights` summing to 1.0 and `energy_type` matching argmax
+- `GET /api/energeia/schema` — verify response includes `center_of_mass`, `membrane_boundary_distance`, `energy_weights` and `energy_type` on points, `boundary_type` on clusters
 
 ### Visual / Manual Tests
 
 - Membrane renders as a single merged blob (not multiple bubbles) when multiple internal clusters are present
-- External action points appear visually desaturated compared to internal points
+- External action points appear visually desaturated compared to internal points in non-energy_type modes
+- In `energy_type` mode, nodes show chromatic blends — a mixed action appears as a color between its dominant types
 - Energy bar segments are proportionally sized and labeled
 - Membrane is semi-transparent and action points are visible through it
+- Energy triangle shows a smooth gradient interior and crosshair at the correct global average position

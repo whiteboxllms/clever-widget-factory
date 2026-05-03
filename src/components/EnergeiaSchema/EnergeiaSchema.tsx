@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Loader2, RefreshCw } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import * as THREE from 'three';
 import { useEnergeiaSchema } from '@/hooks/useEnergeiaSchema';
 import type { EnergeiaFilters, EnergyType } from '@/types/energeia';
+import { buildPersonColorMap } from './ActionPointCloud';
+import { KinesisBar } from './KinesisBar';
 import { EnergeiaEmptyState } from './EnergeiaEmptyState';
-// EnergeiaMap and EnergeiaControls will be implemented in later tasks
 import { EnergeiaMap } from './EnergeiaMap';
 import { EnergeiaControls } from './EnergeiaControls';
 
@@ -30,7 +30,6 @@ export function EnergeiaSchema({ startDate, endDate, selectedUsers }: EnergeiaSc
     sizeMetric: 'observation_count',
   });
 
-  // Once data loads, initialize personIds to all people so the filter is explicit
   useEffect(() => {
     if (!data) return;
     const allIds = Array.from(new Set(data.points.map((p) => p.person_id)));
@@ -48,77 +47,151 @@ export function EnergeiaSchema({ startDate, endDate, selectedUsers }: EnergeiaSc
     window.location.href = `/actions/${actionId}`;
   };
 
+  // Build person color map by encounter order — stable across Map and Controls
+  const personColorMap = useMemo(() => {
+    if (!data) return new Map<string, string>();
+    const seen = new Map<string, string>();
+    for (const p of data.points) {
+      if (!seen.has(p.person_id)) seen.set(p.person_id, p.person_name);
+    }
+    return buildPersonColorMap(Array.from(seen.keys()));
+  }, [data]);
+
+  // Camera and canvas refs shared between EnergeiaMap and EnergeiaControls for HUD lines
+  const cameraRef = useRef<THREE.Camera | null>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const handleCamera = useCallback((cam: THREE.Camera) => { cameraRef.current = cam; }, []);
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col gap-1">
-            <CardTitle>The Energeia Schema</CardTitle>
-            {computedAt && (
-              <p className="text-sm text-muted-foreground">
-                Computed {new Date(computedAt).toLocaleString()}
-              </p>
-            )}
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
+    <div className="relative rounded-xl overflow-hidden" style={{ background: '#050510' }}>
+
+      {isEmpty && !isRefreshing ? (
+        <EnergeiaEmptyState />
+      ) : (
+        <div className="relative">
+
+          {/* ── Canvas / starfield ── */}
+          {data && (
+            <EnergeiaMap
+              points={data.points}
+              clusters={data.clusters}
+              colorMode={colorMode}
+              filters={filters}
+              activeEnergyFilter={activeEnergyFilter}
+              onActiveEnergyFilterChange={setActiveEnergyFilter}
+              onPointClick={handlePointClick}
+              membraneBoundaryDistance={data.membrane_boundary_distance ?? 0}
+              personColorMap={personColorMap}
+              onCamera={handleCamera}
+              canvasContainerRef={canvasContainerRef}
+            />
+          )}
+
+          {/* ── Header overlay — floats above the starfield ── */}
+          <div
+            className="absolute top-0 left-0 right-0 z-20 flex items-start justify-between px-5 pt-4 pb-10 pointer-events-none"
+            style={{
+              background: 'linear-gradient(to bottom, rgba(5,5,16,0.85) 0%, rgba(5,5,16,0.4) 60%, transparent 100%)',
+            }}
           >
-            {isRefreshing ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-            Refresh
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {isEmpty && !isRefreshing ? (
-          <EnergeiaEmptyState />
-        ) : (
-          <div className="relative">
-            {/* Loading spinner overlay — keeps existing visualization visible while refreshing */}
-            {isRefreshing && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 rounded-md">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            )}
-            {data && (
-              <>
-                <EnergeiaMap
-                  points={data.points}
-                  clusters={data.clusters}
-                  colorMode={colorMode}
-                  filters={filters}
-                  activeEnergyFilter={activeEnergyFilter}
-                  onActiveEnergyFilterChange={setActiveEnergyFilter}
-                  onPointClick={handlePointClick}
-                  membraneBoundaryDistance={data.membrane_boundary_distance ?? 0}
-                />
-                <EnergeiaControls
-                  k={k}
-                  onKChange={setK}
-                  reductionMethod={reductionMethod}
-                  onReductionMethodChange={setReductionMethod}
-                  colorMode={colorMode}
-                  onColorModeChange={setColorMode}
-                  filters={filters}
-                  onFiltersChange={setFilters}
-                  points={data.points}
-                  clusters={data.clusters}
-                  lastComputedK={data.k}
-                  lastComputedReductionMethod={data.reduction_method}
-                  lastComputedTimeWindowDays={data.time_window_days}
-                />
-              </>
-            )}
+            {/* Title + timestamp */}
+            <div className="flex flex-col gap-0.5">
+              <h2
+                className="text-white font-semibold tracking-tight"
+                style={{ fontSize: '1.05rem', letterSpacing: '-0.01em' }}
+              >
+                The Energeia Schema
+              </h2>
+              {computedAt && (
+                <span
+                  className="text-cyan-400/60"
+                  style={{
+                    fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace',
+                    fontSize: '0.68rem',
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  ◈ COMPUTED {new Date(computedAt).toLocaleString().toUpperCase()}
+                </span>
+              )}
+            </div>
+
+            {/* Refresh button — re-enable pointer events just for this element */}
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-50"
+              style={{
+                background: 'rgba(0,229,255,0.08)',
+                border: '1px solid rgba(0,229,255,0.25)',
+                color: '#00e5ff',
+                backdropFilter: 'blur(8px)',
+                boxShadow: '0 0 12px rgba(0,229,255,0.1)',
+              }}
+              aria-label="Refresh Energeia Schema"
+            >
+              {isRefreshing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              Refresh
+            </button>
           </div>
-        )}
-      </CardContent>
-    </Card>
+
+          {/* ── Kinesis bar — liquid energy compass below header ── */}
+          {data && (
+            <div className="absolute left-0 right-0 z-20 pointer-events-auto" style={{ top: 56 }}>
+              <KinesisBar
+                points={data.points}
+                activeEnergyFilter={activeEnergyFilter}
+                onFilterChange={setActiveEnergyFilter}
+              />
+            </div>
+          )}
+
+          {/* ── Refreshing overlay ── */}
+          {isRefreshing && (
+            <div className="absolute inset-0 z-30 flex items-center justify-center"
+              style={{ background: 'rgba(5,5,16,0.5)', backdropFilter: 'blur(2px)' }}
+            >
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
+                <span
+                  className="text-cyan-400/70 text-xs tracking-widest uppercase"
+                  style={{ fontFamily: 'ui-monospace, monospace' }}
+                >
+                  Computing schema…
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* ── Controls ── */}
+          {data && (
+            <EnergeiaControls
+              k={k}
+              onKChange={setK}
+              reductionMethod={reductionMethod}
+              onReductionMethodChange={setReductionMethod}
+              colorMode={colorMode}
+              onColorModeChange={setColorMode}
+              filters={filters}
+              onFiltersChange={setFilters}
+              points={data.points}
+              clusters={data.clusters}
+              lastComputedK={data.k}
+              lastComputedReductionMethod={data.reduction_method}
+              lastComputedTimeWindowDays={data.time_window_days}
+              personColorMap={personColorMap}
+              camera={cameraRef.current ?? undefined}
+              canvasRef={canvasContainerRef}
+            />
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

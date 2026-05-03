@@ -1,0 +1,8 @@
+diff --git a/node_modules/tailwindcss/lib/lib/expandApplyAtRules.js b/node_modules/tailwindcss/lib/lib/expandApplyAtRules.js
+--- a/node_modules/tailwindcss/lib/lib/expandApplyAtRules.js
++++ b/node_modules/tailwindcss/lib/lib/expandApplyAtRules.js
+@@ -363,6 +363,8 @@ function processApply(root, context, localCache) {
+         let [applyCandidates, important] = extractApplyCandidates(apply.params);
++        // Skip @apply rules with no candidates or empty candidates (PostCSS 8.5+ compat)
++        if (applyCandidates.length === 0 || (applyCandidates.length === 1 && applyCandidates[0] === '')) continue;
+         if (apply.parent.type === "atrule") {

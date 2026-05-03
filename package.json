@@ -6,7 +6,11 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "postinstall": "node scripts/apply-patches.js"
+  },
+  "overrides": {
+    "postcss": "8.4.49"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.975.0",

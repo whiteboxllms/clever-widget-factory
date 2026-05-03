@@ -1,15 +1,18 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Stars } from '@react-three/drei';
+import * as THREE from 'three';
 import type { ActionPoint, ClusterInfo, EnergeiaFilters, EnergyType } from '@/types/energeia';
 import { ActionPointCloud } from './ActionPointCloud';
 import { CentroidStars } from './CentroidStars';
 import { HoverTooltip } from './HoverTooltip';
 import { MembraneShell } from './MembraneShell';
-import { EnergyBar } from './EnergyBar';
+import { EnergyTriangle } from './EnergyTriangle';
 import { SceneControls } from './SceneControls';
 import { VelocityStreaks } from './VelocityStreaks';
 import { OikonomiaBackground } from './OikonomiaBackground';
+import { CameraCapture } from './CameraCapture';
+import { TacticalLegend } from './TacticalLegend';
 
 interface EnergeiaMapProps {
   points: ActionPoint[];
@@ -20,7 +23,12 @@ interface EnergeiaMapProps {
   onActiveEnergyFilterChange: (type: EnergyType | null) => void;
   onPointClick: (actionId: string) => void;
   membraneBoundaryDistance: number;
+  personColorMap?: Map<string, string>;
+  onCamera?: (cam: THREE.Camera) => void;
+  canvasContainerRef?: React.RefObject<HTMLDivElement>;
 }
+
+const CANVAS_HEIGHT = 560;
 
 export function EnergeiaMap({
   points,
@@ -31,9 +39,20 @@ export function EnergeiaMap({
   onActiveEnergyFilterChange,
   onPointClick,
   membraneBoundaryDistance,
+  personColorMap,
+  onCamera: onCameraProp,
+  canvasContainerRef: externalCanvasRef,
 }: EnergeiaMapProps) {
   const [hoveredPoint, setHoveredPoint] = useState<ActionPoint | null>(null);
   const [hoveredCluster, setHoveredCluster] = useState<ClusterInfo | null>(null);
+  const cameraRef = useRef<THREE.Camera | null>(null);
+  const internalCanvasRef = useRef<HTMLDivElement>(null);
+  const canvasContainerRef = externalCanvasRef ?? internalCanvasRef;
+
+  const handleCamera = useCallback((cam: THREE.Camera) => {
+    cameraRef.current = cam;
+    onCameraProp?.(cam);
+  }, [onCameraProp]);
 
   const filteredPoints = points.filter((point) => {
     if (!filters.personIds.includes(point.person_id)) return false;
@@ -44,20 +63,18 @@ export function EnergeiaMap({
 
   return (
     <div>
-      {/* Energy bar uses full unfiltered points — always reflects the org-wide picture */}
-      <EnergyBar
-        points={points}
-        activeEnergyFilter={activeEnergyFilter}
-        onSegmentClick={onActiveEnergyFilterChange}
-      />
-
-      <div className="relative" style={{ height: '600px' }}>
+      {/* ── Canvas + overlays ── */}
+      <div
+        ref={canvasContainerRef}
+        className="relative"
+        style={{ height: CANVAS_HEIGHT }}
+      >
         <Canvas
           camera={{ position: [0, 0, 30], fov: 60 }}
-          style={{ height: '600px' }}
-          gl={{ antialias: true, toneMapping: 4 /* ACESFilmicToneMapping */ }}
+          style={{ height: CANVAS_HEIGHT }}
+          gl={{ antialias: true, toneMapping: 4 }}
         >
-          {/* Oikonomia: ambient light + background color shift based on energy ratios */}
+          <CameraCapture onCamera={handleCamera} />
           <OikonomiaBackground points={points} />
           <pointLight position={[10, 10, 10]} intensity={1} />
           <Stars radius={100} depth={50} count={3000} factor={4} fade />
@@ -70,16 +87,38 @@ export function EnergeiaMap({
             colorMode={colorMode}
             sizeMetric={filters.sizeMetric}
             activeEnergyFilter={activeEnergyFilter}
+            personColorMap={personColorMap}
             onHover={setHoveredPoint}
             onPointClick={onPointClick}
           />
 
-          {/* Velocity streaks — comet tails on in_progress points */}
           <VelocityStreaks points={filteredPoints} clusters={clusters} />
-
-          <CentroidStars clusters={clusters} onHover={setHoveredCluster} />
           <SceneControls />
         </Canvas>
+
+        {/* HUD lines from TacticalLegend — rendered as absolute SVG overlay */}
+        <TacticalLegend
+          colorMode={colorMode}
+          points={filteredPoints}
+          clusters={clusters}
+          personColorMap={personColorMap}
+          camera={cameraRef.current ?? undefined}
+          canvasRef={canvasContainerRef}
+          canvasHeight={CANVAS_HEIGHT}
+          hudOnly
+        />
+
+        {/* Energy triangle — only in energy_type mode */}
+        {colorMode === 'energy_type' && (
+          <div className="absolute bottom-4 right-4 z-10">
+            <EnergyTriangle
+              points={points}
+              activeEnergyFilter={activeEnergyFilter}
+              onFilterChange={onActiveEnergyFilterChange}
+            />
+          </div>
+        )}
+
         <HoverTooltip
           hoveredPoint={hoveredPoint}
           hoveredCluster={hoveredCluster}

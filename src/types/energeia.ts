@@ -8,6 +8,12 @@ export type EnergyType = 'dynamis' | 'oikonomia' | 'techne';
 
 export type BoundaryType = 'internal' | 'external';
 
+export interface EnergyWeights {
+  dynamis: number;
+  oikonomia: number;
+  techne: number;
+}
+
 export interface ActionPoint {
   id: string;              // "{action_id}::{person_id}"
   action_id: string;
@@ -22,7 +28,8 @@ export interface ActionPoint {
   action_title: string;
   status: ActionStatus;
   observation_count: number;
-  energy_type: EnergyType;      // dynamis | oikonomia | techne
+  energy_weights: EnergyWeights; // { dynamis, oikonomia, techne } summing to 1.0
+  energy_type: EnergyType;       // dominant type — argmax of energy_weights
 }
 
 export interface ClusterInfo {

@@ -243,11 +243,25 @@ async function refresh(pool, organizationId, body) {
   const clusterLabels = await bedrockClient.labelClusters(clustersForLabeling);
   const labelMap = new Map(clusterLabels.map((l) => [l.id, l]));
 
-  // --- 8a. Build title → energy_type map for O(1) lookup ---
-  const titleEnergyMap = new Map();
+  // --- 8a. Build title → energy_weights map for O(1) lookup (Req 1.4, 1.5) ---
+  const DEFAULT_WEIGHTS = { dynamis: 0, oikonomia: 1, techne: 0 };
+
+  /**
+   * Derive the dominant energy type (argmax) from a weights vector.
+   * @param {{ dynamis: number, oikonomia: number, techne: number }} weights
+   * @returns {'dynamis' | 'oikonomia' | 'techne'}
+   */
+  function dominantEnergyType(weights) {
+    const { dynamis, oikonomia, techne } = weights;
+    if (dynamis >= oikonomia && dynamis >= techne) return 'dynamis';
+    if (techne >= oikonomia) return 'techne';
+    return 'oikonomia';
+  }
+
+  const titleEnergyMap = new Map(); // actionTitle → { dynamis, oikonomia, techne }
   for (const label of clusterLabels) {
-    for (const [title, energyType] of Object.entries(label.action_energy_map || {})) {
-      titleEnergyMap.set(title, energyType);
+    for (const [title, weights] of Object.entries(label.action_energy_map || {})) {
+      titleEnergyMap.set(title, weights);
     }
   }
 
@@ -310,7 +324,8 @@ async function refresh(pool, organizationId, body) {
   // --- 12. Assemble ActionPoint[] ---
   const points = actionPoints.map((ap, i) => {
     const [x, y, z] = separatedCoords[i];
-    const energyType = titleEnergyMap.get(ap.actionTitle) ?? 'oikonomia';
+    const energyWeights = titleEnergyMap.get(ap.actionTitle) ?? DEFAULT_WEIGHTS;
+    const energyType = dominantEnergyType(energyWeights);  // argmax for filter system (Req 1.5)
     return {
       id: `${ap.actionId}::${ap.personId}`,
       action_id: ap.actionId,
@@ -323,7 +338,8 @@ async function refresh(pool, organizationId, body) {
       action_title: ap.actionTitle,
       status: ap.status,
       observation_count: ap.observationCount,
-      energy_type: energyType
+      energy_weights: energyWeights,  // { dynamis, oikonomia, techne } summing to 1 (Req 6.1)
+      energy_type: energyType         // dominant type — argmax of energy_weights (Req 6.2)
     };
   });
 

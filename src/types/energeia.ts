@@ -1,8 +1,12 @@
 // Energeia Schema Types - Shared types for the Energeia Schema visualization feature
 
-export type ActionStatus = 'not_started' | 'in_progress' | 'completed' | 'blocked';
+export type ActionStatus = 'not_started' | 'in_progress' | 'completed';
 
 export type SizeMetric = 'bloom_level' | 'observation_count';
+
+export type EnergyType = 'dynamis' | 'oikonomia' | 'techne';
+
+export type BoundaryType = 'internal' | 'external';
 
 export interface ActionPoint {
   id: string;              // "{action_id}::{person_id}"
@@ -18,6 +22,7 @@ export interface ActionPoint {
   action_title: string;
   status: ActionStatus;
   observation_count: number;
+  energy_type: EnergyType;      // dynamis | oikonomia | techne
 }
 
 export interface ClusterInfo {
@@ -27,6 +32,7 @@ export interface ClusterInfo {
   centroid_x: number;
   centroid_y: number;
   centroid_z: number;
+  boundary_type: BoundaryType;  // internal | external
 }
 
 export interface EnergeiaSchemaData {
@@ -34,6 +40,8 @@ export interface EnergeiaSchemaData {
   k: number;
   time_window_days: number;
   reduction_method: 'pca' | 'tsne';
+  center_of_mass: { x: number; y: number; z: number };
+  membrane_boundary_distance: number;
   points: ActionPoint[];
   clusters: ClusterInfo[];
 }

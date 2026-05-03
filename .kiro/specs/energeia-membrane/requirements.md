@@ -13,10 +13,10 @@ The feature builds directly on the existing pipeline: the same Claude labeling c
 - **Action_Point**: A single rendered point representing one action-person relationship, as defined in the existing system.
 - **Cluster**: A group of Action_Points with similar embedding vectors, as defined in the existing system.
 - **Cluster_Centroid**: The mean 3D position of a Cluster's Action_Points after PCA reduction and normalization, as defined in the existing system.
-- **Energy_Type**: The per-action classification assigned by Claude — one of `growth`, `maintenance`, or `process_improvement`.
-  - `growth` — activities that expand capability, revenue, or reach.
-  - `maintenance` — activities that sustain existing operations.
-  - `process_improvement` — activities that improve how work is done.
+- **Energy_Type**: The per-action classification assigned by Claude — one of `dynamis`, `hexis`, or `techne`.
+  - `dynamis` — activities that expand capability, revenue, or reach (Aristotle's concept of potential).
+  - `hexis` — activities that sustain existing operations (Aristotle's concept of stable disposition).
+  - `techne` — activities that improve how work is done (Aristotle's concept of craft and skilled making).
 - **Boundary_Type**: The per-cluster classification assigned by Claude — one of `internal` or `external`.
   - `internal` — clusters representing core operations of the organization (e.g. Poultry Care, Agriculture, Food Production).
   - `external` — clusters representing interactions with outside entities (e.g. Compliance, Government, Vendors, Purchases).
@@ -41,12 +41,12 @@ The feature builds directly on the existing pipeline: the same Claude labeling c
 
 #### Acceptance Criteria
 
-1. WHEN a Refresh is triggered, THE Labeling_Pipeline SHALL classify every action in the dataset with an Energy_Type of `growth`, `maintenance`, or `process_improvement`.
+1. WHEN a Refresh is triggered, THE Labeling_Pipeline SHALL classify every action in the dataset with an Energy_Type of `dynamis`, `hexis`, or `techne`.
 2. THE Labeling_Pipeline SHALL perform per-action Energy_Type classification within the same Claude invocation that generates the cluster title and description, passing all action titles in the cluster to Claude in a single request.
 3. THE Labeling_Pipeline SHALL instruct Claude to return one Energy_Type per action title, keyed by action title, alongside the cluster-level title and description in the same JSON response.
 4. THE Labeling_Pipeline SHALL store the Energy_Type on each Action_Point in the Energeia_Cache payload.
-5. IF Claude does not return an Energy_Type for a specific action, THEN THE Labeling_Pipeline SHALL assign that action a default Energy_Type of `maintenance` and continue without failing.
-6. IF Claude returns an Energy_Type value that is not one of `growth`, `maintenance`, or `process_improvement`, THEN THE Labeling_Pipeline SHALL assign that action a default Energy_Type of `maintenance`.
+5. IF Claude does not return an Energy_Type for a specific action, THEN THE Labeling_Pipeline SHALL assign that action a default Energy_Type of `hexis` and continue without failing.
+6. IF Claude returns an Energy_Type value that is not one of `dynamis`, `hexis`, or `techne`, THEN THE Labeling_Pipeline SHALL assign that action a default Energy_Type of `hexis`.
 7. THE Labeling_Pipeline SHALL NOT make a separate Claude invocation solely for Energy_Type classification — it SHALL be part of the existing cluster labeling call.
 
 ---
@@ -110,10 +110,10 @@ The feature builds directly on the existing pipeline: the same Claude labeling c
 #### Acceptance Criteria
 
 1. THE Energeia_Schema SHALL display an Energy_Bar as a horizontal bar positioned above the Energeia_Map canvas.
-2. THE Energy_Bar SHALL contain three segments: Growth (green), Maintenance (amber), and Process Improvement (blue).
+2. THE Energy_Bar SHALL contain three segments: Dynamis (electric cyan), Hexis (indigo), and Techne (violet/magenta).
 3. THE Energy_Bar SHALL compute each segment's proportion by summing the Observation_Count of all Action_Points classified with that Energy_Type, then dividing by the total Observation_Count across all Action_Points.
 4. WHEN an Action_Point has an Observation_Count of zero, THE Energy_Bar SHALL count that Action_Point as contributing a weight of 1 to its Energy_Type segment, so that actions with no observations are not invisible in the allocation.
-5. THE Energy_Bar SHALL display the percentage for each segment as a label within or adjacent to that segment (e.g. "Growth 45%").
+5. THE Energy_Bar SHALL display the percentage for each segment as a label within or adjacent to that segment (e.g. "Dynamis 45%").
 6. THE Energy_Bar SHALL display no absolute units — proportions only.
 7. WHEN a Refresh completes and new cache data is loaded, THE Energy_Bar SHALL update to reflect the new Energy_Type distribution.
 8. WHEN no Energeia_Cache exists, THE Energy_Bar SHALL NOT be rendered.
@@ -142,7 +142,7 @@ The feature builds directly on the existing pipeline: the same Claude labeling c
 
 #### Acceptance Criteria
 
-1. THE `ActionPoint` TypeScript interface SHALL include an `energy_type` field typed as `'growth' | 'maintenance' | 'process_improvement'`.
+1. THE `ActionPoint` TypeScript interface SHALL include an `energy_type` field typed as `'dynamis' | 'hexis' | 'techne'`.
 2. THE `ClusterInfo` TypeScript interface SHALL include a `boundary_type` field typed as `'internal' | 'external'`.
 3. THE `EnergeiaSchemaData` TypeScript interface SHALL include a `center_of_mass` field typed as `{ x: number; y: number; z: number }`.
 4. THE `EnergeiaSchemaData` TypeScript interface SHALL include a `membrane_boundary_distance` field typed as `number`.

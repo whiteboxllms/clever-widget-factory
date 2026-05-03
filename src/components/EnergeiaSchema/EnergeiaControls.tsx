@@ -10,15 +10,14 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import type { ActionPoint, ActionStatus, ClusterInfo, EnergeiaFilters } from '@/types/energeia';
-import { CLUSTER_COLORS, hashColor } from './ActionPointCloud';
+import { CLUSTER_COLORS, hashColor, STATUS_COLORS, ENERGY_TYPE_COLORS } from './ActionPointCloud';
 
-const ALL_STATUSES: ActionStatus[] = ['not_started', 'in_progress', 'completed', 'blocked'];
+const ALL_STATUSES: ActionStatus[] = ['not_started', 'in_progress', 'completed'];
 
 const STATUS_LABELS: Record<ActionStatus, string> = {
   not_started: 'Not started',
   in_progress: 'In progress',
   completed: 'Completed',
-  blocked: 'Blocked',
 };
 
 const TIME_WINDOW_OPTIONS = [
@@ -34,8 +33,8 @@ interface EnergeiaControlsProps {
   onKChange: (k: number) => void;
   reductionMethod: 'pca' | 'tsne';
   onReductionMethodChange: (method: 'pca' | 'tsne') => void;
-  colorMode: 'cluster' | 'person' | 'accountable';
-  onColorModeChange: (mode: 'cluster' | 'person' | 'accountable') => void;
+  colorMode: 'cluster' | 'person' | 'accountable' | 'status' | 'energy_type';
+  onColorModeChange: (mode: 'cluster' | 'person' | 'accountable' | 'status' | 'energy_type') => void;
   filters: EnergeiaFilters;
   onFiltersChange: (filters: EnergeiaFilters) => void;
   points: ActionPoint[];
@@ -75,6 +74,21 @@ export function EnergeiaControls({
         label: c.title,
       }));
     }
+    if (colorMode === 'status') {
+      return [
+        { color: STATUS_COLORS.completed,   label: 'Completed' },
+        { color: STATUS_COLORS.in_progress, label: 'In progress' },
+        { color: STATUS_COLORS.not_started, label: 'Not started' },
+      ];
+    }
+    if (colorMode === 'energy_type') {
+      return [
+        { color: ENERGY_TYPE_COLORS.dynamis,   label: 'Dynamis · The Spark' },
+        { color: ENERGY_TYPE_COLORS.oikonomia, label: 'Oikonomia · The Hearth' },
+        { color: ENERGY_TYPE_COLORS.techne,    label: 'Techne · The Tool' },
+      ];
+    }
+    // person or accountable
     const seen = new Map<string, string>();
     for (const point of points) {
       if (!seen.has(point.person_id)) seen.set(point.person_id, point.person_name);
@@ -171,7 +185,7 @@ export function EnergeiaControls({
         <Label className="text-sm font-medium">Color by</Label>
         <Select
           value={colorMode}
-          onValueChange={(value) => onColorModeChange(value as 'cluster' | 'person' | 'accountable')}
+          onValueChange={(value) => onColorModeChange(value as 'cluster' | 'person' | 'accountable' | 'status' | 'energy_type')}
         >
           <SelectTrigger className="w-44" aria-label="Color mode">
             <SelectValue />
@@ -180,6 +194,8 @@ export function EnergeiaControls({
             <SelectItem value="cluster">Cluster</SelectItem>
             <SelectItem value="person">Person</SelectItem>
             <SelectItem value="accountable">Accountable Person</SelectItem>
+            <SelectItem value="status">Status</SelectItem>
+            <SelectItem value="energy_type">Aristotelian Energy</SelectItem>
           </SelectContent>
         </Select>
       </div>

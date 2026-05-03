@@ -191,16 +191,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
   const canSwitchOrganization = (allMemberships?.length || 0) > 1;
 
-  // Debug logging - remove after confirming switcher works
-  console.log('[OrgProvider]', {
-    allMemberships: allMemberships?.length,
-    membershipOrgIds: allMemberships?.map((m: any) => m.organization_id),
-    accessibleOrganizations: accessibleOrganizations.length,
-    canSwitchOrganization,
-    effectiveOrgId,
-    orgsLoaded,
-  });
-
   return (
     <OrganizationContext.Provider value={{
       organization: effectiveOrganization,

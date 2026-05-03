@@ -3,7 +3,7 @@ import { Loader2, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useEnergeiaSchema } from '@/hooks/useEnergeiaSchema';
-import type { EnergeiaFilters } from '@/types/energeia';
+import type { EnergeiaFilters, EnergyType } from '@/types/energeia';
 import { EnergeiaEmptyState } from './EnergeiaEmptyState';
 // EnergeiaMap and EnergeiaControls will be implemented in later tasks
 import { EnergeiaMap } from './EnergeiaMap';
@@ -20,11 +20,12 @@ export function EnergeiaSchema({ startDate, endDate, selectedUsers }: EnergeiaSc
 
   const [k, setK] = useState(8);
   const [reductionMethod, setReductionMethod] = useState<'pca' | 'tsne'>('pca');
-  const [colorMode, setColorMode] = useState<'cluster' | 'person' | 'accountable'>('cluster');
+  const [colorMode, setColorMode] = useState<'cluster' | 'person' | 'accountable' | 'status' | 'energy_type'>('energy_type');
+  const [activeEnergyFilter, setActiveEnergyFilter] = useState<EnergyType | null>(null);
   const [filters, setFilters] = useState<EnergeiaFilters>({
     personIds: [],
     relationshipTypes: ['assigned', 'participant'],
-    statuses: ['not_started', 'in_progress', 'completed', 'blocked'],
+    statuses: ['in_progress', 'completed'],
     timeWindowDays: 30,
     sizeMetric: 'observation_count',
   });
@@ -92,7 +93,10 @@ export function EnergeiaSchema({ startDate, endDate, selectedUsers }: EnergeiaSc
                   clusters={data.clusters}
                   colorMode={colorMode}
                   filters={filters}
+                  activeEnergyFilter={activeEnergyFilter}
+                  onActiveEnergyFilterChange={setActiveEnergyFilter}
                   onPointClick={handlePointClick}
+                  membraneBoundaryDistance={data.membrane_boundary_distance ?? 0}
                 />
                 <EnergeiaControls
                   k={k}
